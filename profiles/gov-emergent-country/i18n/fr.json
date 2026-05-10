@@ -1,0 +1,36 @@
+{
+  "_meta": {
+    "locale": "fr",
+    "name": "Français",
+    "status": "stub — to be populated by Phase D from TaxasGE translations + extended with treasury V1.1 keys"
+  },
+  "common": {
+    "app_name": "Portail des Services Gouvernementaux",
+    "loading": "Chargement…",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "submit": "Soumettre",
+    "delete": "Supprimer",
+    "back": "Retour",
+    "next": "Suivant",
+    "search": "Rechercher"
+  },
+  "auth": {
+    "login": "Se connecter",
+    "logout": "Se déconnecter",
+    "email": "Adresse email",
+    "password": "Mot de passe",
+    "mfa_code": "Code de vérification",
+    "ldap_login": "Connexion avec compte institutionnel",
+    "keycloak_login": "Connexion avec SSO institutionnel"
+  },
+  "treasury": {
+    "_comment": "Stub — populated by Phase Q + R + T",
+    "iui_label": "Identifiant unique de recette",
+    "iug_label": "Identifiant unique de dépense",
+    "pce_code": "Code PCE-GE",
+    "audit_chain_verify": "Vérifier l'authenticité",
+    "recours_submit": "Soumettre une réclamation",
+    "offline_mode": "Mode hors-ligne"
+  }
+}

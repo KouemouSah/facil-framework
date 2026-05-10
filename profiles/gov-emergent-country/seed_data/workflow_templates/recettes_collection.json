@@ -1,0 +1,75 @@
+{
+  "$schema": "https://facil.io/schema/workflow_template.json",
+  "id": "treasury_recettes_collection",
+  "name": "Treasury — Revenue Collection (PIMEPE-style)",
+  "description": "Workflow for collecting public revenue: from initial declaration by an authorized agent through ERP posting and citizen receipt. Aligned with PIMEPE TDR §2.2.5.2 (audit traceability) and Phase O (ERP connector).",
+  "version": "0.1.0-skeleton",
+  "status": "skeleton — to be implemented by Phase H (Workflow Designer) + Phase O + Phase P",
+  "trigger": {
+    "type": "agent_action",
+    "actor_role": "treasury_agent"
+  },
+  "states": [
+    {
+      "id": "draft",
+      "label_es": "Borrador",
+      "label_fr": "Brouillon",
+      "label_en": "Draft",
+      "description": "Agent enters revenue collection right (creance) details"
+    },
+    {
+      "id": "submitted",
+      "label_es": "Sometido",
+      "label_fr": "Soumis",
+      "label_en": "Submitted",
+      "description": "Generated IUI + posted to audit chain"
+    },
+    {
+      "id": "pending_payment",
+      "label_es": "Pendiente de pago",
+      "label_fr": "En attente de paiement",
+      "label_en": "Pending payment",
+      "description": "Citizen / debtor notified, payment instructions sent"
+    },
+    {
+      "id": "paid_pending_reconciliation",
+      "label_es": "Pagado pendiente de reconciliación",
+      "label_fr": "Payé en attente de reconciliation",
+      "label_en": "Paid pending reconciliation",
+      "description": "Bank notification received (camt.054 or webhook)"
+    },
+    {
+      "id": "reconciled",
+      "label_es": "Reconciliado",
+      "label_fr": "Reconcilié",
+      "label_en": "Reconciled",
+      "description": "Matched with bank statement (camt.053), posted to ERP (Sage X3)"
+    },
+    {
+      "id": "closed",
+      "label_es": "Cerrado",
+      "label_fr": "Clôturé",
+      "label_en": "Closed",
+      "description": "Final receipt generated (PAdES + QR + audit anchor) and delivered to citizen"
+    }
+  ],
+  "transitions": [
+    { "from": "draft", "to": "submitted", "actor_role": "treasury_agent", "side_effects": ["generate_iui", "post_audit_chain"] },
+    { "from": "submitted", "to": "pending_payment", "actor_role": "system", "side_effects": ["send_payment_instructions"] },
+    { "from": "pending_payment", "to": "paid_pending_reconciliation", "actor_role": "bank_webhook", "side_effects": ["notify_treasury_analyst"] },
+    { "from": "paid_pending_reconciliation", "to": "reconciled", "actor_role": "system", "side_effects": ["post_to_erp_sage_x3", "post_audit_chain"] },
+    { "from": "reconciled", "to": "closed", "actor_role": "system", "side_effects": ["generate_signed_receipt", "send_to_citizen", "post_audit_chain"] }
+  ],
+  "required_features": [
+    "numbering_schemes",
+    "audit_chain",
+    "banking",
+    "erp_connector",
+    "signature.pades"
+  ],
+  "_comments": [
+    "This is a skeleton — Phase H Workflow Designer will provide the actual editable workflow JSON.",
+    "side_effects map to backend services to be wired in Phases O / P / Q / R.",
+    "Each state transition is logged in the audit chain (Phase P) for full traceability."
+  ]
+}

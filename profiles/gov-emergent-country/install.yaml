@@ -1,0 +1,292 @@
+# ============================================================================
+# Facil Framework — Profile: gov-emergent-country
+# ============================================================================
+# Status: SKELETON (pre-bootstrap). Schema will be finalized in Phase D.
+# This file is the central declarative config of the profile, consumed by
+# `deploy/init.py --profile=gov-emergent-country`.
+#
+# Convention:
+#   true / false         -> feature toggle
+#   "default"            -> use framework default (lowest friction)
+#   "<provider_name>"    -> explicit provider selection
+#   <list>               -> ordered preference (try first, fallback next)
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# 1. Profile meta
+# ----------------------------------------------------------------------------
+profile:
+  name: gov-emergent-country
+  version: 0.1.0-skeleton
+  description: >
+    Digital service portal for emerging-country governments.
+    Includes treasury / public payment portal capabilities (V1.1).
+  reference_deployment: TaxasGE (Equatorial Guinea)
+  recommended_for:
+    - Government fiscal services portals
+    - Treasury / public payment portals (TDR-PIMEPE-class)
+    - Multi-directional administration platforms
+    - Emerging-country digital transformation programs
+
+# ----------------------------------------------------------------------------
+# 2. Modules — backend modules to enable for this profile
+# ----------------------------------------------------------------------------
+# Each entry maps to a folder under packages/backend/app/modules/
+# Modules are loaded by Phase A.5 Module Loader at boot.
+modules_enabled:
+  # Core
+  - auth
+  - users
+  - permissions
+  - communications
+  - documents
+  - audit_logs
+  # Government services
+  - fiscal_services
+  - declarations
+  - service_requests
+  - assignment
+  - payments
+  - companies
+  - menu_config
+  - homepage
+  - dashboards
+  - support
+  - chatbot
+  - translations
+  - cities
+  - entity_locations
+  # Treasury V1.1 (activated by features below)
+  - treasury
+  - external_systems    # Phase S
+  - banking             # Phase R
+  - audit_chain         # Phase P
+  - erp                 # Phase O
+  - numbering           # Phase Q
+  - public_accounting   # Phase Q
+  - recours             # Phase T
+  # Optional
+  - inspections         # field operations (inspector tablet)
+  - verified_identifiers
+  - webhooks
+
+# ----------------------------------------------------------------------------
+# 3. Features — high-level toggles for treasury V1.1 capabilities
+# ----------------------------------------------------------------------------
+features:
+  # Phase O — ERP Connector
+  erp_connector:
+    enabled: false                      # Set true after pre-project audit (D1) confirms Sage X3 access
+    adapter: sage_x3                    # sage_x3 | sap_s4 | oracle_ebs | odoo | mock
+    sage_x3:
+      version: v12+                     # v12+ uses REST; v9-v11 falls back to SOAP
+      reconciliation_interval: 1h
+      mapping_file: seed_data/erp_mappings/sage_x3_default.yaml
+
+  # Phase P — Immutable Audit Chain
+  audit_chain:
+    enabled: false                      # Set true after authorities key ceremony done
+    backend: postgres_hash_chain        # postgres_hash_chain | hyperledger_fabric | hyperledger_besu
+    co_signing_authorities:             # 3 authorities required, names configurable per country
+      - { code: "treasury", display_name: "Trésor public" }
+      - { code: "audit", display_name: "Cour des comptes" }
+      - { code: "regulator", display_name: "Inspection générale" }
+    quorum: 2                           # 2/3 required for anchor (1 authority can be temporarily unavailable)
+    public_anchor:
+      sigstore_rekor: true              # Weekly anchor to Sigstore Rekor (free, Google-hosted)
+      open_timestamps: true             # Bitcoin OP_RETURN backup (free, ~1 week latency)
+
+  # Phase Q — Government Numbering & Public Accounting
+  numbering_schemes:
+    enabled: true                       # Always available (lightweight)
+    default_scheme: module_11           # Used for IUI/IUG-style government IDs
+    available:
+      - module_11                       # ING-{ORG}-{YEAR}-{SEQ8}-{CHK} (PIMEPE-style)
+      - nif_es                          # Spanish NIF
+      - siret_fr                        # French SIRET
+      - rccm_ohada                      # OHADA business registry
+      - luhn                            # Bank cards
+
+  public_accounting:
+    enabled: false                      # Set true after operator imports country's PCE
+    default_catalog: pce_ge_template    # Template only — real codes must be imported
+    catalogs_available:
+      - pce_ge_template                 # Equatorial Guinea (template, fill with real codes)
+      # Add more catalog templates as community contributes
+
+  # Phase R — ISO 20022 Banking
+  banking:
+    enabled: false                      # Set true after bank credentials acquired
+    iso20022:
+      pain_001_version: pain.001.001.09
+      camt_053_version: camt.053.001.08
+      camt_054_version: camt.054.001.08
+    mt940_fallback: true                # For banks not yet ISO 20022 ready
+    reconciliation:
+      match_strategy: iui_in_label      # Primary: IUI in transaction label
+      tolerance_amount_xaf: 1
+      tolerance_days: 2
+
+  # Phase S — External System Adapters
+  external_systems:
+    enabled: false                      # Set true per upstream system added
+    templates_available:
+      - rest_polling
+      - rest_webhook
+      - soap_xml
+    circuit_breaker:
+      threshold_failures: 5
+      reset_after_seconds: 30
+    dlq:
+      retention_days: 7
+
+  # Phase T — PWA Offline + Recours + Training
+  pwa_offline:
+    enabled: true                       # Recommended for emerging countries (low connectivity)
+    cache_strategy: network_first       # For API calls
+    queue_max_size_mb: 50
+    conflict_resolution_default: server_wins
+
+  recours_workflow:
+    enabled: true                       # Recommended for citizen rights
+    templates:
+      - reclamation_simple
+      - recours_administratif
+      - demande_echeancier
+
+  in_app_training:
+    enabled: true
+    library_path: seed_data/training/
+
+# ----------------------------------------------------------------------------
+# 4. Providers — defaults for swappable abstractions (per Phase B/C/I)
+# ----------------------------------------------------------------------------
+providers:
+  # Phase J — Auth Providers
+  auth:
+    primary: jwt                        # jwt | ldap | saml | keycloak
+    available:
+      - jwt                             # Always available, lightweight default
+      - ldap                            # Phase J extension TREASURY (LDAPS direct)
+      - saml                            # Phase J baseline (J.4)
+      - keycloak                        # Optional — recommended for 100+ agents (see docs/KEYCLOAK_SETUP.md)
+      - oauth_google
+      - oauth_microsoft
+      - magic_link
+      - otp_sms
+    keycloak:
+      enabled: false                    # Set true to delegate auth to external Keycloak instance
+      base_url: ""                      # e.g. https://keycloak.gov.example/auth
+      realm: ""                         # e.g. "ministry-of-finance"
+      client_id: ""
+      client_secret_ref: ""             # Secret name in your provider's secret store
+      group_role_mapping: true          # Sync Keycloak groups → Facil roles at login
+    multi_ad:
+      enabled: false                    # Set true if multiple directorates have separate ADs
+      routing_strategy: domain_email    # domain_email | username_pattern | manual
+
+  # Phase N.5 — Document Signature
+  signature:
+    primary: local_ca                   # local_ca | aatl | docusign | adobe_sign | eidas | mock
+    available:
+      - local_ca                        # Phase N.5 baseline (free, self-signed)
+      - aatl                            # Phase N.5 extension TREASURY (DigiCert/GlobalSign/Sectigo/Entrust)
+      - docusign
+      - adobe_sign
+      - eidas                           # Qualified TSP for engaging contracts
+      - mock                            # Dev mode
+    aatl:
+      ca: ""                            # digicert | globalsign | sectigo | entrust
+      cert_ref: ""                      # Reference to cert in storage provider
+    formats_supported:
+      - pades                           # PDF Advanced Electronic Signatures (always)
+      - xades                           # XML Advanced Electronic Signatures (Phase N.5 ext, required for ISO 20022 pain.001)
+    timestamping:
+      enabled: true
+      tsa_url: ""                       # Default: empty (use mock); prod: DigiCert TSA / Sectigo TSA / FreeTSA
+      cache_seconds: 300
+    revocation_check:
+      ocsp_realtime: true               # Phase N.5 ext TREASURY (real-time OCSP)
+      crl_fallback: true
+
+  # Phase B — LLM
+  llm:
+    primary: ollama                     # ollama (free, local, sovereign-friendly) | openai | anthropic | gemini | mistral
+    fallback: gemini                    # If ollama not available
+
+  # Phase B.6 — Embedding / RAG
+  embedding:
+    primary: ollama
+    vector_store: pgvector              # pgvector (default, uses Postgres) | qdrant | weaviate
+
+  # Phase B.5 — Payment Gateway
+  payment:
+    available:
+      - bange_wallet                    # Equatorial Guinea (TaxasGE legacy)
+      - manual_validation
+      - card_gateway                    # Generic PCI-DSS gateway
+      - mobile_money                    # Generic mobile money adapter (extend per operator)
+    mobile_money_operators:
+      - getesa                          # Equatorial Guinea
+      - muni                            # Equatorial Guinea
+      # Add MTN, Orange, etc. for other countries
+
+  # Phase C — Storage
+  storage:
+    primary: supabase_storage           # supabase_storage | s3 | gcs | local_filesystem
+
+  # Notifications (Phase A.5 / communications)
+  notifications:
+    email: smtp                         # smtp | sendgrid | mailgun | aws_ses
+    sms: twilio                         # twilio | africastalking | infobip
+    push: fcm                           # fcm (Firebase Cloud Messaging) | apns
+    whatsapp: meta_business             # meta_business | none
+
+# ----------------------------------------------------------------------------
+# 5. Branding
+# ----------------------------------------------------------------------------
+branding:
+  theme: branding/theme.json
+  logo: ""                              # Path to logo SVG/PNG (operator-supplied)
+  favicon: ""
+
+# ----------------------------------------------------------------------------
+# 6. i18n
+# ----------------------------------------------------------------------------
+i18n:
+  default_locale: es
+  available_locales:
+    - es                                # Spanish (primary)
+    - fr                                # French (regional)
+    - en                                # English (international)
+  translations_path: i18n/
+
+# ----------------------------------------------------------------------------
+# 7. Seeds — paths to seed data loaded at first boot
+# ----------------------------------------------------------------------------
+seeds:
+  numbering_schemes: seed_data/numbering_schemes/
+  public_accounting_catalogs: seed_data/public_accounting_catalogs/
+  workflow_templates: seed_data/workflow_templates/
+  document_templates: seed_data/document_templates/
+
+# ----------------------------------------------------------------------------
+# 8. Apps — companion apps to deploy
+# ----------------------------------------------------------------------------
+apps:
+  web:
+    enabled: true                       # Always
+  mobile:
+    enabled: true                       # Citizen / agent app (Expo / React Native)
+    platforms: [android, ios]
+  inspector:
+    enabled: false                      # Field operations tablet (set true if doing inspections)
+
+# ----------------------------------------------------------------------------
+# 9. Deployment hints (consumed by deploy/init.py wizard)
+# ----------------------------------------------------------------------------
+deployment_hints:
+  recommended_database: managed_postgres   # Supabase / RDS / Cloud SQL / Neon
+  recommended_redis: upstash_redis         # Upstash for HybridCache (cf. CLAUDE.md TaxasGE)
+  recommended_observability: grafana_cloud # Grafana + Loki + Tempo (cf. TaxasGE Phase 5)
+  pre_project_audit_required: true         # Force operator to complete docs/audit-templates/PRE_PROJECT_AUDIT_CHECKLIST.md

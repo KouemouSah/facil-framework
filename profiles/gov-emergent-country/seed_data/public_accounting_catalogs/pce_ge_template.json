@@ -1,0 +1,79 @@
+{
+  "$schema": "https://facil.io/schema/public_accounting_catalog.json",
+  "id": "pce_ge_template",
+  "name": "Plan Comptable de l'État — Guinée Équatoriale (TEMPLATE)",
+  "description": "TEMPLATE ONLY. The real PCE-GE codes are not publicly documented and must be obtained from the DGCF (Direction Générale du Contrôle Financier) and imported by the operator. The 5 entries below are illustrative samples extracted from the PIMEPE TDR §2.2.5.1 Table — they are NOT a complete PCE-GE catalog.",
+  "country_code": "GQ",
+  "language": "es",
+  "version": "template-0.1.0",
+  "status": "TEMPLATE — operator must replace with real codes from DGCF",
+  "validity_period": {
+    "effective_from": null,
+    "effective_until": null,
+    "_comment": "Operator must set per real PCE-GE legal publication date"
+  },
+  "codes": [
+    {
+      "code": "71111",
+      "category": "impots_directs",
+      "description_es": "Impuesto sobre sociedades",
+      "description_fr": "Impôt sur les sociétés",
+      "description_en": "Corporate tax",
+      "control_type": "validation_croisee_aeat",
+      "min_amount_xaf": null,
+      "max_amount_xaf": null,
+      "active": true
+    },
+    {
+      "code": "72211",
+      "category": "frais_administratifs",
+      "description_es": "Expedición de documentos oficiales",
+      "description_fr": "Délivrance de documents officiels",
+      "description_en": "Issuance of official documents",
+      "control_type": "tarifs_fixes_par_type",
+      "min_amount_xaf": null,
+      "max_amount_xaf": null,
+      "active": true
+    },
+    {
+      "code": "73311",
+      "category": "ventes_de_biens",
+      "description_es": "Servicios de educación pública",
+      "description_fr": "Services d'éducation publique",
+      "description_en": "Public education services",
+      "control_type": "verification_des_bonus",
+      "min_amount_xaf": null,
+      "max_amount_xaf": null,
+      "active": true
+    },
+    {
+      "code": "74411",
+      "category": "transferts_courants",
+      "description_es": "Subvenciones del Estado",
+      "description_fr": "Subventions de l'État",
+      "description_en": "State subsidies",
+      "control_type": "verification_des_accords",
+      "min_amount_xaf": null,
+      "max_amount_xaf": null,
+      "active": true
+    },
+    {
+      "code": "75511",
+      "category": "revenus_fonciers",
+      "description_es": "Alquiler inmobiliario",
+      "description_fr": "Location immobilière",
+      "description_en": "Real estate rental",
+      "control_type": "mise_a_jour_indice_ipc",
+      "min_amount_xaf": null,
+      "max_amount_xaf": null,
+      "active": true
+    }
+  ],
+  "next_steps_for_operator": [
+    "1. Request the complete official PCE-GE from the Direction Générale du Contrôle Financier (DGCF) of the Ministère des Finances de Guinée Équatoriale",
+    "2. Validate against any updates published in the Journal Officiel de l'État (BOE) of Equatorial Guinea",
+    "3. Bulk-import via Phase Q.4 Studio UI catalog editor (CSV format)",
+    "4. Map fiscal_services to PCE-GE codes via Phase Q.3",
+    "5. Configure validation rules (min/max amounts, eligible issuing organizations) per code"
+  ]
+}

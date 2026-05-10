@@ -1,0 +1,39 @@
+{
+  "$schema": "https://facil.io/schema/branding/theme.json",
+  "name": "gov-emergent-country-default",
+  "description": "Default theme for emerging-country government portals. Operators are expected to override colors with their national palette.",
+  "extends": "facil-default",
+  "tokens": {
+    "color": {
+      "primary": "#1F4E79",
+      "primary_hover": "#163C5C",
+      "secondary": "#C9A227",
+      "secondary_hover": "#A38520",
+      "background": "#F8F9FA",
+      "surface": "#FFFFFF",
+      "text_primary": "#1A1A1A",
+      "text_secondary": "#4A4A4A",
+      "border": "#E5E7EB",
+      "success": "#16A34A",
+      "warning": "#EAB308",
+      "danger": "#DC2626",
+      "info": "#0EA5E9"
+    },
+    "typography": {
+      "font_family_sans": "Inter, system-ui, -apple-system, sans-serif",
+      "font_family_serif": "Lora, Georgia, serif",
+      "font_size_base": "16px"
+    },
+    "radius": {
+      "sm": "0.25rem",
+      "md": "0.5rem",
+      "lg": "1rem"
+    },
+    "spacing_unit": "0.25rem"
+  },
+  "notes": [
+    "Replace primary/secondary with national flag colors when deploying for a specific country.",
+    "Inter is a free open-source font; replace with national typography preferences if available.",
+    "Color contrast respects WCAG 2.1 AA (text on background >= 4.5:1)."
+  ]
+}

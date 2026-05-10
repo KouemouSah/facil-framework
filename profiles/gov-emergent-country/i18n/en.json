@@ -1,0 +1,36 @@
+{
+  "_meta": {
+    "locale": "en",
+    "name": "English",
+    "status": "stub — to be populated by Phase D from TaxasGE translations + extended with treasury V1.1 keys"
+  },
+  "common": {
+    "app_name": "Government Services Portal",
+    "loading": "Loading…",
+    "save": "Save",
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "delete": "Delete",
+    "back": "Back",
+    "next": "Next",
+    "search": "Search"
+  },
+  "auth": {
+    "login": "Sign in",
+    "logout": "Sign out",
+    "email": "Email address",
+    "password": "Password",
+    "mfa_code": "Verification code",
+    "ldap_login": "Sign in with institutional account",
+    "keycloak_login": "Sign in with institutional SSO"
+  },
+  "treasury": {
+    "_comment": "Stub — populated by Phase Q + R + T",
+    "iui_label": "Unique revenue identifier",
+    "iug_label": "Unique expense identifier",
+    "pce_code": "PCE-GE code",
+    "audit_chain_verify": "Verify authenticity",
+    "recours_submit": "Submit appeal",
+    "offline_mode": "Offline mode"
+  }
+}

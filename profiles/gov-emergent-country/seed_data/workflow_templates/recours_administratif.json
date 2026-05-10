@@ -1,0 +1,90 @@
+{
+  "$schema": "https://facil.io/schema/workflow_template.json",
+  "id": "recours_administratif",
+  "name": "Administrative Appeal Workflow",
+  "description": "Citizen submits an administrative appeal (recours) against an administrative decision. Adapted to most emerging-country administrative law conventions. Implementation in Phase T.",
+  "version": "0.1.0-skeleton",
+  "status": "skeleton — to be implemented by Phase T.3",
+  "trigger": {
+    "type": "citizen_action",
+    "actor_role": "citizen"
+  },
+  "states": [
+    {
+      "id": "submitted",
+      "label_es": "Sometido",
+      "label_fr": "Soumis",
+      "label_en": "Submitted"
+    },
+    {
+      "id": "assigned",
+      "label_es": "Asignado",
+      "label_fr": "Affecté",
+      "label_en": "Assigned"
+    },
+    {
+      "id": "under_review",
+      "label_es": "En revisión",
+      "label_fr": "En instruction",
+      "label_en": "Under review"
+    },
+    {
+      "id": "decision_pending",
+      "label_es": "Decisión pendiente",
+      "label_fr": "Décision en attente",
+      "label_en": "Decision pending"
+    },
+    {
+      "id": "accepted",
+      "label_es": "Aceptado",
+      "label_fr": "Accepté",
+      "label_en": "Accepted"
+    },
+    {
+      "id": "rejected",
+      "label_es": "Rechazado",
+      "label_fr": "Rejeté",
+      "label_en": "Rejected"
+    },
+    {
+      "id": "partial",
+      "label_es": "Parcialmente aceptado",
+      "label_fr": "Partiellement accepté",
+      "label_en": "Partially accepted"
+    },
+    {
+      "id": "notified",
+      "label_es": "Notificado",
+      "label_fr": "Notifié",
+      "label_en": "Notified"
+    },
+    {
+      "id": "closed",
+      "label_es": "Cerrado",
+      "label_fr": "Clôturé",
+      "label_en": "Closed"
+    }
+  ],
+  "transitions": [
+    { "from": "submitted", "to": "assigned", "actor_role": "system", "side_effects": ["auto_assign_to_competent_agent", "send_acknowledgment_to_citizen"] },
+    { "from": "assigned", "to": "under_review", "actor_role": "agent", "side_effects": ["start_review_timer"] },
+    { "from": "under_review", "to": "decision_pending", "actor_role": "agent", "side_effects": ["request_supervisor_validation"] },
+    { "from": "decision_pending", "to": "accepted", "actor_role": "supervisor", "side_effects": ["sign_decision_pades"] },
+    { "from": "decision_pending", "to": "rejected", "actor_role": "supervisor", "side_effects": ["sign_decision_pades"] },
+    { "from": "decision_pending", "to": "partial", "actor_role": "supervisor", "side_effects": ["sign_decision_pades"] },
+    { "from": "accepted", "to": "notified", "actor_role": "system", "side_effects": ["notify_citizen_email_sms"] },
+    { "from": "rejected", "to": "notified", "actor_role": "system", "side_effects": ["notify_citizen_email_sms"] },
+    { "from": "partial", "to": "notified", "actor_role": "system", "side_effects": ["notify_citizen_email_sms"] },
+    { "from": "notified", "to": "closed", "actor_role": "system", "side_effects": ["archive"] }
+  ],
+  "sla": {
+    "max_days_to_decision": 60,
+    "escalation_after_days": 45,
+    "_comment": "Per most administrative law conventions; operator should adjust per country regulation"
+  },
+  "required_features": [
+    "recours_workflow",
+    "signature.pades",
+    "audit_chain"
+  ]
+}

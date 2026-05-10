@@ -1,0 +1,55 @@
+{
+  "$schema": "https://facil.io/schema/numbering_scheme.json",
+  "id": "module_11",
+  "name": "Module 11 — IUI/IUG style",
+  "description": "Sequential numbering with check digit computed by module 11 algorithm (weights 2-7 cycling), similar to Spanish NIF and PIMEPE TDR specification.",
+  "format": "{prefix}-{org_code}-{year:04d}-{sequence:08d}-{check_digit}",
+  "examples": [
+    "ING-MIN001-2025-00012345-7",
+    "GAS-HOS002-2025-00003456-2"
+  ],
+  "fields": {
+    "prefix": {
+      "type": "string",
+      "description": "Type prefix (ING for revenue / income, GAS for expense / spending)",
+      "allowed_values": ["ING", "GAS"]
+    },
+    "org_code": {
+      "type": "string",
+      "pattern": "^[A-Z0-9]{3,8}$",
+      "description": "Organization code (ministry / direction / agency code)"
+    },
+    "year": {
+      "type": "integer",
+      "format": "YYYY"
+    },
+    "sequence": {
+      "type": "integer",
+      "format": "8 digits zero-padded",
+      "min": 1,
+      "max": 99999999
+    },
+    "check_digit": {
+      "type": "string",
+      "computed": true,
+      "algorithm": "module_11_weights_2_7"
+    }
+  },
+  "checksum_algorithm": {
+    "name": "module_11",
+    "weights": [2, 3, 4, 5, 6, 7, 2, 3],
+    "weights_apply_from": "right_to_left",
+    "rules": {
+      "remainder_0": "check_digit = '0'",
+      "remainder_1": "check_digit = 'X'",
+      "remainder_other": "check_digit = str(11 - remainder)"
+    }
+  },
+  "use_cases": [
+    "Government revenue identifiers (PIMEPE TDR §2.2.4.1.4)",
+    "Government expense identifiers",
+    "Tax declaration references",
+    "Public procurement contract numbers"
+  ],
+  "status": "skeleton — to be implemented by Phase Q.1"
+}
