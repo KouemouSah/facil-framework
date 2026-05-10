@@ -17,7 +17,7 @@ Active development has not yet started. The framework is undergoing planning and
 ## Total scope
 
 - **V1** : **144 – 209 days** of focused development (~7-10 months at 1 FTE, or 4-6 months at 2 devs)
-- **V1.1** : **+38 – 58 days** for treasury / government payment capabilities (Phases O → T) → **182 – 267 days** total (~9-14 months at 1 FTE, or 5-7 months at 2 devs)
+- **V1.1** : **+44 – 68 days** for treasury / government payment capabilities (Phases O → T + extensions on Phase J / Phase N.5) → **188 – 277 days** total (~9-14 months at 1 FTE, or 5-7 months at 2 devs)
 
 ## Phase overview (A → N.5)
 
@@ -73,10 +73,12 @@ Active development has not yet started. The framework is undergoing planning and
 
 ### Treasury / Government Payment Capabilities (V1.1)
 
-> Added 2026-05-10. Triggered by analysis of TDR PIMEPE (Equatorial Guinea Treasury Portal RFP, December 2025). These phases enrich the `gov-emergent-country` profile with capabilities required to respond to government treasury / payment portal RFPs in CEMAC, UEMOA, OHADA, Maghreb regions. **Total : 38-58 days**, increasing V1 scope by ~20-30 % (V1: 144-209d → V1.1: 182-267d). Detailed plan : [`TREASURY_CAPABILITIES_UPGRADE_PLAN.md`](.claude/plans/TREASURY_CAPABILITIES_UPGRADE_PLAN.md) (gitignored, internal).
+> Added 2026-05-10. Triggered by analysis of TDR PIMEPE (Equatorial Guinea Treasury Portal RFP, December 2025). These phases enrich the `gov-emergent-country` profile with capabilities required to respond to government treasury / payment portal RFPs in CEMAC, UEMOA, OHADA, Maghreb regions. **Total : 44-68 days** (6 new phases + 2 extension plans on Phase J / Phase N.5), increasing V1 scope by ~25-35 % (V1: 144-209d → V1.1: 188-277d). Detailed plan : [`TREASURY_CAPABILITIES_UPGRADE_PLAN.md`](.claude/plans/TREASURY_CAPABILITIES_UPGRADE_PLAN.md) (gitignored, internal).
 
 | Phase | Name | Effort | Status |
 |-------|------|--------|--------|
+| **J ext** | Auth providers — LDAP/AD direct + multi-AD + group RBAC mapping | +3-5j | 📋 Planned (V1.1 ext) |
+| **N.5 ext** | Document signature — AATL provider + XAdES + OCSP real-time | +3-5j | 📋 Planned (V1.1 ext) |
 | O | ERP Connector Abstraction (Sage X3 first) | 8-12j | 📋 Planned (V1.1) |
 | P | Immutable Audit Chain (Postgres + Trillian + Sigstore Rekor) | 5-8j | 📋 Planned (V1.1) |
 | Q | Government Numbering & Public Accounting (PCE-GE, IUI/IUG, NIF, SIRET, RCCM) | 5-7j | 📋 Planned (V1.1) |
