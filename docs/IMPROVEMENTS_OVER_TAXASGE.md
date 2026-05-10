@@ -191,9 +191,29 @@ Phase concernée : **H (Workflow Designer)** — c'est la phase R&D la plus long
 - Charge `profiles/<name>/install.yaml`
 - Applique modules + seeds + workflows + branding automatiquement
 
+### 16. Documents générés hardcoded en code Python (ReportLab)
+
+**Problème** : tous les PDF (certificats, reçus, contrats, attestations) sont des classes Python dans `pdf_generators/`. Modifier la mise en page = modifier du code Python + redéploiement. Ajouter un nouveau type de document = créer un fichier Python + tests + PR.
+
+**Conséquences observées** :
+- Designer non-tech ne peut PAS toucher la maquette d'un certificat
+- 1 release nécessaire pour un changement de logo en en-tête de PDF
+- Templates non multilingues à la conception (fork le code par langue)
+- Pas de versioning : un changement écrase l'ancien template
+
+**Solution Voie B** : **Document Designer + Template Library (Phase N)** :
+- BD `document_templates` + `document_template_versions` (versioning + rollback)
+- Studio UI editor (Monaco HTML/CSS V1, GrapesJS block-based V2)
+- Variable picker depuis workflow context
+- Preview live avec test data
+- Multi-format : PDF (WeasyPrint) / DOCX (python-docx) / HTML
+- i18n par template (EN/FR/ES)
+- Library seedée par profile : 5 gov / 3 enterprise / 3 banking / 2 saas
+- RBAC sur publish/unpublish + audit log
+
 ---
 
-## Récap : 15 améliorations majeures
+## Récap : 16 améliorations majeures
 
 | # | Pain point TaxasGE | Solution Voie B | Phase |
 |---|---|---|---|
@@ -212,6 +232,7 @@ Phase concernée : **H (Workflow Designer)** — c'est la phase R&D la plus long
 | 13 | Tous modules chargés dur | Module Loader | A.5 |
 | 14 | Pas mode demo | --demo flag | D |
 | 15 | Wizard pas de profile | Wizard --profile | D |
+| 16 | Documents PDF hardcoded ReportLab | Document Designer + Template Library | N |
 
 ---
 
