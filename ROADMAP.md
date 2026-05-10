@@ -16,7 +16,8 @@ Active development has not yet started. The framework is undergoing planning and
 
 ## Total scope
 
-**144 – 209 days** of focused development to reach V1 (~7-10 months at 1 FTE, or 4-6 months at 2 devs).
+- **V1** : **144 – 209 days** of focused development (~7-10 months at 1 FTE, or 4-6 months at 2 devs)
+- **V1.1** : **+38 – 58 days** for treasury / government payment capabilities (Phases O → T) → **182 – 267 days** total (~9-14 months at 1 FTE, or 5-7 months at 2 devs)
 
 ## Phase overview (A → N.5)
 
@@ -69,6 +70,25 @@ Active development has not yet started. The framework is undergoing planning and
 |-------|------|--------|--------|
 | L | E2E tests per profile | 7-10j | 📋 Planned |
 | M | Documentation + tutorials per profile | 7-10j | 📋 Planned |
+
+### Treasury / Government Payment Capabilities (V1.1)
+
+> Added 2026-05-10. Triggered by analysis of TDR PIMEPE (Equatorial Guinea Treasury Portal RFP, December 2025). These phases enrich the `gov-emergent-country` profile with capabilities required to respond to government treasury / payment portal RFPs in CEMAC, UEMOA, OHADA, Maghreb regions. **Total : 38-58 days**, increasing V1 scope by ~20-30 % (V1: 144-209d → V1.1: 182-267d). Detailed plan : [`TREASURY_CAPABILITIES_UPGRADE_PLAN.md`](.claude/plans/TREASURY_CAPABILITIES_UPGRADE_PLAN.md) (gitignored, internal).
+
+| Phase | Name | Effort | Status |
+|-------|------|--------|--------|
+| O | ERP Connector Abstraction (Sage X3 first) | 8-12j | 📋 Planned (V1.1) |
+| P | Immutable Audit Chain (Postgres + Trillian + Sigstore Rekor) | 5-8j | 📋 Planned (V1.1) |
+| Q | Government Numbering & Public Accounting (PCE-GE, IUI/IUG, NIF, SIRET, RCCM) | 5-7j | 📋 Planned (V1.1) |
+| R | ISO 20022 Banking Gateway (pain.001, camt.053/054 + MT940 fallback) | 6-9j | 📋 Planned (V1.1) |
+| S | External System Adapters Framework (REST polling/webhook + SOAP + OpenAPI generator) | 5-8j | 📋 Planned (V1.1) |
+| T | PWA Offline + Recours Workflow + Formation In-App | 9-14j | 📋 Planned (V1.1) |
+
+**Architecture notes** (technical references for treasury contexts):
+
+- [Hyperledger Alternatives](docs/architecture-notes/HYPERLEDGER_ALTERNATIVES.md) — TCO 5-year comparison Hyperledger Fabric vs Postgres hash chain + Trillian + Rekor
+- [eIDAS Alternatives](docs/architecture-notes/EIDAS_ALTERNATIVES.md) — phased approach for countries without national qualified TSP (AATL → national CA → ETSI audit)
+- [Pre-project Audit Checklist](docs/audit-templates/PRE_PROJECT_AUDIT_CHECKLIST.md) — to scope ERP / banks / AD / legal framework / infrastructure / skills before quoting
 
 ## Critical path
 
