@@ -1,0 +1,50 @@
+{
+  "name": "facil-framework",
+  "version": "0.0.1",
+  "description": "Generic deployable framework for digital services platforms (gov / enterprise / SaaS / banking). Open Core AGPL-3.0.",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KouemouSah/facil-framework.git"
+  },
+  "author": "KOUEMOU SAH Jean Emac <libressai@gmail.com>",
+  "workspaces": [
+    "packages/web"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev:web": "npm run dev --workspace=web",
+    "dev:backend": "cd packages/backend && python -m app.main",
+    "build:web": "npm run build --workspace=web",
+    "test:web": "npm run test --workspace=web",
+    "test:backend": "cd packages/backend && python -m pytest",
+    "test:all": "npm run test:web && npm run test:backend",
+    "lint:web": "npm run lint --workspace=web",
+    "lint:backend": "cd packages/backend && ruff check app",
+    "format:backend": "cd packages/backend && black app && isort app",
+    "type-check:web": "npm run type-check --workspace=web",
+    "clean": "rm -rf node_modules packages/*/node_modules packages/backend/__pycache__ packages/backend/.pytest_cache"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0",
+    "eslint": "^8.55.0",
+    "prettier": "^3.1.0",
+    "typescript": "^5.5.4"
+  },
+  "keywords": [
+    "facil",
+    "framework",
+    "open-core",
+    "fastapi",
+    "nextjs",
+    "expo",
+    "low-code",
+    "digital-services",
+    "rag",
+    "workflow"
+  ]
+}
