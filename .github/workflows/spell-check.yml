@@ -1,0 +1,40 @@
+name: Spell Check
+
+# Spell check across docs and code comments using cspell.
+# Custom dictionary at .cspell.json includes project-specific terms.
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - '**/*.md'
+      - '**/*.mdx'
+      - '**/*.py'
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '.cspell.json'
+      - '.github/workflows/spell-check.yml'
+  push:
+    branches: [main]
+    paths:
+      - '**/*.md'
+
+permissions:
+  contents: read
+
+jobs:
+  cspell:
+    name: cspell
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: streetsidesoftware/cspell-action@v6
+        with:
+          config: .cspell.json
+          incremental_files_only: true
+          inline: warning  # mark as warning, not error
+          strict: false
+          files: |
+            **/*.md
+            **/*.mdx

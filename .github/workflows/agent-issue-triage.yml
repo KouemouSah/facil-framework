@@ -37,11 +37,11 @@ jobs:
               .join('\n');
             core.setOutput('open_issues', summary || '(none)');
 
-      - name: Run AI inference
+      - name: Run AI inference (Mistral Small — light + fast for triage)
         id: ai
         uses: actions/ai-inference@v1
         with:
-          model: openai/gpt-4o-mini
+          model: mistral-ai/Ministral-3B
           max-tokens: 800
           system-prompt: |
             You are an issue triager for Facil Framework. Output a single JSON object (no other text, no markdown fences) with this exact shape:
@@ -126,7 +126,7 @@ jobs:
             // Post triage comment
             const dup = triage.duplicate_of ? `\n\n⚠️ **Possible duplicate of #${triage.duplicate_of}** — please verify.` : '';
             const questions = (triage.clarifying_questions || []).map(q => `- ${q}`).join('\n');
-            const body = `### 🤖 Issue Triage (GitHub Models · gpt-4o-mini)\n\n**Summary:** ${triage.summary || '(none)'}${dup}\n\n${questions ? `**Clarifying questions:**\n${questions}\n\n` : ''}**Suggested action:** ${triage.suggested_action || '(none)'}\n\n---\n_Auto-generated. Add label \`skip-triage\` to opt out._`;
+            const body = `<img src="https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/main/.github/assets/icons/bot.svg" width="14" alt="bot"/> &nbsp;**Issue Triage** · GitHub Models · Ministral 3B\n\n---\n\n**Summary:** ${triage.summary || '(none)'}${dup}\n\n${questions ? `**Clarifying questions:**\n${questions}\n\n` : ''}**Suggested action:** ${triage.suggested_action || '(none)'}\n\n---\n_Auto-generated. Add label \`skip-triage\` to opt out._`;
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,

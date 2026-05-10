@@ -36,7 +36,14 @@ jobs:
             CHANGELOG.md
             ROADMAP.md
             .gitignore
+            .gitattributes
+            .editorconfig
             package.json
+            commitlint.config.js
+            .cspell.json
+            .lycheeignore
+            .release-please-manifest.json
+            release-please-config.json
             .github/CODEOWNERS
             .github/dependabot.yml
             .github/pull_request_template.md
@@ -45,10 +52,18 @@ jobs:
             .github/ISSUE_TEMPLATE/phase_kickoff.yml
             .github/ISSUE_TEMPLATE/config.yml
             .github/workflows/ci.yml
+            .github/workflows/commitlint.yml
+            .github/workflows/pr-title-check.yml
+            .github/workflows/link-check.yml
+            .github/workflows/spell-check.yml
+            .github/workflows/release-please.yml
+            .github/workflows/sast.yml
+            .github/workflows/dependency-review.yml
             docs/PRD.md
             docs/BPMN.md
             docs/REUSE_FROM_TAXASGE.md
             docs/IMPROVEMENTS_OVER_TAXASGE.md
+            docs/AGENTS_AND_SECRETS.md
           )
           MISSING=0
           for f in "${REQUIRED[@]}"; do

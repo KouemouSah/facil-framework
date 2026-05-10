@@ -5,7 +5,7 @@
 # Facil Framework
 
 **Generic deployable framework for digital services platforms.**
-Gov · Enterprise · SaaS · Banking · Telco · HR · Real estate · E-commerce · ...
+Gov · Enterprise · SaaS · Banking · Telco · HR · Real estate · E-commerce
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Status](https://img.shields.io/badge/status-pre--bootstrap-orange)](ROADMAP.md)
@@ -19,7 +19,7 @@ Gov · Enterprise · SaaS · Banking · Telco · HR · Real estate · E-commerce
 
 ---
 
-> ⚠️ **Statut : pré-bootstrap.** L'environnement est préparé, le développement actif n'a pas encore démarré. Le lancement est conditionné au go-live de TaxasGE (le déploiement de référence) + recrutement équipe + vérification trademark `Facil`.
+> <img src=".github/assets/icons/alert-triangle.svg" width="14" alt="warning"/> &nbsp;**Statut : pré-bootstrap.** L'environnement est préparé, le développement actif n'a pas encore démarré. Le lancement est conditionné au go-live de TaxasGE (le déploiement de référence) + recrutement équipe + vérification trademark `Facil`.
 
 **Facil Framework** est un framework générique de plateformes de services digitaux, déployable sur n'importe quel cloud ou en local, **customisable sans code** par des utilisateurs non-techniques via un Customization Studio dédié.
 
@@ -45,28 +45,28 @@ Gov · Enterprise · SaaS · Banking · Telco · HR · Real estate · E-commerce
 
 | Principe | Implementation |
 |---|---|
-| 🧩 **Modulaire au boot** | Tous les modules backend inclus, activables via `MODULES_ENABLED` (Phase A.5) |
-| 📦 **5 profiles pré-faits** | Pack `install.yaml` + seeds + workflows + branding par cible métier |
-| 🎨 **Studio sans code** | UI admin pour branding, langues, RBAC, taxonomies, catalogue, workflows, providers, documents, signature, KB |
-| 🔐 **Cloud-privé / on-prem par défaut** | Ollama + Postgres+pgvector + MinIO. Zéro dépendance Cloud externe requise |
-| 🔄 **Provider-agnostic** | LLM, Storage, Payment, Auth, Embedding, Signature → tous abstractions ABC pluggables |
-| 🏛️ **18 améliorations** vs TaxasGE | Voir [docs/IMPROVEMENTS_OVER_TAXASGE.md](docs/IMPROVEMENTS_OVER_TAXASGE.md) |
+| **Modulaire au boot** | Tous les modules backend inclus, activables via `MODULES_ENABLED` (Phase A.5) |
+| **5 profiles pré-faits** | Pack `install.yaml` + seeds + workflows + branding par cible métier |
+| **Studio sans code** | UI admin pour branding, langues, RBAC, taxonomies, catalogue, workflows, providers, documents, signature, KB |
+| **Cloud-privé / on-prem par défaut** | Ollama + Postgres+pgvector + MinIO. Zéro dépendance Cloud externe requise |
+| **Provider-agnostic** | LLM, Storage, Payment, Auth, Embedding, Signature : tous abstractions ABC pluggables |
+| **18 améliorations vs TaxasGE** | Voir [docs/IMPROVEMENTS_OVER_TAXASGE.md](docs/IMPROVEMENTS_OVER_TAXASGE.md) |
 
 ## Origine
 
 Cloné en snapshot du déploiement concret **TaxasGE** (Guinée Équatoriale gov digital services, repo séparé) en date du **2026-05-10**.
 
-- ✅ Aucun lien Git, ni submodule, ni symlink avec TaxasGE
-- ✅ Repos évoluent indépendamment
-- 🔄 Diffusion d'améliorations infrastructure : cherry-pick manuel via `tools/sync-from-taxasge.sh` (Phase A.5)
+- Aucun lien Git, ni submodule, ni symlink avec TaxasGE
+- Repos évoluent indépendamment
+- Diffusion d'améliorations infrastructure : cherry-pick manuel via `tools/sync-from-taxasge.sh` (Phase A.5)
 
 ## Modèle économique (Open Core)
 
 | Tier | License | Hosting | Status |
 |---|---|---|---|
-| **Facil Framework** (ce repo) | AGPL-3.0 | Self-hosted | 📋 Planned |
-| **Facil Cloud** (`facil.io`) | Hosted SaaS | Managé | 📋 Future |
-| **Facil Enterprise** | Commercial | Managé / on-prem | 📋 Future |
+| **Facil Framework** (ce repo) | AGPL-3.0 | Self-hosted | Planned |
+| **Facil Cloud** (`facil.io`) | Hosted SaaS | Managé | Future |
+| **Facil Enterprise** | Commercial | Managé / on-prem | Future |
 
 > **Pourquoi AGPL-3.0 et pas MIT** : empêche le fork hostile cloud (cf. Elastic vs OpenSearch / AWS). Tout SaaS hébergeur de modifications doit ouvrir son code source aussi.
 
@@ -111,19 +111,21 @@ Voir [docs/BPMN.md](docs/BPMN.md) pour les diagrammes de processus détaillés (
 
 ## Profiles
 
-| Profile | Use case | Modules typiques |
-|---------|----------|------------------|
-| `empty` | Démarrage from scratch | rbac · communications · audit_logs · dashboards |
-| `private-services-company` ⭐ | Plateforme B2B services (cible MVP) | + treasury · service_requests · chatbot · documents · verified_identifiers |
-| `gov-emergent-country` | Services gov digitaux (port TaxasGE) | + declarations · bange_payment · permis · IVA |
-| `saas-multitenant` | SaaS multi-tenant | + tenant_management · billing · onboarding |
-| `banking` | KYC + lending | + kyc · loan_application · compliance |
+> Légende : ● en place · ◐ en cours · ○ planifié
+
+| Profile | Use case | Modules typiques | Status |
+|---------|----------|------------------|:---:|
+| `empty` | Démarrage from scratch | rbac · communications · audit_logs · dashboards | ○ |
+| `private-services-company` | Plateforme B2B services (cible MVP) | + treasury · service_requests · chatbot · documents · verified_identifiers | ○ |
+| `gov-emergent-country` | Services gov digitaux (port TaxasGE) | + declarations · bange_payment · permis · IVA | ○ |
+| `saas-multitenant` | SaaS multi-tenant | + tenant_management · billing · onboarding | ○ |
+| `banking` | KYC + lending | + kyc · loan_application · compliance | ○ |
 
 > 1 déploiement = 1 profile actif. Profile changeable post-installation via Studio (avec migration).
 
 ## Quick start (futur)
 
-> 🚧 **Pas encore exécutable** — Phase A.5 (Module Loader) doit être implémentée d'abord. Voir [ROADMAP.md](ROADMAP.md).
+> <img src=".github/assets/icons/construction.svg" width="14" alt="construction"/> &nbsp;**Pas encore exécutable** — Phase A.5 (Module Loader) doit être implémentée d'abord. Voir [ROADMAP.md](ROADMAP.md).
 
 ```bash
 # 1. Clone (quand le repo deviendra public)
@@ -151,26 +153,27 @@ Voir [CONTRIBUTING.md](CONTRIBUTING.md) pour le setup de développement complet.
 | [BPMN](docs/BPMN.md) | Devs / architects | 6 diagrammes de processus Mermaid |
 | [REUSE_FROM_TAXASGE](docs/REUSE_FROM_TAXASGE.md) | Devs | Inventaire 60% reused / 25% adapted / 15% new |
 | [IMPROVEMENTS_OVER_TAXASGE](docs/IMPROVEMENTS_OVER_TAXASGE.md) | Tech leaders | 18 pain points TaxasGE résolus par Voie B |
+| [AGENTS_AND_SECRETS](docs/AGENTS_AND_SECRETS.md) | Maintainers | AI agents, secrets, costs, model alternatives |
 | [ROADMAP](ROADMAP.md) | Public | Phases A → N.5, effort, statut |
 | [CHANGELOG](CHANGELOG.md) | Tous | Notable changes per release |
-| [CONTRIBUTING](CONTRIBUTING.md) | Contributors | Branching, commits, dev setup |
+| [CONTRIBUTING](CONTRIBUTING.md) | Contributors | Branching, conventional commits, dev setup |
 | [SECURITY](SECURITY.md) | Security researchers | Disclosure policy + scope |
 | [CODE_OF_CONDUCT](CODE_OF_CONDUCT.md) | Tous | Contributor Covenant 2.1 |
 
 ### Interne (gitignored)
 
-Plans détaillés au format **task-decomposition-expert** — `.claude/plans/phases/PHASE_*.md` × 19 phases. Format : Executive Summary · Goal Analysis · WBS 3 niveaux 8/80 · Dependency Graph · Parallelism Map · Risk Register · Validation Checkpoints · Agent Handoff Plan.
+Plans détaillés au format **task-decomposition-expert** : `.claude/plans/phases/PHASE_*.md` × 19 phases. Format : Executive Summary · Goal Analysis · WBS 3 niveaux 8/80 · Dependency Graph · Parallelism Map · Risk Register · Validation Checkpoints · Agent Handoff Plan.
 
 ## Roadmap
 
-> Voir [ROADMAP.md](ROADMAP.md) pour le détail. Résumé :
+> Voir [ROADMAP.md](ROADMAP.md) pour le détail.
 
 **Total : 144-209 jours** de dev focalisé (~7-10 mois 1 FTE ou 4-6 mois 2 devs).
 
 | Track | Phases | Effort cumulé |
 |-------|--------|---------------|
 | **Foundations** | A.5 · B · B.5 · B.6 · C | 49-71j |
-| **Profiles + Studio** | D · E · F · G · H ⭐ · H.5 · I · I.bis | 47-67j |
+| **Profiles + Studio** | D · E · F · G · H · H.5 · I · I.bis | 47-67j |
 | **Auth + Apps** | J · K | 12-17j |
 | **Documents** | N · N.5 | 21-31j |
 | **Tests + Docs** | L · M | 14-20j |
@@ -180,14 +183,16 @@ Phase la plus longue : **B.6 Embedding/RAG Abstraction** (32-45j).
 
 ## Pré-requis avant lancement actif
 
+> Légende : ● en place · ◐ en cours · ○ pending
+
 | # | Pré-requis | Status |
-|---|------------|--------|
-| 1 | TaxasGE prod stable 1+ mois | ⏳ |
-| 2 | Trademark "Facil" vérifié (USPTO / EUIPO / OAPI) | ⏳ |
-| 3 | Équipe : 1 FTE 8 mois OU 2 devs 4-5 mois | ⏳ |
-| 4 | Domaine `facil.io` acquis | ⏳ |
-| 5 | Setup business (société, infra cloud) | ⏳ |
-| 6 | Décisions stratégiques validées (PRD §11) | ⏳ |
+|---|------------|:---:|
+| 1 | TaxasGE prod stable 1+ mois | ○ |
+| 2 | Trademark "Facil" vérifié (USPTO / EUIPO / OAPI) | ○ |
+| 3 | Équipe : 1 FTE 8 mois OU 2 devs 4-5 mois | ○ |
+| 4 | Domaine `facil.io` acquis | ○ |
+| 5 | Setup business (société, infra cloud) | ○ |
+| 6 | Décisions stratégiques validées (PRD §11) | ○ |
 
 ## Contribuer
 
@@ -195,12 +200,12 @@ Le repo est en **mode privé** pendant la phase pré-bootstrap. Les contribution
 
 En attendant :
 
-- ⭐ Star pour notifications de release
-- 💬 [Discussions](https://github.com/KouemouSah/facil-framework/discussions) pour idées et questions
-- 🐛 [Issues](https://github.com/KouemouSah/facil-framework/issues) pour bugs et feature requests
-- 🔒 [SECURITY.md](SECURITY.md) pour vulnérabilités
+- Star pour notifications de release
+- [Discussions](https://github.com/KouemouSah/facil-framework/discussions) pour idées et questions
+- [Issues](https://github.com/KouemouSah/facil-framework/issues) pour bugs et feature requests
+- [SECURITY.md](SECURITY.md) pour vulnérabilités
 
-Voir [CONTRIBUTING.md](CONTRIBUTING.md) pour le guide complet (branching, commits conventional, dev setup).
+Voir [CONTRIBUTING.md](CONTRIBUTING.md) pour le guide complet (branching, conventional commits, dev setup).
 
 ## License
 
@@ -208,13 +213,13 @@ Voir [CONTRIBUTING.md](CONTRIBUTING.md) pour le guide complet (branching, commit
 
 Tout SaaS hébergeur de modifications doit publier son code source sous AGPL également.
 
-Pour un usage commercial sans contrainte AGPL, voir le tier **Facil Enterprise** (futur, contact : libressai@gmail.com).
+Pour un usage commercial sans contrainte AGPL, voir le tier **Facil Enterprise** (futur, contact : kouemou.sah@gmail.com).
 
 ---
 
 <div align="center">
 
-<sub>Made with care · 2026 · libressai@gmail.com</sub>
+<sub>Made with care · 2026 · kouemou.sah@gmail.com</sub>
 
 <sub><a href="https://github.com/KouemouSah/facil-framework/blob/main/ROADMAP.md">Roadmap</a> · <a href="https://github.com/KouemouSah/facil-framework/discussions">Discussions</a> · <a href="https://github.com/KouemouSah/facil-framework/issues">Issues</a> · <a href="https://github.com/KouemouSah/facil-framework/security/policy">Security</a></sub>
 

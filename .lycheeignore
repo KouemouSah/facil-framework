@@ -1,0 +1,14 @@
+# Ignore localhost and dev URLs
+^https?://localhost
+^https?://127\.0\.0\.1
+^https?://0\.0\.0\.0
+^http://example\.com
+
+# facil.io domain not yet acquired — ignore until live
+^https?://(.*\.)?facil\.io
+
+# Internal cross-repo links that may not exist publicly yet
+^https://github\.com/KouemouSah/taxasge
+
+# Sample / placeholder URLs in docs
+^https?://your-domain\.com

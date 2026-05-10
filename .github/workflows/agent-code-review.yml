@@ -1,0 +1,130 @@
+name: Agent — Code Quality Review (GitHub Models)
+
+# Specialized code-quality review for PRs touching production code.
+# Focuses on: SOLID, performance, complexity, abstractions, testability.
+# Triggered by `code-review` label or manually.
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, labeled]
+    paths:
+      - 'packages/backend/app/**/*.py'
+      - 'packages/web/src/**/*.{ts,tsx}'
+      - 'packages/mobile/src/**/*.{ts,tsx}'
+      - 'packages/inspector/src/**/*.{ts,tsx}'
+
+permissions:
+  pull-requests: write
+  contents: read
+  models: read
+
+jobs:
+  code-review:
+    name: Code Quality (Claude)
+    runs-on: ubuntu-latest
+    if: |
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (
+        contains(github.event.pull_request.labels.*.name, 'code-review') ||
+        github.event.action != 'labeled' ||
+        github.event.label.name == 'code-review'
+      ) &&
+      !contains(github.event.pull_request.labels.*.name, 'skip-code-review')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute diff
+        id: diff
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+          STAT=$(git diff origin/${{ github.event.pull_request.base.ref }}...HEAD --stat | head -50)
+          FULL=$(git diff origin/${{ github.event.pull_request.base.ref }}...HEAD | head -c 30000)
+          {
+            echo "stat<<EOF"
+            echo "$STAT"
+            echo "EOF"
+            echo "full<<EOF"
+            echo "$FULL"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Run AI code review
+        id: ai
+        uses: actions/ai-inference@v1
+        with:
+          model: anthropic/claude-3-5-sonnet
+          max-tokens: 1500
+          system-prompt: |
+            You are a senior code-quality reviewer for Facil Framework — FastAPI + Next.js + Expo + Postgres+pgvector + Ollama.
+
+            Focus exclusively on code quality. Security is handled by another agent. Architectural concerns (Module Loader, abstractions) are part of your scope.
+
+            Review dimensions:
+
+            1. **SOLID & cohesion** — single responsibility, dependency inversion, interface segregation
+            2. **Architecture** — respects Module Loader pattern, uses provider abstractions, no hardcoded deps
+            3. **Performance** — N+1 queries, missing indexes, inefficient loops, memory leaks, bundle size
+            4. **Complexity** — cyclomatic complexity, nesting depth, function length (>50 lines = flag), god objects
+            5. **Naming & clarity** — descriptive names, no abbreviations, no unused imports
+            6. **Error handling** — proper exceptions vs returns, transaction rollback, retry logic with backoff
+            7. **Testability** — pure functions vs side effects, mockable interfaces, dependency injection
+            8. **Type safety** — Pydantic v2 strict, TypeScript strict mode, no `any`, no `# type: ignore`
+            9. **Async correctness** — `await` on coroutines, no blocking I/O in async, proper concurrency primitives
+            10. **Style consistency** — black/ruff for Python, ESLint/Prettier for TS, EditorConfig respected
+            11. **Comments** — only where *why* is non-obvious; avoid `what` comments; no commented-out code
+            12. **Tests** — flag missing tests for new logic; suggest test cases
+
+            Output a markdown review:
+
+            ## Quality assessment
+            ⭐⭐⭐⭐⭐ to ⭐ rating with one-line justification.
+
+            ## Findings by category
+            For each issue (or "✅ none observed"):
+
+            **Category** · file:line
+            > Issue description.
+            > **Suggestion:** specific fix or refactor.
+
+            ## Patterns to encourage
+            What's done WELL in this PR? (positive reinforcement)
+
+            ## Refactor opportunities
+            Larger improvements not blocking but valuable.
+
+            ## Test coverage
+            What test cases would you add?
+
+            ## Verdict
+            ✅ Approve · 💬 Approve with comments · 🔄 Request changes (quality)
+
+            Keep under 700 words.
+          prompt: |
+            PR title: ${{ github.event.pull_request.title }}
+
+            PR body:
+            ${{ github.event.pull_request.body }}
+
+            Files changed:
+            ${{ steps.diff.outputs.stat }}
+
+            Diff (truncated to 30K):
+            ${{ steps.diff.outputs.full }}
+
+      - name: Post code review
+        uses: actions/github-script@v7
+        env:
+          REVIEW: ${{ steps.ai.outputs.response }}
+        with:
+          script: |
+            const review = process.env.REVIEW || '_AI inference returned empty._';
+            const body = `<img src="https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/main/.github/assets/icons/star.svg" width="14" alt="star"/> &nbsp;**Code Quality Review** · GitHub Models · Claude 3.5 Sonnet\n\n---\n\n${review}\n\n---\n_Auto-generated. Add label \`skip-code-review\` to opt out._`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body,
+            });

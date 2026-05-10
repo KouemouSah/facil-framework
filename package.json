@@ -8,7 +8,7 @@
     "type": "git",
     "url": "https://github.com/KouemouSah/facil-framework.git"
   },
-  "author": "KOUEMOU SAH Jean Emac <libressai@gmail.com>",
+  "author": "KOUEMOU SAH Jean Emac <kouemou.sah@gmail.com>",
   "workspaces": [
     "packages/web"
   ],

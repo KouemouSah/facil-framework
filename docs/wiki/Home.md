@@ -54,5 +54,5 @@ Cloned in snapshot from **TaxasGE** (Equatorial Guinea gov digital services) on 
 ## Contact
 
 - Maintainer: @KouemouSah
-- Email: libressai@gmail.com
+- Email: kouemou.sah@gmail.com
 - Security: GitHub Security Advisories

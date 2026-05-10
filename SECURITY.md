@@ -16,7 +16,7 @@ Facil Framework is in **pre-bootstrap status**. No production version is support
 Instead, report privately via one of:
 
 1. **Preferred** — GitHub Security Advisories: https://github.com/KouemouSah/facil-framework/security/advisories/new
-2. Email: **libressai@gmail.com** (subject: `[SECURITY] facil-framework`)
+2. Email: **kouemou.sah@gmail.com** (subject: `[SECURITY] facil-framework`)
 
 ### What to include
 

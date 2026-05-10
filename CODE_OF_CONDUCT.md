@@ -10,7 +10,7 @@ We pledge to make participation in our project and community a respectful and co
 
 ## Reporting
 
-To report an issue with someone's conduct, contact the maintainer privately at **libressai@gmail.com**.
+To report an issue with someone's conduct, contact the maintainer privately at **kouemou.sah@gmail.com**.
 
 All reports are reviewed promptly and confidentially. The maintainer will respond within 7 days.
 

@@ -6,7 +6,7 @@ Thank you for your interest in contributing to Facil Framework. This document ex
 
 ## Code of Conduct
 
-This project adheres to the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Report unacceptable behavior to libressai@gmail.com.
+This project adheres to the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Report unacceptable behavior to kouemou.sah@gmail.com.
 
 ## License
 

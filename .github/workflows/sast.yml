@@ -1,0 +1,137 @@
+name: SAST — Semgrep + Bandit
+
+# Static Application Security Testing.
+# Activates when actual code is committed in Phase A.5+. For now, runs
+# against the snapshot to establish a baseline.
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'packages/**'
+      - 'deploy/**'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'packages/**'
+      - 'deploy/**'
+  schedule:
+    - cron: '0 4 * * 2'  # weekly Tuesday 04:00 UTC
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  semgrep:
+    name: Semgrep
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    if: github.actor != 'dependabot[bot]'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        run: |
+          semgrep ci \
+            --config p/owasp-top-ten \
+            --config p/security-audit \
+            --config p/python \
+            --config p/typescript \
+            --config p/react \
+            --config p/secrets \
+            --metrics=off \
+            --sarif \
+            --output semgrep.sarif || true
+        env:
+          SEMGREP_RULES: p/owasp-top-ten p/python p/typescript p/secrets
+
+      - name: Upload SARIF
+        if: always()
+        continue-on-error: true  # only works with Advanced Security on private repos
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+
+  bandit:
+    name: Bandit (Python)
+    runs-on: ubuntu-latest
+    if: github.actor != 'dependabot[bot]'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Bandit
+        run: pip install bandit[toml]
+
+      - name: Run Bandit
+        run: |
+          if [ -d packages/backend/app ]; then
+            bandit -r packages/backend/app \
+              -f json \
+              -o bandit-report.json \
+              --severity-level medium \
+              --confidence-level medium || true
+            bandit -r packages/backend/app \
+              --severity-level medium \
+              --confidence-level medium \
+              -f screen || true
+          else
+            echo "No app/ directory yet — skipping (V0 pre-bootstrap)"
+          fi
+
+      - name: Upload Bandit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
+          retention-days: 30
+
+  npm-audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: npm audit (root)
+        run: |
+          if [ -f package.json ]; then
+            npm install --legacy-peer-deps --no-audit --no-fund || true
+            npm audit --omit=dev --audit-level=high || true
+          fi
+
+      - name: npm audit (packages/web)
+        run: |
+          if [ -f packages/web/package.json ]; then
+            cd packages/web
+            npm install --legacy-peer-deps --no-audit --no-fund || true
+            npm audit --omit=dev --audit-level=high || true
+          fi
+
+  pip-audit:
+    name: pip-audit (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Audit Python dependencies
+        run: |
+          if [ -f packages/backend/requirements.txt ]; then
+            pip-audit -r packages/backend/requirements.txt --skip-editable || true
+          fi

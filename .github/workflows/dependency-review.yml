@@ -1,0 +1,43 @@
+name: Dependency Review
+
+# GitHub native action to review dependency changes in PRs.
+# Blocks PRs introducing high-severity vulnerabilities or copyleft licenses
+# incompatible with AGPL.
+# https://github.com/actions/dependency-review-action
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - '**/package.json'
+      - '**/package-lock.json'
+      - '**/yarn.lock'
+      - '**/requirements*.txt'
+      - '**/poetry.lock'
+      - '**/pyproject.toml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure
+          # AGPL-3.0 friendly licenses
+          allow-licenses: >-
+            MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, MPL-2.0,
+            AGPL-3.0, AGPL-3.0-or-later, GPL-3.0, GPL-3.0-or-later,
+            LGPL-2.1, LGPL-3.0, CC0-1.0, Unlicense, 0BSD, Python-2.0
+          # Reject proprietary, NOASSERTION, unknown
+          deny-licenses: >-
+            GPL-2.0, GPL-2.0-only,
+            LGPL-2.0,
+            EUPL-1.0, EUPL-1.1

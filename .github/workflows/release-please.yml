@@ -1,0 +1,33 @@
+name: Release Please
+
+# Auto-generates release PRs with semantic versioning + changelog
+# based on Conventional Commits landed on main.
+# https://github.com/googleapis/release-please-action
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  release-please:
+    name: Release-please
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          release-type: simple  # not language-specific in V0
+          # Use a config file for advanced setups (multi-package, etc.)
+          # config-file: release-please-config.json
+          # manifest-file: .release-please-manifest.json
+
+      - name: Tag created
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          echo "Released version: ${{ steps.release.outputs.tag_name }}"
+          echo "::notice::Release ${{ steps.release.outputs.tag_name }} created."

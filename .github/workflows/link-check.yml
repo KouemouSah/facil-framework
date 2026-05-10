@@ -1,0 +1,62 @@
+name: Markdown Link Check
+
+# Validates all markdown links (internal + external) using lychee.
+# Runs weekly + on docs changes to catch link rot early.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/*.md'
+      - '.github/workflows/link-check.yml'
+      - '.lycheeignore'
+  pull_request:
+    branches: [main]
+    paths:
+      - '**/*.md'
+  schedule:
+    - cron: '0 8 * * 1'  # weekly Monday 08:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  lychee:
+    name: Lychee link checker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore lychee cache
+        uses: actions/cache@v4
+        with:
+          path: .lycheecache
+          key: cache-lychee-${{ github.sha }}
+          restore-keys: cache-lychee-
+
+      - name: Lychee
+        uses: lycheeverse/lychee-action@v2
+        with:
+          fail: false  # don't fail CI on broken links — file an issue instead
+          args: |
+            --verbose
+            --no-progress
+            --cache
+            --max-cache-age 1d
+            --accept 200,204,206,301,302,303,307,308,403,429
+            --exclude-path packages/
+            --exclude-path docs/wiki/
+            --exclude '^https?://(localhost|127\.0\.0\.1|0\.0\.0\.0|facil\.io)'
+            './**/*.md'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create issue if links broken
+        if: failure() || env.lychee_exit_code != 0
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: '[link-check] Broken links detected on main'
+          content-filepath: ./lychee/out.md
+          labels: kind:docs, comp:ci, priority:medium, triage

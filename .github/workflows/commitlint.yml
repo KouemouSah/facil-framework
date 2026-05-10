@@ -1,0 +1,51 @@
+name: Commit Lint
+
+# Validates that commit messages follow the Conventional Commits spec.
+# https://www.conventionalcommits.org/
+
+on:
+  push:
+    branches: [main, develop, 'feature/**', 'fix/**']
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  commitlint:
+    name: Conventional Commits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history for commit walking
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install commitlint
+        run: |
+          npm install --no-save \
+            @commitlint/cli@19 \
+            @commitlint/config-conventional@19
+
+      - name: Lint commits (PR range)
+        if: github.event_name == 'pull_request'
+        run: |
+          npx commitlint \
+            --from "${{ github.event.pull_request.base.sha }}" \
+            --to "${{ github.event.pull_request.head.sha }}" \
+            --verbose
+
+      - name: Lint commits (push range)
+        if: github.event_name == 'push'
+        run: |
+          # On push, lint only the new commits in this push
+          if [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            npx commitlint \
+              --from "${{ github.event.before }}" \
+              --to "${{ github.event.after }}" \
+              --verbose
+          else
+            # Fallback for first push of new branch — lint last 10 commits
+            npx commitlint --from HEAD~10 --to HEAD --verbose || true
+          fi

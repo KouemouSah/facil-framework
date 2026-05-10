@@ -1,0 +1,78 @@
+name: PR Title Check
+
+# Enforces Conventional Commits format on PR titles
+# (squash merge uses PR title as commit message).
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  semantic-pr-title:
+    name: Conventional PR Title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          scopes: |
+            backend
+            frontend
+            mobile
+            inspector
+            studio
+            workflow
+            auth
+            rbac
+            modules
+            profiles
+            docs
+            wiki
+            ci
+            deps
+            security
+            release
+            agents
+            phase-A.5
+            phase-B
+            phase-B.5
+            phase-B.6
+            phase-C
+            phase-D
+            phase-E
+            phase-F
+            phase-G
+            phase-H
+            phase-H.5
+            phase-I
+            phase-I.bis
+            phase-J
+            phase-K
+            phase-L
+            phase-M
+            phase-N
+            phase-N.5
+            repo
+          requireScope: false
+          subjectPattern: ^(?![A-Z]).+$
+          subjectPatternError: |
+            The subject "{subject}" must start with a lowercase letter.
+            Use imperative mood (e.g. "add feature X" not "Added feature X").
+          headerPattern: '^(\w*)(?:\(([\w\.\-]*)\))?: (.*)$'
+          headerPatternCorrespondence: type, scope, subject
