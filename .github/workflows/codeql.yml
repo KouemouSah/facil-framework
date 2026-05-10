@@ -1,12 +1,23 @@
 name: CodeQL Security Analysis
 
+# CodeQL requires either:
+#   - A PUBLIC repository (free), OR
+#   - GitHub Advanced Security (paid, for private repos)
+#
+# This repo is currently PRIVATE on Free tier. CodeQL is therefore disabled
+# until either the repo goes public or Advanced Security is enabled.
+#
+# To re-enable: uncomment the `on:` section below and ensure code scanning
+# is enabled in repository settings (Settings -> Code security and analysis).
+
 on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main]
-  schedule:
-    - cron: '0 6 * * 1'  # weekly Monday 06:00 UTC
+  workflow_dispatch:  # manual only for V0
+  # push:
+  #   branches: [main, develop]
+  # pull_request:
+  #   branches: [main]
+  # schedule:
+  #   - cron: '0 6 * * 1'  # weekly Monday 06:00 UTC
 
 jobs:
   analyze:

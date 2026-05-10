@@ -1,0 +1,100 @@
+name: Agent — PR Reviewer (GitHub Models)
+
+# AI agent that reviews pull requests using GitHub Models (free tier).
+# Uses actions/ai-inference, no external API key required.
+#
+# Models: https://github.com/marketplace?type=models
+# Free tier rate limits: https://docs.github.com/en/github-models/prototyping-with-ai-models#rate-limits
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+permissions:
+  pull-requests: write
+  contents: read
+  issues: write
+  models: read  # required for actions/ai-inference
+
+jobs:
+  review:
+    name: GitHub Models PR review
+    runs-on: ubuntu-latest
+    if: |
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !contains(github.event.pull_request.labels.*.name, 'skip-review')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute diff
+        id: diff
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+          STAT=$(git diff origin/${{ github.event.pull_request.base.ref }}...HEAD --stat | head -50)
+          # Truncate full diff to 30K chars to fit free-tier context
+          FULL=$(git diff origin/${{ github.event.pull_request.base.ref }}...HEAD | head -c 30000)
+          {
+            echo "stat<<EOF"
+            echo "$STAT"
+            echo "EOF"
+            echo "full<<EOF"
+            echo "$FULL"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Run AI inference
+        id: ai
+        uses: actions/ai-inference@v1
+        with:
+          model: openai/gpt-4o-mini
+          max-tokens: 1500
+          system-prompt: |
+            You are a senior reviewer for the Facil Framework — a generic deployable platform for digital services (gov, enterprise, SaaS, banking) built on FastAPI + Next.js + Expo + Postgres+pgvector + Ollama. The framework is in pre-bootstrap state. Be constructive but rigorous.
+
+            Output a markdown review with these sections only:
+
+            ## Summary
+            One paragraph.
+
+            ## Risk
+            🟢 Low / 🟡 Medium / 🔴 High — one line justification.
+
+            ## Concerns
+            Bullets per category (Security · Correctness · Performance · Architecture · Tests · Docs). Cite file:line. If none in a category, write "✅ none observed".
+
+            ## Suggestions
+            Specific code changes.
+
+            ## Verdict
+            ✅ Approve · 💬 Approve with comments · 🛑 Request changes
+
+            Total under 600 words.
+          prompt: |
+            PR title: ${{ github.event.pull_request.title }}
+
+            PR body:
+            ${{ github.event.pull_request.body }}
+
+            Diff stat:
+            ${{ steps.diff.outputs.stat }}
+
+            Diff (truncated):
+            ${{ steps.diff.outputs.full }}
+
+      - name: Post review comment
+        uses: actions/github-script@v7
+        env:
+          REVIEW: ${{ steps.ai.outputs.response }}
+        with:
+          script: |
+            const review = process.env.REVIEW || '_AI inference returned empty._';
+            const body = `### 🤖 PR Review (GitHub Models · gpt-4o-mini)\n\n${review}\n\n---\n_Auto-generated. Add label \`skip-review\` to opt out. Costs nothing (GitHub Models free tier)._`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body,
+            });

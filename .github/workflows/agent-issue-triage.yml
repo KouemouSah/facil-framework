@@ -1,0 +1,148 @@
+name: Agent — Issue Triage (GitHub Models)
+
+# AI agent that triages new issues using GitHub Models (free tier).
+# No external API key required — uses GITHUB_TOKEN with models:read scope.
+
+on:
+  issues:
+    types: [opened, reopened]
+
+permissions:
+  issues: write
+  contents: read
+  models: read
+
+jobs:
+  triage:
+    name: GitHub Models issue triage
+    runs-on: ubuntu-latest
+    if: |
+      !contains(github.event.issue.labels.*.name, 'kind:epic') &&
+      !contains(github.event.issue.labels.*.name, 'skip-triage')
+    steps:
+      - name: Fetch open issues for context
+        id: context
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: openIssues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 30,
+            });
+            const summary = openIssues
+              .filter(i => !i.pull_request && i.number !== context.payload.issue.number)
+              .map(i => `#${i.number} [${i.labels.map(l=>l.name).join(',')}] ${i.title}`)
+              .join('\n');
+            core.setOutput('open_issues', summary || '(none)');
+
+      - name: Run AI inference
+        id: ai
+        uses: actions/ai-inference@v1
+        with:
+          model: openai/gpt-4o-mini
+          max-tokens: 800
+          system-prompt: |
+            You are an issue triager for Facil Framework. Output a single JSON object (no other text, no markdown fences) with this exact shape:
+
+            {"labels": ["..."], "milestone": "..." or null, "duplicate_of": null or issue number, "clarifying_questions": ["..."], "summary": "one sentence", "suggested_action": "..."}
+
+            Available labels (use exactly these names):
+            kind:bug, kind:feature, kind:docs, kind:refactor, kind:test, kind:chore
+            priority:critical, priority:high, priority:medium, priority:low
+            comp:backend, comp:frontend, comp:mobile, comp:studio, comp:workflow, comp:deploy, comp:ci
+            triage, blocked, security, discussion, good first issue, help wanted
+
+            Available milestones (suggest one if applicable):
+            "Phase A.5 — Module Loader", "Phase B — LLM Abstraction", "Phase B.5 — Payment Gateway", "Phase B.6 — Embedding/RAG", "Phase C — Storage Abstraction", "Phase D — Profile Templates", "Phase E — Studio Backend", "Phase F — Studio UI Branding/Lang/RBAC", "Phase G — Studio UI Taxonomies/Catalog", "Phase H — Workflow Designer", "Phase H.5 — Module Manager UI", "Phase I — Studio UI Providers", "Phase I.bis — Knowledge Base UI", "Phase J — Auth Providers", "Phase K — Mobile + Inspector", "Phase L — E2E Tests", "Phase M — Documentation", "Phase N — Document Designer + Schemas", "Phase N.5 — Document Signature"
+
+            Only suggest labels and milestones from these lists. Prefer fewer labels if unsure.
+          prompt: |
+            New issue #${{ github.event.issue.number }}:
+            Title: ${{ github.event.issue.title }}
+            Body:
+            ${{ github.event.issue.body }}
+
+            Other open issues for duplicate detection:
+            ${{ steps.context.outputs.open_issues }}
+
+      - name: Apply triage
+        uses: actions/github-script@v7
+        env:
+          AI_RESPONSE: ${{ steps.ai.outputs.response }}
+        with:
+          script: |
+            const raw = process.env.AI_RESPONSE || '{}';
+            // Strip code fences if present
+            const cleaned = raw.replace(/^```(?:json)?\s*/m, '').replace(/\s*```$/m, '').trim();
+            let triage;
+            try {
+              triage = JSON.parse(cleaned);
+            } catch (e) {
+              core.warning(`Invalid triage JSON: ${e.message}\nRaw: ${raw.substring(0, 500)}`);
+              return;
+            }
+
+            const issueNumber = context.payload.issue.number;
+
+            // Apply labels
+            if (Array.isArray(triage.labels) && triage.labels.length > 0) {
+              try {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  labels: triage.labels,
+                });
+              } catch (e) {
+                core.warning(`addLabels failed: ${e.message}`);
+              }
+            }
+
+            // Apply milestone
+            if (triage.milestone) {
+              try {
+                const { data: milestones } = await github.rest.issues.listMilestones({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  state: 'open',
+                  per_page: 30,
+                });
+                const ms = milestones.find(m => m.title === triage.milestone);
+                if (ms) {
+                  await github.rest.issues.update({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issueNumber,
+                    milestone: ms.number,
+                  });
+                }
+              } catch (e) {
+                core.warning(`setMilestone failed: ${e.message}`);
+              }
+            }
+
+            // Post triage comment
+            const dup = triage.duplicate_of ? `\n\n⚠️ **Possible duplicate of #${triage.duplicate_of}** — please verify.` : '';
+            const questions = (triage.clarifying_questions || []).map(q => `- ${q}`).join('\n');
+            const body = `### 🤖 Issue Triage (GitHub Models · gpt-4o-mini)\n\n**Summary:** ${triage.summary || '(none)'}${dup}\n\n${questions ? `**Clarifying questions:**\n${questions}\n\n` : ''}**Suggested action:** ${triage.suggested_action || '(none)'}\n\n---\n_Auto-generated. Add label \`skip-triage\` to opt out._`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body,
+            });
+
+            // Remove triage label
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'triage',
+              });
+            } catch (e) {
+              // not critical
+            }

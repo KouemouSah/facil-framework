@@ -1,0 +1,215 @@
+name: Automation — Issue & Milestone Tracking
+
+# Automatically maintains epic checklists and milestone progress when
+# child issues close, PRs merge, or commits land. No manual checkbox
+# clicking required.
+
+on:
+  issues:
+    types: [closed, reopened]
+  pull_request:
+    types: [closed]
+  push:
+    branches: [main]
+
+permissions:
+  issues: write
+  pull-requests: write
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # When a child issue closes, update any parent epic that references it
+  # in a checklist (e.g. `- [ ] #42` becomes `- [x] #42`)
+  # ---------------------------------------------------------------------------
+  update-epic-checkboxes:
+    name: Update epic checklists
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find and update parent epics
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.payload.issue.number;
+            const isClosed = context.payload.issue.state === 'closed';
+            const checked = isClosed ? 'x' : ' ';
+            const unchecked = isClosed ? ' ' : 'x';
+
+            // Find all open epics
+            const { data: epics } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              labels: 'kind:epic',
+              per_page: 100,
+            });
+
+            for (const epic of epics) {
+              if (!epic.body) continue;
+
+              // Match patterns like `- [ ] #42`, `- [x] #42`, `- [ ] [text](url/issues/42)`
+              const refRegex = new RegExp(
+                `^(\\s*-\\s*\\[)${unchecked}(\\]\\s*(?:.*?#${issueNumber}(?!\\d)|.*?/issues/${issueNumber}(?!\\d).*))$`,
+                'gm'
+              );
+
+              if (!refRegex.test(epic.body)) continue;
+
+              const newBody = epic.body.replace(
+                new RegExp(
+                  `^(\\s*-\\s*\\[)${unchecked}(\\]\\s*(?:.*?#${issueNumber}(?!\\d)|.*?/issues/${issueNumber}(?!\\d).*))$`,
+                  'gm'
+                ),
+                `$1${checked}$2`
+              );
+
+              if (newBody !== epic.body) {
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: epic.number,
+                  body: newBody,
+                });
+                core.notice(
+                  `Updated epic #${epic.number} checklist for issue #${issueNumber} (${isClosed ? 'checked' : 'unchecked'})`
+                );
+              }
+            }
+
+  # ---------------------------------------------------------------------------
+  # When a PR merges to main, find linked issues (Closes #N, Fixes #N) and
+  # post a summary comment on the milestone
+  # ---------------------------------------------------------------------------
+  pr-milestone-progress:
+    name: PR milestone progress
+    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment milestone progress on merged PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const body = pr.body || '';
+
+            // Extract issue numbers from PR body using closing keywords
+            const refs = [...body.matchAll(/\b(?:closes|close|fixes|fix|resolves|resolve)\s+#(\d+)/gi)]
+              .map(m => parseInt(m[1], 10));
+
+            if (refs.length === 0) {
+              core.info('No closing references in PR body. Skipping.');
+              return;
+            }
+
+            for (const issueNum of refs) {
+              try {
+                const { data: issue } = await github.rest.issues.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNum,
+                });
+
+                if (!issue.milestone) continue;
+
+                const ms = issue.milestone;
+                const total = ms.open_issues + ms.closed_issues;
+                const pct = total > 0 ? Math.round((ms.closed_issues / total) * 100) : 0;
+
+                core.notice(
+                  `Milestone "${ms.title}": ${ms.closed_issues}/${total} closed (${pct}%) — issue #${issueNum} closed by PR #${pr.number}`
+                );
+
+                // Auto-close the milestone if 100%
+                if (pct === 100 && ms.state === 'open') {
+                  await github.rest.issues.updateMilestone({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    milestone_number: ms.number,
+                    state: 'closed',
+                  });
+                  core.notice(`Milestone "${ms.title}" auto-closed (100% complete).`);
+                }
+              } catch (e) {
+                core.warning(`Failed to update milestone for #${issueNum}: ${e.message}`);
+              }
+            }
+
+  # ---------------------------------------------------------------------------
+  # Auto-label issues by content keywords on first creation
+  # (component / phase detection in title)
+  # ---------------------------------------------------------------------------
+  auto-label-issues:
+    name: Auto-label new issues
+    if: github.event_name == 'issues' && github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const text = `${issue.title} ${issue.body || ''}`.toLowerCase();
+            const labels = [];
+
+            // Component
+            if (/\b(backend|fastapi|python|asyncpg|pydantic)\b/.test(text)) labels.push('comp:backend');
+            if (/\b(frontend|next\.?js|react|tailwind)\b/.test(text)) labels.push('comp:frontend');
+            if (/\b(mobile|expo|react.native|inspector)\b/.test(text)) labels.push('comp:mobile');
+            if (/\b(studio|customization)\b/.test(text)) labels.push('comp:studio');
+            if (/\b(workflow|designer|reactflow|step.types)\b/.test(text)) labels.push('comp:workflow');
+            if (/\b(deploy|docker|wizard|cloud.run|gcp)\b/.test(text)) labels.push('comp:deploy');
+            if (/\b(workflow|github.action|ci|pipeline)\b/.test(text)) labels.push('comp:ci');
+
+            // Security
+            if (/\b(security|vulnerability|cve|exploit|injection|xss|csrf|rce)\b/.test(text)) {
+              labels.push('security');
+              labels.push('priority:high');
+            }
+
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels,
+              });
+              core.notice(`Auto-labelled #${issue.number} with: ${labels.join(', ')}`);
+            }
+
+  # ---------------------------------------------------------------------------
+  # On push to main, parse commit messages and close issues referenced by
+  # closing keywords (mirrors GitHub's PR behaviour for direct pushes)
+  # ---------------------------------------------------------------------------
+  close-issues-from-commits:
+    name: Close issues from commit messages
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const commits = context.payload.commits || [];
+            for (const commit of commits) {
+              const refs = [...(commit.message || '').matchAll(/\b(?:closes|close|fixes|fix|resolves|resolve)\s+#(\d+)/gi)]
+                .map(m => parseInt(m[1], 10));
+
+              for (const issueNum of refs) {
+                try {
+                  await github.rest.issues.update({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issueNum,
+                    state: 'closed',
+                  });
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issueNum,
+                    body: `Closed by commit ${commit.id.substring(0, 8)} on \`main\`.\n\n> ${commit.message.split('\n')[0]}`,
+                  });
+                  core.notice(`Closed #${issueNum} from commit ${commit.id.substring(0, 8)}`);
+                } catch (e) {
+                  core.warning(`Failed to close #${issueNum}: ${e.message}`);
+                }
+              }
+            }

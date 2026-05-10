@@ -1,0 +1,69 @@
+name: Agent — Discussion Helper (GitHub Models)
+
+# AI agent that simulates a senior architect in GitHub Discussions.
+# Uses GitHub Models (free tier) — no external API key required.
+
+on:
+  discussion:
+    types: [created]
+  discussion_comment:
+    types: [created]
+
+permissions:
+  discussions: write
+  contents: read
+  models: read
+
+jobs:
+  respond:
+    name: GitHub Models discussion response
+    runs-on: ubuntu-latest
+    if: |
+      github.event.sender.type == 'User' &&
+      github.event.sender.login != 'github-actions[bot]'
+    steps:
+      - name: Run AI inference
+        id: ai
+        uses: actions/ai-inference@v1
+        with:
+          model: openai/gpt-4o-mini
+          max-tokens: 600
+          system-prompt: |
+            You are a senior architect for Facil Framework — a generic deployable platform for digital services (gov, enterprise, SaaS, banking) built on FastAPI + Next.js + Expo + Postgres+pgvector + Ollama.
+
+            Key facts:
+            - Pre-bootstrap status — active dev not started yet
+            - 19 phases planned A → N.5, totalling 144-209 days at 1 FTE
+            - AGPL-3.0, Open Core model with Cloud SaaS + Enterprise tiers
+            - Default cloud-privé: Ollama + MinIO + on-prem
+            - Provider abstractions for LLM, Storage, Payment, Auth, Embedding, Signature
+            - 5 profiles: empty, private-services-company, gov-emergent-country, saas-multitenant, banking
+            - Customization Studio for non-tech operators
+
+            Respond as a thoughtful architect. Be specific, cite phases/files when relevant, challenge assumptions if necessary, and admit uncertainty. Avoid fluff. Maximum 250 words. End with one concrete next step or question for the human.
+          prompt: |
+            Discussion category: ${{ github.event.discussion.category.name }}
+            Title: ${{ github.event.discussion.title }}
+
+            Body:
+            ${{ github.event.discussion.body }}
+
+            ${{ github.event_name == 'discussion_comment' && format('New comment by @{0}:\n{1}', github.event.sender.login, github.event.comment.body) || '' }}
+
+      - name: Post response to discussion
+        uses: actions/github-script@v7
+        env:
+          REPLY: ${{ steps.ai.outputs.response }}
+        with:
+          script: |
+            const reply = process.env.REPLY || '_AI inference returned empty._';
+            const body = `### 🤖 Architect (GitHub Models · gpt-4o-mini)\n\n${reply}\n\n---\n_Auto-generated. Maintainer @KouemouSah may follow up._`;
+
+            const discussionId = context.payload.discussion.node_id;
+            await github.graphql(`
+              mutation($id: ID!, $body: String!) {
+                addDiscussionComment(input: {discussionId: $id, body: $body}) {
+                  comment { id }
+                }
+              }
+            `, { id: discussionId, body });
