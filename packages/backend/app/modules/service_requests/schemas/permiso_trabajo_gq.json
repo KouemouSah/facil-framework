@@ -1,0 +1,402 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "PERMISO_TRABAJO_GQ_V1",
+  "version": "1.0",
+  "title": "Permiso de Trabajo - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour le Permiso de Trabajo (permis de travail pour etrangers) emis par le Ministerio de Trabajo y Seguridad Social. Document a 2 zones principales: Datos del Empleador et Datos del Empleado.",
+  "document_type": "PERMISO_TRABAJO",
+  "country": "GQ",
+  "faces": ["single_page"],
+  "document_nature": "permis_officiel",
+  "issuer": "Direccion General de Trabajo y Fomento de Empleo",
+  "ministry": "Ministerio de Trabajo y Seguridad Social",
+
+  "extraction": {
+    "documento": {
+      "description": "Informations administratives du permis",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "PERMISO_TRABAJO",
+          "required": true,
+          "description": "Type de document"
+        },
+        "tipo_permiso": {
+          "type": "string",
+          "enum": ["A", "BI", "BII", "C", "D"],
+          "required": true,
+          "description": "Type de permis de travail (A = temporaire court, BI = temporaire 12 mois, BII = temporaire 24 mois, C = qualifie, D = permanent)",
+          "field_label": "TIPO"
+        },
+        "numero_permiso": {
+          "type": "string",
+          "required": true,
+          "description": "Numero du permis (ex: 2248/2012)",
+          "field_label": "Numero",
+          "pattern": "^[0-9]+/[0-9]{4}$",
+          "pii": true
+        },
+        "valedero_por": {
+          "type": "string",
+          "required": true,
+          "description": "Duree de validite (ex: 12 meses, 24 meses)",
+          "field_label": "Valedero por"
+        }
+      }
+    },
+
+    "empleador": {
+      "description": "DATOS DEL EMPLEADOR - Zone gauche du document",
+      "fields": {
+        "razon_social": {
+          "type": "string",
+          "required": true,
+          "description": "Raison sociale de l'entreprise",
+          "field_label": "Razon",
+          "pii": true
+        },
+        "calle": {
+          "type": "string",
+          "required": false,
+          "description": "Adresse (rue) de l'entreprise",
+          "field_label": "Calle",
+          "pii": true
+        },
+        "distrito": {
+          "type": "string",
+          "required": true,
+          "description": "District (ex: MALABO, BATA)",
+          "field_label": "Distrito"
+        },
+        "provincia": {
+          "type": "string",
+          "required": true,
+          "description": "Province (ex: BIOKO NORTE, LITORAL)",
+          "field_label": "Provincia",
+          "enum": ["BIOKO NORTE", "BIOKO SUR", "LITORAL", "CENTRO SUR", "KIE-NTEM", "WELE-NZAS", "ANNOBON", "DJIBLOHO"]
+        },
+        "propietario": {
+          "type": "string",
+          "required": false,
+          "description": "Nom du proprietaire de l'entreprise",
+          "field_label": "Propietario",
+          "pii": true
+        },
+        "representante_legal": {
+          "type": "string",
+          "required": false,
+          "description": "Nom du representant legal",
+          "field_label": "Representante Legal",
+          "pii": true
+        },
+        "actividad_economica": {
+          "type": "string",
+          "required": true,
+          "description": "Activite economique de l'entreprise (ex: BANCAS, CONSTRUCCION, PETROLEO)",
+          "field_label": "Actividad Economica"
+        }
+      }
+    },
+
+    "empleado": {
+      "description": "DATOS DEL EMPLEADO - Zone droite du document",
+      "fields": {
+        "nombre": {
+          "type": "string",
+          "required": true,
+          "description": "Prenom(s) de l'employe",
+          "field_label": "Nombre",
+          "pii": true
+        },
+        "apellidos": {
+          "type": "string",
+          "required": true,
+          "description": "Nom(s) de famille de l'employe",
+          "field_label": "Apellidos",
+          "pii": true
+        },
+        "sexo": {
+          "type": "string",
+          "enum": ["M", "F"],
+          "required": true,
+          "description": "Sexe de l'employe",
+          "field_label": "Sexo"
+        },
+        "fecha_nacimiento": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date de naissance (DD/MM/YYYY)",
+          "field_label": "Fecha",
+          "date_format": "DD/MM/YYYY",
+          "pii": true
+        },
+        "lugar_nacimiento": {
+          "type": "string",
+          "required": true,
+          "description": "Lieu de naissance (ville ou pays)",
+          "field_label": "Lugar",
+          "pii": true
+        },
+        "estado_civil": {
+          "type": "string",
+          "enum": ["SOLTERO", "SOLTERA", "CASADO", "CASADA", "DIVORCIADO", "DIVORCIADA", "VIUDO", "VIUDA"],
+          "required": false,
+          "description": "Etat civil",
+          "field_label": "Estado Civil"
+        },
+        "profesion": {
+          "type": "string",
+          "required": true,
+          "description": "Profession/poste occupe",
+          "field_label": "Profesion"
+        },
+        "nacionalidad": {
+          "type": "string",
+          "required": true,
+          "description": "Nationalite de l'employe (ne peut PAS etre ECUATOGUINEANA)",
+          "field_label": "Nacionalidad"
+        },
+        "patrono": {
+          "type": "string",
+          "required": false,
+          "description": "Nom de l'employeur (souvent meme que razon_social)",
+          "field_label": "Patrono",
+          "pii": true
+        },
+        "pasaporte_carnet_residencia": {
+          "type": "string",
+          "required": true,
+          "description": "Numero de passeport ou carnet de residencia",
+          "field_label": "Pasap/Carnet Residencia",
+          "pii": true,
+          "encrypt": true
+        },
+        "numero_contrato_trabajo": {
+          "type": "string",
+          "required": false,
+          "description": "Numero du contrat de travail",
+          "field_label": "N° de Contrato de Trabajo",
+          "pii": true
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification",
+      "fields": {
+        "fecha_expedicion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'expedition du permis",
+          "date_format": "DD de MMMM de YYYY"
+        },
+        "lugar_expedicion": {
+          "type": "string",
+          "required": true,
+          "description": "Lieu d'expedition (Malabo, Bata)",
+          "default": "Malabo"
+        },
+        "tiene_foto_empleado": {
+          "type": "boolean",
+          "required": true,
+          "description": "Photo de l'employe presente (zone superieure droite)"
+        },
+        "tiene_firma_director_general": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du Director General de Trabajo y Fomento de Empleo presente"
+        },
+        "tiene_sello_ministerio": {
+          "type": "boolean",
+          "required": true,
+          "description": "Sceau du Ministerio de Trabajo presente (rond, bleu)"
+        },
+        "tiene_firma_interesado": {
+          "type": "boolean",
+          "required": false,
+          "description": "Signature de l'employe (Firma del interesado)"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "tipo_permiso_valid",
+      "rule": "tipo_permiso IN ('A', 'BI', 'BII', 'C', 'D')",
+      "error_es": "El tipo de permiso debe ser A, BI, BII, C o D",
+      "error_fr": "Le type de permis doit etre A, BI, BII, C ou D",
+      "severity": "error"
+    },
+    {
+      "id": "nacionalidad_no_ecuatoguineana",
+      "rule": "nacionalidad != 'ECUATOGUINEANA' AND nacionalidad != 'ECUATOGUINEANO'",
+      "error_es": "El permiso de trabajo es solo para extranjeros. Un ciudadano ecuatoguineano no necesita permiso de trabajo.",
+      "error_fr": "Le permis de travail est reserve aux etrangers. Un citoyen equato-guineen n'a pas besoin de permis de travail.",
+      "severity": "error"
+    },
+    {
+      "id": "foto_empleado_required",
+      "rule": "tiene_foto_empleado == true",
+      "error_es": "El permiso debe incluir la foto del empleado",
+      "error_fr": "Le permis doit inclure la photo de l'employe",
+      "severity": "error"
+    },
+    {
+      "id": "firma_y_sello_required",
+      "rule": "tiene_firma_director_general == true AND tiene_sello_ministerio == true",
+      "error_es": "El permiso debe tener firma del Director General y sello del Ministerio",
+      "error_fr": "Le permis doit avoir la signature du Directeur General et le sceau du Ministere",
+      "severity": "error"
+    },
+    {
+      "id": "pasaporte_residencia_required",
+      "rule": "pasaporte_carnet_residencia IS NOT NULL AND pasaporte_carnet_residencia != ''",
+      "error_es": "El numero de pasaporte o carnet de residencia es obligatorio",
+      "error_fr": "Le numero de passeport ou carte de residence est obligatoire",
+      "severity": "error"
+    },
+    {
+      "id": "numero_permiso_format",
+      "rule": "numero_permiso MATCHES '^[0-9]+/[0-9]{4}$'",
+      "error_es": "Formato de numero de permiso invalido (debe ser XXXX/YYYY)",
+      "error_fr": "Format numero de permis invalide (doit etre XXXX/YYYY)",
+      "severity": "warning"
+    },
+    {
+      "id": "valedero_coherence",
+      "rule": "valedero_por MATCHES '(12|24|6)\\s*meses'",
+      "error_es": "La duracion del permiso debe ser 6, 12 o 24 meses",
+      "error_fr": "La duree du permis doit etre 6, 12 ou 24 mois",
+      "severity": "warning"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Permiso de Trabajo (permis de travail pour etrangers) emis par le Ministerio de Trabajo y Seguridad Social de Guinee Equatoriale. Document cartonné format A5 environ avec photo, divise en 2 zones principales (employeur gauche, employe droite).",
+    "language": "es",
+    "date_format": "DD/MM/YYYY ou DD de MMMM de YYYY",
+    "visual_zones": [
+      "ZONE SUPERIEURE GAUCHE: DATOS DEL EMPLEADOR",
+      "  - Razon: [nom entreprise]",
+      "  - Calle: [adresse]",
+      "  - Distrito: [ville]",
+      "  - Provincia: [province]",
+      "  - Propietario: [nom]",
+      "  - Representante Legal: [nom]",
+      "  - Actividad Economica: [secteur]",
+      "  - Date et signature du Director General de Trabajo y Fomento de Empleo",
+      "  - Sceau rond bleu du Ministerio",
+      "ZONE SUPERIEURE DROITE: DATOS DEL EMPLEADO",
+      "  - Photo d'identite (coin superieur droit, sous le sceau du Ministerio)",
+      "  - Nombre: [prenom]",
+      "  - Apellidos: [nom de famille]",
+      "  - Sexo: M/F    Fecha: [date naissance]",
+      "  - Lugar: [lieu naissance]",
+      "  - Estado Civil: [etat civil]",
+      "  - Profesion: [poste]",
+      "  - Nacionalidad: [nationalite]",
+      "  - Patrono: [employeur]",
+      "  - Pasap/Carnet Residencia: [numero]",
+      "  - N° de Contrato de Trabajo: [numero]",
+      "  - Firma del interesado",
+      "ZONE INFERIEURE (inversee/verso): PERMISO DE TRABAJO",
+      "  - Titre: PERMISO DE TRABAJO (peut etre imprime a l'envers)",
+      "  - Ministerio de Trabajo y Seguridad Social",
+      "  - TIPO: [A/BI/BII/C/D]",
+      "  - Numero: [XXXX/YYYY]",
+      "  - Valedero por: [XX meses]"
+    ],
+    "key_fields_positions": {
+      "tipo_permiso": "Zone inferieure, apres 'TIPO:'",
+      "numero_permiso": "Zone inferieure, apres 'Numero'",
+      "valedero_por": "Zone inferieure, apres 'Valedero por'",
+      "razon_social": "Zone gauche, premiere ligne apres 'Razon'",
+      "nombre_empleado": "Zone droite, apres 'Nombre.'",
+      "apellidos": "Zone droite, apres 'Apellidos:'",
+      "nacionalidad": "Zone droite, apres 'Nacionalidad'",
+      "pasaporte": "Zone droite, apres 'Pasap/Carnet Residencia'"
+    },
+    "common_values": {
+      "tipo_permiso": {
+        "A": "Temporaire court (moins de 6 mois)",
+        "BI": "Temporaire 12 mois (le plus courant)",
+        "BII": "Temporaire 24 mois",
+        "C": "Qualifie / specialise",
+        "D": "Permanent / indefini"
+      },
+      "provincia": ["BIOKO NORTE", "BIOKO SUR", "LITORAL", "CENTRO SUR", "KIE-NTEM", "WELE-NZAS", "ANNOBON", "DJIBLOHO"],
+      "actividad_economica": ["BANCAS", "CONSTRUCCION", "PETROLEO", "COMERCIO", "HOTELERIA", "TELECOMUNICACIONES", "SERVICIOS", "AGRICULTURA"],
+      "nacionalidad_frequentes": ["CAMERUNESA", "NIGERIANA", "GABONESA", "CHINA", "LIBANESA", "MARROQUI", "ESPAÑOLA", "FRANCESA"]
+    },
+    "ocr_challenges": [
+      "Document souvent use et plastifie avec reflets",
+      "Zone inferieure peut etre imprimee a l'envers (rotation 180°)",
+      "Photo de mauvaise qualite collée",
+      "Texte manuscrit pour certains champs (Nombre, Apellidos, etc.)",
+      "Sceau peut masquer du texte",
+      "Actividad Economica parfois abregee",
+      "Format date variable (DD/MM/YYYY ou texte)"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "tipo_permiso": [
+      "(?:TIPO)\\s*[:#]?\\s*([ABCD](?:I{1,2})?)",
+      "(?:Tipo)\\s*[:#.]?\\s*([ABCD]I{0,2})"
+    ],
+    "numero_permiso": [
+      "(?:N[uú]mero|Numero)\\s*[:#]?\\s*([0-9]+/[0-9]{4})"
+    ],
+    "valedero_por": [
+      "(?:Valedero\\s*por)\\s*[:#]?\\s*(\\d+\\s*meses)"
+    ],
+    "razon_social": [
+      "(?:Raz[oó]n)\\s*[:#]?\\s*(.+?)(?=Calle|$)"
+    ],
+    "calle": [
+      "(?:Calle)\\s*[:#]?\\s*(.+?)(?=Distrito|$)"
+    ],
+    "distrito": [
+      "(?:Distrito)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "provincia": [
+      "(?:Provincia)\\s*[:#]?\\s*(BIOKO\\s*(?:NORTE|SUR)|LITORAL|CENTRO\\s*SUR|KIE[- ]NTEM|WELE[- ]NZAS|ANNOBON|DJIBLOHO)"
+    ],
+    "actividad_economica": [
+      "(?:Actividad\\s*Econ[oó]mica)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "nombre": [
+      "(?:Nombre\\.)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+?)(?=Apellidos|$)"
+    ],
+    "apellidos": [
+      "(?:Apellidos)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+?)(?=Sexo|$)"
+    ],
+    "sexo": [
+      "(?:Sexo)\\s*[:#]?\\s*([MF])"
+    ],
+    "fecha_nacimiento": [
+      "(?:Fecha)\\s*[:#]?\\s*(\\d{1,2}[/.-]\\s?\\d{1,2}[/.-]\\s?\\d{2,4})"
+    ],
+    "lugar_nacimiento": [
+      "(?:Lugar)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "estado_civil": [
+      "(?:Estado\\s*Civil)\\s*[:#]?\\s*(SOLTERO|SOLTERA|CASADO|CASADA|DIVORCIADO|DIVORCIADA|VIUDO|VIUDA)"
+    ],
+    "profesion": [
+      "(?:Profesi[oó]n)\\s*[:#.]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "nacionalidad": [
+      "(?:Nacionalidad)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ]+)"
+    ],
+    "pasaporte_carnet_residencia": [
+      "(?:Pasap(?:orte)?[./]?\\s*(?:Carnet)?\\s*Residencia)\\s*[:#]?\\s*([A-Z0-9]+)"
+    ],
+    "numero_contrato_trabajo": [
+      "(?:N[°oº]?\\s*de\\s*Contrato\\s*de\\s*Trabajo)\\s*[:#]?\\s*([A-Z0-9/-]+)"
+    ]
+  }
+}

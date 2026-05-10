@@ -1,0 +1,490 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "PERMISO_CIRCULACION_GQ_V1",
+  "version": "1.0",
+  "title": "Permiso de Circulacion - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour le Permis de Circulation de Guinee Equatoriale",
+  "document_type": "PERMISO_CIRCULACION",
+  "country": "GQ",
+  "faces": ["recto", "verso"],
+
+  "extraction": {
+    "documento": {
+      "description": "Informations administratives du document",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "PERMISO_CIRCULACION",
+          "required": true,
+          "description": "Type de document"
+        },
+        "ministerio": {
+          "type": "string",
+          "required": false,
+          "default": "MINISTERIO DE INTERIOR Y COOPERACIONES LOCALES",
+          "description": "Ministerio emisor",
+          "source": "recto"
+        },
+        "direccion_general": {
+          "type": "string",
+          "required": false,
+          "default": "DIRECCION GENERAL DE TRAFICO RODADO Y SEGURIDAD VIAL",
+          "description": "Direction generale",
+          "source": "recto"
+        },
+        "delegacion": {
+          "type": "string",
+          "required": false,
+          "description": "Delegation regionale (ex: MALABO-BIOKO-NORTE)",
+          "field_label": "DELEGACIÓN",
+          "source": "recto"
+        },
+        "fecha_emision": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Date d'emission du permis",
+          "field_label": "FECHA",
+          "source": "recto",
+          "date_format": "DD/MM/YYYY"
+        },
+        "lugar_emision": {
+          "type": "string",
+          "required": false,
+          "description": "Lieu d'emission (Malabo, Bata, etc.)",
+          "source": "recto"
+        },
+        "region": {
+          "type": "string",
+          "enum": ["REGION INSULAR", "REGION CONTINENTAL"],
+          "required": false,
+          "description": "Region administrative (Insular = Bioko/Annobon, Continental = reste)",
+          "field_label": "DELEGACIÓN DE TRÁFICO"
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification et validation du document",
+      "fields": {
+        "tiene_sello_oficial": {
+          "type": "boolean",
+          "required": true,
+          "description": "Presence du sceau officiel de la Delegacion de Trafico (rond, en haut a droite)",
+          "field_label": "Sello oficial",
+          "source": "recto"
+        },
+        "texto_sello": {
+          "type": "string",
+          "required": false,
+          "description": "Texte visible sur le sceau (ex: DELEGACIÓN DE TRÁFICO RODADO Y SEGURIDAD VIAL)",
+          "source": "recto"
+        },
+        "tiene_timbre_fiscal": {
+          "type": "boolean",
+          "required": false,
+          "description": "Presence d'un timbre fiscal (si applicable)"
+        },
+        "tiene_firma": {
+          "type": "boolean",
+          "required": true,
+          "description": "Presence de la signature du responsable",
+          "source": "recto"
+        },
+        "cargo_firmante": {
+          "type": "string",
+          "required": false,
+          "default": "EL DELEGADO DE TRÁFICO",
+          "description": "Titre/cargo du signataire",
+          "field_label": "EL DELEGADO DE TRÁFICO"
+        },
+        "nombre_firmante": {
+          "type": "string",
+          "required": false,
+          "description": "Nom du responsable qui a signe (si lisible)",
+          "pii": true
+        }
+      }
+    },
+
+    "clasificacion_documento": {
+      "description": "Classification du type de permis",
+      "fields": {
+        "es_documento_transferido": {
+          "type": "boolean",
+          "required": true,
+          "description": "Indique si ce permis resulte d'un transfert anterieur (mention TRANSFERENCIA.- visible)",
+          "source": "recto"
+        },
+        "mencion_transferencia_recto": {
+          "type": "boolean",
+          "required": false,
+          "description": "La mention 'TRANSFERENCIA.-' est visible sur le recto du document",
+          "field_label": "TRANSFERENCIA.-"
+        },
+        "tipo_emision": {
+          "type": "string",
+          "enum": ["PRIMERA_MATRICULACION", "TRANSFERENCIA", "DUPLICADO"],
+          "required": false,
+          "description": "Type d'emission: premiere immatriculation, transfert, ou duplicata"
+        }
+      }
+    },
+
+    "vehiculo": {
+      "description": "Donnees du vehicule",
+      "fields": {
+        "matricula": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[A-Z]{2}-[0-9]{3}-[A-Z0-9]{1,2}$",
+          "description": "Numero d'immatriculation (ex: KN-298-0, BN-840-AR)",
+          "field_label": "A) MATRICULA",
+          "source": "recto",
+          "pii": true
+        },
+        "fecha_matriculacion": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Date de premiere immatriculation",
+          "field_label": "FECHA MATRICULACION",
+          "source": "recto",
+          "date_format": "DD/MM/YYYY"
+        },
+        "marca": {
+          "type": "string",
+          "required": false,
+          "description": "Marque du vehicule (ex: HYUNDAI, TOYOTA)",
+          "field_label": "E) MARCA"
+        },
+        "modelo": {
+          "type": "string",
+          "required": false,
+          "description": "Modele du vehicule (ex: TUCSON, SONATA)",
+          "field_label": "F) MODELO"
+        },
+        "numero_bastidor": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[A-HJ-NPR-Z0-9]{17}$",
+          "description": "Numero de chassis/VIN (17 caracteres)",
+          "field_label": "D) NUMERO DE BASTIDOR",
+          "source": "recto",
+          "pii": true
+        },
+        "tipo": {
+          "type": "string",
+          "enum": ["TURISMO", "CAMION", "MOTOCICLETA", "AUTOBUS", "FURGONETA", "REMOLQUE"],
+          "required": false,
+          "description": "Type de vehicule",
+          "field_label": "TIPO"
+        },
+        "categoria": {
+          "type": "string",
+          "required": false,
+          "description": "Categorie (ex: SEGUNDA/A/)",
+          "field_label": "CATEGORIA"
+        },
+        "peso_max_autorizado": {
+          "type": "number",
+          "required": false,
+          "description": "Poids maximum autorise en Kgs",
+          "field_label": "H) KGS."
+        },
+        "numero_plazas": {
+          "type": "integer",
+          "required": false,
+          "minimum": 1,
+          "description": "Nombre de places",
+          "field_label": "G) PLAZAS"
+        },
+        "servicio": {
+          "type": "string",
+          "enum": ["PRIVADO", "PUBLICO", "OFICIAL"],
+          "required": false,
+          "description": "Type de service",
+          "field_label": "SERVICIO"
+        }
+      }
+    },
+
+    "propietario": {
+      "description": "Donnees du proprietaire actuel",
+      "fields": {
+        "apellidos": {
+          "type": "string",
+          "required": true,
+          "description": "Nom de famille du proprietaire",
+          "field_label": "B) APELLIDOS",
+          "source": "recto",
+          "pii": true
+        },
+        "nombre": {
+          "type": "string",
+          "required": true,
+          "description": "Prenom du proprietaire",
+          "field_label": "NOMBRE",
+          "source": "recto",
+          "pii": true
+        },
+        "domicilio": {
+          "type": "string",
+          "required": false,
+          "description": "Adresse (calle o plaza)",
+          "field_label": "DOMICILIO CALLE O PLAZA",
+          "source": "recto",
+          "pii": true
+        },
+        "localidad": {
+          "type": "string",
+          "required": false,
+          "description": "Ville (ex: MALABO, BATA)",
+          "field_label": "LOCALIDAD"
+        },
+        "provincia": {
+          "type": "string",
+          "enum": ["BN", "BS", "AN", "KN", "CS", "WN", "LI"],
+          "required": false,
+          "description": "Province (ex: BN pour Bioko Norte)"
+        }
+      }
+    },
+
+    "transferencia": {
+      "description": "Donnees de transfert (Verso - si rempli)",
+      "fields": {
+        "tiene_transferencia": {
+          "type": "boolean",
+          "required": false,
+          "description": "Le verso contient une mention de transfert"
+        },
+        "vehiculo_transferido": {
+          "type": "string",
+          "required": false,
+          "description": "Description du vehicule transfere",
+          "source": "verso"
+        },
+        "adquirente_nombre": {
+          "type": "string",
+          "required": false,
+          "description": "Nom de l'acquereur",
+          "field_label": "ADQUIRENTE",
+          "source": "verso",
+          "pii": true
+        },
+        "adquirente_apellidos_razon_social": {
+          "type": "string",
+          "required": false,
+          "description": "Nom de famille ou raison sociale de l'acquereur",
+          "source": "verso",
+          "pii": true
+        },
+        "adquirente_domicilio": {
+          "type": "string",
+          "required": false,
+          "description": "Domicile de l'acquereur",
+          "source": "verso",
+          "pii": true
+        },
+        "fecha_transferencia": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Date de transfert",
+          "source": "verso",
+          "date_format": "DD/MM/YYYY"
+        },
+        "firma_cedente": {
+          "type": "boolean",
+          "required": false,
+          "description": "Signature du cedant presente"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "matricula_format_valid",
+      "rule": "matricula MATCHES '^[A-Z]{2}-[0-9]{3}-[A-Z0-9]{1,2}$'",
+      "error_es": "Formato de matricula invalido",
+      "error_fr": "Format d'immatriculation invalide",
+      "severity": "error"
+    },
+    {
+      "id": "bastidor_format_valid",
+      "rule": "numero_bastidor MATCHES '^[A-HJ-NPR-Z0-9]{17}$'",
+      "error_es": "Numero de bastidor debe tener 17 caracteres",
+      "error_fr": "Le numero de chassis doit avoir 17 caracteres",
+      "severity": "error"
+    },
+    {
+      "id": "sello_oficial_required",
+      "rule": "tiene_sello_oficial == true",
+      "error_es": "El documento debe tener el sello oficial de la Delegacion de Trafico",
+      "error_fr": "Le document doit avoir le sceau officiel de la Delegation de Trafic",
+      "severity": "error"
+    },
+    {
+      "id": "firma_required",
+      "rule": "tiene_firma == true",
+      "error_es": "El documento debe estar firmado por el Delegado de Trafico",
+      "error_fr": "Le document doit etre signe par le Delegue de Trafic",
+      "severity": "error"
+    },
+    {
+      "id": "transferencia_expirada",
+      "rule": "IF tiene_transferencia THEN fecha_transferencia + 10 DAYS > TODAY",
+      "error_es": "El permiso de circulacion ha caducado (10 dias desde la transferencia). Debe solicitar un nuevo permiso.",
+      "error_fr": "Le permis de circulation a expire (10 jours depuis le transfert). Vous devez demander un nouveau permis.",
+      "severity": "error",
+      "applies_when": "tiene_transferencia == true"
+    },
+    {
+      "id": "coherence_transferencia",
+      "rule": "IF es_documento_transferido == true THEN mencion_transferencia_recto == true",
+      "error_es": "Documento marcado como transferido pero sin mencion TRANSFERENCIA visible",
+      "error_fr": "Document marque comme transfere mais sans mention TRANSFERENCIA visible",
+      "severity": "warning"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Permiso de Circulacion de Guinea Ecuatorial - documento oficial de registro de vehiculo",
+    "language": "es",
+    "date_format": "DD/MM/YYYY",
+    "visual_zones": {
+      "recto": [
+        "En-tete gauche: Logo 'GE' (arbre) + MINISTERIO DE INTERIOR Y COOPERACIONES LOCALES",
+        "Sous-titre: DIRECCION GENERAL DE TRAFICO RODADO Y SEGURIDAD VIAL",
+        "Sous-sous-titre: DELEGACION DE TRAFICO, REGION [INSULAR/CONTINENTAL]",
+        "Zone DE: delegation regionale (MALABO-BIOKO-NORTE, BATA-LITORAL, etc.)",
+        "Titre central: 'Permiso de circulacion - Certificat d'immatriculation'",
+        "SCEAU OFFICIEL (haut droite): Rond avec armoiries GQ + texte 'DELEGACION DE TRAFICO RODADO...'",
+        "Tableau donnees (A-G):",
+        "  - A) MATRICULA + B) FECHA DE MATRICULACION",
+        "  - C) APELLIDOS",
+        "  - D) NOMBRE + E) DOMICILIO, CALLE O PLAZA Y NUMERO",
+        "  - LOCALIDAD + PROVINCIA + F) MARCA",
+        "  - G) SERIE Y NUM. DE BASTIDOR + Peso max. Autorizado + TIPO",
+        "  - Modelo + Categoria + N° de plazas + Servicio a que destina",
+        "Zone signature (bas): '[Lieu], a [jour] de [mois] de 20[annee]'",
+        "Titre signataire: 'EL DELEGADO DE TRAFICO'",
+        "SIGNATURE manuscrite du Delegado",
+        "MENTION 'TRANSFERENCIA.-' (bas droite) SI document issu d'un transfert anterieur"
+      ],
+      "verso": [
+        "Titre: TRANSFERENCIA",
+        "Cadre d'impression: EL VEHICULO DESCRITO... HA SIDO TRANSFERIDO...",
+        "Zone acquereur: Nombre, Apellidos/Razon Social, Domicilio",
+        "Zone signatures: Firma del cedente, Lugar y fecha",
+        "Avertissement: ESTE PERMISO CADUCA A LOS DIEZ DIAS... (texte rouge important)"
+      ]
+    },
+    "elements_authentification": {
+      "sello_oficial": {
+        "position": "Haut droite du document",
+        "forme": "Rond",
+        "contenu": "Armoiries de GQ + DELEGACION DE TRAFICO RODADO Y SEGURIDAD VIAL + REGION [INSULAR/CONTINENTAL]",
+        "couleur": "Bleu"
+      },
+      "signature": {
+        "position": "Bas centre du document",
+        "titre": "EL DELEGADO DE TRAFICO",
+        "type": "Manuscrite"
+      },
+      "mention_transferencia": {
+        "position": "Bas droite du document",
+        "texte": "TRANSFERENCIA.-",
+        "signification": "Ce permis a ete emis suite a un transfert de propriete anterieur"
+      }
+    },
+    "matricula_format": {
+      "pattern": "XX-NNN-Y ou XX-NNN-YY",
+      "examples": ["KN-298-0", "BN-840-AR", "LI-123-B"],
+      "provinces": {
+        "BN": "Bioko Norte",
+        "BS": "Bioko Sur",
+        "AN": "Annobon",
+        "KN": "Kie-Ntem",
+        "CS": "Centro Sur",
+        "WN": "Wele-Nzas",
+        "LI": "Litoral"
+      }
+    },
+    "ocr_challenges": [
+      "Document souvent plie ou use",
+      "Ecriture manuscrite dans zones de transfert",
+      "Sceaux qui masquent du texte",
+      "Couleur bleue qui affecte l'OCR",
+      "Champs parfois incomplets"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "matricula": [
+      "(?:MATR[IÍ]CULA|A\\))\\s*[:#]?\\s*([A-Z]{2}[-\\s]?[0-9]{3}[-\\s]?[A-Z0-9]{1,2})",
+      "^([A-Z]{2}-[0-9]{3}-[A-Z0-9]{1,2})$"
+    ],
+    "numero_bastidor": [
+      "(?:BASTIDOR|N[°o]?\\s*BASTIDOR|D\\))\\s*[:#]?\\s*([A-HJ-NPR-Z0-9]{17})",
+      "(?:VIN|CHASSIS)\\s*[:#]?\\s*([A-HJ-NPR-Z0-9]{17})"
+    ],
+    "apellidos": [
+      "(?:APELLIDOS|B\\))\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "nombre": [
+      "(?:NOMBRE(?:\\s*DEL\\s*PROPIETARIO)?)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\\s+[A-Za-záéíóúñ]+)*)"
+    ],
+    "marca": [
+      "(?:MARCA|E\\))\\s*[:#]?\\s*([A-Z]+)",
+      "\\b(HYUNDAI|TOYOTA|NISSAN|FORD|CHEVROLET|KIA|MERCEDES|BMW|HONDA|MITSUBISHI)\\b"
+    ],
+    "modelo": [
+      "(?:MODELO|F\\))\\s*[:#]?\\s*([A-Z0-9]+(?:\\s*[A-Z0-9]+)*)"
+    ],
+    "numero_plazas": [
+      "(?:PLAZAS|G\\))\\s*[:#]?\\s*([0-9]+)"
+    ],
+    "peso_max": [
+      "(?:KGS?\\.?|H\\))\\s*[:#]?\\s*([0-9]+(?:[.,][0-9]+)?)"
+    ],
+    "fecha_matriculacion": [
+      "(?:FECHA\\s*MATRICULACI[OÓ]N)\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})"
+    ],
+    "localidad": [
+      "(?:LOCALIDAD)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "provincia": [
+      "(?:PROVINCIA)\\s*[:#]?\\s*([A-Z]{2})"
+    ],
+    "tipo_vehiculo": [
+      "(?:TIPO)\\s*[:#]?\\s*(TURISMO|CAMION|MOTOCICLETA|AUTOBUS|FURGONETA)"
+    ],
+    "servicio": [
+      "(?:SERVICIO)\\s*[:#]?\\s*(PRIVADO|PUBLICO|OFICIAL)"
+    ],
+    "fecha_transferencia": [
+      "(?:LUGAR\\s*Y\\s*FECHA|TRANSFERIDO\\s*EL)\\s*[:#]?\\s*.+?(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})"
+    ],
+    "adquirente_nombre": [
+      "(?:ADQUIRENTE|TRANSFERIDO\\s*A)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\\s+[A-Za-záéíóúñ]+)*)"
+    ],
+    "delegado_trafico": [
+      "(?:EL\\s*DELEGADO\\s*DE\\s*TR[AÁ]FICO)"
+    ],
+    "fecha_documento": [
+      "([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)\\s*,?\\s*a\\s*(\\d{1,2})\\s*de\\s*([A-Za-záéíóúñ]+)\\s*de\\s*(\\d{4}|20\\d{2})"
+    ],
+    "mencion_transferencia": [
+      "\\bTRANSFERENCIA\\.?-?\\b"
+    ],
+    "region": [
+      "(?:REGI[OÓ]N)\\s*(INSULAR|CONTINENTAL)"
+    ],
+    "delegacion_trafico": [
+      "(?:DELEGACI[OÓ]N\\s*DE\\s*TR[AÁ]FICO)\\s*,?\\s*(?:REGI[OÓ]N)?\\s*(INSULAR|CONTINENTAL)?"
+    ]
+  }
+}

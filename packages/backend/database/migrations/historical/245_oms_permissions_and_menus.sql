@@ -1,0 +1,17 @@
+-- Migration 245: OMS permissions + menus for all ministry agents/supervisors
+--
+-- Phase 0 of SESSION_OMS_PAGES plan:
+--
+-- 1. Added fiscal_service.view_bundles + process_obligations to 4 agents:
+--    agent_min_agricultura, agent_min_electricidad, agent_min_informacion, agent_min_turismo
+--    (8 permissions total)
+--
+-- 2. Added fiscal_service.view_bundles + process_obligations + manage_bundles to 4 supervisors:
+--    supervisor_min_agricultura, supervisor_min_electricidad, supervisor_min_informacion, supervisor_min_turismo
+--    (12 permissions total)
+--
+-- 3. Added OMS menu block to 9 agents + 9 supervisors (18 total):
+--    Agent menu: Dashboard (/agent/oms) + Licenses (/agent/oms/licenses)
+--    Supervisor menu: same + Compliance (/agent/oms/compliance)
+--
+-- Already executed via Python script on 2026-03-20.

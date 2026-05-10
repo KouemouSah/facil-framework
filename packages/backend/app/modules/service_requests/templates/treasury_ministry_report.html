@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <title>Informe de Recaudación - Tesorería</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 18mm 15mm 22mm 15mm;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 9px;
+            color: #1a202c;
+            line-height: 1.4;
+        }
+
+        /* ── COVER PAGE ────────────────────────────────────────────── */
+        .cover {
+            text-align: center;
+            padding-top: 50px;
+        }
+        .cover-logo { margin-bottom: 8px; }
+        .cover-logo img { width: 180px; height: auto; }
+        .cover-institution {
+            font-size: 9px;
+            color: #4a5568;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            margin-top: 6px;
+        }
+        .cover-ministry {
+            font-size: 10px;
+            font-weight: bold;
+            color: #2d3748;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+        .cover-dept {
+            font-size: 8px;
+            color: #718096;
+            margin-top: 2px;
+        }
+        .cover-separator {
+            width: 60%;
+            margin: 25px auto;
+            border: none;
+            border-top: 3px solid #3d7a35;
+        }
+        .cover-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1a365d;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-top: 8px;
+            line-height: 1.3;
+        }
+        .cover-subtitle {
+            font-size: 12px;
+            color: #3d7a35;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .cover-period {
+            font-size: 13px;
+            color: #2d3748;
+            margin-top: 16px;
+            font-weight: bold;
+        }
+        .cover-ref {
+            font-size: 8px;
+            color: #a0aec0;
+            margin-top: 5px;
+            letter-spacing: 0.5px;
+        }
+        .cover-separator-2 {
+            width: 30%;
+            margin: 25px auto;
+            border: none;
+            border-top: 1px solid #cbd5e0;
+        }
+        .cover-summary-title {
+            font-size: 10px;
+            font-weight: bold;
+            color: #1a365d;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+        .cover-kpi-table {
+            width: 80%;
+            margin: 0 auto;
+            border-collapse: separate;
+            border-spacing: 6px;
+        }
+        .cover-kpi-cell {
+            width: 25%;
+            background: #f0faf0;
+            border: 1px solid #c6e6c0;
+            padding: 8px 6px;
+            text-align: center;
+            vertical-align: middle;
+        }
+        .cover-kpi-cell.highlight {
+            background: #e8f5e8;
+            border-color: #3d7a35;
+            border-width: 2px;
+        }
+        .cover-kpi-label {
+            font-size: 6.5px;
+            color: #3d7a35;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: bold;
+        }
+        .cover-kpi-value {
+            font-size: 15px;
+            font-weight: bold;
+            color: #1a365d;
+            margin-top: 3px;
+        }
+        .cover-kpi-value.amount { color: #3d7a35; font-size: 13px; }
+        .cover-kpi-sub {
+            font-size: 6.5px;
+            color: #a0aec0;
+            margin-top: 2px;
+        }
+        .cover-confidential {
+            font-size: 7px;
+            color: #c53030;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: bold;
+            margin-top: 30px;
+        }
+        .cover-footer {
+            margin-top: 60px;
+            padding-top: 8px;
+            border-top: 1px solid #e2e8f0;
+        }
+        .cover-footer .date {
+            font-size: 8px;
+            color: #718096;
+        }
+        .cover-footer .brand {
+            font-size: 7px;
+            color: #a0aec0;
+            font-style: italic;
+            margin-top: 3px;
+        }
+
+        /* ── INNER PAGE HEADER (data pages) ────────────────────────── */
+        .page-header-bar {
+            background: #1a365d;
+            color: white;
+            padding: 5px 10px;
+            margin-bottom: 8px;
+        }
+        .page-header-bar table { width: 100%; }
+        .page-header-bar td { vertical-align: middle; color: white; }
+        .page-header-bar .ph-title {
+            font-size: 9px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .page-header-bar .ph-right {
+            text-align: right;
+            font-size: 7px;
+            color: #bee3f8;
+        }
+
+        /* ── SECTION HEADERS ─────────────────────────────────────── */
+        .section-header {
+            background: #edf2f7;
+            padding: 4px 8px;
+            margin: 8px 0 5px 0;
+            border-left: 3px solid #3d7a35;
+            font-size: 9.5px;
+            font-weight: bold;
+            color: #1a365d;
+        }
+        .sec-num {
+            background: #3d7a35;
+            color: white;
+            padding: 1px 4px;
+            font-size: 7px;
+            margin-right: 4px;
+        }
+
+        /* ── DATA TABLES ─────────────────────────────────────────── */
+        table.data { width: 100%; border-collapse: collapse; margin: 3px 0 8px 0; font-size: 8px; }
+        table.data thead th {
+            background: #2d3748;
+            color: white;
+            padding: 4px 6px;
+            text-align: left;
+            font-weight: bold;
+            font-size: 7.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            border-right: 1px solid #4a5568;
+        }
+        table.data thead th.r { text-align: right; }
+        table.data tbody tr.odd  { background: #ffffff; }
+        table.data tbody tr.even { background: #f7fafc; }
+        table.data tbody td {
+            padding: 3px 6px;
+            border-bottom: 1px solid #e2e8f0;
+            border-right: 1px solid #f0f4f8;
+        }
+        table.data tbody td.r { text-align: right; font-family: "Courier New", monospace; }
+        table.data tbody tr.total-row td {
+            background: #dbeafe;
+            font-weight: bold;
+            color: #1a365d;
+            border-top: 2px solid #3d7a35;
+            padding: 4px 6px;
+        }
+        table.data.sm { font-size: 7px; }
+        table.data.sm thead th { font-size: 6.5px; padding: 3px 4px; }
+        table.data.sm tbody td { padding: 2px 4px; }
+
+        /* ── CHART CONTAINERS (compact, 2x2 grid) ──────────────── */
+        .charts-grid {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 4px 0;
+        }
+        .charts-grid td {
+            width: 50%;
+            padding: 4px;
+            vertical-align: top;
+        }
+        .chart-box {
+            text-align: center;
+            padding: 4px;
+            border: 1px solid #e2e8f0;
+            background: #fafafa;
+        }
+        .chart-box img { max-width: 100%; height: auto; }
+        .chart-caption {
+            font-size: 6.5px;
+            color: #718096;
+            font-style: italic;
+            margin-top: 2px;
+        }
+
+        /* ── PAGE BREAK ─────────────────────────────────────────── */
+        .pb { page-break-before: always; }
+
+        /* ── SIGNATURE BLOCK ─────────────────────────────────────── */
+        .sig-table {
+            width: 100%;
+            margin-top: 20px;
+            border-top: 2px solid #1a365d;
+            padding-top: 10px;
+        }
+        .sig-cell { width: 33%; text-align: center; vertical-align: top; padding: 0 8px; }
+        .sig-line {
+            border-top: 1px solid #4a5568;
+            margin: 25px 10px 4px 10px;
+        }
+        .sig-name { font-size: 7.5px; font-weight: bold; color: #2d3748; }
+        .sig-title { font-size: 7px; color: #718096; margin-top: 2px; }
+
+        /* ── PAGE FOOTER (data pages) ──────────────────────────────── */
+        .doc-footer {
+            text-align: center;
+            margin-top: 12px;
+            padding-top: 6px;
+            border-top: 1px solid #e2e8f0;
+        }
+        .doc-footer .brand { font-size: 8px; color: #3d7a35; font-weight: bold; }
+        .doc-footer .tagline { font-size: 6.5px; color: #a0aec0; font-style: italic; }
+        .doc-footer .confidential {
+            font-size: 6.5px; color: #c53030; margin-top: 3px;
+            text-transform: uppercase; letter-spacing: 0.8px; font-weight: bold;
+        }
+        .doc-footer .gen { font-size: 6.5px; color: #a0aec0; margin-top: 2px; }
+    </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PAGE 1 — COVER PAGE (PAGE DE GARDE)
+══════════════════════════════════════════════════════════════════ -->
+
+<div class="cover">
+
+    <!-- LOGO -->
+    <div class="cover-logo">
+        {% if logo_base64 %}
+        <img src="data:image/png;base64,{{ logo_base64 }}" alt="Facil" />
+        {% endif %}
+    </div>
+
+    <!-- INSTITUTION -->
+    <div class="cover-institution">República de Guinea Ecuatorial</div>
+    <div class="cover-ministry">Ministerio de Tesorería y Patrimonio del Estado</div>
+    <div class="cover-dept">Plataforma Facil</div>
+
+    <!-- SEPARATOR -->
+    <hr class="cover-separator" />
+
+    <!-- TITLE -->
+    <div class="cover-title">
+        Informe de Recaudación<br/>del Tesoro Público
+    </div>
+    <div class="cover-subtitle">Plataforma Facil — Servicios Gubernamentales Digitales</div>
+
+    <!-- PERIOD + REF -->
+    <div class="cover-period">
+        Período: {{ period_start }} — {{ period_end }}
+    </div>
+    <div class="cover-ref">Referencia: TRS-{{ report_ref }}</div>
+
+    <!-- SEPARATOR -->
+    <hr class="cover-separator-2" />
+
+    <!-- EXECUTIVE SUMMARY (KPIs) -->
+    <div class="cover-summary-title">Resumen Ejecutivo</div>
+
+    <table class="cover-kpi-table">
+        <tr>
+            <td class="cover-kpi-cell highlight">
+                <div class="cover-kpi-label">Total Recaudado</div>
+                <div class="cover-kpi-value amount">{{ total_amount_formatted }}</div>
+                <div class="cover-kpi-sub">Francos CFA (XAF)</div>
+            </td>
+            <td class="cover-kpi-cell">
+                <div class="cover-kpi-label">Transacciones</div>
+                <div class="cover-kpi-value">{{ total_count }}</div>
+                <div class="cover-kpi-sub">operaciones completadas</div>
+            </td>
+            <td class="cover-kpi-cell">
+                <div class="cover-kpi-label">Promedio</div>
+                <div class="cover-kpi-value amount">{{ avg_amount_formatted }}</div>
+                <div class="cover-kpi-sub">XAF / transacción</div>
+            </td>
+            <td class="cover-kpi-cell">
+                <div class="cover-kpi-label">Tasa de Éxito</div>
+                <div class="cover-kpi-value">{{ success_rate }}%</div>
+                <div class="cover-kpi-sub">pagos procesados</div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- CONFIDENTIAL -->
+    <div class="cover-confidential">Documento Confidencial — Uso Interno Exclusivo</div>
+
+    <!-- COVER FOOTER -->
+    <div class="cover-footer">
+        <div class="date">Fecha de edición: {{ generated_at }}</div>
+        <div class="brand">Facil — Simplificarte la vida · Unidad · Paz · Justicia</div>
+    </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PAGE 2 — CHARTS (4 charts compact, 2x2 grid)
+══════════════════════════════════════════════════════════════════ -->
+{% if has_charts %}
+<div class="pb"></div>
+
+<div class="page-header-bar">
+    <table><tr>
+        <td class="ph-title">Informe de Recaudación — Análisis Gráfico</td>
+        <td class="ph-right">TRS-{{ report_ref }} &nbsp;|&nbsp; {{ period_start }} al {{ period_end }}</td>
+    </tr></table>
+</div>
+
+{% if charts and (charts.entity_bar or charts.method_pie or charts.service_hbar or charts.entity_pie) %}
+<table class="charts-grid">
+    {% if charts.entity_bar or charts.method_pie %}
+    <tr>
+        {% if charts.entity_bar %}
+        <td>
+            <div class="chart-box">
+                <img src="data:image/png;base64,{{ charts.entity_bar }}" alt="Recaudación por entidad" />
+                <div class="chart-caption">Fig 1 — Recaudación por entidad (miles XAF)</div>
+            </div>
+        </td>
+        {% endif %}
+        {% if charts.method_pie %}
+        <td>
+            <div class="chart-box">
+                <img src="data:image/png;base64,{{ charts.method_pie }}" alt="Métodos de pago" />
+                <div class="chart-caption">Fig 2 — Distribución por método de pago</div>
+            </div>
+        </td>
+        {% endif %}
+    </tr>
+    {% endif %}
+    {% if charts.service_hbar or charts.entity_pie %}
+    <tr>
+        {% if charts.service_hbar %}
+        <td>
+            <div class="chart-box">
+                <img src="data:image/png;base64,{{ charts.service_hbar }}" alt="Top servicios" />
+                <div class="chart-caption">Fig 3 — Top 10 servicios por recaudación</div>
+            </div>
+        </td>
+        {% endif %}
+        {% if charts.entity_pie %}
+        <td>
+            <div class="chart-box">
+                <img src="data:image/png;base64,{{ charts.entity_pie }}" alt="Participación por entidad" />
+                <div class="chart-caption">Fig 4 — Participación por entidad (%)</div>
+            </div>
+        </td>
+        {% endif %}
+    </tr>
+    {% endif %}
+</table>
+{% endif %}
+
+{% if charts and charts.daily_line %}
+<table class="charts-grid">
+    <tr>
+        <td>
+            <div class="chart-box">
+                <img src="data:image/png;base64,{{ charts.daily_line }}" alt="Evolución diaria montos" />
+                <div class="chart-caption">Fig 5 — Evolución diaria de recaudación (miles XAF)</div>
+            </div>
+        </td>
+        {% if charts.daily_count_line %}
+        <td>
+            <div class="chart-box">
+                <img src="data:image/png;base64,{{ charts.daily_count_line }}" alt="Evolución diaria transacciones" />
+                <div class="chart-caption">Fig 6 — Evolución diaria de transacciones</div>
+            </div>
+        </td>
+        {% endif %}
+    </tr>
+</table>
+{% endif %}
+
+{% endif %}
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PAGE 3 — ENTITY BREAKDOWN TABLE
+══════════════════════════════════════════════════════════════════ -->
+<div class="pb"></div>
+
+<div class="page-header-bar">
+    <table><tr>
+        <td class="ph-title">Informe de Recaudación — Tesoro Público</td>
+        <td class="ph-right">TRS-{{ report_ref }} &nbsp;|&nbsp; {{ period_start }} al {{ period_end }}</td>
+    </tr></table>
+</div>
+
+<div class="section-header"><span class="sec-num">1</span>Recaudación por Entidad</div>
+
+<table class="data">
+    <thead>
+        <tr>
+            <th style="width:40%">Entidad</th>
+            <th class="r" style="width:15%">Transacciones</th>
+            <th class="r" style="width:25%">Monto Total (XAF)</th>
+            <th class="r" style="width:10%">Participación</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entity in by_entity %}
+        <tr class="{{ 'even' if loop.index is even else 'odd' }}">
+            <td>{{ entity.entity_name }}</td>
+            <td class="r">{{ entity.payment_count_formatted }}</td>
+            <td class="r">{{ entity.total_amount_formatted }}</td>
+            <td class="r">{{ entity.percentage }}%</td>
+        </tr>
+        {% endfor %}
+        <tr class="total-row">
+            <td>TOTAL GENERAL</td>
+            <td class="r">{{ total_count }}</td>
+            <td class="r">{{ total_amount_formatted }}</td>
+            <td class="r">100.0%</td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- ── Payment Methods ── -->
+<div class="section-header"><span class="sec-num">2</span>Análisis por Método de Pago</div>
+
+<table class="data">
+    <thead>
+        <tr>
+            <th style="width:35%">Método de Pago</th>
+            <th class="r" style="width:15%">Transacciones</th>
+            <th class="r" style="width:25%">Monto Total (XAF)</th>
+            <th class="r" style="width:12%">Participación</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for method in by_method %}
+        <tr class="{{ 'even' if loop.index is even else 'odd' }}">
+            <td>{{ method.payment_method_label }}</td>
+            <td class="r">{{ method.payment_count_formatted }}</td>
+            <td class="r">{{ method.total_amount_formatted }}</td>
+            <td class="r">{{ method.percentage }}%</td>
+        </tr>
+        {% endfor %}
+        <tr class="total-row">
+            <td>TOTAL</td>
+            <td class="r">{{ total_count }}</td>
+            <td class="r">{{ total_amount_formatted }}</td>
+            <td class="r">100.0%</td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PAGE 4 — TOP SERVICES RANKING
+══════════════════════════════════════════════════════════════════ -->
+<div class="pb"></div>
+
+<div class="page-header-bar">
+    <table><tr>
+        <td class="ph-title">Informe de Recaudación — Tesoro Público</td>
+        <td class="ph-right">TRS-{{ report_ref }} &nbsp;|&nbsp; {{ period_start }} al {{ period_end }}</td>
+    </tr></table>
+</div>
+
+<div class="section-header"><span class="sec-num">3</span>Top 20 Servicios por Recaudación</div>
+
+<table class="data sm">
+    <thead>
+        <tr>
+            <th style="width:5%">#</th>
+            <th style="width:50%">Servicio / Trámite</th>
+            <th class="r" style="width:15%">Transacciones</th>
+            <th class="r" style="width:22%">Monto Total (XAF)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for service in top_services %}
+        <tr class="{{ 'even' if loop.index is even else 'odd' }}">
+            <td>{{ loop.index }}</td>
+            <td>{{ service.service_name }}</td>
+            <td class="r">{{ service.payment_count_formatted }}</td>
+            <td class="r">{{ service.total_amount_formatted }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="total-row">
+            <td colspan="2">TOTAL (Top {{ top_services|length }})</td>
+            <td class="r">{{ top_services_total_count }}</td>
+            <td class="r">{{ top_services_total_amount }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PAGE 5 — DAILY TREND (si disponible)
+══════════════════════════════════════════════════════════════════ -->
+{% if daily_breakdown %}
+<div class="pb"></div>
+
+<div class="page-header-bar">
+    <table><tr>
+        <td class="ph-title">Informe de Recaudación — Tesoro Público</td>
+        <td class="ph-right">TRS-{{ report_ref }} &nbsp;|&nbsp; {{ period_start }} al {{ period_end }}</td>
+    </tr></table>
+</div>
+
+<div class="section-header"><span class="sec-num">4</span>Evolución Diaria de la Recaudación</div>
+
+<table class="data sm">
+    <thead>
+        <tr>
+            <th style="width:22%">Fecha</th>
+            <th class="r" style="width:20%">Transacciones</th>
+            <th class="r" style="width:28%">Monto Recaudado (XAF)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for day in daily_breakdown %}
+        <tr class="{{ 'even' if loop.index is even else 'odd' }}">
+            <td>{{ day.date }}</td>
+            <td class="r">{{ day.count_formatted }}</td>
+            <td class="r">{{ day.amount_formatted }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="total-row">
+            <td>TOTAL</td>
+            <td class="r">{{ total_count }}</td>
+            <td class="r">{{ total_amount_formatted }}</td>
+        </tr>
+    </tbody>
+</table>
+{% endif %}
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SIGNATURE BLOCK
+══════════════════════════════════════════════════════════════════ -->
+<table class="sig-table">
+    <tr>
+        <td class="sig-cell">
+            <div class="sig-line"></div>
+            <div class="sig-name">Responsable Ministerial</div>
+            <div class="sig-title">Min. de Tesorería y Patrimonio</div>
+        </td>
+        <td class="sig-cell">
+            <div class="sig-line"></div>
+            <div class="sig-name">Responsable de Tesorería</div>
+            <div class="sig-title">Control de Recaudación</div>
+        </td>
+        <td class="sig-cell">
+            <div class="sig-line"></div>
+            <div class="sig-name">Jefe de Informática</div>
+            <div class="sig-title">Plataforma Facil</div>
+        </td>
+    </tr>
+</table>
+
+<!-- FOOTER -->
+<div class="doc-footer">
+    <div class="brand">Facil — Plataforma Digital de Servicios Gubernamentales</div>
+    <div class="tagline">Simplificarte la vida · República de Guinea Ecuatorial</div>
+    <div class="confidential">Documento Confidencial — Generado por {{ generated_by_name }}</div>
+    <div class="gen">{{ generated_at }} | Ref: TRS-{{ report_ref }}</div>
+</div>
+
+</body>
+</html>

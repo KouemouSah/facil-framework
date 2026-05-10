@@ -1,0 +1,439 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "CERTIFICACION_NACIMIENTO_GQ_V1",
+  "version": "1.0",
+  "title": "Certificacion Literal de Inscripcion de Nacimiento - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour la Certification Litterale de Naissance - document officiel delivre par le Registro Civil",
+  "document_type": "CERTIFICACION_NACIMIENTO",
+  "country": "GQ",
+  "faces": ["single_page"],
+  "document_nature": "certificat_officiel",
+
+  "extraction": {
+    "documento": {
+      "description": "Informations du document officiel",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "CERTIFICACION_NACIMIENTO",
+          "required": true,
+          "description": "Type de document"
+        },
+        "registro_civil_de": {
+          "type": "string",
+          "required": true,
+          "description": "Registro Civil emetteur (ex: MALABO)",
+          "field_label": "REGISTRO CIVIL DE"
+        },
+        "provincia": {
+          "type": "string",
+          "required": false,
+          "description": "Provincia del registro",
+          "field_label": "PROVINCIA DE"
+        },
+        "seccion": {
+          "type": "string",
+          "required": false,
+          "description": "Seccion del registro",
+          "field_label": "Secc."
+        },
+        "tomo": {
+          "type": "string",
+          "required": false,
+          "description": "Tomo del registro",
+          "field_label": "Tomo"
+        },
+        "pagina": {
+          "type": "string",
+          "required": false,
+          "description": "Pagina del registro",
+          "field_label": "Página"
+        },
+        "folio": {
+          "type": "string",
+          "required": false,
+          "description": "Folio del registro",
+          "field_label": "Folio"
+        },
+        "encargado_registro": {
+          "type": "string",
+          "required": false,
+          "description": "Nom de l'Encargado del Registro Civil qui certifie",
+          "field_label": "El Encargado del Registro Civil"
+        },
+        "tiene_sello_oficial": {
+          "type": "boolean",
+          "required": false,
+          "description": "Presence du sceau officiel du Registro Civil"
+        }
+      }
+    },
+
+    "inscrito": {
+      "description": "Donnees de la personne inscrite extraites du texte litteral",
+      "fields": {
+        "nombre": {
+          "type": "string",
+          "required": true,
+          "description": "Nombre del inscrito",
+          "field_label": "Nombre",
+          "pii": true
+        },
+        "primer_apellido": {
+          "type": "string",
+          "required": true,
+          "description": "Primer apellido del inscrito",
+          "field_label": "Primer Apellido",
+          "pii": true
+        },
+        "segundo_apellido": {
+          "type": "string",
+          "required": false,
+          "description": "Segundo apellido del inscrito",
+          "field_label": "Segundo Apellido"
+        },
+        "sexo": {
+          "type": "string",
+          "enum": ["M", "F", "MASCULINO", "FEMENINO", "VARÓN", "HEMBRA"],
+          "required": true,
+          "description": "Sexo del inscrito",
+          "field_label": "Sexo"
+        },
+        "fecha_nacimiento": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Fecha de nacimiento (nacio el dia X del año Y)",
+          "field_label": "nació el día ... del año",
+          "pii": true
+        },
+        "lugar_nacimiento": {
+          "type": "string",
+          "required": true,
+          "description": "Lugar de nacimiento",
+          "field_label": "Lugar"
+        }
+      }
+    },
+
+    "padre": {
+      "description": "Donnees du pere extraites du texte litteral",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": false,
+          "description": "Nombre completo del padre (Don. ...)",
+          "field_label": "PADRE: Don.",
+          "pii": true
+        },
+        "hijo_de": {
+          "type": "string",
+          "required": false,
+          "description": "Filiation paternelle du pere (abuelo)",
+          "field_label": "Hijo de"
+        },
+        "y_de": {
+          "type": "string",
+          "required": false,
+          "description": "Filiation maternelle du pere (abuela)",
+          "field_label": "y de"
+        },
+        "lugar_nacimiento": {
+          "type": "string",
+          "required": false,
+          "description": "Lugar de nacimiento del padre",
+          "field_label": "Nació en"
+        },
+        "estado_civil": {
+          "type": "string",
+          "required": false,
+          "description": "Estado civil del padre",
+          "field_label": "Estado Civil"
+        },
+        "nacionalidad": {
+          "type": "string",
+          "required": false,
+          "description": "Nacionalidad del padre",
+          "field_label": "de nacionalidad"
+        },
+        "profesion": {
+          "type": "string",
+          "required": false,
+          "description": "Profesion del padre",
+          "field_label": "de profesión"
+        }
+      }
+    },
+
+    "madre": {
+      "description": "Donnees de la mere extraites du texte litteral",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": false,
+          "description": "Nombre completo de la madre (Doña ...)",
+          "field_label": "MADRE: Doña",
+          "pii": true
+        },
+        "hija_de": {
+          "type": "string",
+          "required": false,
+          "description": "Filiation paternelle de la mere (abuelo)",
+          "field_label": "hija de"
+        },
+        "y_de": {
+          "type": "string",
+          "required": false,
+          "description": "Filiation maternelle de la mere (abuela)",
+          "field_label": "y de"
+        },
+        "fecha_nacimiento": {
+          "type": "string",
+          "required": false,
+          "description": "Fecha de nacimiento de la madre",
+          "field_label": "nació en ... el día"
+        },
+        "lugar_nacimiento": {
+          "type": "string",
+          "required": false,
+          "description": "Lugar de nacimiento de la madre",
+          "field_label": "nació en"
+        },
+        "estado_civil": {
+          "type": "string",
+          "required": false,
+          "description": "Estado civil de la madre",
+          "field_label": "Estado Civil"
+        },
+        "nacionalidad": {
+          "type": "string",
+          "required": false,
+          "description": "Nacionalidad de la madre",
+          "field_label": "nacionalidad"
+        },
+        "domicilio": {
+          "type": "string",
+          "required": false,
+          "description": "Domicilio de la madre",
+          "field_label": "con domicilio en",
+          "pii": true
+        },
+        "profesion": {
+          "type": "string",
+          "required": false,
+          "description": "Profesion de la madre",
+          "field_label": "de Profesión"
+        }
+      }
+    },
+
+    "matrimonio_padres": {
+      "description": "Information sur le mariage des parents (si mentionnee)",
+      "fields": {
+        "mencionado": {
+          "type": "boolean",
+          "required": false,
+          "description": "Le mariage des parents est mentionne dans l'acte"
+        },
+        "informacion": {
+          "type": "string",
+          "required": false,
+          "description": "Details du mariage si mentionnes",
+          "field_label": "MATRIMONIO DE LOS PADRES"
+        }
+      }
+    },
+
+    "declarante": {
+      "description": "Information sur le declarant original",
+      "fields": {
+        "nombre": {
+          "type": "string",
+          "required": false,
+          "description": "Nom du declarant",
+          "field_label": "Declarante"
+        },
+        "calidad": {
+          "type": "string",
+          "required": false,
+          "description": "Calidad en la que declaro (padre, madre, etc.)",
+          "field_label": "Calidad en"
+        },
+        "domicilio": {
+          "type": "string",
+          "required": false,
+          "description": "Domicilio del declarante",
+          "field_label": "Domiciliado en"
+        }
+      }
+    },
+
+    "encargada_original": {
+      "description": "Encargada qui a recu la declaration originale",
+      "fields": {
+        "nombre": {
+          "type": "string",
+          "required": false,
+          "description": "Nom de l'encargada originale",
+          "field_label": "ENCARGADA: Doña"
+        },
+        "firmado_rubricado": {
+          "type": "boolean",
+          "required": false,
+          "description": "Mention 'Firmado y rubricado' presente"
+        }
+      }
+    },
+
+    "certificacion": {
+      "description": "Donnees de la certification elle-meme",
+      "fields": {
+        "texto_certifica": {
+          "type": "string",
+          "required": false,
+          "description": "Texte de certification (CERTIFICA: Que segun consta...)"
+        },
+        "fecha_certificacion": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Date de la certification (si differente de l'acte)"
+        },
+        "firma_encargado": {
+          "type": "boolean",
+          "required": false,
+          "description": "Signature de l'Encargado del Registro Civil presente"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "inscrito_nombre_required",
+      "rule": "inscrito.nombre IS NOT NULL AND inscrito.primer_apellido IS NOT NULL",
+      "error_es": "El nombre y primer apellido del inscrito son obligatorios",
+      "error_fr": "Le nom et premier nom de famille de l'inscrit sont obligatoires",
+      "severity": "error"
+    },
+    {
+      "id": "sello_oficial_required",
+      "rule": "tiene_sello_oficial == true",
+      "error_es": "El certificado debe tener sello oficial del Registro Civil",
+      "error_fr": "Le certificat doit avoir le sceau officiel du Registro Civil",
+      "severity": "warning"
+    },
+    {
+      "id": "registro_civil_required",
+      "rule": "registro_civil_de IS NOT NULL",
+      "error_es": "Debe indicar el Registro Civil emisor",
+      "error_fr": "Le Registro Civil emetteur doit etre indique",
+      "severity": "error"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Certificacion Literal de Inscripcion de Nacimiento - certificat officiel du Registro Civil de Guinea Ecuatorial qui reproduit litteralement l'acte de naissance",
+    "language": "es",
+    "document_nature": "Certificat officiel (OUTPUT) - different de la Declaracion (INPUT/formulaire)",
+    "visual_zones": [
+      "En-tete officiel: República de Guinea Ecuatorial, Ministerio de Justicia, Culto e Instituciones Penitenciarias, Dirección General de los Registros y Notariado",
+      "Titre: CERTIFICACIÓN LITERAL DE INSCRIPCIÓN DE NACIMIENTO",
+      "Zone administrative gauche: Secc., Tomo, Página, Folio (dans un cadre)",
+      "Zone centrale: REGISTRO CIVIL DE ___, PROVINCIA DE ___",
+      "Corps du texte: 'El acta al margen señalado literalmente dice así:'",
+      "Texte litteral de l'acte: Format narratif avec PADRE:, MADRE:, MATRIMONIO DE LOS PADRES:, Declarante:, ENCARGADA:",
+      "Zone CERTIFICA: 'Que según consta del folio registral...'",
+      "Signature: EL ENCARGADO DEL REGISTRO CIVIL",
+      "Sceau officiel: REGISTRO CIVIL [CIUDAD] [PROVINCIA] (rond, bleu)"
+    ],
+    "text_format": "Narratif/litteral - les donnees sont dans un texte continu, pas dans des champs separes",
+    "key_phrases": [
+      "El acta al margen señalado literalmente dice así",
+      "Datos del inscrito.- Nombre",
+      "PADRE: Don.",
+      "MADRE: Doña",
+      "MATRIMONIO DE LOS PADRES",
+      "Declarante:",
+      "ENCARGADA: Doña:",
+      "-Firmado y rubricado.-",
+      "CERTIFICA: Que según consta del folio registral"
+    ],
+    "sello_description": "Sceau rond bleu avec: REGISTRO CIVIL / [CIUDAD] / [PROVINCIA] et armoiries de GQ"
+  },
+
+  "tesseract_patterns": {
+    "registro_civil_de": [
+      "(?:REGISTRO\\s*CIVIL\\s*DE)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "provincia": [
+      "(?:PROVINCIA\\s*DE)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ\\s]+)"
+    ],
+    "seccion": [
+      "(?:Secc\\.)\\s*[:#]?\\s*([A-Z0-9]+)"
+    ],
+    "tomo": [
+      "(?:Tomo)\\s*[:#]?\\s*([A-Z0-9]+)"
+    ],
+    "pagina": [
+      "(?:P[aá]gina)\\s*[:#]?\\s*([0-9]+)"
+    ],
+    "folio": [
+      "(?:Folio)\\s*[:#]?\\s*([0-9]+)"
+    ],
+    "inscrito_nombre": [
+      "(?:Datos\\s*del\\s*inscrito\\.?-?\\s*Nombre)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "inscrito_primer_apellido": [
+      "(?:Primer\\s*Apellido)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "inscrito_segundo_apellido": [
+      "(?:Segundo\\s*Apellido)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "inscrito_sexo": [
+      "(?:Sexo)\\s*[:#]?\\s*(VAR[OÓ]N|MASCULINO|HEMBRA|FEMENINO|[MF])"
+    ],
+    "inscrito_fecha_nacimiento": [
+      "(?:naci[oó]\\s*el\\s*d[ií]a)\\s*(\\d{1,2})\\s*(?:del\\s*a[ñn]o)\\s*(\\d{4})"
+    ],
+    "inscrito_lugar": [
+      "(?:Lugar)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ,\\s]+)"
+    ],
+    "padre_nombre": [
+      "(?:PADRE)\\s*[:#]?\\s*(?:Don\\.?)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+?)(?=,|Hijo|$)"
+    ],
+    "padre_hijo_de": [
+      "(?:Hijo\\s*de)\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "padre_y_de": [
+      "(?:y\\s*de)\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "madre_nombre": [
+      "(?:MADRE)\\s*[:#]?\\s*(?:Do[ñn]a)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+?)(?=,|-|hija|$)"
+    ],
+    "madre_hija_de": [
+      "(?:hija\\s*de)\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "nacionalidad": [
+      "(?:nacionalidad)\\s*([A-Za-záéíóúñ]+)"
+    ],
+    "estado_civil": [
+      "(?:Estado\\s*Civil)\\s*(soltero|soltera|casado|casada)"
+    ],
+    "profesion": [
+      "(?:profesi[oó]n)\\s*([A-Za-záéíóúñ\\s]+?)(?=\\.|,|-|$)"
+    ],
+    "domicilio": [
+      "(?:domicilio\\s*en)\\s*(.+?)(?=de\\s*Profesi|\\.|$)"
+    ],
+    "declarante": [
+      "(?:Declarante)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ,\\s]+)"
+    ],
+    "encargada": [
+      "(?:ENCARGADA)\\s*[:#]?\\s*(?:Do[ñn]a)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "encargado_certifica": [
+      "(?:El\\s*Encargado\\s*del\\s*Registro\\s*Civil\\s*de)\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)\\s*\\.?\\s*(?:Don)\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ]
+  }
+}

@@ -1,0 +1,437 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "CONTRATO_COMPRAVENTA_GQ_V1",
+  "version": "1.0",
+  "title": "Contrato de Compraventa de Vehiculo",
+  "description": "Schema d'extraction pour le Contrat de Vente de Vehicule en Guinee Equatoriale. DEVISE: FCFA obligatoire. SIGNATURES: vendeur ET acheteur obligatoires.",
+  "document_type": "CONTRATO_COMPRAVENTA",
+  "country": "GQ",
+  "faces": ["single_page"],
+
+  "extraction": {
+    "contrato": {
+      "description": "Donnees generales du contrat",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "CONTRATO_COMPRAVENTA",
+          "required": true,
+          "description": "Type de document"
+        },
+        "lugar": {
+          "type": "string",
+          "required": false,
+          "description": "Lieu de signature (ex: Malabo, Bata)",
+          "field_label": "EN"
+        },
+        "fecha": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date du contrat",
+          "field_label": "A ... DE ... DE",
+          "date_format": "DD/MM/YYYY"
+        }
+      }
+    },
+
+    "vendedor": {
+      "description": "Donnees du VENDEUR - DOIVENT CORRESPONDRE au document d'identite",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": true,
+          "description": "Nom complet du vendeur (D. ...)",
+          "field_label": "D.",
+          "pii": true,
+          "validation_cross_check": "identity_document.vendedor.nombre_completo"
+        },
+        "dni_nie": {
+          "type": "string",
+          "required": true,
+          "description": "DIP/NIE/Pasaporte du vendeur",
+          "field_label": "CON DNI/NIE",
+          "pii": true,
+          "validation_cross_check": "identity_document.vendedor.nie_o_dni"
+        },
+        "ciudad": {
+          "type": "string",
+          "required": false,
+          "description": "Ville du vendeur",
+          "field_label": "VECINO DE"
+        },
+        "domicilio": {
+          "type": "string",
+          "required": false,
+          "description": "Adresse du vendeur (C/ ...)",
+          "field_label": "DOMICILIADO EN",
+          "pii": true
+        }
+      }
+    },
+
+    "comprador": {
+      "description": "Donnees de l'ACHETEUR - DOIVENT CORRESPONDRE au document d'identite",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": true,
+          "description": "Nom complet de l'acheteur (D. ...)",
+          "field_label": "D.",
+          "pii": true,
+          "validation_cross_check": "identity_document.comprador.nombre_completo"
+        },
+        "dni_nie": {
+          "type": "string",
+          "required": true,
+          "description": "DIP/NIE/Pasaporte de l'acheteur",
+          "field_label": "CON DNI/NIE",
+          "pii": true,
+          "validation_cross_check": "identity_document.comprador.nie_o_dni"
+        },
+        "ciudad": {
+          "type": "string",
+          "required": false,
+          "description": "Ville de l'acheteur",
+          "field_label": "VECINO DE"
+        },
+        "domicilio": {
+          "type": "string",
+          "required": false,
+          "description": "Adresse de l'acheteur (C/ ...)",
+          "field_label": "DOMICILIADO EN",
+          "pii": true
+        }
+      }
+    },
+
+    "vehiculo": {
+      "description": "Donnees du vehicule objet de la vente",
+      "fields": {
+        "marca": {
+          "type": "string",
+          "required": true,
+          "description": "Marque du vehicule",
+          "field_label": "MARCA",
+          "validation_cross_check": "permiso_circulacion.datos_vehiculo.marca"
+        },
+        "modelo": {
+          "type": "string",
+          "required": false,
+          "description": "Modele du vehicule",
+          "field_label": "MODELO"
+        },
+        "matricula": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[A-Z]{2}-[0-9]{3}-[A-Z0-9]{1,2}$",
+          "description": "Numero d'immatriculation",
+          "field_label": "MATRÍCULA",
+          "pii": true,
+          "validation_cross_check": "permiso_circulacion.datos_vehiculo.matricula"
+        },
+        "kilometros": {
+          "type": "number",
+          "required": false,
+          "minimum": 0,
+          "description": "Kilometrage du vehicule",
+          "field_label": "KILÓMETROS"
+        },
+        "numero_bastidor": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[A-HJ-NPR-Z0-9]{17}$",
+          "description": "Numero de chassis/VIN",
+          "field_label": "NÚMERO DE BASTIDOR",
+          "pii": true,
+          "validation_cross_check": "permiso_circulacion.datos_vehiculo.numero_bastidor"
+        }
+      }
+    },
+
+    "precio": {
+      "description": "Prix de la vente - DEVISE OBLIGATOIRE: FCFA (XAF)",
+      "fields": {
+        "monto": {
+          "type": "number",
+          "required": true,
+          "minimum": 0,
+          "description": "Montant de la vente",
+          "field_label": "CANTIDAD DE"
+        },
+        "monto_letras": {
+          "type": "string",
+          "required": false,
+          "description": "Montant en lettres pour verification"
+        },
+        "moneda": {
+          "type": "string",
+          "required": true,
+          "enum": ["FCFA", "XAF"],
+          "default": "FCFA",
+          "description": "Devise - DOIT ETRE FCFA/XAF"
+        },
+        "anticipo": {
+          "type": "number",
+          "required": false,
+          "minimum": 0,
+          "description": "Acompte verse"
+        },
+        "resto_pendiente": {
+          "type": "number",
+          "required": false,
+          "minimum": 0,
+          "description": "Reste a payer"
+        }
+      }
+    },
+
+    "condiciones": {
+      "description": "Conditions du contrat",
+      "fields": {
+        "vendedor_es_propietario": {
+          "type": "boolean",
+          "required": false,
+          "description": "Le vendeur declare etre proprietaire (PRIMERA)"
+        },
+        "comprador_conoce_estado": {
+          "type": "boolean",
+          "required": false,
+          "description": "L'acheteur connait l'etat du vehicule (SEGUNDA)"
+        },
+        "libre_cargas": {
+          "type": "boolean",
+          "required": false,
+          "description": "Vehicule libre de charges et sanctions (TERCERA)"
+        },
+        "itv_corriente": {
+          "type": "boolean",
+          "required": false,
+          "description": "ITV a jour (TERCERA)"
+        },
+        "comprador_asegura": {
+          "type": "boolean",
+          "required": false,
+          "description": "L'acheteur s'engage a assurer (CUARTA)"
+        },
+        "jurisdiccion": {
+          "type": "string",
+          "required": false,
+          "description": "Juridiction competente (SEPTIMA)"
+        }
+      }
+    },
+
+    "firmas": {
+      "description": "Signatures - LES DEUX SONT OBLIGATOIRES",
+      "fields": {
+        "firma_vendedor": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du VENDEUR presente - OBLIGATOIRE"
+        },
+        "firma_comprador": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du COMPRADOR presente - OBLIGATOIRE"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "firmas_obligatorias",
+      "rule": "firma_vendedor == true AND firma_comprador == true",
+      "error_es": "El contrato debe estar firmado por AMBAS partes (vendedor y comprador).",
+      "error_fr": "Le contrat doit etre signe par LES DEUX parties (vendeur et acheteur).",
+      "severity": "error"
+    },
+    {
+      "id": "moneda_fcfa",
+      "rule": "moneda IN ['FCFA', 'XAF']",
+      "error_es": "El precio debe estar en FCFA (Franco CFA).",
+      "error_fr": "Le prix doit etre en FCFA (Franc CFA).",
+      "severity": "error"
+    },
+    {
+      "id": "vendedor_es_propietario",
+      "rule": "vendedor.nombre_completo MATCHES permiso_circulacion.propietario.nombre",
+      "error_es": "El vendedor NO es el propietario registrado en el permiso de circulacion.",
+      "error_fr": "Le vendeur N'EST PAS le proprietaire enregistre sur le permis de circulation.",
+      "severity": "error",
+      "cross_document_validation": true
+    },
+    {
+      "id": "vehiculo_permiso_match",
+      "rule": "vehiculo.matricula == permiso_circulacion.matricula AND vehiculo.numero_bastidor == permiso_circulacion.numero_bastidor",
+      "error_es": "Los datos del vehiculo en el contrato NO coinciden con el permiso de circulacion.",
+      "error_fr": "Les donnees du vehicule dans le contrat NE CORRESPONDENT PAS au permis de circulation.",
+      "severity": "error",
+      "cross_document_validation": true
+    },
+    {
+      "id": "matricula_format_valid",
+      "rule": "matricula MATCHES '^[A-Z]{2}-[0-9]{3}-[A-Z0-9]{1,2}$'",
+      "error_es": "Formato de matricula invalido",
+      "error_fr": "Format d'immatriculation invalide",
+      "severity": "error"
+    },
+    {
+      "id": "precio_coherent",
+      "rule": "IF monto_letras EXISTS THEN monto_letras MATCHES monto",
+      "error_es": "El precio en cifras no coincide con el precio en letras",
+      "error_fr": "Le prix en chiffres ne correspond pas au prix en lettres",
+      "severity": "warning"
+    }
+  ],
+
+  "cross_document_validations": [
+    {
+      "name": "vendedor_identity_check",
+      "source_document": "contrato_compraventa",
+      "target_document": "identity_document_vendedor",
+      "fields_to_match": [
+        {"source": "vendedor.nombre_completo", "target": "titular.apellidos + titular.nombres"},
+        {"source": "vendedor.dni_nie", "target": "documento.numero_dip"}
+      ]
+    },
+    {
+      "name": "comprador_identity_check",
+      "source_document": "contrato_compraventa",
+      "target_document": "identity_document_comprador",
+      "fields_to_match": [
+        {"source": "comprador.nombre_completo", "target": "titular.apellidos + titular.nombres"},
+        {"source": "comprador.dni_nie", "target": "documento.numero_dip"}
+      ]
+    },
+    {
+      "name": "vehiculo_permiso_check",
+      "source_document": "contrato_compraventa",
+      "target_document": "permiso_circulacion",
+      "fields_to_match": [
+        {"source": "vehiculo.matricula", "target": "vehiculo.matricula"},
+        {"source": "vehiculo.numero_bastidor", "target": "vehiculo.numero_bastidor"},
+        {"source": "vehiculo.marca", "target": "vehiculo.marca"}
+      ]
+    },
+    {
+      "name": "propietario_vendedor_check",
+      "source_document": "contrato_compraventa",
+      "target_document": "permiso_circulacion",
+      "fields_to_match": [
+        {"source": "vendedor.nombre_completo", "target": "propietario.apellidos + propietario.nombre"}
+      ]
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Contrato de Compraventa de Vehiculo Usado - contrat officiel de vente entre particuliers en Guinea Ecuatorial",
+    "language": "es",
+    "date_format": "DD de MMMM de YYYY (texte) ou DD/MM/YYYY",
+    "visual_zones": [
+      "Titre: CONTRATO DE COMPRAVENTA DE VEHICULO USADO",
+      "Section REUNIDOS (en haut): Donnees vendeur et acheteur",
+      "  - Partie 1 (De una parte): Vendeur (D. ..., con DNI/NIE ..., vecino de ..., domiciliado en ...)",
+      "  - Partie 2 (De otra parte): Acheteur (D. ..., con DNI/NIE ..., vecino de ..., domiciliado en ...)",
+      "Section EXPONEN: Description du vehicule et du prix",
+      "Section CONDICIONES: Clauses numerotees (PRIMERA a SEPTIMA)",
+      "  - PRIMERA: Vendeur est proprietaire",
+      "  - SEGUNDA: Acheteur connait l'etat",
+      "  - TERCERA: Libre de charges, ITV a jour",
+      "  - CUARTA: Acheteur s'engage a assurer",
+      "  - QUINTA: Vente validee par signature",
+      "  - SEXTA: Frais a charge de l'acheteur",
+      "  - SEPTIMA: Juridiction competente",
+      "Zone de signatures en bas: VENDEDOR a gauche, COMPRADOR a droite",
+      "Lieu et date en bas"
+    ],
+    "critical_validations": [
+      "ATTENTION: La devise DOIT etre FCFA, pas euros",
+      "ATTENTION: Les DEUX signatures doivent etre presentes",
+      "ATTENTION: Les noms doivent correspondre EXACTEMENT aux documents d'identite",
+      "ATTENTION: La matricula et bastidor doivent correspondre au permiso de circulacion"
+    ],
+    "ocr_challenges": [
+      "Document manuscrit ou mixte (imprime + manuscrit)",
+      "Signatures qui peuvent etre illegibles",
+      "Montant ecrit en lettres espagnoles",
+      "Dates ecrites en format texte",
+      "Qualite variable du document"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "vendedor_nombre": [
+      "(?:DE\\s*UNA\\s*PARTE|VENDEDOR)\\s*[:#]?\\s*D\\.?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)",
+      "(?:PARTE\\s*VENDEDORA)\\s*[:#]?\\s*D\\.?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "vendedor_dni": [
+      "(?:CON\\s*)?(?:DNI|NIE|DIP|PASAPORTE)\\s*[:#]?\\s*([A-Z0-9]{9,})"
+    ],
+    "comprador_nombre": [
+      "(?:DE\\s*OTRA\\s*PARTE|COMPRADOR)\\s*[:#]?\\s*D\\.?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)",
+      "(?:PARTE\\s*COMPRADORA)\\s*[:#]?\\s*D\\.?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "comprador_dni": [
+      "(?:CON\\s*)?(?:DNI|NIE|DIP|PASAPORTE)\\s*[:#]?\\s*([A-Z0-9]{9,})"
+    ],
+    "matricula": [
+      "(?:MATR[IÍ]CULA)\\s*[:#]?\\s*([A-Z]{2}[-\\s]?[0-9]{3}[-\\s]?[A-Z0-9]{1,2})"
+    ],
+    "numero_bastidor": [
+      "(?:BASTIDOR|N[°o]?\\s*BASTIDOR|VIN|CHASSIS)\\s*[:#]?\\s*([A-HJ-NPR-Z0-9]{17})"
+    ],
+    "marca": [
+      "(?:MARCA)\\s*[:#]?\\s*([A-Z]+)",
+      "\\b(HYUNDAI|TOYOTA|NISSAN|FORD|CHEVROLET|KIA|MERCEDES|BMW|HONDA|MITSUBISHI)\\b"
+    ],
+    "modelo": [
+      "(?:MODELO)\\s*[:#]?\\s*([A-Z0-9]+)"
+    ],
+    "kilometros": [
+      "(?:KIL[OÓ]METROS?|KM)\\s*[:#]?\\s*([0-9]+(?:[.,][0-9]+)?)"
+    ],
+    "precio_monto": [
+      "(?:CANTIDAD\\s*DE|PRECIO|IMPORTE)\\s*[:#]?\\s*([0-9]+(?:[.,][0-9]+)?)",
+      "([0-9]+(?:[.,][0-9]+)?)\\s*(?:FCFA|XAF|FRANCOS)"
+    ],
+    "precio_letras": [
+      "\\(([a-záéíóúñ\\s]+)\\s*(?:FCFA|francos)\\)"
+    ],
+    "lugar": [
+      "(?:EN)\\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)\\s*(?:,|a)"
+    ],
+    "fecha": [
+      "(?:A|EN)\\s+(\\d{1,2})\\s*(?:DE)?\\s*([A-Za-záéíóúñ]+)\\s*(?:DE)?\\s*(\\d{4})",
+      "(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})"
+    ],
+    "vecino_de": [
+      "(?:VECINO\\s*DE)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "domicilio": [
+      "(?:DOMICILIADO\\s*EN|C/)\\s*[:#]?\\s*(.+?)(?=\\.|,|CON|VECINO|$)"
+    ]
+  },
+
+  "number_to_text_mapping": {
+    "units": {
+      "0": "cero", "1": "uno", "2": "dos", "3": "tres", "4": "cuatro",
+      "5": "cinco", "6": "seis", "7": "siete", "8": "ocho", "9": "nueve"
+    },
+    "tens": {
+      "10": "diez", "11": "once", "12": "doce", "13": "trece", "14": "catorce",
+      "15": "quince", "16": "dieciseis", "17": "diecisiete", "18": "dieciocho",
+      "19": "diecinueve", "20": "veinte", "30": "treinta", "40": "cuarenta",
+      "50": "cincuenta", "60": "sesenta", "70": "setenta", "80": "ochenta", "90": "noventa"
+    },
+    "hundreds": {
+      "100": "cien", "200": "doscientos", "300": "trescientos", "400": "cuatrocientos",
+      "500": "quinientos", "600": "seiscientos", "700": "setecientos", "800": "ochocientos",
+      "900": "novecientos"
+    },
+    "scales": {
+      "1000": "mil", "1000000": "millon", "1000000000": "mil millones"
+    }
+  }
+}

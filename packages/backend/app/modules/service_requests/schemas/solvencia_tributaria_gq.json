@@ -1,0 +1,271 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "SOLVENCIA_TRIBUTARIA_GQ_V1",
+  "version": "1.1",
+  "title": "Certificado de Solvencia Tributaria - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour le Certificado de Solvencia Tributaria emis par le Ministerio de Hacienda y Presupuestos, Direccion General de Recaudaciones (Art. 3.A.1.i / Art. 3.A.2.h - Orden Ministerial 01/2021). Requis uniquement pour PERSONAS JURIDICAS.",
+  "document_type": "SOLVENCIA_TRIBUTARIA",
+  "country": "GQ",
+  "faces": ["single_page"],
+  "document_nature": "certificat_officiel",
+  "issuer": "Dirección General de Recaudaciones, Ministerio de Hacienda y Presupuestos",
+  "validity_period": "30 days from issue date",
+
+  "extraction": {
+    "documento": {
+      "description": "Informations administratives du certificat",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "SOLVENCIA_TRIBUTARIA",
+          "required": true,
+          "description": "Type de document",
+          "usage": "Identification du type de document pour le dossier"
+        },
+        "numero_certificado": {
+          "type": "string",
+          "required": false,
+          "description": "Numero du certificat (en haut a gauche, format /YYYY ou similaire)",
+          "usage": "Tracabilite — permet a l'agent de verifier aupres de la DG Recaudaciones si necessaire"
+        },
+        "referencia": {
+          "type": "string",
+          "required": false,
+          "description": "Reference interne du certificat",
+          "usage": "Tracabilite interne"
+        },
+        "fecha_expedicion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'emission du certificat. Souvent en format textuel espagnol dans la formule finale (ex: 'A NUEVE DIAS DEL MES DE JULIO DE DOS MIL VEINTICUATRO'). Normaliser en YYYY-MM-DD.",
+          "usage": "CRITIQUE — validation de validite: le certificat doit avoir moins de 30 jours (Art. 3.A.1.i). C'est le champ le plus important apres resultado."
+        },
+        "ciudad_expedicion": {
+          "type": "string",
+          "required": false,
+          "description": "Ville d'emission du certificat, extraite de la formule finale ('HECHO EN [ciudad]')",
+          "usage": "Information complementaire — confirme que le certificat a ete emis en GQ"
+        },
+        "validez_dias": {
+          "type": "integer",
+          "required": false,
+          "const": 30,
+          "description": "Validite en jours. Generalement 30 dias, mentionne explicitement sur le document.",
+          "usage": "Confirmation de la duree de validite pour l'agent"
+        }
+      }
+    },
+
+    "empresa": {
+      "description": "Donnees de l'entreprise certifiee solvable",
+      "fields": {
+        "denominacion_social": {
+          "type": "string",
+          "required": true,
+          "description": "Nom ou raison sociale de l'entreprise telle qu'elle apparait sur le certificat",
+          "pii": true,
+          "usage": "CRITIQUE — identification de l'entreprise. Cross-validation avec le NIF de l'autorisation gubernative pour confirmer que c'est la meme entreprise."
+        },
+        "nif": {
+          "type": "string",
+          "required": true,
+          "description": "Numero de Identificacion Fiscal de l'entreprise. Format variable selon l'epoque d'attribution (chiffres + lettres, avec ou sans tiret).",
+          "pii": true,
+          "encrypt": true,
+          "usage": "CRITIQUE — cross-validation avec le NIF de l'autorisation gubernative (nif_autorizacion). Doit correspondre exactement (apres normalisation). C'est la preuve que l'entreprise qui parraine le demandeur est fiscalement solvable."
+        }
+      }
+    },
+
+    "representante": {
+      "description": "Donnees du representant legal de l'entreprise",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": true,
+          "description": "Nom complet du representant legal de l'entreprise tel qu'il apparait sur le certificat",
+          "pii": true,
+          "usage": "Cross-validation Levenshtein avec le passeport du demandeur. Attention: le representant peut etre different du demandeur (warning, pas error)."
+        },
+        "nacionalidad": {
+          "type": "string",
+          "required": false,
+          "description": "Nationalite du representant legal",
+          "usage": "Information complementaire pour l'agent"
+        },
+        "numero_identificacion": {
+          "type": "string",
+          "required": true,
+          "description": "Numero de document d'identite du representant legal. Peut etre un DIP (citoyens GQ, format 000.000.000), un NIE, un numero de passeport GQ ou etranger. Extraire tel quel sans reformater.",
+          "pii": true,
+          "encrypt": true,
+          "usage": "Cross-validation avec le document d'identite du demandeur. Attention: le representant peut differer du demandeur (warning, pas error)."
+        },
+        "ciudad_residencia": {
+          "type": "string",
+          "required": false,
+          "description": "Ville de residence du representant legal",
+          "usage": "Information complementaire"
+        }
+      }
+    },
+
+    "certificacion": {
+      "description": "Contenu de la certification fiscale",
+      "fields": {
+        "resultado": {
+          "type": "string",
+          "enum": ["SOLVENTE", "NO_SOLVENTE"],
+          "required": true,
+          "description": "Resultat de la certification. SOLVENTE = l'entreprise n'a pas d'obligations fiscales en attente. NO_SOLVENTE = l'entreprise a des dettes fiscales. Gemini doit COMPRENDRE SEMANTIQUEMENT le contenu du paragraphe CERTIFICA pour determiner le resultat.",
+          "usage": "CRITIQUE — le champ le plus important. Si NO_SOLVENTE, le document est rejete et le dossier de residencia ne peut pas avancer. Le texte typique pour SOLVENTE est 'NO conste tener contraída obligaciones fiscales pendientes de cumplimiento' mais Gemini doit comprendre le sens, pas chercher cette phrase exacte."
+        },
+        "motivo_solicitud": {
+          "type": "string",
+          "required": false,
+          "description": "Motif de la demande du certificat, souvent dans une section NOTA en bas du corps du texte",
+          "usage": "Information pour l'agent — permet de verifier la coherence avec le type de dossier (ex: CONTRATO DE PRESTACION DE SERVICIOS)"
+        },
+        "referencia_legal": {
+          "type": "string",
+          "required": false,
+          "description": "Reference legale citee dans le certificat (loi fiscale applicable)",
+          "usage": "Information complementaire — confirme le cadre legal"
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification du document",
+      "fields": {
+        "tiene_firma_responsable": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du Responsable de Seccion (ou del Servicio) presente sur le document",
+          "usage": "CRITIQUE — le certificat necessite la signature du responsable de section. Generalement en bas a gauche sous la mention CONFORME."
+        },
+        "tiene_firma_director": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du Director General de Recaudaciones presente (Visto Bueno)",
+          "usage": "CRITIQUE — le certificat necessite le visa du Director General. Generalement en bas a droite sous la mention Vº Bº."
+        },
+        "tiene_sello_ministerio": {
+          "type": "boolean",
+          "required": false,
+          "description": "Sceau ou tampon officiel du Ministerio de Hacienda present",
+          "usage": "Renforce l'authenticite mais non bloquant — certains certificats n'ont pas de sceau visible sur scan"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "resultado_presente",
+      "rule": "certificacion.resultado IS NOT NULL AND certificacion.resultado != ''",
+      "error_es": "No se pudo determinar el resultado de solvencia del certificado",
+      "severity": "error"
+    },
+    {
+      "id": "resultado_no_solvente",
+      "rule": "certificacion.resultado == 'SOLVENTE'",
+      "error_es": "La empresa tiene obligaciones fiscales pendientes (NO SOLVENTE). El agente evaluará la situación.",
+      "severity": "warning"
+    },
+    {
+      "id": "certificado_vigente",
+      "rule": "fecha_expedicion + 30 DAYS > TODAY",
+      "error_es": "Certificado de solvencia tributaria caducado (validez: 30 días)",
+      "severity": "error"
+    },
+    {
+      "id": "nif_presente",
+      "rule": "empresa.nif IS NOT NULL AND empresa.nif != ''",
+      "error_es": "No se pudo extraer el NIF de la empresa",
+      "severity": "error"
+    },
+    {
+      "id": "denominacion_presente",
+      "rule": "empresa.denominacion_social IS NOT NULL AND empresa.denominacion_social != ''",
+      "error_es": "No se pudo extraer el nombre de la empresa",
+      "severity": "error"
+    },
+    {
+      "id": "firmas_presentes",
+      "rule": "tiene_firma_responsable == true AND tiene_firma_director == true",
+      "error_es": "Faltan firmas oficiales (Responsable de Sección y/o Director General)",
+      "severity": "error"
+    },
+    {
+      "id": "fecha_expedicion_not_future",
+      "rule": "fecha_expedicion <= TODAY",
+      "error_es": "La fecha de expedición no puede ser futura",
+      "severity": "error"
+    }
+  ],
+
+  "cross_document_validations": [
+    {
+      "id": "nif_coherente_autorizacion",
+      "compare_with": "nif_autorizacion",
+      "rule": "normalize(empresa.nif) == normalize(nif_autorizacion.empresa.nif)",
+      "error_es": "El NIF en el certificado de solvencia no coincide con el NIF de la autorización gubernativa",
+      "severity": "error",
+      "note": "Verification critique: le NIF doit correspondre entre solvencia et NIF/autorizacion"
+    },
+    {
+      "id": "representante_coherente_pasaporte",
+      "compare_with": "pasaporte",
+      "rule": "levenshtein_match(representante.nombre_completo, pasaporte.titular.apellidos + ' ' + pasaporte.titular.nombres)",
+      "threshold": 0.80,
+      "error_es": "El representante legal no coincide con el titular del pasaporte",
+      "severity": "warning",
+      "note": "Warning car le representant peut ne pas etre le demandeur principal"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_type": "Certificado de Solvencia Tributaria — certificat officiel du Ministerio de Hacienda attestant que l'entreprise n'a pas d'obligations fiscales en attente. Document semi-structure en espagnol, format narratif avec un paragraphe CERTIFICA central.",
+    "language": "es",
+
+    "extraction_priority": [
+      "1. RESULTADO (CRITICAL): Le document certifie-t-il que l'entreprise est fiscalement solvable? SOLVENTE ou NO_SOLVENTE.",
+      "2. NIF: Numero de Identificacion Fiscal de l'entreprise. Format variable.",
+      "3. DENOMINACION SOCIAL: Nom ou raison sociale de l'entreprise.",
+      "4. FECHA EXPEDICION: Date d'emission. Souvent en format textuel espagnol. Normaliser en YYYY-MM-DD.",
+      "5. REPRESENTANTE: Nom complet + DIP/Pasaporte du representant legal.",
+      "6. AUTENTICACION: Deux signatures requises (Responsable + Director General).",
+      "7. SECONDARY: nacionalidad, ciudad_residencia, motivo_solicitud, referencia_legal, numero_certificado."
+    ],
+
+    "semantic_instructions": {
+      "resultado": "Lire et COMPRENDRE le paragraphe CERTIFICA. Determiner si le document atteste que l'entreprise N'A PAS d'obligations fiscales pendantes (SOLVENTE) ou qu'elle EN A (NO_SOLVENTE). Le texte typique est 'NO conste tener contraída obligaciones fiscales pendientes de cumplimiento' mais la formulation peut varier. Comprendre le SENS, pas chercher une phrase exacte.",
+      "nif": "Extraire le NIF complet de l'entreprise. Le format varie: chiffres + lettres, avec ou sans tiret, avec ou sans prefixe 'nº'. Ne pas reformater — extraire tel quel.",
+      "denominacion_social": "Extraire le nom complet de l'entreprise tel qu'il apparait, y compris la forme juridique (SL, SA, etc.). C'est l'entite pour laquelle la solvabilite est certifiee.",
+      "representante": "Extraire le nom COMPLET du representant legal et son numero de DIP ou Passeport. Le representant est la personne physique qui agit au nom de l'entreprise. Son numero d'identite peut contenir des points separateurs (ex: 000.154.374).",
+      "fecha_expedicion": "Date d'emission du certificat. Souvent en format textuel espagnol complet dans la formule finale ('A [nombre en lettres] DIAS DEL MES DE [mois] DE [annee en lettres]'). Convertir les nombres en lettres espagnols en chiffres et normaliser en YYYY-MM-DD.",
+      "autenticacion": "Verifier visuellement: (1) signature du Responsable de Seccion/Servicio (generalement bas gauche), (2) signature du Director General avec mention Vº Bº (generalement bas droite), (3) sceau officiel du ministere (si present)."
+    },
+
+    "ocr_challenges": [
+      "Document souvent photocopie ou scan de qualite variable",
+      "Format NIF variable selon epoque d'attribution (avec/sans tiret, espaces)",
+      "Date en format textuel espagnol complet (nombres en lettres)",
+      "DIP avec ou sans points separateurs",
+      "Section NOTA peut etre absente",
+      "Tampon ou sceau superposes au texte"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "_note": "Patterns de fallback. Gemini est l'extracteur principal.",
+    "nif": [
+      "(?:NIF\\.?|N\\.?I\\.?F\\.?)\\s*(?:n[°ºo])?\\s*[:#]?\\s*([0-9]{5,6}[A-Z]{2}-?[0-9]{2})"
+    ],
+    "fecha_expedicion": [
+      "(\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{2,4})"
+    ]
+  }
+}

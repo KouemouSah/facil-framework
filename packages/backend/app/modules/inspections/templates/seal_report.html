@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="{{ language }}">
+<head>
+<meta charset="UTF-8">
+<title>{{ texts.title }}</title>
+<style>
+@page { size: A4; margin: 2cm 1.5cm 2.5cm 1.5cm; }
+body { font-family: Arial, sans-serif; font-size: 10pt; color: #222; line-height: 1.5; }
+.header { text-align: center; margin-bottom: 20px; border-bottom: 3px solid #b33a3a; padding-bottom: 10px; }
+.header img { height: 60px; }
+.header h1 { font-size: 18pt; color: #b33a3a; margin: 8px 0 4px; letter-spacing: 3px; }
+.header h2 { font-size: 11pt; color: #333; margin: 4px 0; }
+.republic { font-size: 9pt; color: #666; }
+.entity { font-size: 10pt; color: #2d5a03; font-weight: bold; }
+.ref { font-size: 8pt; color: #999; margin-top: 8px; }
+.section { margin: 12px 0; }
+.section-title { font-size: 11pt; font-weight: bold; color: #b33a3a; border-bottom: 1px solid #ccc; padding-bottom: 3px; margin-bottom: 6px; }
+.grid-30 { display: table-cell; width: 30%; padding: 3px 8px 3px 0; }
+.grid-70 { display: table-cell; width: 70%; padding: 3px 8px 3px 0; }
+.grid { display: table; width: 100%; }
+.grid-row { display: table-row; }
+.grid-cell { display: table-cell; padding: 3px 8px 3px 0; }
+.label { color: #666; font-size: 9pt; }
+.value { font-weight: bold; }
+.seal-box { border: 3px solid #b33a3a; padding: 15px; margin: 20px 0; background: #fce4e4; text-align: center; }
+.seal-box h2 { color: #b33a3a; font-size: 14pt; margin: 0 0 8px; }
+table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+th, td { padding: 5px 8px; text-align: left; font-size: 9pt; border: 1px solid #ccc; }
+th { background: #f8d7da; }
+.legal { font-size: 8pt; color: #555; margin-top: 20px; padding: 8px; border: 1px solid #ddd; background: #fafafa; }
+.signatures { margin-top: 30px; display: table; width: 100%; }
+.sig-col { display: table-cell; width: 45%; vertical-align: top; }
+.sig-line { border-top: 1px solid #333; margin-top: 50px; padding-top: 4px; font-size: 8pt; }
+.qr { text-align: center; margin-top: 15px; }
+.qr img { width: 90px; height: 90px; }
+.footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: center; font-size: 7pt; color: #999; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div class="republic">REPÚBLICA DE GUINEA ECUATORIAL</div>
+    {% if logo_base64 %}<img src="data:image/png;base64,{{ logo_base64 }}" alt="Logo"><br>{% endif %}
+    <h1>{{ texts.title }}</h1>
+    <h2>{{ texts.subtitle }}</h2>
+    <div class="entity">{{ entity_name }}</div>
+    <div class="ref">Ref: PV-SEAL-{{ inspection_id[:8] }} | {{ seal_date }}</div>
+</div>
+
+<div class="seal-box">
+    <h2>{{ texts.seal_declaration }}</h2>
+    <p>{{ texts.seal_statement|replace('{company}', company_name) }}</p>
+</div>
+
+<div class="section">
+    <div class="section-title">{{ texts.company_info }}</div>
+    <div class="grid">
+        <div class="grid-row">
+            <div class="grid-cell"><span class="label">{{ texts.company_name }}:</span> <span class="value">{{ company_name }}</span></div>
+            <div class="grid-cell"><span class="label">{% if company_nif and company_nif[:2] == 'PE' %}N° Reg:{% else %}NIF:{% endif %}</span> <span class="value">{{ company_nif }}</span></div>
+        </div>
+        {% if zone_code %}
+        <div class="grid-row">
+            <div class="grid-30"><span class="label">{{ texts.zone }}:</span> <span class="value">{{ zone_code }}</span></div>
+            <div class="grid-70"><span class="label">{{ texts.city }}:</span> <span class="value">{{ city_name or '-' }}</span></div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="section">
+    <div class="section-title">{{ texts.seal_reason_title }}</div>
+    <p><strong>{{ texts.reason }}:</strong> {{ seal_reason_label }}</p>
+    {% if seal_notes %}<p><strong>{{ texts.observations }}:</strong> {{ seal_notes }}</p>{% endif %}
+</div>
+
+<div class="section">
+    <div class="section-title">{{ texts.unpaid_obligations }}</div>
+    <table>
+        <thead><tr><th>{{ texts.service }}</th><th>{{ texts.fee_type }}</th><th style="text-align:right">{{ texts.amount }} (XAF)</th></tr></thead>
+        <tbody>
+        {% for obl in obligations %}
+            <tr>
+                <td>{{ obl.service_name or '-' }}</td>
+                <td>{{ obl.fee_type }}</td>
+                <td style="text-align:right">{{ "{:,.0f}".format(obl.amount + (obl.penalty_amount or 0)) }}</td>
+            </tr>
+        {% endfor %}
+            <tr style="font-weight:bold; background:#f8d7da;">
+                <td colspan="2">{{ texts.total }}</td>
+                <td style="text-align:right">{{ "{:,.0f}".format(total_unpaid) }} XAF</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="section">
+    <div class="section-title">{{ texts.timeline }}</div>
+    <div class="grid">
+        <div class="grid-row">
+            <div class="grid-cell"><span class="label">{{ texts.inspection_date }}:</span> {{ inspection_date }}</div>
+        </div>
+        {% if med_date %}
+        <div class="grid-row">
+            <div class="grid-cell"><span class="label">{{ texts.med_date }}:</span> {{ med_date }}</div>
+        </div>
+        {% endif %}
+        <div class="grid-row">
+            <div class="grid-cell"><span class="label">{{ texts.seal_proposed }}:</span> {{ seal_proposed_date }}</div>
+        </div>
+        <div class="grid-row">
+            <div class="grid-cell"><span class="label">{{ texts.seal_approved }}:</span> {{ seal_date }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="legal">
+    {{ texts.legal_text }}
+</div>
+
+<div class="signatures">
+    <div class="sig-col">
+        <div class="sig-line">
+            {{ texts.inspector }}<br>
+            {{ agent_name }}
+        </div>
+    </div>
+    <div class="sig-col" style="text-align:right;">
+        <div class="sig-line">
+            {{ texts.supervisor }}<br>
+            {{ supervisor_name or texts.auto_approved }}
+        </div>
+    </div>
+</div>
+
+{% if qr_base64 %}
+<div class="qr">
+    <img src="data:image/png;base64,{{ qr_base64 }}" alt="QR"><br>
+    <span style="font-size:7pt;">{{ texts.qr_label }}</span>
+</div>
+{% endif %}
+
+<div class="footer">
+    Facil — Plataforma Digital de Guinea Ecuatorial — {{ generated_at }}
+</div>
+
+</body>
+</html>

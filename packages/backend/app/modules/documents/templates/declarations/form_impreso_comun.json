@@ -1,0 +1,20 @@
+{
+  "name": "impreso_comun",
+  "category": "general_tax_form",
+  "description": "Impreso Común - Declaración fiscal general",
+  "version": "1.0",
+  "fields": [
+    {"id": "nif", "label": ["N.I.F."], "type": "text", "pattern": "\\d{8}[A-Z]", "required": true},
+    {"id": "representacion_empresa", "label": ["En nombre y representación de la empresa"], "type": "text", "required": true},
+    {"id": "ejercicio", "label": ["Ejercicio"], "type": "year", "required": true},
+    {"id": "periodo", "label": ["Periodo"], "type": "text", "required": true},
+    {"id": "fecha", "label": ["Fecha"], "type": "date", "required": true},
+    {"id": "base_imponible", "label": ["Base Imponible"], "type": "currency", "required": true},
+    {"id": "tipo_de_gravamen", "label": ["Tipo de Gravamen"], "type": "percentage", "required": true},
+    {"id": "cuota", "label": ["Cuota"], "type": "currency", "required": true},
+    {"id": "a_ingresar", "label": ["A INGRESAR"], "type": "currency", "required": true}
+  ],
+  "validations": [
+    {"type": "calculation", "formula": "cuota = base_imponible * (tipo_de_gravamen / 100)", "tolerance": 0.01}
+  ]
+}

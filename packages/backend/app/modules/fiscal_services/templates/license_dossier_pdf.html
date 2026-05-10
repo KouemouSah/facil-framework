@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="{{ language or 'es' }}">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1cm 1.2cm 1.8cm 1.2cm;
+            @frame page-footer {
+                -pdf-frame-content: page-footer-content;
+                bottom: 0cm;
+                margin-left: 1.2cm;
+                margin-right: 1.2cm;
+                height: 1cm;
+            }
+        }
+        * { margin: 0; padding: 0; }
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 8pt;
+            line-height: 1.25;
+            color: #1a1a1a;
+        }
+        .no-break { page-break-inside: avoid; }
+
+        /* ── Header: logo left, ref right ── */
+        .header-table { width: 100%; border-collapse: collapse; border-bottom: 2px solid #2d5a03; padding-bottom: 4px; margin-bottom: 0; }
+        .header-table td { vertical-align: middle; padding-bottom: 4px; }
+        .logo-cell { width: 100px; }
+        .logo-cell img { height: 36px; }
+        .ref-cell { text-align: right; }
+        .reference-number { font-size: 11pt; font-weight: bold; color: #2d5a03; }
+        .header-meta { font-size: 7pt; color: #666; margin-top: 1px; }
+
+        /* ── Document title (below separator line) ── */
+        .doc-title {
+            font-size: 10pt; font-weight: bold; color: #2d5a03;
+            text-align: center; padding: 5px 0 2px 0;
+        }
+        .doc-subtitle { font-size: 7pt; color: #666; text-align: center; margin-bottom: 6px; }
+
+        /* ── Section ── */
+        .section { margin-bottom: 6px; }
+        .section-title {
+            font-size: 8pt; font-weight: bold; color: #fff;
+            background: #3a7104; padding: 2px 8px;
+            margin-bottom: 3px; letter-spacing: 0.4px;
+        }
+        .section-content { padding: 0 2px; }
+
+        /* ── Compact info grid ── */
+        .info-grid { width: 100%; border-collapse: collapse; }
+        .info-grid td { padding: 1px 3px; vertical-align: top; font-size: 7.5pt; }
+        .info-label { color: #555; font-weight: bold; white-space: nowrap; }
+        .info-value { color: #1a1a1a; }
+
+        /* ── Ministry group header ── */
+        .ministry-header {
+            background: #f5f5f5; padding: 2px 6px;
+            font-weight: bold; font-size: 7.5pt; color: #2d5a03;
+            border-bottom: 1px solid #ccc; border-top: 1px solid #ddd;
+        }
+
+        /* ── Obligations table ── */
+        .obligations-table { width: 100%; border-collapse: collapse; font-size: 7.5pt; }
+        .obligations-table th {
+            background: #e8e8e8; padding: 2px 4px; text-align: left;
+            border-bottom: 1px solid #bbb; font-weight: bold; color: #333; font-size: 7pt;
+        }
+        .obligations-table td { padding: 1.5px 4px; border-bottom: 1px solid #eee; }
+        .obligations-table .amount { text-align: right; font-family: monospace; font-size: 7.5pt; }
+        .obligations-table .status-paid { color: #15803d; font-weight: bold; }
+        .obligations-table .status-pending { color: #ca8a04; }
+        .obligations-table .status-overdue { color: #dc2626; font-weight: bold; }
+        .penalty-active { color: #dc2626; }
+        .penalty-inactive { color: #999; }
+
+        /* ── Totals ── */
+        .totals-table { width: 45%; margin-left: auto; border-collapse: collapse; margin-top: 4px; }
+        .totals-table td { padding: 1.5px 6px; font-size: 8pt; }
+        .totals-table .total-label { text-align: right; font-weight: bold; color: #333; }
+        .totals-table .total-value { text-align: right; font-family: monospace; font-weight: bold; }
+        .totals-table .grand-total td { border-top: 2px solid #3a7104; font-size: 9pt; color: #2d5a03; }
+
+        /* ── Disclaimer ── */
+        .disclaimer {
+            margin-top: 6px; padding: 4px 8px;
+            border: 1px dashed #ca8a04; background: #fffbeb;
+            font-size: 7pt; color: #92400e; text-align: center;
+        }
+
+        /* ── Footer: references left, QR right ── */
+        .footer-section { margin-top: 10px; border-top: 1px solid #ddd; padding-top: 6px; }
+        .footer-table { width: 100%; border-collapse: collapse; }
+        .footer-table td { vertical-align: bottom; }
+        .footer-text-cell { width: 75%; }
+        .footer-qr-cell { width: 25%; text-align: right; }
+        .footer-text { font-size: 7.5pt; color: #6b7280; line-height: 1.5; }
+        .footer-verify { font-size: 7pt; color: #3a7104; font-weight: 500; margin-top: 2px; }
+        .footer-badge {
+            padding: 2px 10px; font-size: 9pt; font-weight: bold; margin-bottom: 8px;
+            display: inline-block;
+        }
+        .badge-pagado { background: transparent; color: #15803d; }
+        .badge-pendiente { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+        .badge-vencido { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; }
+        .qr-box { width: 70px; height: 70px; text-align: center; }
+        .qr-box img { width: 70px; height: 70px; }
+
+        /* ── Page footer (xhtml2pdf @frame) ── */
+        .page-footer-text { text-align: center; font-size: 6.5pt; color: #aaa; }
+    </style>
+</head>
+<body>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         HEADER: Logo + Subtitle left | Reference right
+         ════════════════════════════════════════════════════════════════ -->
+    <table class="header-table">
+        <tr>
+            <td class="logo-cell">
+                {% if logo_base64 %}
+                <img src="data:image/png;base64,{{ logo_base64 }}" alt="Logo">
+                {% endif %}
+            </td>
+            <td></td>
+            <td class="ref-cell">
+                <div class="reference-number">{{ license_ref }}</div>
+                <div class="header-meta">{{ texts.fiscal_year }} {{ fiscal_year }} | {{ texts.printed }} {{ print_date }}</div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Document title (below header line) -->
+    <div class="doc-title">{{ texts.title }}</div>
+    <div style="font-size: 7.5pt; color: #888; text-align: center; margin-bottom: 2px;">{{ texts.subtitle }}</div>
+    <div class="doc-subtitle">{{ texts.validity_period }}: 01/01/{{ fiscal_year }} — 31/12/{{ fiscal_year }}</div>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         COMPANY INFO — Compact layout
+         ════════════════════════════════════════════════════════════════ -->
+    <div class="section no-break">
+        <div class="section-title">{{ texts.company_info }}</div>
+        <div class="section-content">
+            <table class="info-grid">
+                <!-- Line 1: Razón Social (full width) -->
+                <tr>
+                    <td class="info-label" style="width:11%;">{{ texts.company_name }}</td>
+                    <td class="info-value" colspan="5">{{ company.legal_name }}</td>
+                </tr>
+                <!-- Line 2: NIF/N°Registro | Forma Jurídica | Régimen Fiscal -->
+                <tr>
+                    <td class="info-label">{{ id_label }}</td>
+                    <td class="info-value">{{ id_value }}</td>
+                    <td class="info-label">{{ texts.forma_juridica }}</td>
+                    <td class="info-value">{{ company.forma_juridica or '-' }}</td>
+                    <td class="info-label">{{ texts.regime }}</td>
+                    <td class="info-value">{{ company.regimen_fiscal or '-' }}</td>
+                </tr>
+                <!-- Line 3: Actividad | Zona Comercial (if bundle) OR Capital Social (if SL/SA) -->
+                <tr>
+                    <td class="info-label">{{ texts.activity }}</td>
+                    <td class="info-value">{{ company.objeto_social or '-' }}</td>
+                    {% if show_zone %}
+                    <td class="info-label">{{ texts.zone }}</td>
+                    <td class="info-value" colspan="3">{{ company.zone_code or '-' }} — {{ company.city_name or '-' }}</td>
+                    {% elif show_capital %}
+                    <td class="info-label">{{ texts.capital_social }}</td>
+                    <td class="info-value" colspan="3">{{ capital_formatted }}</td>
+                    {% else %}
+                    <td colspan="4"></td>
+                    {% endif %}
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         LICENSE DETAILS — Conditional per regime type
+         ════════════════════════════════════════════════════════════════ -->
+    {% if show_bundle_details %}
+    <div class="section no-break">
+        <div class="section-title">{{ texts.license_details }}</div>
+        <div class="section-content">
+            <table class="info-grid">
+                <tr>
+                    <td class="info-label" style="width:11%;">{{ texts.bundle }}</td>
+                    <td class="info-value">{{ bundle_name }}</td>
+                    <td class="info-label">{{ texts.commerce_type }}</td>
+                    <td class="info-value">{{ commerce_type or '-' }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ════════════════════════════════════════════════════════════════
+         OBLIGATIONS — Grouped by Ministry
+         ════════════════════════════════════════════════════════════════ -->
+    <div class="section">
+        <div class="section-title">{{ texts.obligations }} ({{ obligation_count }})</div>
+        <div class="section-content">
+            <table class="obligations-table">
+                <thead>
+                    <tr>
+                        <th style="width:35%;">{{ texts.fee_type }}</th>
+                        {% if not is_fully_paid %}
+                        <th style="width:15%;">{{ texts.due_date }}</th>
+                        {% endif %}
+                        <th class="amount" style="width:18%;">{{ texts.amount }}</th>
+                        <th class="amount" style="width:15%;">{{ texts.penalty }}</th>
+                        <th style="width:17%;">{{ texts.status }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for group in obligation_groups %}
+                    <tr>
+                        <td colspan="{{ 5 if not is_fully_paid else 4 }}" class="ministry-header">
+                            {{ group.ministry_name }}
+                        </td>
+                    </tr>
+                    {% for ob in group.obligations %}
+                    <tr>
+                        <td>{{ ob.fee_type }}</td>
+                        {% if not is_fully_paid %}
+                        <td>{{ ob.due_date }}</td>
+                        {% endif %}
+                        <td class="amount">{{ ob.amount_formatted }}</td>
+                        <td class="amount {{ 'penalty-active' if ob.has_penalty else 'penalty-inactive' }}">{{ ob.penalty_formatted }}</td>
+                        <td class="status-{{ ob.status_class }}">{{ ob.status_label }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <!-- Totals -->
+            <table class="totals-table">
+                <tr><td class="total-label">{{ texts.total_amount }}:</td><td class="total-value">{{ total_amount_formatted }}</td></tr>
+                {% if has_any_penalty %}
+                <tr><td class="total-label">{{ texts.penalties }}:</td><td class="total-value" style="color: #dc2626;">{{ total_penalties_formatted }}</td></tr>
+                {% endif %}
+                <tr><td class="total-label">{{ texts.paid }}:</td><td class="total-value" style="color: #15803d;">{{ paid_amount_formatted }}</td></tr>
+                <tr class="grand-total"><td class="total-label">{{ texts.balance }}:</td><td class="total-value">{{ balance_formatted }}</td></tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         DISCLAIMER — Document is provisional proof
+         ════════════════════════════════════════════════════════════════ -->
+    <div class="disclaimer no-break">
+        {{ texts.disclaimer }}
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         FOOTER: References left | QR right (citizen summary pattern)
+         ════════════════════════════════════════════════════════════════ -->
+    <div class="footer-section no-break">
+        <table class="footer-table">
+            <tr>
+                <td class="footer-text-cell">
+                    {% if is_fully_paid %}
+                    <span class="footer-badge badge-pagado">{{ texts.badge_paid }}</span>
+                    {% elif is_overdue %}
+                    <span class="footer-badge badge-vencido">{{ texts.badge_overdue }}</span>
+                    {% else %}
+                    <span class="footer-badge badge-pendiente">{{ texts.badge_pending }}</span>
+                    {% endif %}
+                    <div class="footer-text">
+                        <strong>{{ texts.reference_label }}:</strong> {{ license_ref }}<br/>
+                        {{ texts.generated_on }}: {{ print_date }}
+                    </div>
+                    <div class="footer-verify">{{ texts.verify_label }}: {{ verification_url }}</div>
+                    <div style="font-size: 6.5pt; color: #999; margin-top: 3px;">{{ texts.footer_line1 }}</div>
+                </td>
+                <td class="footer-qr-cell">
+                    {% if qr_base64 %}
+                    <div class="qr-box">
+                        <img src="data:image/png;base64,{{ qr_base64 }}" alt="QR">
+                    </div>
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Page footer (rendered by xhtml2pdf @frame) -->
+    <div id="page-footer-content">
+        <div class="page-footer-text">
+            {{ texts.footer_line1 }} &mdash; <pdf:pagenumber> / <pdf:pagecount>
+        </div>
+    </div>
+
+</body>
+</html>

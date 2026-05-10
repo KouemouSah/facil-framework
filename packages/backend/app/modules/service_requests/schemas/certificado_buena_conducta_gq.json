@@ -1,0 +1,288 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "CERTIFICADO_BUENA_CONDUCTA_GQ_V1",
+  "version": "1.1",
+  "title": "Certificado de Buena Conducta - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour le Certificado de Buena Conducta emis par la Comunidad de Vecinos ou Consejo de Poblado (Art. 3.A.1.g / Art. 3.A.2.d - Orden Ministerial 01/2021). Delivre aux residents d'une communaute, qu'ils soient citoyens GQ ou etrangers.",
+  "document_type": "CERTIFICADO_BUENA_CONDUCTA",
+  "country": "GQ",
+  "faces": ["single_page"],
+  "document_nature": "certificat_officiel",
+  "issuer": "Comunidad de Vecinos / Consejo de Poblado",
+
+  "extraction": {
+    "documento": {
+      "description": "Informations administratives du certificat",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "CERTIFICADO_BUENA_CONDUCTA",
+          "required": true,
+          "description": "Type de document",
+          "usage": "Identification du type de document pour le dossier"
+        },
+        "numero_certificado": {
+          "type": "string",
+          "required": true,
+          "description": "Numero du certificat (en haut a gauche, format N/YYYY ou similaire)",
+          "usage": "Tracabilite — permet a l'agent de verifier aupres de la communaute si necessaire"
+        },
+        "fecha_expedicion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'emission du certificat. Souvent en format textuel espagnol dans la formule finale. Normaliser en YYYY-MM-DD.",
+          "usage": "Verification de fraicheur du document pour le dossier agent. Pas de validite legale stricte comme la solvencia (30j) mais un certificat tres ancien peut etre questionne."
+        }
+      }
+    },
+
+    "emisor": {
+      "description": "Informations sur l'entite emettrice",
+      "fields": {
+        "comunidad_vecinos": {
+          "type": "string",
+          "required": true,
+          "description": "Nom de la Comunidad de Vecinos ou Consejo de Poblado qui emet le certificat",
+          "usage": "CRITIQUE — identification de la communaute emettrice. Permet a l'agent de verifier que le demandeur reside bien dans cette communaute. Le nom peut etre 'Comunidad de Vecinos [X]' ou 'Consejo de Poblado [X]' selon le type de localite."
+        },
+        "municipio": {
+          "type": "string",
+          "required": true,
+          "description": "Municipio administratif auquel appartient la communaute",
+          "usage": "Information complementaire — confirme la localisation geographique. Visible dans l'en-tete du document."
+        },
+        "presidente_nombre": {
+          "type": "string",
+          "required": false,
+          "description": "Nom du president de la communaute qui signe le certificat",
+          "pii": true,
+          "usage": "Information pour l'agent — identification du signataire. Non utilise pour cross-validation."
+        }
+      }
+    },
+
+    "titular": {
+      "description": "Donnees de la personne certifiee",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": true,
+          "description": "Nom complet du titulaire tel qu'il apparait sur le certificat. Format variable: parfois APELLIDOS puis NOMBRES, parfois inverse.",
+          "pii": true,
+          "usage": "CRITIQUE — cross-validation Levenshtein avec le passeport du demandeur. C'est la preuve que le demandeur reside dans la communaute et y a une bonne conduite."
+        },
+        "nacionalidad": {
+          "type": "string",
+          "required": true,
+          "description": "Nationalite du titulaire telle qu'ecrite sur le certificat",
+          "usage": "Information pour l'agent — confirme la nationalite. Pour le workflow Residencia, le titulaire devrait etre etranger (non ecuatoguineen)."
+        },
+        "estado_civil": {
+          "type": "string",
+          "required": false,
+          "description": "Etat civil du titulaire tel qu'ecrit sur le certificat (soltero/a, casado/a, divorciado/a, viudo/a, etc.)",
+          "usage": "Information complementaire pour le dossier"
+        },
+        "fecha_nacimiento": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date de naissance du titulaire. Souvent en format textuel espagnol dans le corps narratif. Normaliser en YYYY-MM-DD.",
+          "pii": true,
+          "usage": "CRITIQUE — cross-validation exacte avec la date de naissance du passeport. Permet de confirmer l'identite du titulaire."
+        },
+        "profesion": {
+          "type": "string",
+          "required": false,
+          "description": "Profession du titulaire telle que declaree sur le certificat",
+          "usage": "Information complementaire pour le dossier"
+        },
+        "filiacion_padre": {
+          "type": "string",
+          "required": false,
+          "description": "Nom du pere du titulaire",
+          "pii": true,
+          "usage": "Cross-validation filiation avec le passeport si disponible"
+        },
+        "filiacion_madre": {
+          "type": "string",
+          "required": false,
+          "description": "Nom de la mere du titulaire",
+          "pii": true,
+          "usage": "Cross-validation filiation avec le passeport si disponible"
+        },
+        "lugar_nacimiento": {
+          "type": "string",
+          "required": false,
+          "description": "Lieu de naissance complet (localite, district, province)",
+          "usage": "Cross-validation avec le passeport si disponible"
+        },
+        "numero_identificacion": {
+          "type": "string",
+          "required": true,
+          "description": "Numero de document d'identite du titulaire. Peut etre un DIP (citoyens GQ, format 000.000.000), un NIE (residents etrangers), un numero de passeport GQ ou un numero de passeport etranger. Extraire tel quel sans reformater.",
+          "pii": true,
+          "encrypt": true,
+          "usage": "CRITIQUE — cross-validation avec le document d'identite principal du demandeur (passeport ou DIP). Permet de confirmer l'identite de maniere univoque au-dela du nom."
+        },
+        "direccion_residencia": {
+          "type": "string",
+          "required": false,
+          "description": "Adresse de residence du titulaire dans la communaute",
+          "pii": true,
+          "usage": "Information pour l'agent — confirme que le titulaire reside effectivement dans cette communaute"
+        }
+      }
+    },
+
+    "certificacion": {
+      "description": "Contenu de la certification",
+      "fields": {
+        "resultado": {
+          "type": "string",
+          "enum": ["FAVORABLE", "DESFAVORABLE"],
+          "required": true,
+          "description": "Resultat de la certification. FAVORABLE = le titulaire n'a pas d'antecedents defavorables dans les archives de la communaute. DESFAVORABLE = des antecedents defavorables sont enregistres. Gemini doit COMPRENDRE SEMANTIQUEMENT le texte pour determiner le resultat.",
+          "usage": "CRITIQUE — le champ le plus important. Si DESFAVORABLE, le dossier de residencia est rejete. Le texte typique pour FAVORABLE est 'no tiene registrado en nuestros archivos antecedentes desfavorable' mais la formulation peut varier."
+        },
+        "motivo_solicitud": {
+          "type": "string",
+          "required": false,
+          "description": "Motif de la demande du certificat, souvent en fin de paragraphe CERTIFICA",
+          "usage": "Information pour l'agent — permet de verifier la coherence avec le type de dossier"
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification du document",
+      "fields": {
+        "tiene_firma_presidente": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du Presidente de la Comunidad de Vecinos ou Consejo de Poblado presente",
+          "usage": "CRITIQUE — le certificat necessite la signature du President de la communaute. Generalement en bas sous la mention EL PRESIDENTE."
+        },
+        "tiene_sello_comunidad": {
+          "type": "boolean",
+          "required": true,
+          "description": "Sceau officiel de la Comunidad de Vecinos ou Consejo de Poblado present",
+          "usage": "CRITIQUE — le certificat necessite le sceau de la communaute. Generalement visible en bas a gauche ou au centre."
+        },
+        "tiene_sello_ministerio": {
+          "type": "boolean",
+          "required": false,
+          "description": "Sceau du Ministerio del Interior present (en-tete ou bas)",
+          "usage": "Renforce l'authenticite mais non bloquant — pas toujours present sur tous les certificats"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "resultado_favorable",
+      "rule": "resultado == 'FAVORABLE'",
+      "error_es": "El certificado indica antecedentes desfavorables",
+      "severity": "error"
+    },
+    {
+      "id": "firmas_requeridas",
+      "rule": "tiene_firma_presidente == true AND tiene_sello_comunidad == true",
+      "error_es": "El certificado debe tener firma del Presidente y sello de la comunidad",
+      "severity": "error"
+    },
+    {
+      "id": "nombre_presente",
+      "rule": "titular.nombre_completo IS NOT NULL AND titular.nombre_completo != ''",
+      "error_es": "No se pudo extraer el nombre del titular",
+      "severity": "error"
+    },
+    {
+      "id": "identificacion_presente",
+      "rule": "titular.numero_identificacion IS NOT NULL AND titular.numero_identificacion != ''",
+      "error_es": "No se pudo extraer el número de identificación del titular",
+      "severity": "error"
+    },
+    {
+      "id": "fecha_expedicion_not_future",
+      "rule": "fecha_expedicion <= TODAY",
+      "error_es": "La fecha de expedición no puede ser futura",
+      "severity": "error"
+    }
+  ],
+
+  "cross_document_validations": [
+    {
+      "id": "nombre_coherente_pasaporte",
+      "compare_with": "pasaporte",
+      "rule": "levenshtein_match(titular.nombre_completo, pasaporte.titular.apellidos + ' ' + pasaporte.titular.nombres)",
+      "threshold": 0.85,
+      "error_es": "El nombre en el certificado no coincide con el pasaporte",
+      "severity": "error"
+    },
+    {
+      "id": "fecha_nacimiento_coherente",
+      "compare_with": "pasaporte",
+      "rule": "titular.fecha_nacimiento == pasaporte.titular.fecha_nacimiento",
+      "error_es": "La fecha de nacimiento no coincide con el pasaporte",
+      "severity": "error"
+    },
+    {
+      "id": "numero_identificacion_coherente",
+      "compare_with": "pasaporte",
+      "rule": "normalize(titular.numero_identificacion) == normalize(pasaporte.documento.numero_pasaporte)",
+      "error_es": "El número de identificación en el certificado no coincide con el pasaporte presentado",
+      "severity": "warning",
+      "note": "Warning car le certificat peut mentionner un DIP ou NIE alors que le document principal est le passeport. Les formats different (DIP=000.000.000, passeport=AA000000). Normalisation: suppression points, espaces, tirets."
+    }
+  ],
+
+  "gemini_hints": {
+    "document_type": "Certificado de Buena Conducta — certificat officiel delivre par une Comunidad de Vecinos ou Consejo de Poblado en Guinee Equatoriale, attestant que le titulaire n'a pas d'antecedents defavorables dans la communaute. Document narratif en espagnol, toutes les donnees dans un seul paragraphe CERTIFICA.",
+    "language": "es",
+
+    "extraction_priority": [
+      "1. RESULTADO (CRITICAL): Le certificat atteste-t-il l'absence d'antecedents defavorables? FAVORABLE ou DESFAVORABLE.",
+      "2. NOMBRE COMPLETO: Nom complet du titulaire du certificat.",
+      "3. FECHA NACIMIENTO: Date de naissance. Normaliser en YYYY-MM-DD.",
+      "4. NUMERO IDENTIFICACION: Numero DIP, NIE ou passeport du titulaire. Extraire tel quel.",
+      "5. COMUNIDAD VECINOS: Nom de la communaute emettrice.",
+      "6. FECHA EXPEDICION: Date d'emission. Normaliser en YYYY-MM-DD.",
+      "7. AUTENTICACION: Signature du President + sceau de la communaute.",
+      "8. SECONDARY: nacionalidad, estado_civil, profesion, filiacion, lugar_nacimiento, direccion_residencia, municipio, motivo_solicitud."
+    ],
+
+    "semantic_instructions": {
+      "resultado": "Lire et COMPRENDRE le paragraphe CERTIFICA. Determiner si le document atteste que le titulaire N'A PAS d'antecedents defavorables (FAVORABLE) ou qu'il EN A (DESFAVORABLE). Le texte typique est 'no tiene registrado en nuestros archivos antecedentes desfavorable' mais la formulation peut varier. Comprendre le SENS.",
+      "nombre_completo": "Extraire le nom COMPLET du titulaire. Dans le texte narratif, il apparait generalement apres 'D/Dña' ou 'Que,'. L'ordre nom/prenom peut varier. Extraire exactement tel qu'ecrit.",
+      "numero_identificacion": "Extraire le numero de document d'identite du titulaire. Peut etre un DIP (format typique 000.000.000 avec points), un NIE, un passeport GQ ou un passeport etranger. Le texte mentionne generalement 'Previsto del DIP' ou 'DIP o PASAP. número'. Extraire le numero complet tel quel, avec les separateurs.",
+      "fecha_nacimiento": "Date de naissance dans le corps narratif. Souvent en format textuel espagnol ('nacido el dia 29 de septiembre de 1985'). Normaliser en YYYY-MM-DD.",
+      "fecha_expedicion": "Date d'emission dans la formule finale du document. Souvent en format textuel espagnol avec nombres en lettres ('A VENTI UN DIAS DE JULIO DEL AÑO DOS MIL VENTE'). Convertir les nombres en lettres en chiffres et normaliser en YYYY-MM-DD.",
+      "comunidad_vecinos": "Nom de la communaute ou du conseil qui emet le certificat. Visible dans l'en-tete et/ou le paragraphe introductif. Peut etre 'Comunidad de Vecinos [Nom]' ou 'Consejo de Poblado [Nom]'.",
+      "filiacion": "Noms du pere et de la mere. Dans le texte narratif, apres 'hijo de [PERE] y de [MERE]'. Extraire les deux noms complets separement.",
+      "autenticacion": "Verifier visuellement: (1) signature du President de la communaute (bas du document), (2) sceau officiel de la communaute (cachet rond), (3) sceau du Ministerio del Interior (si present, generalement en en-tete)."
+    },
+
+    "ocr_challenges": [
+      "Texte narratif continu (pas de tableau) — extraction semantique necessaire",
+      "Qualite photo souvent mediocre (photo de document sur table, ombres)",
+      "Sceaux peuvent masquer du texte",
+      "DIP format avec points (000.086.754) ou passeport sans points",
+      "Date en format textuel espagnol complet avec nombres en lettres",
+      "Abreviations variables: procesón/profesión, Previsto/Provisto"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "_note": "Patterns de fallback. Gemini est l'extracteur principal.",
+    "numero_identificacion": [
+      "(?:DIP|D\\.I\\.P|PASAP\\.?)\\s*(?:n[úu]m\\.?|n[°ºo])?\\s*[:#]?\\s*([0-9]{3}[.,][0-9]{3}[.,][0-9]{3})",
+      "(?:DIP|D\\.I\\.P|PASAP\\.?)\\s*(?:n[úu]m\\.?|n[°ºo])?\\s*[:#]?\\s*([A-Z]?[0-9]{6,9})"
+    ],
+    "fecha_nacimiento": [
+      "(\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{2,4})"
+    ]
+  }
+}

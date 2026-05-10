@@ -1,0 +1,377 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "CERTIFICADO_RECONOCIMIENTO_VEHICULO_GQ_V1",
+  "version": "1.0",
+  "title": "Certificado de Primer Reconocimiento de Vehiculo",
+  "description": "Schema d'extraction pour le Certificado de Primer Reconocimiento de Vehiculo delivre par l'ITVE de Guinee Equatoriale, necessaire pour la premiere immatriculation",
+  "document_type": "CERTIFICADO_RECONOCIMIENTO_VEHICULO",
+  "country": "GQ",
+  "faces": ["recto"],
+
+  "extraction": {
+    "documento": {
+      "description": "Informations administratives du document",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "CERTIFICADO_RECONOCIMIENTO_VEHICULO",
+          "required": true,
+          "description": "Type de document"
+        },
+        "organismo": {
+          "type": "string",
+          "required": false,
+          "default": "ENTE NACIONAL PARA LA INSPECCION TECNICA DE VEHICULOS",
+          "description": "Organisme emetteur (en-tete du document)"
+        },
+        "estacion_itv": {
+          "type": "string",
+          "required": false,
+          "description": "Station ITV (ex: Estacion ITV Malabo)",
+          "field_label": "ESTACIÓN ITV"
+        },
+        "numero_certificado": {
+          "type": "string",
+          "required": false,
+          "description": "Numero de certificat (ex: Num. 25496/48762)",
+          "field_label": "Núm.",
+          "source": "recto",
+          "pii": true
+        },
+        "director_tecnico": {
+          "type": "string",
+          "required": false,
+          "description": "Nom du directeur technique signataire",
+          "field_label": "Director Técnico"
+        }
+      }
+    },
+
+    "titular": {
+      "description": "Donnees du titulaire (en bas du document apres TITULAR)",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": true,
+          "description": "Nom complet du titulaire (apres TITULAR: DON/DONA ...)",
+          "field_label": "TITULAR",
+          "source": "recto",
+          "pii": true
+        }
+      }
+    },
+
+    "caracteristicas_tecnicas": {
+      "description": "Caracteristiques techniques du vehicule (18 champs numerotes dans le tableau)",
+      "fields": {
+        "marca": {
+          "type": "string",
+          "required": true,
+          "description": "1. Marque du vehicule",
+          "field_label": "1. Marca",
+          "source": "recto"
+        },
+        "tipo": {
+          "type": "string",
+          "required": false,
+          "description": "2. Type/modele technique (code constructeur, ex: HJT8813L)",
+          "field_label": "2. Tipo"
+        },
+        "variante": {
+          "type": "string",
+          "required": false,
+          "description": "3. Variante",
+          "field_label": "3. Variante"
+        },
+        "denominacion_comercial": {
+          "type": "string",
+          "required": true,
+          "description": "4. Denomination commerciale / Modele (ex: TUCSON)",
+          "field_label": "4. Denom. Comercial",
+          "source": "recto"
+        },
+        "numero_bastidor": {
+          "type": "string",
+          "required": true,
+          "description": "5. Numero de bastidor / VIN",
+          "field_label": "5. Número de Bastidor",
+          "source": "recto",
+          "pii": true
+        },
+        "marca_motor": {
+          "type": "string",
+          "required": false,
+          "description": "6. Marque du moteur",
+          "field_label": "6. Marca de Motor"
+        },
+        "modelo_motor": {
+          "type": "string",
+          "required": false,
+          "description": "7. Modele du moteur",
+          "field_label": "7. Modelo Motor"
+        },
+        "forma_carruaje": {
+          "type": "string",
+          "required": false,
+          "description": "8. Forme de carrosserie (ex: VAGONETA, TURISMO, CAMION)",
+          "field_label": "8. Forma Carruaje"
+        },
+        "numero_asientos": {
+          "type": "integer",
+          "required": false,
+          "description": "9. Nombre de sieges/places",
+          "field_label": "9. Nº Asientos/Plazas"
+        },
+        "tara_kg": {
+          "type": "number",
+          "required": false,
+          "description": "10. Poids a vide en Kg",
+          "field_label": "10. Tara"
+        },
+        "pma_kg": {
+          "type": "number",
+          "required": false,
+          "description": "11. P.M.A. en Kg",
+          "field_label": "11. PMA"
+        },
+        "pmr_kg": {
+          "type": "string",
+          "required": false,
+          "description": "12. P.M.R. en Kg (peut contenir format X/Y ex: 750/1000)",
+          "field_label": "12. P.M.R."
+        },
+        "potencia_fiscal_cvf": {
+          "type": "number",
+          "required": false,
+          "description": "13. Puissance fiscale en CVF",
+          "field_label": "13. Potencia Fiscal"
+        },
+        "numero_cilindros": {
+          "type": "string",
+          "required": false,
+          "description": "14. Nombre de cylindres (ex: 4 L, 6 V)",
+          "field_label": "14. N. de Cilindros"
+        },
+        "categoria": {
+          "type": "string",
+          "required": false,
+          "description": "15. Categorie du vehicule (ex: 2a\"B\")",
+          "field_label": "15. Categoría"
+        },
+        "procedencia": {
+          "type": "string",
+          "required": false,
+          "description": "16. Origine/provenance (ex: Europa, Asia)",
+          "field_label": "16. Procedencia"
+        },
+        "tipo_combustible": {
+          "type": "string",
+          "enum": ["GASOLINA", "DIESEL", "ELECTRICO", "HIBRIDO", "GAS", "EXPLOSION"],
+          "required": false,
+          "description": "17. Type de carburant",
+          "field_label": "17. Tipo de Combustible"
+        },
+        "vehiculo_estado": {
+          "type": "string",
+          "enum": ["VEHICULO USADO", "VEHICULO NUEVO"],
+          "required": false,
+          "description": "18. Etat du vehicule (USADO = occasion, NUEVO = neuf)",
+          "field_label": "18."
+        }
+      }
+    },
+
+    "certificacion": {
+      "description": "Texte de certification et determination favorable",
+      "fields": {
+        "texto_certificacion": {
+          "type": "string",
+          "required": false,
+          "description": "Texte complet de la certification (paragraphe sous le tableau)",
+          "field_label": "Reconocido por los Inspectores..."
+        },
+        "cumple_condiciones_minimas": {
+          "type": "boolean",
+          "required": true,
+          "description": "DERIVÉ: true si le texte contient 'reúne las condiciones mínimas necesarias para circular'. Equivalent du resultat FAVORABLE pour la premiere immatriculation.",
+          "derivation_rule": "texto_certificacion CONTAINS 'condiciones mínimas necesarias para circular'",
+          "field_label": "Cumple condiciones mínimas"
+        },
+        "fecha": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date du certificat (ex: En Malabo, a 11 de Marzo de 2015)",
+          "field_label": "Fecha",
+          "source": "recto",
+          "date_format": "DD de MMMM de YYYY"
+        },
+        "lugar": {
+          "type": "string",
+          "required": false,
+          "description": "Lieu de delivrance (ex: Malabo)",
+          "field_label": "En ... a"
+        }
+      }
+    },
+
+    "firma": {
+      "description": "Signature et sceau",
+      "fields": {
+        "cargo_firmante": {
+          "type": "string",
+          "required": false,
+          "description": "Titre du signataire (ex: EL INGENIERO)",
+          "field_label": "EL INGENIERO"
+        },
+        "tiene_firma": {
+          "type": "boolean",
+          "required": false,
+          "description": "Presence de la signature"
+        },
+        "tiene_sello": {
+          "type": "boolean",
+          "required": false,
+          "description": "Presence du sceau officiel (INSPECCION TECNICA)"
+        }
+      }
+    },
+
+    "observaciones": {
+      "description": "Observations",
+      "fields": {
+        "observaciones": {
+          "type": "string",
+          "required": false,
+          "description": "Observations (ex: D.O.N.M.)",
+          "field_label": "OBSERVACIONES"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "cumple_condiciones",
+      "rule": "cumple_condiciones_minimas == true",
+      "error_es": "El vehículo no cumple las condiciones mínimas necesarias para circular.",
+      "error_fr": "Le véhicule ne remplit pas les conditions minimales nécessaires pour circuler.",
+      "severity": "error"
+    },
+    {
+      "id": "tiene_sello_oficial",
+      "rule": "tiene_sello == true",
+      "error_es": "El certificado no tiene sello oficial de la estación ITV.",
+      "error_fr": "Le certificat ne porte pas le sceau officiel de la station ITV.",
+      "severity": "warning"
+    },
+    {
+      "id": "tiene_firma",
+      "rule": "tiene_firma == true",
+      "error_es": "El certificado no tiene firma del ingeniero.",
+      "error_fr": "Le certificat ne porte pas la signature de l'ingénieur.",
+      "severity": "warning"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Certificado de Primer Reconocimiento de Vehículo délivré par l'ITVE (Ente Nacional para la Inspección Técnica de Vehículos) de Guinée Équatoriale. Document A4 blanc, une seule face, nécessaire pour la première immatriculation d'un véhicule. Ne pas confondre avec la Tarjeta ITV (carte bleue d'inspections périodiques).",
+    "language": "es",
+    "date_format": "DD de MMMM de YYYY",
+    "visual_zones": {
+      "recto": [
+        "En-tête: Logo ITV + ENTE NACIONAL PARA LA INSPECCION TECNICA DE VEHICULOS",
+        "Adresse station: Ctra. Malabo-Rebola km 3 s/n",
+        "Numéro certificat: Núm. XXXXX/XXXXX",
+        "Titre: CERTIFICADO DE PRIMER RECONOCIMIENTO DE VEHICULO",
+        "Nom directeur: Don [Nom], Director Técnico de la Estación ITV [Ville]",
+        "CERTIFICA: Que el vehículo de las siguientes características técnicas:",
+        "Tableau 2 colonnes 9 lignes: Champs 1-9 (gauche) et 10-18 (droite)",
+        "OBSERVACIONES: sous le tableau",
+        "Paragraphe certification: 'Reconocido por los Inspectores...'",
+        "Mention: 'A EFECTOS DE MATRICULACION, FIRMO EL PRESENTE CERTIFICADO TECNICO.'",
+        "Lieu + Date + EL INGENIERO + sceau + signature",
+        "TITULAR: DON/DOÑA [Nom complet] en bas",
+        "Mention: 'No se admite borrones'"
+      ]
+    },
+    "key_distinction_from_itv": "Ce document n'a PAS de matricula (véhicule pas encore immatriculé), PAS de dates d'inspection, PAS de résultat FAVORABLE/DESFAVORABLE. L'avis favorable est implicite dans le texte de certification: 'reúne las condiciones mínimas necesarias para circular'.",
+    "ocr_challenges": [
+      "Document sur fond blanc, qualité variable (photocopie)",
+      "Tableau avec numérotation 1-18 et points de suite (...)",
+      "Sceau peut masquer du texte",
+      "Date en format textuel espagnol (11 de Marzo de 2015)",
+      "Nom du titulaire parfois en bas, séparé du reste",
+      "Champ 12 PMR peut avoir format X/Y (750/1000)"
+    ],
+    "favorable_detection": {
+      "indicator_text": "reúne las condiciones mínimas necesarias para circular por las Vías Públicas del País",
+      "purpose": "Ce texte dans la certification équivaut au résultat FAVORABLE. Son absence ou modification indiquerait un avis défavorable.",
+      "extraction_rule": "Chercher dans le paragraphe sous OBSERVACIONES les mots 'condiciones mínimas necesarias para circular'. Si présents → cumple_condiciones_minimas = true."
+    },
+    "common_values": {
+      "combustible": ["GASOLINA", "DIESEL", "EXPLOSION", "ELECTRICO"],
+      "forma_carruaje": ["TURISMO", "VAGONETA", "CAMION", "MOTOCICLETA", "AUTOBUS", "FURGONETA", "REMOLQUE"],
+      "vehiculo_estado": ["VEHICULO USADO", "VEHICULO NUEVO"],
+      "categoria": ["SEGUNDA A", "SEGUNDA B", "PRIMERA", "2a\"B\""],
+      "procedencia": ["Europa", "Asia", "Africa", "America"]
+    }
+  },
+
+  "tesseract_patterns": {
+    "numero_certificado": [
+      "(?:N[úu]m\\.?)\\s*[:#]?\\s*([0-9]+/[0-9]+)"
+    ],
+    "marca": [
+      "1\\.?\\s*(?:Marca)\\s*[.:#]*\\s*([A-Z][A-Za-z]+)"
+    ],
+    "tipo": [
+      "2\\.?\\s*(?:Tipo)\\s*[.:#]*\\s*([A-Z0-9]+)"
+    ],
+    "denominacion_comercial": [
+      "4\\.?\\s*(?:Denom\\.?\\s*Comercial)\\s*[.:#]*\\s*([A-Z][A-Za-z0-9\\s]+)"
+    ],
+    "numero_bastidor": [
+      "5\\.?\\s*(?:N[úu]mero\\s*de\\s*Bastidor)\\s*[.:#]*\\s*([A-HJ-NPR-Z0-9]{15,17})"
+    ],
+    "marca_motor": [
+      "6\\.?\\s*(?:Marca\\s*de\\s*Motor)\\s*[.:#]*\\s*([A-Z][A-Za-z]+)"
+    ],
+    "forma_carruaje": [
+      "8\\.?\\s*(?:Forma\\s*Carruaje)\\s*[.:#]*\\s*([A-Z][A-Za-z]+)"
+    ],
+    "numero_asientos": [
+      "9\\.?\\s*(?:N[°o]?\\s*Asientos|Plazas)\\s*[.:#]*\\s*([0-9]+)"
+    ],
+    "tara": [
+      "10\\.?\\s*(?:Tara)\\s*[.:#]*\\s*([0-9]+(?:[.,][0-9]+)?)"
+    ],
+    "pma": [
+      "11\\.?\\s*(?:PMA|P\\.?M\\.?A\\.?)\\s*[.:#]*\\s*([0-9]+(?:[.,][0-9]+)?)"
+    ],
+    "potencia_fiscal": [
+      "13\\.?\\s*(?:Potencia\\s*Fiscal)\\s*[.:#]*\\s*([0-9]+(?:[.,][0-9]+)?)"
+    ],
+    "numero_cilindros": [
+      "14\\.?\\s*(?:N\\.?\\s*de\\s*Cilindros)\\s*[.:#]*\\s*([0-9]+\\s*[LV]?)"
+    ],
+    "tipo_combustible": [
+      "17\\.?\\s*(?:Tipo\\s*de\\s*Combustible)\\s*[.:#]*\\s*(GASOLINA|DIESEL|ELECTRICO|HIBRIDO|GAS|EXPLOSI[OÓ]N)"
+    ],
+    "vehiculo_estado": [
+      "18\\.?\\s*(VEH[IÍ]CULO\\s*(?:USADO|NUEVO))"
+    ],
+    "nombre_completo": [
+      "(?:TITULAR)\\s*[:#]?\\s*(?:DON|DO[ÑN]A)\\s+([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "cumple_condiciones": [
+      "(re[úu]ne las condiciones m[íi]nimas necesarias para circular)"
+    ],
+    "fecha": [
+      "(?:En\\s+[A-Za-záéíóúñ]+),?\\s*a\\s*(\\d{1,2}\\s*de\\s*[A-Za-záéíóúñ]+\\s*de\\s*\\d{4})"
+    ],
+    "estacion_itv": [
+      "(?:Estaci[oó]n\\s*ITV)\\s*([A-Za-záéíóúñ]+)"
+    ]
+  }
+}

@@ -1,0 +1,540 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "CONTRATO_ONRC_GQ_V1",
+  "version": "1.0",
+  "title": "Contrato Comercial para Registro ONRC - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour les contrats commerciaux a enregistrer aupres de l'Oficina Nacional de Registro de Contratos (ONRC)",
+  "document_type": "CONTRATO_ONRC",
+  "country": "GQ",
+  "faces": ["multi_page"],
+  "document_nature": "contrat_commercial",
+  "registration_authority": "Oficina Nacional de Registro de Contratos",
+
+  "extraction": {
+    "documento": {
+      "description": "Informations generales du contrat",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "CONTRATO",
+          "required": true,
+          "description": "Type de document"
+        },
+        "tipo_contrato": {
+          "type": "string",
+          "enum": ["OBRA", "SERVICIO", "SUMINISTRO", "CONCESION", "JOINT_VENTURE", "ARRENDAMIENTO", "OTRO"],
+          "required": true,
+          "description": "Type de contrat commercial",
+          "field_label": "Tipo de Contrato"
+        },
+        "numero_contrato": {
+          "type": "string",
+          "required": false,
+          "description": "Numero ou reference du contrat si existant",
+          "field_label": "Numero de Contrato"
+        },
+        "titulo_contrato": {
+          "type": "string",
+          "required": false,
+          "description": "Titre complet du contrat"
+        },
+        "fecha_firma": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date de signature du contrat",
+          "field_label": "Fecha de Firma",
+          "date_format": "DD/MM/YYYY"
+        },
+        "lugar_firma": {
+          "type": "string",
+          "required": false,
+          "description": "Lieu de signature du contrat (ville)",
+          "field_label": "Lugar de Firma"
+        }
+      }
+    },
+
+    "valor_contrato": {
+      "description": "Valeur financiere du contrat (critique pour calcul tarifa)",
+      "fields": {
+        "monto_total": {
+          "type": "number",
+          "required": true,
+          "description": "Montant total du contrat en chiffres",
+          "field_label": "Valor Total del Contrato",
+          "critical": true
+        },
+        "moneda": {
+          "type": "string",
+          "enum": ["XAF", "EUR", "USD"],
+          "required": true,
+          "default": "XAF",
+          "description": "Devise du contrat"
+        },
+        "monto_en_letras": {
+          "type": "string",
+          "required": false,
+          "description": "Montant exprime en lettres (pour verification)",
+          "field_label": "Valor en Letras"
+        },
+        "incluye_iva": {
+          "type": "boolean",
+          "required": false,
+          "description": "Le montant inclut-il la TVA"
+        },
+        "desglose_disponible": {
+          "type": "boolean",
+          "required": false,
+          "description": "Existe-t-il un decompte detaille"
+        }
+      }
+    },
+
+    "vigencia": {
+      "description": "Duree et validite du contrat",
+      "fields": {
+        "fecha_inicio": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Date de debut de validite",
+          "field_label": "Fecha de Inicio",
+          "date_format": "DD/MM/YYYY"
+        },
+        "fecha_fin": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Date de fin de validite",
+          "field_label": "Fecha de Finalizacion",
+          "date_format": "DD/MM/YYYY"
+        },
+        "duracion_meses": {
+          "type": "integer",
+          "required": false,
+          "description": "Duree en mois",
+          "field_label": "Duracion"
+        },
+        "duracion_texto": {
+          "type": "string",
+          "required": false,
+          "description": "Duree exprimee en texte (ex: 24 meses, 2 anos)"
+        },
+        "renovable": {
+          "type": "boolean",
+          "required": false,
+          "description": "Le contrat est-il renouvelable"
+        }
+      }
+    },
+
+    "parte_contratante": {
+      "description": "Partie qui contracte/commande (client)",
+      "fields": {
+        "tipo_entidad": {
+          "type": "string",
+          "enum": ["GOBIERNO", "MINISTERIO", "EMPRESA_PUBLICA", "EMPRESA_PRIVADA", "PERSONA_FISICA", "ORGANISMO_INTERNACIONAL"],
+          "required": true,
+          "description": "Type d'entite contratante"
+        },
+        "nombre_entidad": {
+          "type": "string",
+          "required": true,
+          "description": "Nom de l'entite contratante",
+          "field_label": "Parte Contratante"
+        },
+        "representante": {
+          "type": "string",
+          "required": false,
+          "description": "Nom du representant de la partie contratante",
+          "pii": true
+        },
+        "cargo_representante": {
+          "type": "string",
+          "required": false,
+          "description": "Fonction du representant (Ministro, Director General, etc.)"
+        },
+        "nif_contratante": {
+          "type": "string",
+          "required": false,
+          "description": "NIF de l'entite contratante (si applicable)"
+        }
+      }
+    },
+
+    "parte_contratista": {
+      "description": "Partie contractante/executante (prestataire)",
+      "fields": {
+        "tipo_entidad": {
+          "type": "string",
+          "enum": ["EMPRESA_NACIONAL", "EMPRESA_EXTRANJERA", "CONSORCIO", "PERSONA_FISICA", "JOINT_VENTURE"],
+          "required": true,
+          "description": "Type d'entite contratiste"
+        },
+        "nombre_empresa": {
+          "type": "string",
+          "required": true,
+          "description": "Nom ou raison sociale du contratiste",
+          "field_label": "Parte Contratista",
+          "pii": true
+        },
+        "nif_contratista": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[0-9]{5}[A-Z]{2}-[0-9]{2}$",
+          "description": "NIF du contratiste (obligatoire pour registro)",
+          "field_label": "NIF",
+          "pii": true,
+          "encrypt": true,
+          "critical": true
+        },
+        "representante_legal": {
+          "type": "string",
+          "required": true,
+          "description": "Nom du representant legal",
+          "field_label": "Representante Legal",
+          "pii": true
+        },
+        "cargo_representante": {
+          "type": "string",
+          "required": false,
+          "description": "Fonction (Director General, Gerente, Administrador)"
+        },
+        "domicilio_social": {
+          "type": "string",
+          "required": false,
+          "description": "Adresse du siege social",
+          "field_label": "Domicilio Social",
+          "pii": true
+        },
+        "telefono": {
+          "type": "string",
+          "required": false,
+          "pattern": "^[0-9]{9}$",
+          "description": "Telephone de contact",
+          "pii": true
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "required": false,
+          "description": "Email de contact",
+          "pii": true
+        }
+      }
+    },
+
+    "objeto_contrato": {
+      "description": "Objet et description du contrat",
+      "fields": {
+        "descripcion": {
+          "type": "string",
+          "required": true,
+          "description": "Description detaillee de l'objet du contrat",
+          "field_label": "Objeto del Contrato"
+        },
+        "sector": {
+          "type": "string",
+          "enum": ["PETROLEO_GAS", "CONSTRUCCION", "TELECOMUNICACIONES", "SERVICIOS_IT", "SERVICIOS_PROFESIONALES", "COMERCIO", "AGRICULTURA", "TURISMO", "TRANSPORTE", "ENERGIA", "MINERIA", "SALUD", "EDUCACION", "OTRO"],
+          "required": false,
+          "description": "Secteur economique"
+        },
+        "ubicacion_proyecto": {
+          "type": "string",
+          "required": false,
+          "description": "Localisation geographique du projet/service"
+        },
+        "resumen_clausulas_principales": {
+          "type": "string",
+          "required": false,
+          "description": "Resume des clauses principales si identifiables"
+        }
+      }
+    },
+
+    "firmas": {
+      "description": "Signatures et sceaux des parties",
+      "fields": {
+        "firma_contratante_presente": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature de la partie contratante presente"
+        },
+        "nombre_firmante_contratante": {
+          "type": "string",
+          "required": false,
+          "description": "Nom du signataire contratante",
+          "pii": true
+        },
+        "firma_contratista_presente": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature de la partie contratiste presente"
+        },
+        "nombre_firmante_contratista": {
+          "type": "string",
+          "required": false,
+          "description": "Nom du signataire contratiste",
+          "pii": true
+        },
+        "sello_contratante": {
+          "type": "boolean",
+          "required": false,
+          "description": "Sceau officiel de l'entite contratante present"
+        },
+        "sello_contratista": {
+          "type": "boolean",
+          "required": false,
+          "description": "Sceau de l'entreprise contratiste present"
+        },
+        "fecha_firmas": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Date des signatures (si differente de fecha_firma)",
+          "date_format": "DD/MM/YYYY"
+        }
+      }
+    },
+
+    "metadatos_documento": {
+      "description": "Metadonnees du document physique",
+      "fields": {
+        "numero_paginas": {
+          "type": "integer",
+          "required": false,
+          "description": "Nombre total de pages du contrat"
+        },
+        "tiene_anexos": {
+          "type": "boolean",
+          "required": false,
+          "description": "Le contrat inclut-il des annexes"
+        },
+        "idioma_principal": {
+          "type": "string",
+          "enum": ["es", "fr", "en", "pt"],
+          "required": false,
+          "default": "es",
+          "description": "Langue principale du contrat"
+        },
+        "calidad_documento": {
+          "type": "string",
+          "enum": ["EXCELLENT", "BON", "ACCEPTABLE", "MAUVAIS"],
+          "required": false,
+          "description": "Qualite de lisibilite du document"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "monto_total_positive",
+      "rule": "monto_total > 0",
+      "error_es": "El monto del contrato debe ser mayor a cero",
+      "error_fr": "Le montant du contrat doit etre superieur a zero",
+      "severity": "error"
+    },
+    {
+      "id": "fecha_firma_not_future",
+      "rule": "fecha_firma <= TODAY",
+      "error_es": "La fecha de firma no puede ser futura",
+      "error_fr": "La date de signature ne peut pas etre future",
+      "severity": "error"
+    },
+    {
+      "id": "firmas_ambas_partes",
+      "rule": "firma_contratante_presente == true AND firma_contratista_presente == true",
+      "error_es": "El contrato debe estar firmado por ambas partes",
+      "error_fr": "Le contrat doit etre signe par les deux parties",
+      "severity": "error"
+    },
+    {
+      "id": "nif_contratista_required",
+      "rule": "nif_contratista IS NOT NULL AND nif_contratista MATCHES '^[0-9]{5}[A-Z]{2}-[0-9]{2}$'",
+      "error_es": "El NIF del contratista es obligatorio y debe tener formato valido",
+      "error_fr": "Le NIF du contratiste est obligatoire avec un format valide",
+      "severity": "error"
+    },
+    {
+      "id": "fecha_fin_after_inicio",
+      "rule": "fecha_fin IS NULL OR fecha_fin > fecha_inicio",
+      "error_es": "La fecha de fin debe ser posterior a la fecha de inicio",
+      "error_fr": "La date de fin doit etre posterieure a la date de debut",
+      "severity": "warning"
+    },
+    {
+      "id": "representante_legal_required",
+      "rule": "representante_legal IS NOT NULL",
+      "error_es": "El nombre del representante legal es obligatorio",
+      "error_fr": "Le nom du representant legal est obligatoire",
+      "severity": "error"
+    },
+    {
+      "id": "coherence_monto_letras",
+      "rule": "monto_en_letras IS NULL OR VALIDATE_AMOUNT_TEXT(monto_total, monto_en_letras)",
+      "error_es": "El monto en cifras no coincide con el monto en letras",
+      "error_fr": "Le montant en chiffres ne correspond pas au montant en lettres",
+      "severity": "warning"
+    },
+    {
+      "id": "tipo_contrato_required",
+      "rule": "tipo_contrato IS NOT NULL",
+      "error_es": "El tipo de contrato debe estar identificado",
+      "error_fr": "Le type de contrat doit etre identifie",
+      "severity": "error"
+    }
+  ],
+
+  "tarifa_calculation": {
+    "description": "Calcul de la tarifa de registro ONRC",
+    "formula": "monto_total * 0.005",
+    "tasa": "0.5%",
+    "moneda_resultado": "XAF",
+    "conversion_rates": {
+      "XAF": 1,
+      "EUR": 655.957,
+      "USD": 600
+    },
+    "example": {
+      "monto_total": 100000000,
+      "moneda": "XAF",
+      "tarifa": 500000,
+      "description": "100,000,000 XAF * 0.5% = 500,000 XAF"
+    }
+  },
+
+  "gemini_hints": {
+    "document_description": "Contrat commercial a enregistrer aupres de l'ONRC - peut etre un contrat d'oeuvre, de service, de fourniture, de concession, etc.",
+    "language": "es",
+    "multi_page": true,
+    "date_format": "DD/MM/YYYY",
+    "document_structure": [
+      "EN-TETE: Titre du contrat, numero si existant",
+      "PREAMBULE: 'Entre ... (parte contratante) y ... (parte contratista)'",
+      "COMPARECENCIA: Identification detaillee des parties",
+      "ANTECEDENTES: Contexte et justification",
+      "CLAUSULAS: Articles numerotes definissant l'objet, valeur, duree, obligations",
+      "CLAUSE VALOR: Montant total, devise, echeancier de paiement",
+      "CLAUSE DURACION: Dates debut/fin, duree en mois/ans",
+      "CIERRE: Lieu et date de signature",
+      "FIRMAS: Zone signatures avec noms, fonctions et sceaux"
+    ],
+    "key_sections_to_find": {
+      "valor_contrato": [
+        "CLAUSULA [X] - VALOR/PRECIO DEL CONTRATO",
+        "El valor total del contrato asciende a...",
+        "La contraprestacion sera de...",
+        "El precio convenido es de..."
+      ],
+      "partes": [
+        "COMPARECENCIA",
+        "INTERVIENEN",
+        "De una parte...",
+        "De otra parte..."
+      ],
+      "objeto": [
+        "CLAUSULA PRIMERA - OBJETO",
+        "El objeto del presente contrato es...",
+        "La contratista se compromete a..."
+      ],
+      "duracion": [
+        "CLAUSULA [X] - PLAZO/DURACION",
+        "El plazo de ejecucion sera de...",
+        "La vigencia del contrato..."
+      ]
+    },
+    "valor_extraction_hints": [
+      "Chercher en priorite les clauses VALOR, PRECIO, CONTRAPRESTACION",
+      "Le montant est souvent en format: 150.000.000 XAF ou 150,000,000 FCFA",
+      "Verifier si le montant en lettres correspond (CIENTO CINCUENTA MILLONES...)",
+      "Attention aux montants partiels vs montant total",
+      "Verifier si IVA/TVA est inclus ou separe"
+    ],
+    "common_entities_contratantes": [
+      "MINISTERIO DE MINAS E HIDROCARBUROS",
+      "MINISTERIO DE HACIENDA Y PRESUPUESTOS",
+      "MINISTERIO DE OBRAS PUBLICAS",
+      "GEPETROL",
+      "SEGESA",
+      "CEIBA INTERCONTINENTAL"
+    ],
+    "elementos_authentification": {
+      "firmas": {
+        "description": "Au moins deux signatures (contratante + contratista)",
+        "position": "Derniere(s) page(s) du document",
+        "obligatoire": true
+      },
+      "sellos": {
+        "description": "Sceaux officiels des parties",
+        "position": "A cote des signatures",
+        "obligatoire_contratante_gouvernement": true
+      }
+    },
+    "ocr_challenges": [
+      "Documents multi-pages (5-50 pages)",
+      "Qualite variable des scans",
+      "Signatures et sceaux sur le texte",
+      "Tableaux de decompte complexes",
+      "Annexes techniques",
+      "Plusieurs versions/amendments possibles"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "tipo_contrato": [
+      "(?:CONTRATO\\s*DE)\\s*(OBRA|SERVICIO|SUMINISTRO|CONCESI[OÓ]N|ARRENDAMIENTO)",
+      "(?:TIPO\\s*DE\\s*CONTRATO)\\s*[:#]?\\s*(OBRA|SERVICIO|SUMINISTRO)"
+    ],
+    "numero_contrato": [
+      "(?:CONTRATO\\s*N[°oº]?)\\s*[:#]?\\s*([A-Z0-9/-]+)",
+      "(?:REF(?:ERENCIA)?|N[°oº])\\s*[:#]?\\s*([A-Z0-9/-]+)"
+    ],
+    "monto_total": [
+      "(?:VALOR\\s*(?:TOTAL)?|PRECIO|MONTO|IMPORTE)\\s*[:#]?\\s*([0-9.,]+)\\s*(?:XAF|FCFA|EUR|USD)",
+      "(?:asciende\\s*a)\\s*([0-9.,]+)\\s*(?:XAF|FCFA)",
+      "([0-9]{1,3}(?:[.,][0-9]{3})+)\\s*(?:XAF|FCFA|FRANCOS)"
+    ],
+    "monto_en_letras": [
+      "\\(([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+(?:MILLONES?|MIL|FRANCOS)[A-Za-záéíóúñ\\s]*)\\)"
+    ],
+    "fecha_firma": [
+      "(?:En|Firmado\\s*en)\\s*[A-Za-záéíóúñ]+\\s*,?\\s*(?:a|el)?\\s*(\\d{1,2})\\s*de\\s*(\\w+)\\s*de\\s*(\\d{4})",
+      "(?:Fecha)\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})"
+    ],
+    "lugar_firma": [
+      "(?:En|Firmado\\s*en)\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)\\s*,?\\s*(?:a|el)?\\s*\\d{1,2}"
+    ],
+    "nombre_contratante": [
+      "(?:PARTE\\s*CONTRATANTE|CONTRATANTE)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s,]+?)(?=,|\\.|representad|$)",
+      "(?:De\\s*una\\s*parte)\\s*[,:]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+?)(?=,|representad)"
+    ],
+    "nombre_contratista": [
+      "(?:PARTE\\s*CONTRATISTA|CONTRATISTA)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s,\\.]+?)(?=,|NIF|representad|$)",
+      "(?:De\\s*otra\\s*parte)\\s*[,:]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s,\\.]+?)(?=,|NIF|representad)"
+    ],
+    "nif_contratista": [
+      "(?:NIF|N[°o]?\\s*(?:de\\s*)?Identificaci[oó]n\\s*Fiscal)\\s*[:#]?\\s*([0-9]{5}[A-Z]{2}-[0-9]{2})",
+      "([0-9]{5}[A-Z]{2}-[0-9]{2})"
+    ],
+    "representante_legal": [
+      "(?:representad[oa]\\s*por|Representante\\s*Legal)\\s*[:#]?\\s*(?:D\\.?|Do[ñn]a?)?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+?)(?=,|en\\s*su|$)"
+    ],
+    "domicilio_social": [
+      "(?:domicilio\\s*(?:social)?\\s*en|con\\s*sede\\s*en)\\s*([A-Za-záéíóúñ0-9\\s,/]+?)(?=\\.|,\\s*(?:NIF|provincia|CP))"
+    ],
+    "fecha_inicio": [
+      "(?:fecha\\s*de\\s*inicio|inicio\\s*(?:del\\s*contrato)?|desde\\s*el)\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})"
+    ],
+    "fecha_fin": [
+      "(?:fecha\\s*de\\s*(?:fin|finalizaci[oó]n)|hasta\\s*el|vence\\s*el)\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})"
+    ],
+    "duracion": [
+      "(?:plazo|duraci[oó]n|vigencia)\\s*(?:de)?\\s*[:#]?\\s*([0-9]+)\\s*(meses?|a[ñn]os?|d[ií]as?)"
+    ],
+    "objeto_contrato": [
+      "(?:OBJETO|PRIMERA\\s*[.-])\\s*[:#]?\\s*(.+?)(?=SEGUNDA|CL[AÁ]USULA|$)"
+    ]
+  }
+}

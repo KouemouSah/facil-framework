@@ -1,0 +1,431 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "DIP_GQ_V2",
+  "version": "2.0",
+  "title": "Documento de Identidad Personal - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour le DIP de Guinee Equatoriale - 2 faces",
+  "document_type": "DIP",
+  "country": "GQ",
+  "faces": [
+    "recto",
+    "verso"
+  ],
+  "extraction": {
+    "documento": {
+      "description": "Informations du document",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "DIP",
+          "required": true,
+          "description": "Type de document"
+        },
+        "numero_dip": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[0-9]{9}$",
+          "description": "N° D.I.P. - Numero de 9 chiffres",
+          "field_label": "N° D.I.P.",
+          "source": "recto",
+          "pii": true,
+          "encrypt": true
+        },
+        "numero_registro": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[A-Z][0-9]{8}$",
+          "description": "N° REGISTRO - Numero de registre civil (ex: B10259142)",
+          "field_label": "N° REGISTRO",
+          "source": "verso",
+          "pii": true,
+          "encrypt": true
+        },
+        "id_lateral": {
+          "type": "string",
+          "required": false,
+          "pattern": "^ID[0-9]{7}$",
+          "description": "ID lateral de la carte (ex: ID1175387)",
+          "source": "verso"
+        },
+        "fecha_emision": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Fecha de emision",
+          "field_label": "Fecha de emisión",
+          "source": "recto",
+          "date_format": "DD.MM.YYYY"
+        },
+        "fecha_expiracion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Valido hasta / Fecha de expiracion",
+          "field_label": "Válido hasta",
+          "source": "recto",
+          "date_format": "DD.MM.YYYY",
+          "validation": {
+            "rule": "must_be_future",
+            "error": "DIP expirado"
+          }
+        },
+        "lugar_emision": {
+          "type": "string",
+          "required": true,
+          "description": "Lugar de emision (Malabo, Bata, etc.)",
+          "field_label": "Lugar de emisión",
+          "source": "recto"
+        }
+      }
+    },
+    "titular": {
+      "description": "Informations du titulaire",
+      "fields": {
+        "apellidos": {
+          "type": "string",
+          "required": true,
+          "description": "Apellido(s) del titular",
+          "field_label": "Apellidos",
+          "source": "recto",
+          "pii": true
+        },
+        "nombres": {
+          "type": "string",
+          "required": true,
+          "description": "Nombre(s) del titular",
+          "field_label": "Nombre",
+          "source": "recto",
+          "pii": true
+        },
+        "nombre_completo_verso": {
+          "type": "string",
+          "required": false,
+          "description": "Nombre completo en face verso (peut inclure des noms additionnels)",
+          "source": "verso",
+          "pii": true
+        },
+        "sexo": {
+          "type": "string",
+          "enum": [
+            "M",
+            "F"
+          ],
+          "required": true,
+          "description": "Sexo: M=Masculino, F=Femenino",
+          "field_label": "Sexo",
+          "source": "recto"
+        },
+        "fecha_nacimiento": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Fecha de nacimiento",
+          "field_label": "Fecha de nacimiento",
+          "source": "recto",
+          "date_format": "DD.MM.YYYY",
+          "pii": true
+        },
+        "lugar_nacimiento": {
+          "type": "string",
+          "required": true,
+          "description": "Lugar de nacimiento (localidad)",
+          "field_label": "LUGAR DE NACIMIENTO",
+          "source": "verso"
+        },
+        "natural_de": {
+          "type": "string",
+          "required": false,
+          "description": "NATURAL DE - Origen/poblado natal con distrito",
+          "field_label": "NATURAL DE",
+          "source": "verso"
+        },
+        "distrito_provincia": {
+          "type": "string",
+          "required": false,
+          "description": "DISTRITO Y PROVINCIA de origen",
+          "field_label": "DISTRITO Y PROVINCIA",
+          "source": "verso"
+        },
+        "nacionalidad": {
+          "type": "string",
+          "required": true,
+          "const": "GNQ",
+          "description": "Nacionalidad (codigo ISO: GNQ)",
+          "field_label": "Nacionalidad",
+          "source": "recto"
+        },
+        "estado_civil": {
+          "type": "string",
+          "enum": [
+            "SOLTERO/A",
+            "CASADO/A",
+            "DIVORCIADO/A",
+            "VIUDO/A"
+          ],
+          "required": true,
+          "description": "Estado civil del titular",
+          "field_label": "ESTADO CIVIL",
+          "source": "verso"
+        },
+        "profesion": {
+          "type": "string",
+          "required": true,
+          "description": "Profesion del titular",
+          "field_label": "PROFESIÓN",
+          "source": "verso"
+        },
+        "domiciliacion": {
+          "type": "string",
+          "required": true,
+          "description": "DOMICILIACIÓN EN - Direccion de residencia completa",
+          "field_label": "DOMICILIACIÓN EN",
+          "source": "verso",
+          "pii": true
+        },
+        "grupo_sanguineo": {
+          "type": "string",
+          "enum": [
+            "A+",
+            "A-",
+            "B+",
+            "B-",
+            "AB+",
+            "AB-",
+            "O+",
+            "O-"
+          ],
+          "required": false,
+          "description": "Grupo sanguineo del titular",
+          "field_label": "GRUPO SANGUÍNEO",
+          "source": "verso"
+        }
+      }
+    },
+    "filiacion": {
+      "description": "Informations de filiation (bloc HIJO DE sur verso)",
+      "fields": {
+        "nombre_padre": {
+          "type": "string",
+          "required": false,
+          "description": "Nombre completo del padre (1ra linea bloc HIJO DE, verso)",
+          "source": "verso",
+          "pii": true
+        },
+        "nombre_madre": {
+          "type": "string",
+          "required": false,
+          "description": "Nombre completo de la madre (2da linea bloc HIJO DE, verso)",
+          "source": "verso",
+          "pii": true
+        }
+      }
+    },
+    "mrz": {
+      "description": "Zone MRZ (Machine Readable Zone) - 3 lignes TD1",
+      "format": "TD1",
+      "lines": 3,
+      "chars_per_line": 30,
+      "source": "verso",
+      "fields": {
+        "linea_1": {
+          "type": "string",
+          "required": true,
+          "pattern": "^ID[A-Z]{3}[A-Z0-9<]{25}$",
+          "description": "Premiere ligne MRZ: ID + pays + numero document + check digit",
+          "example": "IDGNQID1175387100007463 6<<<<<<"
+        },
+        "linea_2": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[0-9]{7}[MF][0-9]{7}[A-Z]{3}[A-Z0-9<]{9}[0-9]$",
+          "description": "Deuxieme ligne MRZ: fecha nac + sexo + fecha exp + nacionalidad + check",
+          "example": "8108201M3008052GNQ<<<<<<<<<<<8"
+        },
+        "linea_3": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[A-Z<]{30}$",
+          "description": "Troisieme ligne MRZ: APELLIDO<<NOMBRES",
+          "example": "NZO<MISENG<<BERNARDO<NDJOMO<<<"
+        }
+      }
+    }
+  },
+
+  "mrz_parsing": {
+    "line_1": {
+      "document_type": {"start": 0, "end": 2, "expected": "ID"},
+      "country_code": {"start": 2, "end": 5, "expected": "GNQ"},
+      "document_number": {"start": 5, "end": 14},
+      "check_digit_1": {"start": 14, "end": 15},
+      "optional_data_1": {"start": 15, "end": 30}
+    },
+    "line_2": {
+      "birth_date": {"start": 0, "end": 6, "format": "YYMMDD"},
+      "check_digit_2": {"start": 6, "end": 7},
+      "sex": {"start": 7, "end": 8, "values": ["M", "F", "<"]},
+      "expiry_date": {"start": 8, "end": 14, "format": "YYMMDD"},
+      "check_digit_3": {"start": 14, "end": 15},
+      "nationality": {"start": 15, "end": 18, "expected": "GNQ"},
+      "optional_data_2": {"start": 18, "end": 29},
+      "composite_check": {"start": 29, "end": 30}
+    },
+    "line_3": {
+      "names": {"start": 0, "end": 30, "separator": "<<", "description": "APELLIDO<<NOMBRES"}
+    }
+  },
+
+  "validations": [
+    {
+      "id": "dip_not_expired",
+      "rule": "fecha_expiracion > TODAY",
+      "error_es": "DIP expirado",
+      "error_fr": "DIP expire",
+      "severity": "error"
+    },
+    {
+      "id": "mrz_apellido_match",
+      "rule": "mrz.linea_3 CONTAINS titular.apellidos",
+      "error_es": "MRZ no coincide con apellido",
+      "error_fr": "MRZ ne correspond pas au nom",
+      "severity": "error"
+    },
+    {
+      "id": "mrz_numero_match",
+      "rule": "documento.numero_dip IN mrz.linea_1",
+      "error_es": "Numero DIP no coincide con MRZ",
+      "error_fr": "Numero DIP ne correspond pas au MRZ",
+      "severity": "error"
+    },
+    {
+      "id": "adult_check",
+      "rule": "fecha_nacimiento < TODAY - 18 YEARS",
+      "error_es": "El titular debe ser mayor de edad para DIP adulto",
+      "error_fr": "Le titulaire doit etre majeur pour un DIP adulte",
+      "severity": "warning"
+    },
+    {
+      "id": "mrz_checksum_valid",
+      "rule": "validate_mrz_checksums(mrz)",
+      "error_es": "Checksum MRZ invalido",
+      "error_fr": "Checksum MRZ invalide",
+      "severity": "error"
+    }
+  ],
+  "gemini_hints": {
+    "document_description": "Documento de Identidad Personal (DIP) de Guinea Ecuatorial - documento de identidad para ciudadanos",
+    "language": "es",
+    "date_format": "DD.MM.YYYY (avec points)",
+    "visual_zones": {
+      "recto": [
+        "En-tete: REPUBLICA DE GUINEA ECUATORIAL / DOCUMENTO DE IDENTIDAD PERSONAL",
+        "Zone gauche: Photo du titulaire",
+        "Zone centrale: Apellidos, Nombre, Sexo, Nacionalidad, Fecha de nacimiento",
+        "Zone droite: Lugar de emision, Fecha de emision, Valido hasta",
+        "Zone inferieure: N° D.I.P. (9 chiffres), Firma del titular"
+      ],
+      "verso": [
+        "Zone superieure gauche: Bloc HIJO DE (label parfois absent/coupe) suivi de 2 lignes de noms complets = padre (ligne 1) + madre (ligne 2). Ces 2 lignes sont les SEULS textes sans label-prefixe dans cette zone.",
+        "Zone superieure droite: N° REGISTRO, ESTADO CIVIL, PROFESIÓN",
+        "Zone centrale gauche: LUGAR DE NACIMIENTO, NATURAL DE, DISTRITO Y PROVINCIA, GRUPO SANGUÍNEO",
+        "Zone centrale: Photo (repetee)",
+        "Zone centrale droite: DOMICILIACIÓN EN (adresse complete)",
+        "Zone laterale droite: ID lateral (ID + 7 chiffres)",
+        "Zone inferieure: MRZ (3 lignes de 30 caracteres)"
+      ]
+    },
+    "ocr_challenges": [
+      "Reflets sur plastique lamine",
+      "Photo de mauvaise qualite",
+      "Document use ou endommage",
+      "MRZ partiellement visible",
+      "Deux faces a traiter separement",
+      "IMPORTANT: Nombre et Lugar de emision sont sur la MEME LIGNE - extraire separement",
+      "HIJO DE (filiation): Le label 'HIJO DE' est souvent coupe, plie ou illisible sur les mauvais scans. Meme SANS ce label, les 2 lignes de noms complets en majuscules (3-5 mots chacune) dans le coin superieur gauche du verso sont TOUJOURS: ligne 1 = nombre_padre, ligne 2 = nombre_madre. Ces noms sont DIFFERENTS du titulaire (verifiable via MRZ)."
+    ],
+    "critical_field_separation": {
+      "description": "ATTENTION: Sur le recto du DIP, certains champs sont sur la MEME LIGNE et doivent etre extraits SEPAREMENT",
+      "same_line_fields": [
+        {
+          "line": "Nombre + Lugar de emision",
+          "example_raw": "BERNARDO NDJOMO                    MALABO",
+          "extract_as": {
+            "nombres": "BERNARDO NDJOMO (uniquement le prenom, SANS la ville)",
+            "lugar_emision": "MALABO (uniquement la ville)"
+          },
+          "warning": "NE PAS inclure la ville (MALABO, BATA, etc.) dans le champ nombres"
+        }
+      ],
+      "verso_filiation_layout": {
+        "description": "VERSO - IDENTIFICATION DES PARENTS (ordre structurel FIXE, de haut en bas, coin superieur gauche):",
+        "fixed_order": [
+          "1. Label 'HIJO DE' (PEUT ETRE ABSENT ou illisible - ne pas dependre de ce label)",
+          "2. Ligne de texte = nombre_padre (nom complet du pere, 3-5 mots en majuscules)",
+          "3. Ligne de texte = nombre_madre (nom complet de la mere, 3-5 mots en majuscules)",
+          "4. Puis: LUGAR DE NACIMIENTO, NATURAL DE, etc. (ces champs ont toujours un label-prefixe visible)"
+        ],
+        "recognition_pattern": "Les noms des parents sont les SEULS champs du verso qui: (a) sont des noms complets de personnes en majuscules, (b) n'ont PAS de label-prefixe (contrairement a LUGAR DE, NATURAL DE, PROFESION, etc.), (c) sont DIFFERENTS du nom du titulaire visible dans la MRZ ligne 3.",
+        "example": {
+          "label_visible": "HIJO DE\nCELESTINO NZO MESI EYANG\nFLORENTINA MISENG OSA OBONO",
+          "label_absent": "CELESTINO NZO MESI EYANG\nFLORENTINA MISENG OSA OBONO",
+          "extract_as": {
+            "nombre_padre": "CELESTINO NZO MESI EYANG (1ere ligne de noms)",
+            "nombre_madre": "FLORENTINA MISENG OSA OBONO (2eme ligne de noms)"
+          }
+        }
+      },
+      "known_emission_cities": [
+        "MALABO",
+        "BATA",
+        "MONGOMO",
+        "EBIBEYIN",
+        "LUBA",
+        "ELA NGUEMA",
+        "ACONIBE",
+        "ANISOK",
+        "NIEFANG",
+        "EBEBIYIN",
+        "MICOMESENG",
+        "NSORK",
+        "EVINAYONG",
+        "RIABA",
+        "ANNOBON"
+      ]
+    }
+  },
+  "tesseract_patterns": {
+    "numero_dip": [
+      "N[°o]?\\s*D\\.?I\\.?P\\.?\\s*[:#]?\\s*([0-9]{9})",
+      "DIP\\s*[:#]?\\s*([0-9]{9})"
+    ],
+    "numero_registro": [
+      "N[°o]?\\s*REGISTRO\\s*[:#]?\\s*([A-Z][0-9]{8})",
+      "REGISTRO\\s*[:#]?\\s*([A-Z][0-9]{8})"
+    ],
+    "apellidos": [
+      "APELLIDOS?\\s*[:#]?\\s*([A-Z\\s]+)",
+      "SURNAME\\s*[:#]?\\s*([A-Z\\s]+)"
+    ],
+    "nombres": [
+      "NOMBRE\\s*[:#]?\\s*([A-Z\\s]+)",
+      "GIVEN\\s*NAME\\s*[:#]?\\s*([A-Z\\s]+)"
+    ],
+    "fecha_nacimiento": [
+      "(?:NACIMIENTO|F\\.?\\s*NAC)\\s*[:#]?\\s*(\\d{2}\\.\\d{2}\\.\\d{4})",
+      "BIRTH\\s*[:#]?\\s*(\\d{2}[./-]\\d{2}[./-]\\d{4})"
+    ],
+    "fecha_expiracion": [
+      "(?:VALIDO|VALIDEZ|HASTA)\\s*[:#]?\\s*(\\d{2}\\.\\d{2}\\.\\d{4})",
+      "(?:EXPIRY|EXP)\\s*[:#]?\\s*(\\d{2}[./-]\\d{2}[./-]\\d{4})"
+    ],
+    "estado_civil": [
+      "ESTADO\\s*CIVIL\\s*[:#]?\\s*(SOLTERO/A|CASADO/A|DIVORCIADO/A|VIUDO/A)"
+    ],
+    "grupo_sanguineo": [
+      "GRUPO\\s*SANGU[IÍ]NEO\\s*[:#]?\\s*(A[+-]|B[+-]|AB[+-]|O[+-])"
+    ],
+    "profesion": [
+      "PROFESI[OÓ]N\\s*[:#]?\\s*([A-Z\\s]+)"
+    ]
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "cli": {
+    "version": ">= 15.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_ENV": "development"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease -Pandroid.enableMinifyInReleaseBuilds=true"
+      },
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_ENV": "preview",
+        "EXPO_PUBLIC_API_URL": "https://taxasge-backend-staging-392159428433.us-central1.run.app",
+        "EXPO_PUBLIC_LOGROCKET_APP_ID": "$LOGROCKET_APP_ID",
+        "EXPO_PUBLIC_BUILD_VERSION": "$EAS_BUILD_GIT_COMMIT_HASH",
+        "SENTRY_ORG": "taxasge",
+        "SENTRY_PROJECT": "react-native"
+      }
+    },
+    "preview-device": {
+      "extends": "preview",
+      "ios": {
+        "simulator": false,
+        "resourceClass": "m-medium"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:bundleRelease -Pandroid.enableMinifyInReleaseBuilds=true"
+      },
+      "env": {
+        "EXPO_PUBLIC_ENV": "production",
+        "EXPO_PUBLIC_API_URL": "https://taxasge-backend-staging-392159428433.us-central1.run.app",
+        "EXPO_PUBLIC_LOGROCKET_APP_ID": "$LOGROCKET_APP_ID",
+        "EXPO_PUBLIC_BUILD_VERSION": "$EAS_BUILD_GIT_COMMIT_HASH",
+        "SENTRY_ORG": "taxasge",
+        "SENTRY_PROJECT": "react-native"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "./google-play-service-account.json",
+        "track": "internal",
+        "releaseStatus": "draft"
+      }
+    }
+  }
+}

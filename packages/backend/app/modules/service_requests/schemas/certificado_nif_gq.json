@@ -1,0 +1,378 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "CERTIFICADO_NIF_GQ_V1",
+  "version": "1.0",
+  "title": "Certificado de Registro de Empresa (NIF) - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour le Certificado NIF emis par la Ventanilla Unica Empresarial de GQ",
+  "document_type": "CERTIFICADO_NIF",
+  "country": "GQ",
+  "faces": ["single_page"],
+  "document_nature": "certificat_officiel",
+  "issuer": "Ventanilla Unica Empresarial",
+
+  "extraction": {
+    "documento": {
+      "description": "Informations administratives du document",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "CERTIFICADO_NIF",
+          "required": true,
+          "description": "Type de document"
+        },
+        "numero_ri": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[0-9]{5,6}$",
+          "description": "Numero R.I. (Registro de Inscripcion) en haut a droite",
+          "field_label": "R.I.",
+          "pii": true
+        },
+        "fecha_registro": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date de registro de l'entreprise",
+          "field_label": "FECHA DE REGISTRO",
+          "date_format": "DD/MM/YYYY"
+        },
+        "numero_expediente": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[0-9]{5}/[0-9]{4}$",
+          "description": "Numero de expediente (ex: 04200/2022)",
+          "field_label": "NÚMERO DE EXPEDIENTE",
+          "pii": true
+        }
+      }
+    },
+
+    "empresa": {
+      "description": "Donnees de l'entreprise enregistree",
+      "fields": {
+        "denominacion_social": {
+          "type": "string",
+          "required": true,
+          "description": "Nom ou raison sociale de l'entreprise",
+          "field_label": "DENOMINACIÓN SOCIAL",
+          "pii": true
+        },
+        "nif": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[0-9]{5}[A-Z]{2}-[0-9]{2}$",
+          "description": "Numero de Identificacion Fiscal (ex: 03354WC-23)",
+          "field_label": "NÚMERO DE IDENTIFICACIÓN FISCAL (NIF)",
+          "pii": true,
+          "encrypt": true
+        },
+        "forma_juridica": {
+          "type": "string",
+          "enum": ["SOCIEDAD LIMITADA", "SOCIEDAD ANONIMA", "SUCURSAL", "EMPRESA INDIVIDUAL", "COOPERATIVA", "ASOCIACION", "FUNDACION", "OTRO"],
+          "required": true,
+          "description": "Forme juridique de l'entreprise",
+          "field_label": "FORMA JURÍDICA"
+        },
+        "capital_social": {
+          "type": "number",
+          "required": true,
+          "description": "Capital social en F. CFAS",
+          "field_label": "CAPITAL SOCIAL",
+          "currency": "XAF"
+        },
+        "capital_social_texto": {
+          "type": "string",
+          "required": false,
+          "description": "Capital social tel qu'affiche (ex: 1.000.000 F. CFAS)"
+        },
+        "objeto_social": {
+          "type": "string",
+          "required": true,
+          "description": "Description de l'objet social/activite de l'entreprise",
+          "field_label": "OBJETO SOCIAL"
+        },
+        "autorizacion": {
+          "type": "string",
+          "enum": ["DEFINITIVA", "PROVISIONAL", "EN_TRAMITE"],
+          "required": true,
+          "description": "Statut de l'autorisation d'exercice",
+          "field_label": "AUTORIZACIÓN"
+        }
+      }
+    },
+
+    "representante_legal": {
+      "description": "Donnees du representant legal",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": true,
+          "description": "Nom complet du representant legal",
+          "field_label": "REPRESENTANTE LEGAL",
+          "pii": true
+        },
+        "cargo": {
+          "type": "string",
+          "required": false,
+          "description": "Fonction du representant (Director General, Gerente, etc.)"
+        }
+      }
+    },
+
+    "contacto": {
+      "description": "Coordonnees de contact de l'entreprise",
+      "fields": {
+        "domicilio_social": {
+          "type": "string",
+          "required": true,
+          "description": "Adresse du siege social",
+          "field_label": "DOMICILIO SOCIAL",
+          "pii": true
+        },
+        "telefono": {
+          "type": "string",
+          "required": false,
+          "pattern": "^[0-9]{9}$",
+          "description": "Numero de telephone",
+          "field_label": "TELÉFONO",
+          "pii": true
+        },
+        "correo_electronico": {
+          "type": "string",
+          "format": "email",
+          "required": false,
+          "description": "Adresse email",
+          "field_label": "CORREO ELECTRÓNICO",
+          "pii": true
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification et validation du certificat",
+      "fields": {
+        "fecha_emision": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'emission du certificat (bas du document)",
+          "field_label": "Malabo a ... de ... de ...",
+          "date_format": "DD de MMMM de YYYY"
+        },
+        "lugar_emision": {
+          "type": "string",
+          "required": true,
+          "description": "Lieu d'emission (Malabo, Bata)",
+          "default": "Malabo"
+        },
+        "tiene_firma_jefe_hacienda": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du Jefe de la Unidad de Hacienda presente"
+        },
+        "nombre_jefe_hacienda": {
+          "type": "string",
+          "required": false,
+          "description": "Nom du Jefe de Hacienda si lisible",
+          "pii": true
+        },
+        "tiene_firma_coordinador": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du Coordinador General presente"
+        },
+        "nombre_coordinador": {
+          "type": "string",
+          "required": false,
+          "description": "Nom du Coordinador General si lisible",
+          "pii": true
+        },
+        "tiene_sello_hacienda": {
+          "type": "boolean",
+          "required": true,
+          "description": "Sceau de la Unidad de Hacienda present (rond, bleu)"
+        },
+        "tiene_sello_vue": {
+          "type": "boolean",
+          "required": true,
+          "description": "Sceau de la Ventanilla Unica Empresarial present (rond, bleu)"
+        },
+        "texto_sello": {
+          "type": "string",
+          "required": false,
+          "description": "Texte lisible sur les sceaux"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "nif_format_valid",
+      "rule": "nif MATCHES '^[0-9]{5}[A-Z]{2}-[0-9]{2}$'",
+      "error_es": "Formato de NIF invalido (debe ser 12345AB-23)",
+      "error_fr": "Format NIF invalide (doit etre 12345AB-23)",
+      "severity": "error"
+    },
+    {
+      "id": "autorizacion_definitiva",
+      "rule": "autorizacion == 'DEFINITIVA'",
+      "error_es": "Solo se aceptan empresas con autorizacion DEFINITIVA",
+      "error_fr": "Seules les entreprises avec autorisation DEFINITIVE sont acceptees",
+      "severity": "error"
+    },
+    {
+      "id": "firmas_oficiales_required",
+      "rule": "tiene_firma_jefe_hacienda == true AND tiene_firma_coordinador == true",
+      "error_es": "El certificado debe tener ambas firmas oficiales",
+      "error_fr": "Le certificat doit avoir les deux signatures officielles",
+      "severity": "error"
+    },
+    {
+      "id": "sellos_oficiales_required",
+      "rule": "tiene_sello_hacienda == true AND tiene_sello_vue == true",
+      "error_es": "El certificado debe tener los sellos oficiales",
+      "error_fr": "Le certificat doit avoir les sceaux officiels",
+      "severity": "error"
+    },
+    {
+      "id": "capital_social_positive",
+      "rule": "capital_social > 0",
+      "error_es": "El capital social debe ser mayor a cero",
+      "error_fr": "Le capital social doit etre superieur a zero",
+      "severity": "error"
+    },
+    {
+      "id": "expediente_format_valid",
+      "rule": "numero_expediente MATCHES '^[0-9]{5}/[0-9]{4}$'",
+      "error_es": "Formato de expediente invalido (debe ser 12345/2024)",
+      "error_fr": "Format expediente invalide (doit etre 12345/2024)",
+      "severity": "error"
+    },
+    {
+      "id": "fecha_registro_not_future",
+      "rule": "fecha_registro <= TODAY",
+      "error_es": "La fecha de registro no puede ser futura",
+      "error_fr": "La date de registre ne peut pas etre future",
+      "severity": "error"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Certificado de Registro de Empresa (NIF) - certificat officiel delivre par la Ventanilla Unica Empresarial de Guinee Equatoriale attestant l'enregistrement fiscal d'une entreprise",
+    "language": "es",
+    "date_format": "DD/MM/YYYY ou DD de MMMM de YYYY",
+    "visual_zones": [
+      "En-tete gauche: Logo Ventanilla Unica Empresarial (gris/bleu)",
+      "En-tete centre: Armoiries de la Republica de Guinea Ecuatorial (arbre ceiba)",
+      "En-tete droite: R.I. [numero] (Registro de Inscripcion)",
+      "Titre: CERTIFICADO DE REGISTRO DE EMPRESA (NIF)",
+      "Paragraphe intro: 'El Departamento de la gestion del NIF de la VENTANILLA UNICA EMPRESARIAL...'",
+      "Zone principale: Tableau de donnees avec labels a gauche et valeurs a droite",
+      "Labels: DENOMINACION SOCIAL, NUMERO DE IDENTIFICACION FISCAL (NIF), FECHA DE REGISTRO, etc.",
+      "Bas gauche: Date emission 'Malabo a [DD] de [mes] de [YYYY]'",
+      "Zone signatures: Deux colonnes - El Jefe de la Unidad de Hacienda | El Coordinador General",
+      "Sceaux: Deux sceaux ronds bleus sous les signatures",
+      "Pied de page: Logo + texte VUE VENTANILLA UNICA EMPRESARIAL"
+    ],
+    "key_fields_positions": {
+      "ri_numero": "Coin superieur droit, format R.I. [5-6 chiffres]",
+      "denominacion_social": "Premier champ apres l'intro",
+      "nif": "Format specifique: 5 chiffres + 2 lettres + tiret + 2 chiffres (ex: 03354WC-23)",
+      "fecha_registro": "Format DD/MM/YYYY",
+      "numero_expediente": "Format 5 chiffres/4 chiffres (ex: 04200/2022)",
+      "capital_social": "Format numerique avec points separateurs + F. CFAS",
+      "autorizacion": "Typiquement 'DEFINITIVA'"
+    },
+    "elements_authentification": {
+      "firma_jefe_hacienda": {
+        "position": "Bas gauche, sous le texte 'El Jefe de la Unidad de Hacienda'",
+        "description": "Signature manuscrite",
+        "obligatoire": true
+      },
+      "firma_coordinador": {
+        "position": "Bas droite, sous le texte 'El Coordinador General'",
+        "description": "Signature manuscrite",
+        "obligatoire": true
+      },
+      "sello_hacienda": {
+        "position": "Bas gauche, sous/sur la signature du Jefe",
+        "description": "Sceau rond bleu avec armoiries et texte MINISTERIO DE HACIENDA",
+        "couleur": "Bleu encre",
+        "forme": "Rond",
+        "obligatoire": true
+      },
+      "sello_vue": {
+        "position": "Bas droite, sous/sur la signature du Coordinador",
+        "description": "Sceau rond bleu VENTANILLA UNICA EMPRESARIAL",
+        "couleur": "Bleu encre",
+        "forme": "Rond",
+        "obligatoire": true
+      }
+    },
+    "common_values": {
+      "forma_juridica": ["SOCIEDAD LIMITADA", "SOCIEDAD ANONIMA", "SUCURSAL", "EMPRESA INDIVIDUAL"],
+      "autorizacion": ["DEFINITIVA", "PROVISIONAL"],
+      "lugar_emision": ["Malabo", "Bata"]
+    },
+    "ocr_challenges": [
+      "Sceaux qui peuvent masquer du texte",
+      "Format NIF avec tiret parfois mal lu",
+      "Capital social avec separateurs de milliers",
+      "Date en format textuel (20 de enero de 2023)",
+      "Signatures manuscrites sur le texte"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "numero_ri": [
+      "(?:R\\.?I\\.?)\\s*[:#]?\\s*([0-9]{5,6})"
+    ],
+    "denominacion_social": [
+      "(?:DENOMINACI[OÓ]N\\s*SOCIAL)\\s*[:#]?\\s*(.+?)(?=N[UÚ]MERO|$)",
+      "(?:empresa\\s*queda\\s*registrada).*?(?:refleja)\\s*[:#]?\\s*(.+?)(?=N[UÚ]MERO|$)"
+    ],
+    "nif": [
+      "(?:N[UÚ]MERO\\s*DE\\s*IDENTIFICACI[OÓ]N\\s*FISCAL|NIF)\\s*[:#(]?\\s*([0-9]{5}[A-Z]{2}-[0-9]{2})",
+      "([0-9]{5}[A-Z]{2}-[0-9]{2})"
+    ],
+    "fecha_registro": [
+      "(?:FECHA\\s*DE\\s*REGISTRO)\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})"
+    ],
+    "numero_expediente": [
+      "(?:N[UÚ]MERO\\s*DE\\s*EXPEDIENTE)\\s*[:#]?\\s*([0-9]{5}/[0-9]{4})"
+    ],
+    "capital_social": [
+      "(?:CAPITAL\\s*SOCIAL)\\s*[:#]?\\s*([0-9.,]+)\\s*(?:F\\.?\\s*CFAS?)?",
+      "([0-9]{1,3}(?:[.,][0-9]{3})+)\\s*F\\.?\\s*CFAS?"
+    ],
+    "representante_legal": [
+      "(?:REPRESENTANTE\\s*LEGAL)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "forma_juridica": [
+      "(?:FORMA\\s*JUR[IÍ]DICA)\\s*[:#]?\\s*(SOCIEDAD\\s*(?:LIMITADA|AN[OÓ]NIMA)|SUCURSAL|EMPRESA\\s*INDIVIDUAL|COOPERATIVA)"
+    ],
+    "objeto_social": [
+      "(?:OBJETO\\s*SOCIAL)\\s*[:#]?\\s*(.+?)(?=AUTORIZACI|$)"
+    ],
+    "autorizacion": [
+      "(?:AUTORIZACI[OÓ]N)\\s*[:#]?\\s*(DEFINITIVA|PROVISIONAL|EN\\s*TR[AÁ]MITE)"
+    ],
+    "domicilio_social": [
+      "(?:DOMICILIO\\s*SOCIAL)\\s*[:#]?\\s*(.+?)(?=TEL[EÉ]FONO|$)"
+    ],
+    "telefono": [
+      "(?:TEL[EÉ]FONO)\\s*[:#]?\\s*([0-9]{3}\\s*[0-9]{3}\\s*[0-9]{3}|[0-9]{9})"
+    ],
+    "correo_electronico": [
+      "(?:CORREO\\s*ELECTR[OÓ]NICO)\\s*[:#]?\\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})"
+    ],
+    "fecha_emision": [
+      "(?:Malabo|Bata)\\s*a\\s*(\\d{1,2})\\s*de\\s*(\\w+)\\s*de\\s*(\\d{4})",
+      "(\\d{1,2})\\s*de\\s*(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\\s*de\\s*(\\d{4})"
+    ],
+    "lugar_emision": [
+      "(Malabo|Bata)\\s*a\\s*\\d{1,2}\\s*de"
+    ]
+  }
+}

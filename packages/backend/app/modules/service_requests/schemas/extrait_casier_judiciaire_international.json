@@ -1,0 +1,320 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "EXTRAIT_CASIER_JUDICIAIRE_INTERNATIONAL_V1",
+  "version": "1.0",
+  "title": "Extrait de Casier Judiciaire / Criminal Record Extract - International",
+  "description": "Schema d'extraction generique pour les extraits de casier judiciaire (Bulletin N°3) emis par tout pays etranger. Couvre les formats francophones (Cameroun, Togo, Gabon, Congo, Senegal, etc.), anglophones (Nigeria, Ghana) et autres. Utilise pour Art. 3.A.1.k Orden Ministerial 01/2021 (Residencia primera vez - antecedentes penales del pais de procedencia).",
+  "document_type": "EXTRAIT_CASIER_JUDICIAIRE",
+  "country": "INTERNATIONAL",
+  "faces": ["single_page"],
+  "document_nature": "certificat_judiciaire",
+  "issuer": "Ministere de la Justice / Ministry of Justice / Tribunal du pays d'origine",
+  "validity_period": "3 months from issue date (standard, may vary by country)",
+
+  "extraction": {
+    "documento": {
+      "description": "Informations administratives du document",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "required": true,
+          "description": "Type de document tel qu'ecrit sur le document",
+          "usage": "Identification du type de document pour le dossier agent"
+        },
+        "numero_reference": {
+          "type": "string",
+          "required": false,
+          "description": "Numero de reference ou de serie du document",
+          "usage": "Tracabilite et verification d'authenticite"
+        },
+        "pays_emission": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[A-Z]{2,3}$",
+          "description": "Code pays ISO du pays emetteur (deduit de l'en-tete, armoiries, contenu)",
+          "usage": "CRITIQUE — validation que le casier vient du pays de procedure du demandeur. Cross-validation avec pasaporte.documento.codigo_pais."
+        },
+        "nom_pays": {
+          "type": "string",
+          "required": true,
+          "description": "Nom complet du pays emetteur tel qu'il apparait sur le document",
+          "usage": "Affichage agent + confirmation du pays_emission"
+        },
+        "autorite_emettrice": {
+          "type": "string",
+          "required": true,
+          "description": "Nom de l'autorite qui a emis le document (ministere, tribunal, police, etc.)",
+          "usage": "Verification d'authenticite — un casier doit provenir d'une autorite judiciaire ou policiere reconnue"
+        },
+        "juridiction": {
+          "type": "string",
+          "required": false,
+          "description": "Juridiction specifique (nom du tribunal, cour d'appel, etc.)",
+          "usage": "Information complementaire pour l'agent"
+        },
+        "fecha_expedicion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'emission du document. Normaliser en YYYY-MM-DD quel que soit le format source.",
+          "usage": "CRITIQUE — validation de validite: le document doit avoir moins de 3 mois (Art. 3.A.1.k)"
+        },
+        "ciudad_expedicion": {
+          "type": "string",
+          "required": false,
+          "description": "Ville d'emission du document",
+          "usage": "Information complementaire"
+        }
+      }
+    },
+
+    "titular": {
+      "description": "Donnees de la personne concernee",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": true,
+          "description": "Nom complet de la personne concernee par le document",
+          "pii": true,
+          "usage": "CRITIQUE — cross-validation Levenshtein avec pasaporte.titular (apellidos + nombres). Ordre nom/prenom variable selon pays."
+        },
+        "filiacion_padre": {
+          "type": "string",
+          "required": false,
+          "description": "Nom du pere",
+          "pii": true,
+          "usage": "Cross-validation filiation avec pasaporte si disponible"
+        },
+        "filiacion_madre": {
+          "type": "string",
+          "required": false,
+          "description": "Nom de la mere",
+          "pii": true,
+          "usage": "Cross-validation filiation avec pasaporte si disponible"
+        },
+        "fecha_nacimiento": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date de naissance. Normaliser en YYYY-MM-DD quel que soit le format source.",
+          "pii": true,
+          "usage": "CRITIQUE — cross-validation exacte avec pasaporte.titular.fecha_nacimiento"
+        },
+        "lugar_nacimiento": {
+          "type": "string",
+          "required": false,
+          "description": "Lieu de naissance",
+          "usage": "Cross-validation avec pasaporte.titular.lugar_nacimiento"
+        },
+        "domicilio_actual": {
+          "type": "string",
+          "required": false,
+          "description": "Domicile ou adresse actuelle de la personne",
+          "pii": true,
+          "usage": "Information pour l'agent — verification coherence avec adresse declaree"
+        },
+        "estado_civil": {
+          "type": "string",
+          "required": false,
+          "description": "Etat civil ou situation matrimoniale",
+          "usage": "Information complementaire pour le dossier"
+        },
+        "nacionalidad": {
+          "type": "string",
+          "required": true,
+          "description": "Nationalite de la personne",
+          "usage": "CRITIQUE — doit correspondre a la nationalite du pasaporte. Validation que ce n'est pas un citoyen GQ."
+        },
+        "profesion": {
+          "type": "string",
+          "required": false,
+          "description": "Profession de la personne",
+          "usage": "Information complementaire"
+        },
+        "numero_identidad": {
+          "type": "string",
+          "required": false,
+          "description": "Numero de piece d'identite mentionne sur le document (CNI, passeport, etc.)",
+          "pii": true,
+          "encrypt": true,
+          "usage": "Cross-validation avec numero_pasaporte si present. Pas toujours inclus dans le casier judiciaire."
+        }
+      }
+    },
+
+    "certificacion": {
+      "description": "Resultat de la certification",
+      "fields": {
+        "resultado": {
+          "type": "string",
+          "enum": ["CLEAN", "HAS_CONVICTIONS"],
+          "required": true,
+          "description": "Valeurs INTERNES (pas des mots a chercher). CLEAN = le document certifie l'absence de condamnations penales (casier vierge). HAS_CONVICTIONS = le document mentionne des condamnations existantes.",
+          "usage": "CRITIQUE — le champ le plus important. Si HAS_CONVICTIONS → demande de residencia REFUSEE. Gemini doit COMPRENDRE SEMANTIQUEMENT si le document atteste un casier vierge ou non, quelle que soit la langue (francais, anglais, espagnol, arabe, chinois, russe, etc.). Ne PAS chercher des mots-cles specifiques."
+        },
+        "detail_condamnations": {
+          "type": "string",
+          "required": false,
+          "description": "Resume des condamnations si resultado=CONDAMNATIONS",
+          "usage": "Information pour l'agent — nature et gravite des condamnations pour prise de decision"
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification du document",
+      "fields": {
+        "tiene_firma": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature d'une autorite officielle presente sur le document",
+          "usage": "CRITIQUE — un casier judiciaire sans signature est invalide"
+        },
+        "tiene_sello": {
+          "type": "boolean",
+          "required": true,
+          "description": "Sceau ou tampon officiel present sur le document",
+          "usage": "CRITIQUE — un casier judiciaire sans sceau officiel est invalide"
+        },
+        "tiene_timbre_fiscal": {
+          "type": "boolean",
+          "required": false,
+          "description": "Timbre fiscal present sur le document",
+          "usage": "Non bloquant — certains pays n'exigent pas de timbre"
+        },
+        "tiene_qr_code": {
+          "type": "boolean",
+          "required": false,
+          "description": "QR code de verification present sur le document",
+          "usage": "Non bloquant — present sur documents modernes uniquement"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "resultado_favorable",
+      "rule": "resultado == 'CLEAN'",
+      "error_es": "El extracto de antecedentes penales indica condenas existentes",
+      "error_fr": "L'extrait de casier judiciaire indique des condamnations existantes",
+      "severity": "error"
+    },
+    {
+      "id": "documento_vigente",
+      "rule": "fecha_expedicion + 3 MONTHS > TODAY",
+      "error_es": "Extracto de antecedentes penales caducado (validez estándar: 3 meses)",
+      "error_fr": "Extrait de casier judiciaire perime (validite standard: 3 mois)",
+      "severity": "error",
+      "note": "3 mois est la validite standard dans la plupart des pays africains. Residencia GQ exige < 3 mois (Art. 3.A.1.k)."
+    },
+    {
+      "id": "firma_y_sello_presentes",
+      "rule": "tiene_firma == true AND tiene_sello == true",
+      "error_es": "Falta firma de la autoridad o sello oficial",
+      "error_fr": "Signature de l'autorite ou sceau officiel manquant",
+      "severity": "error"
+    },
+    {
+      "id": "fecha_expedicion_not_future",
+      "rule": "fecha_expedicion <= TODAY",
+      "error_es": "La fecha de expedición no puede ser futura",
+      "error_fr": "La date de delivrance ne peut pas etre future",
+      "severity": "error"
+    },
+    {
+      "id": "no_es_documento_gq",
+      "rule": "pays_emission NOT IN ['GQ', 'GNQ']",
+      "error_es": "Este documento parece ser de Guinea Ecuatorial. Use el schema ANTECEDENTES_PENALES_GQ_V1 para documentos GQ.",
+      "error_fr": "Ce document semble etre de Guinee Equatoriale. Utilisez le schema ANTECEDENTES_PENALES_GQ_V1.",
+      "severity": "error",
+      "note": "Ce schema est pour les documents etrangers uniquement. Les documents GQ ont un format specifique (espagnol, timbre EFECTO de VALORES)."
+    },
+    {
+      "id": "pays_emission_present",
+      "rule": "pays_emission IS NOT NULL AND pays_emission != ''",
+      "error_es": "No se pudo identificar el país emisor del documento",
+      "error_fr": "Impossible d'identifier le pays emetteur du document",
+      "severity": "warning"
+    }
+  ],
+
+  "cross_document_validations": [
+    {
+      "id": "nombre_coherente_pasaporte",
+      "compare_with": "pasaporte",
+      "rule": "levenshtein_match(titular.nombre_completo, pasaporte.titular.apellidos + ' ' + pasaporte.titular.nombres)",
+      "threshold": 0.80,
+      "error_es": "El nombre en el extracto de antecedentes no coincide con el pasaporte",
+      "error_fr": "Le nom sur l'extrait de casier ne correspond pas au passeport",
+      "severity": "error",
+      "note": "Seuil 0.80 (plus tolerant que 0.85) car l'ordre nom/prenom peut differer entre pays et les translitterations varient."
+    },
+    {
+      "id": "fecha_nacimiento_coherente",
+      "compare_with": "pasaporte",
+      "rule": "titular.fecha_nacimiento == pasaporte.titular.fecha_nacimiento",
+      "error_es": "La fecha de nacimiento no coincide con el pasaporte",
+      "error_fr": "La date de naissance ne correspond pas au passeport",
+      "severity": "error"
+    },
+    {
+      "id": "nacionalidad_coherente_pasaporte",
+      "compare_with": "pasaporte",
+      "rule": "normalize_nationality(titular.nacionalidad) == normalize_nationality(pasaporte.titular.nacionalidad)",
+      "error_es": "La nacionalidad del extracto no coincide con el pasaporte",
+      "error_fr": "La nationalite de l'extrait ne correspond pas au passeport",
+      "severity": "warning",
+      "note": "Warning car la nationalite peut etre exprimee differemment (Camerounais vs Camerounaise vs Cameroonian). normalize_nationality() gere les variantes."
+    }
+  ],
+
+  "gemini_hints": {
+    "document_type": "Criminal record certificate / extract — any country, any language.",
+    "multilingual": true,
+    "language_detection": "Gemini detects the document language automatically. This schema covers ALL languages and ALL countries.",
+
+    "extraction_priority": [
+      "1. RESULTADO (CRITICAL): Does this document certify that the person has NO criminal convictions? Answer: CLEAN or HAS_CONVICTIONS.",
+      "2. NOMBRE COMPLETO: Full name of the person this document is about.",
+      "3. FECHA NACIMIENTO: Date of birth. Normalize to YYYY-MM-DD.",
+      "4. NACIONALIDAD: Nationality of the person.",
+      "5. PAYS EMISSION: Country that issued this document (ISO alpha-2 code).",
+      "6. FECHA EXPEDICION: Date the document was issued. Normalize to YYYY-MM-DD.",
+      "7. FILIACION: Father and mother names (if present).",
+      "8. AUTENTICACION: Are there official signatures, stamps, seals?",
+      "9. SECONDARY: profession, civil status, domicile, reference number, issuing authority, jurisdiction."
+    ],
+
+    "semantic_instructions": {
+      "resultado": "THIS IS THE MOST IMPORTANT FIELD. Read and UNDERSTAND the document content semantically. Determine whether the document states that the person has a CLEAN criminal record (no convictions) or HAS CONVICTIONS. Do NOT search for specific words in any language. Instead, understand the MEANING of the document. Return 'CLEAN' if the document certifies absence of criminal convictions. Return 'HAS_CONVICTIONS' if the document lists any criminal convictions. Examples of CLEAN in various languages: FR='NEANT', EN='NO RECORD/NIL', ES='SIN ANTECEDENTES/NEGATIVO', AR='لا سوابق جنائية', ZH='无犯罪记录', RU='не судим', PT='SEM REGISTO CRIMINAL', HI='कोई आपराधिक रिकॉर्ड नहीं' — but do NOT rely on these keywords, understand the document semantically.",
+      "nombre_completo": "Extract the full name of the person this document concerns. This is the SUBJECT of the criminal record check, not the issuing authority. Name order varies by country (SURNAME First vs First SURNAME). Extract exactly as written on the document.",
+      "fecha_nacimiento": "Extract the date of birth. Normalize to YYYY-MM-DD regardless of input format (DD/MM/YYYY, MM/DD/YYYY, YYYY年MM月DD日, textual month, etc.).",
+      "pays_emission": "Identify the COUNTRY that issued this document from the header, coat of arms, official seals, or language. Return the ISO 3166-1 alpha-2 code. Examples: CM=Cameroun, TG=Togo, NG=Nigeria, CN=China, IN=India, SA=Saudi Arabia, RU=Russia, FR=France, etc.",
+      "nacionalidad": "Extract the nationality of the person as written on the document. May be an adjective (Camerounais, Nigerian, Chinese) or a country name.",
+      "fecha_expedicion": "Extract the date the document was issued or delivered. Normalize to YYYY-MM-DD. This date is typically near the bottom of the document, near signatures.",
+      "filiacion": "Extract father's name and mother's name if present. Not all countries include filiation on criminal records. If absent, return null.",
+      "autenticacion": "Check visually for: (1) an official signature, (2) an official seal or stamp, (3) a fiscal stamp or revenue stamp, (4) a QR code. Return boolean for each."
+    },
+
+    "ocr_challenges": [
+      "Document may be in ANY language and script (Latin, Arabic, Chinese, Cyrillic, Devanagari, etc.)",
+      "Format varies enormously by country — structured form, certificate, letter, etc.",
+      "Handwritten entries on some countries' documents",
+      "Fiscal stamps or stickers may obscure text",
+      "Security paper with colored background may affect readability",
+      "Phone photos: perspective distortion, shadows, reflections",
+      "Multiple scripts on bilingual documents (e.g. Arabic+French, Chinese+English)"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "_note": "Minimal fallback patterns for date extraction only. Gemini is the primary extractor for this multilingual schema.",
+    "fecha_nacimiento": [
+      "(\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{2,4})"
+    ],
+    "fecha_expedicion": [
+      "(\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{2,4})"
+    ]
+  }
+}

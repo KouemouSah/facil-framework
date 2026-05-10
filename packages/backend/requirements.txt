@@ -1,0 +1,128 @@
+# ============================================================================
+# TaxasGE Backend - Production Dependencies
+# Version: 2.1 - Force clean Docker build (2026-01-28 21:15 UTC)
+# ============================================================================
+
+# Core Framework
+fastapi==0.115.6
+uvicorn[standard]>=0.24.0
+pydantic[email]>=2.5.0
+pydantic-settings>=2.1.0
+
+# Note: functions-framework removed - Cloud Run uses uvicorn directly
+# If Firebase Functions deployment is needed, add: functions-framework>=3.5.0
+
+# Database & ORM
+asyncpg>=0.29.0
+psycopg2-binary>=2.9.9
+databases[postgresql]>=0.8.0
+sqlalchemy>=2.0.23
+alembic>=1.13.0
+
+# Authentication & Security
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-multipart>=0.0.6
+cryptography>=41.0.8
+pyotp==2.9.0
+qrcode==7.4.2
+
+# Cache & Storage
+redis>=5.0.1
+aioredis>=2.0.1
+
+# HTTP Client
+httpx>=0.25.2
+aiofiles>=23.2.1
+
+# Template Engine
+jinja2>=3.1.2
+
+# Validation & Serialization
+email-validator>=2.1.0
+python-slugify>=8.0.1
+pytz>=2023.3
+phonenumbers>=8.13.47
+
+# Monitoring & Logging
+loguru>=0.7.2
+structlog>=23.2.0
+sentry-sdk[fastapi]>=1.38.0
+
+# OpenTelemetry (AI Observability — Phase A.2 / mig 325)
+# Soft import in app/core/ai_telemetry.py — wrapper still works without these.
+opentelemetry-api>=1.26.0
+opentelemetry-sdk>=1.26.0
+opentelemetry-exporter-otlp-proto-http>=1.26.0
+
+# Phase B — Backend APM auto-instrumentation (FastAPI + asyncpg + httpx).
+# 100% sampling per user decision 2026-05-05: full visibility on bundle
+# workflow + 100+ concurrent agent traces. Tempo quota monitored separately.
+opentelemetry-instrumentation-fastapi>=0.47b0
+opentelemetry-instrumentation-asyncpg>=0.47b0
+opentelemetry-instrumentation-httpx>=0.47b0
+opentelemetry-instrumentation-redis>=0.47b0
+
+# Phase C.3 — User-Agent parsing for security observability dashboard.
+# Pure-Python lib, no native deps. Used in request_telemetry_middleware.
+user-agents>=2.2.0
+# Phase C.4 — GeoIP enrichment via MaxMind GeoLite2 offline MMDB.
+geoip2>=4.7.0
+prometheus-client>=0.19.0
+
+# External Integrations
+firebase-admin>=6.2.0
+google-cloud-secret-manager>=2.18.0
+twilio>=8.10.0
+sendgrid>=6.11.0
+
+# ML & AI Support
+# Google Cloud Vertex AI for Gemini (Production RAG)
+# SDK >=1.74.0 required for gemini-2.5-flash + ThinkingConfig
+google-cloud-aiplatform>=1.74.0
+google-auth>=2.24.0
+langchain-text-splitters>=0.0.1
+
+# Vector Database
+pgvector>=0.2.4  # PostgreSQL vector extension Python client
+
+# OCR & Document Processing
+opencv-python-headless>=4.8.0
+pytesseract>=0.3.10
+pdf2image>=1.16.3
+Pillow>=10.0.0
+pypdf>=4.0.0
+camelot-py[cv]==0.11.0 # Requires Ghostscript and OpenCV
+pdfplumber>=0.11.0 # Deterministic PDF table extraction (no Ghostscript needed)
+pandas>=2.1.4 # Already listed under Legacy ML, but essential for table processing
+
+# Legacy ML (deprecated - for migration)
+tensorflow>=2.16.1
+scikit-learn>=1.3.0
+numpy>=1.24.0,<2.0.0
+pandas>=2.1.4
+
+# Development & Testing
+pytest>=7.4.3
+pytest-asyncio>=0.21.1
+pytest-cov>=4.1.0
+black>=23.11.0
+isort>=5.12.0
+flake8>=6.1.0
+mypy>=1.7.1
+
+# PDF Generation
+xhtml2pdf>=0.2.15
+
+# Excel Export Support
+openpyxl>=3.1.2
+
+# XML Export Support
+lxml>=5.1.0
+
+# Documentation
+mkdocs>=1.5.3
+mkdocs-material>=9.4.8
+
+# Production WSGI/ASGI
+gunicorn>=21.2.0

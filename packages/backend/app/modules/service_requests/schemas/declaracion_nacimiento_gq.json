@@ -1,0 +1,462 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "DECLARACION_NACIMIENTO_GQ_V1",
+  "version": "1.0",
+  "title": "Declaracion de Nacimiento - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour la Declaration de Naissance (formulaire) - peut etre Registro Civil, Consular ou Litoral",
+  "document_type": "DECLARACION_NACIMIENTO",
+  "country": "GQ",
+  "faces": ["single_page"],
+  "document_nature": "formulaire_input",
+
+  "extraction": {
+    "documento": {
+      "description": "Informations du document",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "DECLARACION_NACIMIENTO",
+          "required": true,
+          "description": "Type de document"
+        },
+        "tipo_registro": {
+          "type": "string",
+          "enum": ["REGISTRO_CIVIL", "REGISTRO_CONSULAR", "REGISTRO_LITORAL"],
+          "required": true,
+          "description": "Type de registre: Civil (national), Consular (etranger), Litoral"
+        },
+        "lugar_registro": {
+          "type": "string",
+          "required": false,
+          "description": "Lieu du registre (ex: Madrid, Malabo, Bata)",
+          "field_label": "Embajada en / Registro Civil de"
+        },
+        "fecha_declaracion": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Date de la declaration",
+          "date_format": "DD/MM/YYYY"
+        }
+      }
+    },
+
+    "inscrito": {
+      "description": "Donnees de la personne inscrite (le nouveau-ne)",
+      "fields": {
+        "nombre": {
+          "type": "string",
+          "required": true,
+          "description": "Nombre del inscrito",
+          "field_label": "Nombre",
+          "pii": true
+        },
+        "sexo": {
+          "type": "string",
+          "enum": ["M", "F", "MASCULINO", "FEMENINO", "VARÓN", "HEMBRA"],
+          "required": true,
+          "description": "Sexo del inscrito",
+          "field_label": "Sexo"
+        },
+        "hora_nacimiento": {
+          "type": "string",
+          "required": false,
+          "description": "Hora de nacimiento",
+          "field_label": "Hora de Nacimiento"
+        },
+        "fecha_nacimiento": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Fecha de nacimiento (Año campo separado dans le formulaire)",
+          "field_label": "Año",
+          "pii": true
+        },
+        "lugar_nacimiento": {
+          "type": "string",
+          "required": true,
+          "description": "Lugar de nacimiento",
+          "field_label": "Lugar"
+        }
+      }
+    },
+
+    "padre": {
+      "description": "Donnees du pere",
+      "fields": {
+        "nombre": {
+          "type": "string",
+          "required": false,
+          "description": "Nombre del padre",
+          "field_label": "PADRE: Nombre",
+          "pii": true
+        },
+        "primer_apellido": {
+          "type": "string",
+          "required": false,
+          "description": "Primer apellido del padre",
+          "field_label": "Primer Apellido",
+          "pii": true
+        },
+        "segundo_apellido": {
+          "type": "string",
+          "required": false,
+          "description": "Segundo apellido del padre",
+          "field_label": "Segundo Apellido"
+        },
+        "hijo_de": {
+          "type": "string",
+          "required": false,
+          "description": "Filiation paternelle (abuelo paterno)",
+          "field_label": "Hijo de"
+        },
+        "y_de": {
+          "type": "string",
+          "required": false,
+          "description": "Filiation maternelle (abuela paterna)",
+          "field_label": "y de"
+        },
+        "fecha_nacimiento": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Fecha de nacimiento del padre",
+          "field_label": "Fecha de Nacimiento",
+          "pii": true
+        },
+        "lugar_nacimiento": {
+          "type": "string",
+          "required": false,
+          "description": "Lugar de nacimiento del padre",
+          "field_label": "Lugar de Nacimiento"
+        },
+        "estado_civil": {
+          "type": "string",
+          "required": false,
+          "description": "Estado civil del padre",
+          "field_label": "Estado civil"
+        },
+        "nacionalidad": {
+          "type": "string",
+          "required": false,
+          "description": "Nacionalidad del padre",
+          "field_label": "Nacionalidad"
+        },
+        "domicilio": {
+          "type": "string",
+          "required": false,
+          "description": "Domicilio del padre",
+          "field_label": "Domicilio",
+          "pii": true
+        },
+        "profesion": {
+          "type": "string",
+          "required": false,
+          "description": "Profesion del padre",
+          "field_label": "Profesión"
+        }
+      }
+    },
+
+    "madre": {
+      "description": "Donnees de la mere",
+      "fields": {
+        "nombre": {
+          "type": "string",
+          "required": false,
+          "description": "Nombre de la madre",
+          "field_label": "MADRE: Nombre",
+          "pii": true
+        },
+        "primer_apellido": {
+          "type": "string",
+          "required": false,
+          "description": "Primer apellido de la madre",
+          "field_label": "Primer Apellido",
+          "pii": true
+        },
+        "segundo_apellido": {
+          "type": "string",
+          "required": false,
+          "description": "Segundo apellido de la madre",
+          "field_label": "Segundo Apellido"
+        },
+        "hijo_de": {
+          "type": "string",
+          "required": false,
+          "description": "Filiation paternelle (abuelo materno)",
+          "field_label": "Hijo de"
+        },
+        "y_de": {
+          "type": "string",
+          "required": false,
+          "description": "Filiation maternelle (abuela materna)",
+          "field_label": "y de"
+        },
+        "fecha_nacimiento": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Fecha de nacimiento de la madre",
+          "field_label": "Fecha de Nacimiento",
+          "pii": true
+        },
+        "lugar_nacimiento": {
+          "type": "string",
+          "required": false,
+          "description": "Lugar de nacimiento de la madre",
+          "field_label": "Lugar de Nacimiento"
+        },
+        "estado_civil": {
+          "type": "string",
+          "required": false,
+          "description": "Estado civil de la madre",
+          "field_label": "Estado civil"
+        },
+        "nacionalidad": {
+          "type": "string",
+          "required": false,
+          "description": "Nacionalidad de la madre",
+          "field_label": "Nacionalidad"
+        },
+        "domicilio": {
+          "type": "string",
+          "required": false,
+          "description": "Domicilio de la madre",
+          "field_label": "Domicilio",
+          "pii": true
+        },
+        "profesion": {
+          "type": "string",
+          "required": false,
+          "description": "Profesion de la madre",
+          "field_label": "Profesión"
+        }
+      }
+    },
+
+    "matrimonio_padres": {
+      "description": "Donnees du mariage des parents",
+      "fields": {
+        "dia_celebracion": {
+          "type": "integer",
+          "required": false,
+          "description": "Dia de celebracion del matrimonio",
+          "field_label": "Día de celebración"
+        },
+        "mes_celebracion": {
+          "type": "string",
+          "required": false,
+          "description": "Mes de celebracion",
+          "field_label": "Mes"
+        },
+        "ano_celebracion": {
+          "type": "integer",
+          "required": false,
+          "description": "Año de celebracion",
+          "field_label": "Año"
+        },
+        "lugar_celebracion": {
+          "type": "string",
+          "required": false,
+          "description": "Lugar de celebracion del matrimonio",
+          "field_label": "Lugar"
+        },
+        "tomo": {
+          "type": "string",
+          "required": false,
+          "description": "Tomo del registro de matrimonio",
+          "field_label": "Tomo"
+        },
+        "pagina": {
+          "type": "string",
+          "required": false,
+          "description": "Pagina del registro",
+          "field_label": "Página"
+        },
+        "folio": {
+          "type": "string",
+          "required": false,
+          "description": "Folio del registro",
+          "field_label": "Folio"
+        }
+      }
+    },
+
+    "declarantes": {
+      "description": "Donnees des declarants",
+      "fields": {
+        "calidad": {
+          "type": "string",
+          "required": false,
+          "description": "Calidad en la que declaran (padre, madre, testigo, etc.)",
+          "field_label": "Calidad en la que declaran"
+        },
+        "domicilio": {
+          "type": "string",
+          "required": false,
+          "description": "Domicilio del declarante",
+          "field_label": "Domicilio",
+          "pii": true
+        },
+        "comprobacion": {
+          "type": "string",
+          "required": false,
+          "description": "Documento de comprobacion",
+          "field_label": "Comprobación"
+        },
+        "telefono": {
+          "type": "string",
+          "required": false,
+          "description": "Numero de telefono",
+          "field_label": "Nº teléfono",
+          "pii": true
+        },
+        "observacion": {
+          "type": "string",
+          "required": false,
+          "description": "Observaciones adicionales",
+          "field_label": "Observación"
+        }
+      }
+    },
+
+    "firmas": {
+      "description": "Signatures presentes sur le formulaire",
+      "fields": {
+        "firma_padre": {
+          "type": "boolean",
+          "required": false,
+          "description": "Signature du pere presente",
+          "field_label": "Firma del Padre"
+        },
+        "firma_madre": {
+          "type": "boolean",
+          "required": false,
+          "description": "Signature de la mere presente",
+          "field_label": "Firma de la Madre"
+        },
+        "firma_declarante": {
+          "type": "boolean",
+          "required": false,
+          "description": "Signature du declarant presente",
+          "field_label": "Firma del Declarante"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "inscrito_nombre_required",
+      "rule": "inscrito.nombre IS NOT NULL",
+      "error_es": "El nombre del inscrito es obligatorio",
+      "error_fr": "Le nom de l'inscrit est obligatoire",
+      "severity": "error"
+    },
+    {
+      "id": "padre_o_madre_required",
+      "rule": "padre.nombre IS NOT NULL OR madre.nombre IS NOT NULL",
+      "error_es": "Se requiere al menos el nombre del padre o la madre",
+      "error_fr": "Au moins le nom du pere ou de la mere est requis",
+      "severity": "warning"
+    },
+    {
+      "id": "firma_required",
+      "rule": "firma_padre == true OR firma_madre == true OR firma_declarante == true",
+      "error_es": "Se requiere al menos una firma",
+      "error_fr": "Au moins une signature est requise",
+      "severity": "warning"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Declaracion de Nacimiento - formulaire pour declarer une naissance aupres du Registro Civil, Consular ou Litoral de Guinea Ecuatorial",
+    "language": "es",
+    "document_variants": [
+      {
+        "name": "Registro Consular",
+        "header": "Embajada de la República de Guinea Ecuatorial en [PAYS]",
+        "title": "DECLARACIÓN DE NACIMIENTO AL REGISTRO CONSULAR",
+        "use_case": "Naissance a l'etranger"
+      },
+      {
+        "name": "Registro Civil",
+        "header": "Ministerio de Justicia / Registro Civil de [CIUDAD]",
+        "title": "DECLARACIÓN DE NACIMIENTO AL REGISTRO CIVIL",
+        "use_case": "Naissance sur le territoire national"
+      },
+      {
+        "name": "Registro Litoral",
+        "header": "Registro Civil de la Region Litoral",
+        "title": "DECLARACIÓN DE NACIMIENTO",
+        "use_case": "Naissance dans la region Litoral"
+      }
+    ],
+    "visual_zones": [
+      "En-tete: Logo + Embajada/Ministerio de Justicia",
+      "Titre: DECLARACIÓN DE NACIMIENTO AL REGISTRO [CONSULAR/CIVIL]",
+      "Section DATOS DEL INSCRITO: Nombre, Sexo, Hora, Año, Lugar",
+      "Section PADRE: Nombre, Apellidos, Hijo de, Fecha/Lugar Nac, Estado Civil, Nacionalidad, Domicilio, Profesion",
+      "Section MADRE: Meme structure que PADRE",
+      "Section MATRIMONIO DE LOS PADRES: Dia, Mes, Año, Lugar, Tomo, Pagina, Folio",
+      "Section DECLARANTES: Calidad, Domicilio, Comprobacion, Telefono, Observacion",
+      "Zone signatures: Firma del Padre | Firma del Declarante | Firma de la Madre"
+    ],
+    "form_nature": "Formulaire a remplir (champs vides ou remplis a la main/machine)"
+  },
+
+  "tesseract_patterns": {
+    "nombre_inscrito": [
+      "(?:DATOS\\s*DEL\\s*INSCRITO|INSCRITO)\\s*[:#]?\\s*(?:Nombre\\s*[:#]?)?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\\s+[A-Za-záéíóúñ]+)*)"
+    ],
+    "sexo": [
+      "(?:Sexo)\\s*[:#]?\\s*(VAR[OÓ]N|MASCULINO|HEMBRA|FEMENINO|[MF])"
+    ],
+    "hora_nacimiento": [
+      "(?:Hora\\s*de\\s*Nacimiento)\\s*[:#]?\\s*(\\d{1,2}[:.h]\\d{2})"
+    ],
+    "ano_nacimiento": [
+      "(?:Año)\\s*[:#]?\\s*(\\d{4})"
+    ],
+    "lugar_nacimiento": [
+      "(?:Lugar)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ,\\s]+)"
+    ],
+    "padre_nombre": [
+      "(?:PADRE)\\s*[:#]?\\s*(?:Nombre\\s*[:#]?)?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "padre_primer_apellido": [
+      "(?:Primer\\s*Apellido)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "padre_segundo_apellido": [
+      "(?:Segundo\\s*Apellido)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "madre_nombre": [
+      "(?:MADRE)\\s*[:#]?\\s*(?:Nombre\\s*[:#]?)?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "nacionalidad": [
+      "(?:Nacionalidad)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "estado_civil": [
+      "(?:Estado\\s*civil)\\s*[:#]?\\s*(SOLTERO|SOLTERA|CASADO|CASADA|VIUDO|VIUDA|DIVORCIADO|DIVORCIADA)"
+    ],
+    "profesion": [
+      "(?:Profesi[oó]n)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ\\s]+)"
+    ],
+    "domicilio": [
+      "(?:Domicilio)\\s*[:#]?\\s*(.+?)(?=\\n|Profesi|$)"
+    ],
+    "matrimonio_fecha": [
+      "(?:D[ií]a\\s*de\\s*celebraci[oó]n)\\s*(\\d{1,2})\\s*(?:Mes)\\s*([A-Za-záéíóúñ]+)\\s*(?:Año)\\s*(\\d{4})"
+    ],
+    "tomo": [
+      "(?:Tomo)\\s*[:#]?\\s*([A-Z0-9]+)"
+    ],
+    "pagina": [
+      "(?:P[aá]gina)\\s*[:#]?\\s*([0-9]+)"
+    ],
+    "folio": [
+      "(?:Folio)\\s*[:#]?\\s*([0-9]+)"
+    ]
+  }
+}

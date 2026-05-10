@@ -1,0 +1,269 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "NOMBRAMIENTO_GQ_V1",
+  "version": "1.0",
+  "title": "Nombramiento de Funcionario - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour l'acte de nomination d'un fonctionnaire de Guinée Équatoriale",
+  "document_type": "NOMBRAMIENTO",
+  "country": "GQ",
+
+  "extraction": {
+    "funcionario": {
+      "description": "Informations du fonctionnaire nommé",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": true,
+          "description": "Nom complet du fonctionnaire (tel qu'il apparaît sur le document)",
+          "field_label": "Nombre completo",
+          "pii": true
+        },
+        "apellidos": {
+          "type": "string",
+          "required": false,
+          "description": "Apellidos del funcionario (si séparé du prénom)",
+          "field_label": "Apellidos",
+          "pii": true
+        },
+        "nombres": {
+          "type": "string",
+          "required": false,
+          "description": "Nombres del funcionario (si séparé du nom)",
+          "field_label": "Nombres",
+          "pii": true
+        },
+        "matricula": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[A-Z]{0,3}[\\-]?[0-9]{4,10}$",
+          "description": "Matricula del funcionario - CRITIQUE pour la vérification",
+          "field_label": "Matrícula",
+          "pii": true,
+          "encrypt": true
+        },
+        "numero_dip": {
+          "type": "string",
+          "required": false,
+          "pattern": "^[0-9]{9}$",
+          "description": "Numéro DIP du fonctionnaire (si présent)",
+          "field_label": "N° DIP",
+          "pii": true
+        },
+        "categoria": {
+          "type": "string",
+          "required": false,
+          "enum": ["A1", "A2", "B1", "B2", "C1", "C2", "D"],
+          "description": "Categoría administrativa del funcionario",
+          "field_label": "Categoría"
+        },
+        "escala": {
+          "type": "string",
+          "required": false,
+          "description": "Escala del funcionario (Técnico Superior, Auxiliar, etc.)",
+          "field_label": "Escala"
+        },
+        "grupo": {
+          "type": "string",
+          "required": false,
+          "description": "Grupo del funcionario",
+          "field_label": "Grupo"
+        }
+      }
+    },
+    "nombramiento": {
+      "description": "Informations de la nomination",
+      "fields": {
+        "numero_resolucion": {
+          "type": "string",
+          "required": false,
+          "description": "Numéro de la résolution ou décret de nomination",
+          "field_label": "N° Resolución"
+        },
+        "fecha_nombramiento": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date de la nomination",
+          "field_label": "Fecha de nombramiento",
+          "date_format": "DD/MM/YYYY"
+        },
+        "fecha_efectos": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Date d'effet de la nomination (si différente)",
+          "field_label": "Fecha de efectos",
+          "date_format": "DD/MM/YYYY"
+        },
+        "tipo_nombramiento": {
+          "type": "string",
+          "required": false,
+          "enum": ["INTERINO", "TITULAR", "TEMPORAL", "COMISION_SERVICIO"],
+          "description": "Type de nomination",
+          "field_label": "Tipo de nombramiento"
+        },
+        "cargo": {
+          "type": "string",
+          "required": true,
+          "description": "Cargo o puesto para el que se nombra",
+          "field_label": "Cargo"
+        },
+        "nivel": {
+          "type": "string",
+          "required": false,
+          "description": "Nivel del cargo",
+          "field_label": "Nivel"
+        }
+      }
+    },
+    "destino": {
+      "description": "Lieu d'affectation",
+      "fields": {
+        "ministerio": {
+          "type": "string",
+          "required": true,
+          "description": "Ministerio de destino",
+          "field_label": "Ministerio"
+        },
+        "direccion_general": {
+          "type": "string",
+          "required": false,
+          "description": "Dirección General o Secretaría",
+          "field_label": "Dirección General"
+        },
+        "departamento": {
+          "type": "string",
+          "required": false,
+          "description": "Departamento o Servicio",
+          "field_label": "Departamento"
+        },
+        "localidad": {
+          "type": "string",
+          "required": false,
+          "description": "Localidad de destino (Malabo, Bata, etc.)",
+          "field_label": "Localidad"
+        }
+      }
+    },
+    "autoridad": {
+      "description": "Autoridad firmante",
+      "fields": {
+        "firmante": {
+          "type": "string",
+          "required": false,
+          "description": "Nombre de la autoridad que firma",
+          "field_label": "Firmante"
+        },
+        "cargo_firmante": {
+          "type": "string",
+          "required": false,
+          "description": "Cargo de la autoridad firmante",
+          "field_label": "Cargo del firmante"
+        },
+        "tiene_firma": {
+          "type": "boolean",
+          "required": true,
+          "description": "El documento tiene firma oficial",
+          "field_label": "Firma presente"
+        },
+        "tiene_sello": {
+          "type": "boolean",
+          "required": true,
+          "description": "El documento tiene sello oficial",
+          "field_label": "Sello presente"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "matricula_present",
+      "rule": "funcionario.matricula != null AND funcionario.matricula != ''",
+      "error_es": "Falta la matrícula del funcionario",
+      "error_fr": "Le matricule du fonctionnaire est manquant",
+      "severity": "error"
+    },
+    {
+      "id": "nombre_present",
+      "rule": "funcionario.nombre_completo != null OR (funcionario.apellidos != null AND funcionario.nombres != null)",
+      "error_es": "Falta el nombre del funcionario",
+      "error_fr": "Le nom du fonctionnaire est manquant",
+      "severity": "error"
+    },
+    {
+      "id": "firma_sello_present",
+      "rule": "autoridad.tiene_firma == true AND autoridad.tiene_sello == true",
+      "error_es": "El documento debe tener firma y sello oficial",
+      "error_fr": "Le document doit avoir une signature et un cachet officiels",
+      "severity": "warning"
+    },
+    {
+      "id": "fecha_nombramiento_not_future",
+      "rule": "nombramiento.fecha_nombramiento <= TODAY",
+      "error_es": "La fecha de nombramiento no puede ser futura",
+      "error_fr": "La date de nomination ne peut pas être future",
+      "severity": "error"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Acte de nomination (Nombramiento) d'un fonctionnaire de Guinée Équatoriale. Document officiel émis par un ministère pour nommer un agent à un poste.",
+    "language": "es",
+    "date_format": "DD/MM/YYYY ou DD-MM-YYYY",
+    "visual_zones": [
+      "En-tête: Logo ministère, REPUBLICA DE GUINEA ECUATORIAL, nom du ministère",
+      "Titre: NOMBRAMIENTO, RESOLUCION, ou DECRETO",
+      "Corps: Nom complet du fonctionnaire, matrícula, cargo, categoría",
+      "Destino: Ministerio, Dirección General, Departamento",
+      "Pied: Date, lieu, signature, sello oficial"
+    ],
+    "extraction_priority": [
+      "1. CRITIQUE: matricula - numéro unique d'identification du fonctionnaire",
+      "2. CRITIQUE: nombre_completo - nom complet du fonctionnaire",
+      "3. IMPORTANT: cargo - poste de nomination",
+      "4. IMPORTANT: ministerio - ministère de destination",
+      "5. IMPORTANT: fecha_nombramiento - date de la nomination",
+      "6. UTILE: categoria, escala, nivel - classification administrative"
+    ],
+    "matricula_patterns": [
+      "Matrícula: FP-XXXXX",
+      "Mat. Nº: XXXXX",
+      "Número de Matrícula: XXXXX",
+      "N° Matricula: XXXXX"
+    ],
+    "common_ministries": [
+      "Ministerio de Hacienda y Presupuestos",
+      "Ministerio de la Función Pública",
+      "Ministerio de Educación y Ciencia",
+      "Ministerio de Sanidad y Bienestar Social",
+      "Ministerio de Asuntos Exteriores",
+      "Ministerio del Interior",
+      "Ministerio de Justicia",
+      "Ministerio de Obras Públicas"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "matricula": [
+      "(?:MATR[IÍ]CULA|MAT\\.?\\s*N[°º]?)\\s*[:#]?\\s*([A-Z]{0,3}[\\-]?[0-9]{4,10})",
+      "(?:N[°º]?\\s*)?(?:MATR[IÍ]CULA)\\s*[:#]?\\s*([A-Z0-9\\-]+)"
+    ],
+    "nombre_completo": [
+      "(?:NOMBRAR?|SE\\s*NOMBRA)\\s+(?:A|AL)?\\s+(?:D\\.|DON|DÑA\\.?)\\s*([A-ZÁÉÍÓÚÑ\\s]+)",
+      "(?:FUNCIONARIO|EMPLEADO)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ\\s]+)"
+    ],
+    "cargo": [
+      "(?:CARGO|PUESTO|COMO)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ\\s]+)",
+      "(?:EN\\s*CALIDAD\\s*DE)\\s*([A-ZÁÉÍÓÚÑ\\s]+)"
+    ],
+    "fecha_nombramiento": [
+      "(?:FECHA|DADO\\s*EN)\\s*[:#]?\\s*(\\d{1,2}[/\\-\\.]\\d{1,2}[/\\-\\.]\\d{2,4})",
+      "(?:MALABO|BATA)\\s*,?\\s*(?:A)?\\s*(\\d{1,2}[/\\-\\.]\\d{1,2}[/\\-\\.]\\d{2,4})"
+    ],
+    "ministerio": [
+      "(?:MINISTERIO\\s*DE)\\s*([A-ZÁÉÍÓÚÑ\\s]+)",
+      "(?:MINIST\\.?\\s*DE)\\s*([A-ZÁÉÍÓÚÑ\\s]+)"
+    ]
+  }
+}

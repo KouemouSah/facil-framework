@@ -1,0 +1,114 @@
+{
+  "name": "form_retencion_servicios",
+  "category": "non_resident_services_retention",
+  "description": "Retención sobre servicios a no residentes (Articles 3, 5, 10) - Petrolero y Sec. Común",
+  "version": "1.0",
+  "applies_to": ["3_RESIDENTES_PETROLERO", "5_RESIDENTES_PETROLERO", "10_NO-RESIDENTES_PETROLERO", "10_NO-RESIDENTES_SEC.COMUN_"],
+  "fields": [
+    {
+      "id": "nif",
+      "label": ["N.I.F.", "NIF"],
+      "type": "text",
+      "pattern": "\\d{8}[A-Z]",
+      "required": true
+    },
+    {
+      "id": "representacion_empresa",
+      "label": ["En nombre y representación de la empresa", "empresa"],
+      "type": "text",
+      "required": true
+    },
+    {
+      "id": "ejercicio",
+      "label": ["Ejercicio"],
+      "type": "year",
+      "pattern": "20\\d{2}",
+      "required": true
+    },
+    {
+      "id": "periodo",
+      "label": ["Periodo", "Período"],
+      "type": "text",
+      "required": true
+    },
+    {
+      "id": "fecha",
+      "label": ["Fecha"],
+      "type": "date",
+      "required": true
+    },
+    {
+      "id": "auto_liquidacion_num",
+      "label": ["Auto-liquidación Nº", "Autoliquidación"],
+      "type": "text",
+      "required": true
+    },
+    {
+      "id": "municipio",
+      "label": ["Municipio"],
+      "type": "text",
+      "required": true
+    },
+    {
+      "id": "direccion_fiscal",
+      "label": ["Dirección Fiscal"],
+      "type": "text",
+      "required": true
+    },
+    {
+      "id": "provincia",
+      "label": ["Provincia"],
+      "type": "text",
+      "required": true
+    },
+    {
+      "id": "cantidad_ingresada",
+      "label": ["Ha ingresado al Tesoro Público, la cantidad de", "cantidad ingresada"],
+      "type": "currency",
+      "required": true
+    },
+    {
+      "id": "servicios_sujetos_base",
+      "label": ["01 Base Imponible", "Servicios Sujetos Base", "Base Imponible (Servicios Sujetos)"],
+      "type": "currency",
+      "required": true
+    },
+    {
+      "id": "servicios_sujetos_tipo",
+      "label": ["Tipo (%)", "Tipo (%) Servicios Sujetos"],
+      "type": "percentage",
+      "required": true
+    },
+    {
+      "id": "servicios_sujetos_cuota",
+      "label": ["Cuota", "Cuota Servicios Sujetos"],
+      "type": "currency",
+      "required": true
+    },
+    {
+      "id": "total_a_ingresar",
+      "label": ["06 Total a ingresar", "Total a ingresar"],
+      "type": "currency",
+      "required": true
+    }
+  ],
+  "validations": [
+    {
+      "type": "calculation",
+      "formula": "servicios_sujetos_cuota = servicios_sujetos_base * (servicios_sujetos_tipo / 100)",
+      "tolerance": 0.01
+    },
+    {
+      "type": "format",
+      "field": "nif",
+      "pattern": "^\\d{8}[A-Z]$",
+      "error_message": "Formato NIF inválido"
+    },
+    {
+      "type": "range",
+      "field": "ejercicio",
+      "min": 2000,
+      "max": 2030
+    }
+  ]
+}

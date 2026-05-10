@@ -1,0 +1,588 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "CUVE_GQ_V1",
+  "version": "1.0",
+  "title": "CUVE - Cartilla Unica de Vehiculos",
+  "description": "Schema d'extraction pour la CUVE (Cartilla Unica de Vehiculos) de Guinee Equatoriale",
+  "document_type": "CUVE",
+  "country": "GQ",
+  "faces": ["recto", "verso"],
+
+  "extraction": {
+    "documento": {
+      "description": "Informations administratives du document",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "CUVE",
+          "required": true,
+          "description": "Type de document"
+        },
+        "organismo": {
+          "type": "string",
+          "required": false,
+          "default": "OFIVE GE",
+          "description": "Organisme emetteur"
+        },
+        "numero_referencia": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[A-Z]{3}[0-9]{8}$",
+          "description": "Numero de reference (ex: RIL24007009)",
+          "field_label": "REFERENCIA",
+          "source": "recto",
+          "pii": true
+        },
+        "codigo_solicitud": {
+          "type": "string",
+          "required": false,
+          "description": "Code de solicitude (ex: KHX-438375)",
+          "field_label": "CÓDIGO SOLICITUD"
+        },
+        "tipo_solicitud": {
+          "type": "string",
+          "enum": ["PRIMERA EXPEDICION (CUVE)", "RENOVACION", "DUPLICADO", "CAMBIO DE TITULAR"],
+          "required": false,
+          "description": "Type de demande",
+          "field_label": "TIPO SOLICITUD"
+        },
+        "fecha_impresion": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Date d'impression du document",
+          "field_label": "Fecha de Impresión",
+          "date_format": "DD/MM/YYYY"
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification et validation du document",
+      "fields": {
+        "tiene_qr_code": {
+          "type": "boolean",
+          "required": true,
+          "description": "Presence du QR Code de verification (bas gauche)",
+          "field_label": "QR Code"
+        },
+        "qr_code_lisible": {
+          "type": "boolean",
+          "required": false,
+          "description": "Le QR Code est lisible/scannable"
+        },
+        "tiene_sello_ofive": {
+          "type": "boolean",
+          "required": true,
+          "description": "Presence du sceau officiel OFIVE|GE (rond, bleu)",
+          "field_label": "Sello OFIVE"
+        },
+        "texto_sello": {
+          "type": "string",
+          "required": false,
+          "description": "Texte du sceau (ex: COORDINADOR GENERAL BÁNEY)"
+        },
+        "tiene_firma": {
+          "type": "boolean",
+          "required": true,
+          "description": "Presence de la signature du Coordinador"
+        },
+        "cargo_firmante": {
+          "type": "string",
+          "required": false,
+          "default": "COORDINADOR GENERAL",
+          "description": "Titre/cargo du signataire"
+        },
+        "nombre_firmante": {
+          "type": "string",
+          "required": false,
+          "description": "Nom du signataire si lisible (ex: BÁNEY)",
+          "pii": true
+        },
+        "tiene_logo_itve": {
+          "type": "boolean",
+          "required": false,
+          "description": "Presence du logo ITVE (Inspection Technique)"
+        },
+        "tiene_texto_validacion": {
+          "type": "boolean",
+          "required": false,
+          "description": "Presence du texte 'VALIDADO Y COMPROBADO POR TODOS LOS DEPARTAMENTOS'"
+        }
+      }
+    },
+
+    "propietario": {
+      "description": "Donnees du proprietaire",
+      "fields": {
+        "nie_dni_pasaporte": {
+          "type": "string",
+          "required": true,
+          "description": "DIP/NIE/T.R./Pasaporte du proprietaire",
+          "field_label": "DIP/NIE/T.R./PASAPORTE",
+          "source": "verso",
+          "pii": true
+        },
+        "nombre_completo": {
+          "type": "string",
+          "required": true,
+          "description": "Nom complet ou raison sociale",
+          "field_label": "NOMBRE Y APELLIDOS O RAZÓN SOCIAL",
+          "source": "verso",
+          "pii": true
+        },
+        "domicilio": {
+          "type": "string",
+          "required": false,
+          "description": "Adresse du proprietaire",
+          "field_label": "DOMICILIO",
+          "source": "verso",
+          "pii": true
+        }
+      }
+    },
+
+    "vehiculo": {
+      "description": "Donnees du vehicule",
+      "fields": {
+        "matricula": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[A-Z]{2}-[0-9]{3}-[A-Z0-9]{1,2}$",
+          "description": "Numero d'immatriculation",
+          "field_label": "MATRÍCULA",
+          "source": "recto",
+          "pii": true
+        },
+        "tipo_servicio": {
+          "type": "string",
+          "enum": ["PRIVADO", "PUBLICO", "OFICIAL"],
+          "required": false,
+          "description": "Type de service",
+          "field_label": "SERVICIO"
+        },
+        "numero_bastidor": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[A-HJ-NPR-Z0-9]{17}$",
+          "description": "Numero de chassis/VIN",
+          "field_label": "NÚMERO DE BASTIDOR",
+          "source": "verso",
+          "pii": true
+        },
+        "color": {
+          "type": "string",
+          "required": false,
+          "description": "Couleur du vehicule",
+          "field_label": "COLOR"
+        }
+      }
+    },
+
+    "caracteristicas_tecnicas": {
+      "description": "Caracteristiques techniques",
+      "fields": {
+        "marca": {
+          "type": "string",
+          "required": false,
+          "description": "Marque (ex: HYUNDAI)",
+          "field_label": "MARCA",
+          "source": "verso"
+        },
+        "variante": {
+          "type": "string",
+          "required": false,
+          "description": "Variante (ex: DOHC, APPD)",
+          "field_label": "VARIANTE"
+        },
+        "denominacion_comercial": {
+          "type": "string",
+          "required": false,
+          "description": "Nom commercial (ex: SONATA)",
+          "field_label": "DENOMINACIÓN COMERCIAL",
+          "source": "verso"
+        },
+        "procedencia": {
+          "type": "string",
+          "required": false,
+          "description": "Origine (ex: EUROPA, ASIA)",
+          "field_label": "PROCEDENCIA"
+        },
+        "tara_kg": {
+          "type": "number",
+          "required": false,
+          "description": "Poids a vide en Kg",
+          "field_label": "TARA (KG)"
+        },
+        "pma_kg": {
+          "type": "number",
+          "required": false,
+          "description": "Poids Maximum Autorise en Kg",
+          "field_label": "P.M.A. (KG)"
+        },
+        "pmr_kg": {
+          "type": "number",
+          "required": false,
+          "description": "Poids Maximum Remorquable en Kg",
+          "field_label": "P.M.R. (KG)"
+        },
+        "numero_asientos": {
+          "type": "integer",
+          "required": false,
+          "description": "Nombre de sieges",
+          "field_label": "Nº ASIENTOS"
+        },
+        "categoria": {
+          "type": "string",
+          "required": false,
+          "description": "Categorie du vehicule (ex: 2A)",
+          "field_label": "CATEGORÍA"
+        },
+        "longitud_mm": {
+          "type": "number",
+          "required": false,
+          "description": "Longueur en mm",
+          "field_label": "LONGITUD (MM)"
+        },
+        "anchura_mm": {
+          "type": "number",
+          "required": false,
+          "description": "Largeur en mm",
+          "field_label": "ANCHURA (MM)"
+        },
+        "altura_mm": {
+          "type": "number",
+          "required": false,
+          "description": "Hauteur en mm",
+          "field_label": "ALTURA (MM)"
+        },
+        "forma_carruaje": {
+          "type": "string",
+          "required": false,
+          "description": "Forme de carrosserie (ex: TURISMO DE TODO TIPO)",
+          "field_label": "FORMA CARRUAJE"
+        },
+        "dimension_neumaticos": {
+          "type": "string",
+          "required": false,
+          "description": "Dimension des pneus (ex: 205/60R16)",
+          "field_label": "DIMENSIÓN NEUMÁTICOS"
+        }
+      }
+    },
+
+    "motor": {
+      "description": "Donnees du moteur",
+      "fields": {
+        "marca_motor": {
+          "type": "string",
+          "required": false,
+          "description": "Marque du moteur",
+          "field_label": "MARCA MOTOR"
+        },
+        "modelo_motor": {
+          "type": "string",
+          "required": false,
+          "description": "Modele du moteur",
+          "field_label": "MODELO MOTOR"
+        },
+        "tipo_combustible": {
+          "type": "string",
+          "enum": ["GASOLINA", "DIESEL", "ELECTRICO", "HIBRIDO", "GAS"],
+          "required": false,
+          "description": "Type de carburant",
+          "field_label": "COMBUSTIBLE"
+        },
+        "numero_cilindros": {
+          "type": "string",
+          "required": false,
+          "description": "Nombre de cylindres (ex: 4 EN 1)",
+          "field_label": "Nº CILINDROS"
+        },
+        "potencia_fiscal": {
+          "type": "number",
+          "required": false,
+          "description": "Puissance fiscale (CV)",
+          "field_label": "POTENCIA FISCAL (CVF)"
+        }
+      }
+    },
+
+    "validez": {
+      "description": "Donnees de validite",
+      "fields": {
+        "fecha_inspeccion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date de la derniere inspection",
+          "field_label": "FECHA INSPECCIÓN",
+          "source": "recto",
+          "date_format": "DD/MM/YYYY"
+        },
+        "fecha_validez": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date de validite (expiration)",
+          "field_label": "FECHA DE VALIDEZ",
+          "source": "recto",
+          "date_format": "DD/MM/YYYY",
+          "validation": {
+            "rule": "must_be_future",
+            "error": "CUVE expiree"
+          }
+        }
+      }
+    },
+
+    "documentos_expedidos": {
+      "description": "Liste des documents expedies (checklist)",
+      "fields": {
+        "inspeccion_tecnica": {
+          "type": "boolean",
+          "required": false,
+          "description": "Inspection technique effectuee"
+        },
+        "tarjeta_itv": {
+          "type": "boolean",
+          "required": false,
+          "description": "Tarjeta ITV delivree"
+        },
+        "ministerio_hacienda": {
+          "type": "boolean",
+          "required": false,
+          "description": "Taxes Ministere des Finances payees"
+        },
+        "cedula_identificacion": {
+          "type": "boolean",
+          "required": false,
+          "description": "Cedula d'identification delivree"
+        },
+        "tasa_rodaje_municipal": {
+          "type": "boolean",
+          "required": false,
+          "description": "Taxe de roulage municipal payee"
+        },
+        "tarjeta_autorizacion_transporte": {
+          "type": "boolean",
+          "required": false,
+          "description": "Tarjeta d'autorisation de transport"
+        },
+        "tasa_carreteras": {
+          "type": "boolean",
+          "required": false,
+          "description": "Taxe routes payee"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "cuve_not_expired",
+      "rule": "fecha_validez > TODAY",
+      "error_es": "La CUVE ha caducado. Debe renovar la documentacion del vehiculo.",
+      "error_fr": "La CUVE a expire. Vous devez renouveler la documentation du vehicule.",
+      "severity": "error"
+    },
+    {
+      "id": "cuve_expiring_soon",
+      "rule": "fecha_validez > TODAY + 30 DAYS",
+      "error_es": "La CUVE expira en menos de 30 dias",
+      "error_fr": "La CUVE expire dans moins de 30 jours",
+      "severity": "warning"
+    },
+    {
+      "id": "matricula_format_valid",
+      "rule": "matricula MATCHES '^[A-Z]{2}-[0-9]{3}-[A-Z0-9]{1,2}$'",
+      "error_es": "Formato de matricula invalido",
+      "error_fr": "Format d'immatriculation invalide",
+      "severity": "error"
+    },
+    {
+      "id": "bastidor_format_valid",
+      "rule": "numero_bastidor MATCHES '^[A-HJ-NPR-Z0-9]{17}$'",
+      "error_es": "Numero de bastidor debe tener 17 caracteres",
+      "error_fr": "Le numero de chassis doit avoir 17 caracteres",
+      "severity": "error"
+    },
+    {
+      "id": "qr_code_presente",
+      "rule": "tiene_qr_code == true",
+      "error_es": "La CUVE debe tener el codigo QR de verificacion",
+      "error_fr": "La CUVE doit avoir le code QR de verification",
+      "severity": "warning"
+    },
+    {
+      "id": "sello_ofive_required",
+      "rule": "tiene_sello_ofive == true",
+      "error_es": "La CUVE debe tener el sello oficial OFIVE|GE",
+      "error_fr": "La CUVE doit avoir le sceau officiel OFIVE|GE",
+      "severity": "error"
+    },
+    {
+      "id": "firma_required",
+      "rule": "tiene_firma == true",
+      "error_es": "La CUVE debe estar firmada por el Coordinador General",
+      "error_fr": "La CUVE doit etre signee par le Coordinateur General",
+      "severity": "error"
+    },
+    {
+      "id": "qr_code_lisible_si_presente",
+      "rule": "tiene_qr_code == true IMPLIES qr_code_lisible == true",
+      "error_es": "El codigo QR no es legible, esto puede afectar la verificacion",
+      "error_fr": "Le code QR n'est pas lisible, cela peut affecter la verification",
+      "severity": "warning"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "CUVE - Cartilla Unica de Vehiculos de Guinea Ecuatorial, documento oficial que unifica toda la documentacion del vehiculo",
+    "language": "es",
+    "date_format": "DD/MM/YYYY",
+    "visual_zones": {
+      "recto": [
+        "En-tete: Logo OFIVE GE + hologrammes de securite",
+        "Titre: CARTILLA UNICA DE VEHICULOS (CUVE)",
+        "Zone superieure gauche: Matricula (grand format)",
+        "Zone superieure droite: Fecha de validez, Fecha inspeccion",
+        "Zone centrale: Numero de referencia, Codigo solicitud",
+        "Zone inferieure: QR Code, Sello oficial bleu OFIVE GE",
+        "Couleur: Fond jaune/dore caracteristique"
+      ],
+      "verso": [
+        "Section PROPIETARIO: DIP/NIE/T.R./Pasaporte, Nombre, Domicilio",
+        "Section VEHICULO: Matricula, Servicio, Numero Bastidor, Color",
+        "Tableau CARACTERISTICAS TECNICAS: Marca, Variante, Denominacion, Procedencia",
+        "Tableau dimensions: Tara, PMA, PMR, Asientos, Categoria",
+        "Section MOTOR: Marca, Modelo, Combustible, Cilindros, Potencia",
+        "Checklist DOCUMENTOS EXPEDIDOS: Cases a cocher",
+        "Zone inferieure: Observaciones, Historial Reformas"
+      ]
+    },
+    "ocr_challenges": [
+      "Fond jaune qui peut affecter l'OCR",
+      "Hologrammes qui masquent parfois du texte",
+      "QR Code qui peut etre confondu avec du texte",
+      "Document souvent plie",
+      "Nombreux champs techniques avec abbreviations"
+    ],
+    "common_values": {
+      "procedencia": ["EUROPA", "ASIA", "AMERICA", "AFRICA"],
+      "forma_carruaje": ["TURISMO DE TODO TIPO", "CAMION LIGERO", "FURGON", "TODO TERRENO"],
+      "combustible": ["GASOLINA", "DIESEL", "HIBRIDO", "ELECTRICO"]
+    },
+    "elements_authentification": {
+      "qr_code": {
+        "position": "Coin inferieur gauche du recto",
+        "description": "Code QR noir sur fond blanc, permet la verification electronique de l'authenticite",
+        "taille_approximative": "2x2 cm environ",
+        "obligatoire": true
+      },
+      "sello_ofive": {
+        "position": "Zone inferieure droite du recto, pres de la signature",
+        "description": "Sceau rond bleu avec texte 'OFIVE|GE' et nom du coordinateur (ex: BÁNEY)",
+        "couleur": "Bleu encre",
+        "forme": "Rond",
+        "contenu": "OFIVE|GE, COORDINADOR GENERAL, [NOM]",
+        "obligatoire": true
+      },
+      "firma": {
+        "position": "Zone inferieure droite du recto, au-dessus ou a cote du sceau",
+        "description": "Signature manuscrite du Coordinateur General OFIVE",
+        "obligatoire": true
+      },
+      "logo_itve": {
+        "position": "Zone superieure ou inferieure du document",
+        "description": "Logo ITVE (Inspection Technique des Vehicules) si applicable",
+        "obligatoire": false
+      },
+      "texto_validacion": {
+        "position": "Zone inferieure du recto",
+        "description": "Texte 'VALIDADO Y COMPROBADO POR TODOS LOS DEPARTAMENTOS'",
+        "obligatoire": false
+      },
+      "hologrammes": {
+        "position": "Disperses sur le recto, notamment en-tete",
+        "description": "Hologrammes de securite argentes/dores",
+        "obligatoire": false
+      }
+    }
+  },
+
+  "tesseract_patterns": {
+    "matricula": [
+      "(?:MATR[IÍ]CULA)\\s*[:#]?\\s*([A-Z]{2}[-\\s]?[0-9]{3}[-\\s]?[A-Z0-9]{1,2})",
+      "^([A-Z]{2}-[0-9]{3}-[A-Z0-9]{1,2})$"
+    ],
+    "numero_referencia": [
+      "(?:REFERENCIA|REF\\.?)\\s*[:#]?\\s*([A-Z]{3}[0-9]{8})"
+    ],
+    "codigo_solicitud": [
+      "(?:C[OÓ]DIGO\\s*SOLICITUD)\\s*[:#]?\\s*([A-Z]{3}-[0-9]{6})"
+    ],
+    "numero_bastidor": [
+      "(?:BASTIDOR|N[°o]?\\s*BASTIDOR)\\s*[:#]?\\s*([A-HJ-NPR-Z0-9]{17})"
+    ],
+    "nie_dni_pasaporte": [
+      "(?:DIP|NIE|T\\.?R\\.?|PASAPORTE)\\s*[:#]?\\s*([A-Z0-9]{9,})"
+    ],
+    "nombre_completo": [
+      "(?:NOMBRE\\s*(?:Y\\s*)?APELLIDOS?)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "marca": [
+      "(?:MARCA)\\s*[:#]?\\s*([A-Z]+)",
+      "\\b(HYUNDAI|TOYOTA|NISSAN|FORD|CHEVROLET|KIA|MERCEDES|BMW|HONDA|MITSUBISHI)\\b"
+    ],
+    "denominacion_comercial": [
+      "(?:DENOMINACI[OÓ]N\\s*COMERCIAL)\\s*[:#]?\\s*([A-Z0-9]+)"
+    ],
+    "fecha_inspeccion": [
+      "(?:FECHA\\s*INSPECCI[OÓ]N)\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})"
+    ],
+    "fecha_validez": [
+      "(?:FECHA\\s*(?:DE\\s*)?VALIDEZ|V[AÁ]LIDO\\s*HASTA)\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})"
+    ],
+    "tipo_combustible": [
+      "(?:COMBUSTIBLE)\\s*[:#]?\\s*(GASOLINA|DIESEL|ELECTRICO|HIBRIDO|GAS)"
+    ],
+    "potencia_fiscal": [
+      "(?:POTENCIA\\s*FISCAL|CVF)\\s*[:#]?\\s*([0-9]+(?:[.,][0-9]+)?)"
+    ],
+    "numero_asientos": [
+      "(?:N[°o]?\\s*ASIENTOS)\\s*[:#]?\\s*([0-9]+)"
+    ],
+    "color": [
+      "(?:COLOR)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ]+)"
+    ],
+    "procedencia": [
+      "(?:PROCEDENCIA)\\s*[:#]?\\s*(EUROPA|ASIA|AMERICA|AFRICA)"
+    ],
+    "categoria": [
+      "(?:CATEGOR[IÍ]A)\\s*[:#]?\\s*([0-9A-Z]+)"
+    ],
+    "texto_sello": [
+      "(?:COORDINADOR\\s*GENERAL)\\s*([A-ZÁÉÍÓÚÑ]+)",
+      "(?:OFIVE[|\\s]*GE).*?([A-ZÁÉÍÓÚÑ]{3,})"
+    ],
+    "cargo_firmante": [
+      "(COORDINADOR\\s*GENERAL)",
+      "(DIRECTOR\\s*(?:GENERAL)?)",
+      "(DELEGADO\\s*(?:REGIONAL)?)"
+    ],
+    "nombre_firmante": [
+      "(?:COORDINADOR\\s*GENERAL)\\s*([A-ZÁÉÍÓÚÑ]+)",
+      "(?:Fdo\\.?|Firmado)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "texto_validacion": [
+      "(VALIDADO\\s*Y\\s*COMPROBADO\\s*POR\\s*TODOS\\s*LOS\\s*DEPARTAMENTOS)"
+    ],
+    "fecha_impresion": [
+      "(?:Fecha\\s*(?:de\\s*)?Impresi[oó]n)\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})"
+    ],
+    "tipo_solicitud": [
+      "(?:TIPO\\s*SOLICITUD)\\s*[:#]?\\s*(PRIMERA\\s*EXPEDICION|RENOVACION|DUPLICADO|CAMBIO\\s*DE\\s*TITULAR)"
+    ]
+  }
+}

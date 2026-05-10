@@ -1,0 +1,78 @@
+{
+  "name": "nota_ingreso_residencia",
+  "category": "fiscal_service",
+  "description": "Nota de Ingreso - Pago de servicios fiscaux (résidence, etc.)",
+  "version": "1.0",
+  "fields": [
+    {
+      "id": "numero_nota",
+      "label": ["Numéro de nota", "Nº nota", "Número nota"],
+      "type": "text",
+      "pattern": "\\d+/[A-Z]+",
+      "required": true,
+      "position_hint": "after_label",
+      "example": "1804/ID"
+    },
+    {
+      "id": "nom_demandeur",
+      "label": ["Don/Dña", "Nombre", "Demandeur"],
+      "type": "text",
+      "required": true,
+      "position_hint": "after_label"
+    },
+    {
+      "id": "concepto_pago",
+      "label": ["Concepto de Pago", "Concepto", "Por"],
+      "type": "text",
+      "required": true,
+      "position_hint": "after_label",
+      "example": "Por una Renovación de residencia"
+    },
+    {
+      "id": "periode",
+      "label": ["Período", "Periodo", "Duración"],
+      "type": "text",
+      "required": false,
+      "position_hint": "after_label",
+      "example": "12/meses"
+    },
+    {
+      "id": "montant_chiffre",
+      "label": ["La Cantidad de", "Cantidad", "Montant"],
+      "type": "currency",
+      "required": true,
+      "position_hint": "after_label",
+      "example": "#102.000 F"
+    },
+    {
+      "id": "montant_lettre",
+      "label": ["Son", "En letras", "Cantidad en letras"],
+      "type": "text",
+      "required": false,
+      "position_hint": "after_label",
+      "example": "Cien mil Franco"
+    },
+    {
+      "id": "date_expiration",
+      "label": ["Se caduca y los", "Caduca", "Expiration"],
+      "type": "text",
+      "required": false,
+      "position_hint": "after_label",
+      "example": "15 días"
+    }
+  ],
+  "validations": [
+    {
+      "type": "format",
+      "field": "numero_nota",
+      "pattern": "^\\d+/[A-Z]+$",
+      "error_message": "Formato número nota inválido (debe ser XXXX/YY)"
+    },
+    {
+      "type": "required_group",
+      "fields": ["montant_chiffre", "montant_lettre"],
+      "require_at_least": 1,
+      "error_message": "Debe haber al menos un monto (cifras o letras)"
+    }
+  ]
+}

@@ -1,0 +1,336 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "AUTORIZACION_GUBERNATIVA_GQ_V1",
+  "version": "1.0",
+  "title": "Autorizacion Gubernativa - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour l'Autorisation Gouvernementale de GQ. Delivree par la Delegacion de Gobierno (provincial) ou le Ministerio del Interior. Obligatoire pour certaines activites commerciales reglementees (debit de boissons, pharmacies, stations-service, activites nocturnes, etc.). Prerequis a l'obtention de la licence municipale pour activites reglementees.",
+  "document_type": "AUTORIZACION_GUBERNATIVA",
+  "country": "GQ",
+  "faces": ["single_page"],
+  "document_nature": "autorisation_officielle",
+  "issuer": "Delegacion de Gobierno / Ministerio del Interior",
+  "workflows": ["empresa"],
+
+  "extraction": {
+    "documento": {
+      "description": "Informations du document",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "AUTORIZACION_GUBERNATIVA",
+          "required": true
+        },
+        "numero_autorizacion": {
+          "type": "string",
+          "required": true,
+          "description": "Numero de l'autorisation",
+          "field_label": "Nº / Referencia",
+          "pii": true
+        },
+        "tipo_autorizacion": {
+          "type": "string",
+          "enum": ["APERTURA", "RENOVACION", "AMPLIACION", "CAMBIO_ACTIVIDAD", "CAMBIO_TITULAR"],
+          "required": false,
+          "description": "Type d'autorisation (premiere ouverture, renouvellement, extension, etc.)"
+        }
+      }
+    },
+
+    "organisme_emetteur": {
+      "description": "Autorite emettrice",
+      "fields": {
+        "ministerio": {
+          "type": "string",
+          "required": false,
+          "description": "Ministere de tutelle",
+          "default": "MINISTERIO DEL INTERIOR Y COOPERACIONES LOCALES"
+        },
+        "delegacion_gobierno": {
+          "type": "string",
+          "required": true,
+          "description": "Delegation de Gouvernement provinciale",
+          "field_label": "DELEGACIÓN DE GOBIERNO DE"
+        },
+        "provincia": {
+          "type": "string",
+          "enum": ["BIOKO NORTE", "BIOKO SUR", "LITORAL", "CENTRO SUR", "KIE-NTEM", "WELE-NZAS", "ANNOBON", "DJIBLOHO"],
+          "required": true,
+          "description": "Province de la delegation"
+        }
+      }
+    },
+
+    "titular": {
+      "description": "Titulaire de l'autorisation",
+      "fields": {
+        "denominacion_social": {
+          "type": "string",
+          "required": true,
+          "description": "Nom de l'entreprise ou du commercant",
+          "field_label": "DENOMINACIÓN SOCIAL / A FAVOR DE",
+          "pii": true
+        },
+        "representante_legal": {
+          "type": "string",
+          "required": false,
+          "description": "Representant legal si personne morale",
+          "field_label": "REPRESENTANTE LEGAL",
+          "pii": true
+        },
+        "nif": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[0-9]{5}[A-Z]{2}-[0-9]{2}$",
+          "description": "NIF de l'entreprise",
+          "field_label": "NIF",
+          "pii": true,
+          "encrypt": true
+        },
+        "numero_dip_representante": {
+          "type": "string",
+          "required": false,
+          "description": "Numero DIP du representant legal",
+          "field_label": "D.I.P.",
+          "pii": true,
+          "encrypt": true
+        }
+      }
+    },
+
+    "actividad_autorizada": {
+      "description": "Activite reglementee autorisee",
+      "fields": {
+        "actividad": {
+          "type": "string",
+          "required": true,
+          "description": "Activite reglementee autorisee",
+          "field_label": "ACTIVIDAD AUTORIZADA"
+        },
+        "categoria_actividad": {
+          "type": "string",
+          "enum": [
+            "DEBIT_BOISSONS",
+            "PHARMACIE",
+            "STATION_SERVICE",
+            "ACTIVITE_NOCTURNE",
+            "TRANSPORT",
+            "IMPORT_EXPORT",
+            "CONSTRUCTION",
+            "TELECOMS",
+            "EDUCATION_PRIVEE",
+            "SANTE_PRIVEE",
+            "AUTRE"
+          ],
+          "required": false,
+          "description": "Categorie d'activite reglementee"
+        },
+        "ubicacion_establecimiento": {
+          "type": "string",
+          "required": true,
+          "description": "Adresse de l'etablissement autorise",
+          "field_label": "UBICACIÓN / DIRECCIÓN DEL ESTABLECIMIENTO",
+          "pii": true
+        },
+        "municipio": {
+          "type": "string",
+          "required": true,
+          "description": "Municipalite de l'etablissement"
+        },
+        "condiciones_especiales": {
+          "type": "string",
+          "required": false,
+          "description": "Conditions speciales ou restrictions imposees",
+          "field_label": "CONDICIONES"
+        }
+      }
+    },
+
+    "validez": {
+      "description": "Periode de validite de l'autorisation",
+      "fields": {
+        "fecha_autorizacion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date de l'autorisation",
+          "date_format": "DD de MMMM de YYYY"
+        },
+        "fecha_validez": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Date d'expiration si applicable"
+        },
+        "duracion_validez": {
+          "type": "string",
+          "required": false,
+          "description": "Duree de validite (ex: 1 ano, indefinida, hasta nueva orden)"
+        },
+        "renovable": {
+          "type": "boolean",
+          "required": false,
+          "description": "Autorisation renouvelable"
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification",
+      "fields": {
+        "signataire": {
+          "type": "string",
+          "required": false,
+          "description": "Nom et titre du signataire (Delegado de Gobierno, Secretario General)",
+          "field_label": "El Delegado de Gobierno"
+        },
+        "lugar_emision": {
+          "type": "string",
+          "required": true,
+          "description": "Lieu d'emission"
+        },
+        "tiene_firma_delegado": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du Delegado de Gobierno ou autorite competente"
+        },
+        "tiene_sello_delegacion": {
+          "type": "boolean",
+          "required": true,
+          "description": "Sceau officiel de la Delegacion de Gobierno"
+        },
+        "tiene_sello_republica": {
+          "type": "boolean",
+          "required": false,
+          "description": "Sceau de la Republica de Guinea Ecuatorial"
+        },
+        "base_legal": {
+          "type": "string",
+          "required": false,
+          "description": "Reference legale (decret, loi) fondant l'autorisation",
+          "field_label": "En virtud de / De conformidad con"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "nif_format_valid",
+      "rule": "nif MATCHES '^[0-9]{5}[A-Z]{2}-[0-9]{2}$'",
+      "error_es": "Formato de NIF invalido (esperado: XXXXXWC-XX)",
+      "error_fr": "Format NIF invalide (attendu: XXXXXWC-XX)",
+      "severity": "error"
+    },
+    {
+      "id": "firma_delegado_obligatoria",
+      "rule": "tiene_firma_delegado == true",
+      "error_es": "La autorizacion debe estar firmada por el Delegado de Gobierno u otra autoridad competente",
+      "error_fr": "L'autorisation doit etre signee par le Delegue du Gouvernement ou autorite competente",
+      "severity": "error"
+    },
+    {
+      "id": "sello_delegacion_obligatorio",
+      "rule": "tiene_sello_delegacion == true",
+      "error_es": "La autorizacion debe tener el sello oficial de la Delegacion de Gobierno",
+      "error_fr": "L'autorisation doit avoir le cachet officiel de la Delegation de Gouvernement",
+      "severity": "error"
+    },
+    {
+      "id": "autorizacion_no_expirada",
+      "rule": "IF fecha_validez IS NOT NULL THEN fecha_validez >= TODAY",
+      "error_es": "La autorizacion gubernativa ha expirado",
+      "error_fr": "L'autorisation gouvernementale a expire",
+      "severity": "error"
+    },
+    {
+      "id": "actividad_obligatoria",
+      "rule": "actividad IS NOT NULL AND actividad != ''",
+      "error_es": "La autorizacion debe especificar la actividad autorizada",
+      "error_fr": "L'autorisation doit specifier l'activite autorisee",
+      "severity": "error"
+    },
+    {
+      "id": "ubicacion_obligatoria",
+      "rule": "ubicacion_establecimiento IS NOT NULL AND ubicacion_establecimiento != ''",
+      "error_es": "La autorizacion debe indicar la ubicacion del establecimiento",
+      "error_fr": "L'autorisation doit indiquer l'emplacement de l'etablissement",
+      "severity": "error"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Autorisation gouvernementale de Guinee Equatoriale. Delivree par la Delegacion de Gobierno (echelon provincial, sous le Ministerio del Interior). Obligatoire pour les activites reglementees avant d'obtenir la licence municipale. Format officiel avec en-tete gouvernemental.",
+    "language": "es",
+    "date_format": "DD de MMMM de YYYY",
+    "visual_zones": [
+      "En-tete: Armoiries GQ + REPUBLICA DE GUINEA ECUATORIAL",
+      "Sous-titre: MINISTERIO DEL INTERIOR Y COOPERACIONES LOCALES",
+      "Sous-titre: DELEGACION DE GOBIERNO DE [PROVINCE]",
+      "Titre: AUTORIZACION GUBERNATIVA / AUTORIZACION DE APERTURA",
+      "Paragraphe: Reference legale + identification du titulaire",
+      "Corps: SE AUTORIZA a [NOM/ENTREPRISE] con NIF [NIF] para ejercer la actividad de [ACTIVITE] en el establecimiento sito en [ADRESSE]",
+      "Conditions speciales si applicable",
+      "Bas: Date + Lieu + El Delegado de Gobierno + Signature + Sceau officiel"
+    ],
+    "common_values": {
+      "delegaciones": [
+        "Delegacion de Gobierno de Bioko Norte (Malabo)",
+        "Delegacion de Gobierno de Litoral (Bata)",
+        "Delegacion de Gobierno de Centro Sur (Evinayong)",
+        "Delegacion de Gobierno de Kie-Ntem (Ebebiyin)",
+        "Delegacion de Gobierno de Wele-Nzas (Mongomo)"
+      ],
+      "actividades_reglementees": [
+        "Venta de bebidas alcoholicas",
+        "Farmacia / parafarmacia",
+        "Estacion de servicio / gasolinera",
+        "Discoteca / sala de fiestas",
+        "Transporte publico de pasajeros",
+        "Import-export",
+        "Centro educativo privado",
+        "Clinica / centro sanitario privado"
+      ]
+    },
+    "ocr_challenges": [
+      "Document officiel mais format parfois variable selon la province",
+      "Certaines autorisations manuscrites sur papier a en-tete",
+      "Sceaux pouvant masquer du texte",
+      "References legales difficiles a lire (numeros de decrets)",
+      "Conditions speciales parfois en petits caracteres"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "numero_autorizacion": [
+      "(?:N[°oº]?\\s*(?:de\\s*)?(?:Autorizaci[oó]n|AUTORIZACI[OÓ]N|Ref(?:erencia)?))\\s*[:#]?\\s*([0-9A-Z/-]+)"
+    ],
+    "delegacion_gobierno": [
+      "(?:DELEGACI[ÓO]N\\s*DE\\s*GOBIERNO\\s*DE)\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+?)(?=\\n|$)"
+    ],
+    "provincia": [
+      "(BIOKO\\s*NORTE|BIOKO\\s*SUR|LITORAL|CENTRO\\s*SUR|KIE[\\s-]NTEM|WELE[\\s-]NZAS|ANNOBON|DJIBLOHO)"
+    ],
+    "denominacion_social": [
+      "(?:SE\\s*AUTORIZA\\s*a|A\\s*FAVOR\\s*DE)\\s*(.+?)(?=con\\s*NIF|,\\s*representad)"
+    ],
+    "nif": [
+      "(?:NIF|N\\.?I\\.?F\\.?)\\s*[:#]?\\s*([0-9]{5}[A-Z]{2}-[0-9]{2})"
+    ],
+    "actividad": [
+      "(?:actividad\\s*de|para\\s*ejercer)\\s*(.+?)(?=en\\s*el\\s*establecimiento|sito\\s*en|$)"
+    ],
+    "ubicacion_establecimiento": [
+      "(?:establecimiento\\s*sito\\s*en|ubicado\\s*en|sita\\s*en)\\s*(.+?)(?=\\.|,\\s*[Mm]unicipio|$)"
+    ],
+    "municipio": [
+      "(?:[Mm]unicipio\\s*de)\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "fecha_autorizacion": [
+      "(\\d{1,2})\\s*de\\s*(\\w+)\\s*(?:de(?:l)?\\s*(?:a[ñn]o)?\\s*)?(\\d{4})",
+      "(\\d{1,2})[/.-](\\d{1,2})[/.-](\\d{4})"
+    ],
+    "base_legal": [
+      "(?:En\\s*virtud\\s*de|De\\s*conformidad\\s*con)\\s*(.+?)(?=SE\\s*AUTORIZA|,\\s*el)"
+    ]
+  }
+}

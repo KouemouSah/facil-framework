@@ -1,0 +1,340 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "CERTIFICADO_ACTUALIZACION_EMPRESARIAL_GQ_V1",
+  "version": "1.0",
+  "title": "Certificado de Actualizacion en el Registro Empresarial - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour le Certificat de mise a jour (renovacion annuelle) au Registre des Entreprises. Delivre par la Dir. Gral. de Promocion Empresarial y Competitividad apres la premiere inscription. Valable 1 exercice economique.",
+  "document_type": "CERTIFICADO_ACTUALIZACION_EMPRESARIAL",
+  "country": "GQ",
+  "faces": ["single_page"],
+  "document_nature": "certificat_officiel_annuel",
+  "issuer": "Ventanilla Unica Empresarial - Dir. Gral. Promocion Empresarial y Competitividad",
+  "validity": "annual",
+  "workflows": ["empresa"],
+
+  "extraction": {
+    "documento": {
+      "description": "Informations administratives du certificat",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "CERTIFICADO_ACTUALIZACION_EMPRESARIAL",
+          "required": true,
+          "description": "Type de document"
+        },
+        "numero_ri": {
+          "type": "string",
+          "required": true,
+          "description": "Numero R.I. (Registro de Impresion)",
+          "field_label": "R.I.",
+          "pii": true
+        },
+        "ano_actualizacion": {
+          "type": "integer",
+          "required": true,
+          "description": "Annee de l'actualization (exercice economique en cours)",
+          "field_label": "AÑO"
+        },
+        "numero_expediente_vue": {
+          "type": "string",
+          "required": true,
+          "description": "Numero d'expediente VUE (format XXXXX/YYYY)",
+          "field_label": "Nº DE EXPEDIENTE VUE",
+          "pattern": "^[0-9]{4,5}/[0-9]{4}$",
+          "pii": true
+        },
+        "numero_certificado": {
+          "type": "string",
+          "required": true,
+          "description": "Numero de certificat",
+          "field_label": "Nº DE CERTIFICADO",
+          "pii": true
+        }
+      }
+    },
+
+    "empresa": {
+      "description": "Donnees de l'entreprise",
+      "fields": {
+        "denominacion_social": {
+          "type": "string",
+          "required": true,
+          "description": "Raison sociale de l'entreprise",
+          "field_label": "DENOMINACIÓN SOCIAL",
+          "pii": true
+        },
+        "representante_legal": {
+          "type": "string",
+          "required": true,
+          "description": "Nom du representant legal",
+          "field_label": "REPRESENTANTE LEGAL",
+          "pii": true
+        },
+        "nacionalidad_empresa": {
+          "type": "string",
+          "required": true,
+          "description": "Nationalite de l'entreprise",
+          "field_label": "NACIONALIDAD EMPRESA"
+        },
+        "domicilio_social": {
+          "type": "string",
+          "required": true,
+          "description": "Adresse du siege social",
+          "field_label": "DOMICILIO SOCIAL",
+          "pii": true
+        },
+        "capital_social": {
+          "type": "number",
+          "required": true,
+          "description": "Capital social en FCFA",
+          "field_label": "CAPITAL SOCIAL",
+          "currency": "XAF"
+        },
+        "forma_juridica": {
+          "type": "string",
+          "enum": ["SOCIEDAD LIMITADA", "SOCIEDAD ANONIMA", "SUCURSAL", "EMPRESA INDIVIDUAL"],
+          "required": true,
+          "description": "Forme juridique",
+          "field_label": "FORMA JURÍDICA"
+        },
+        "nif": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[0-9]{5}[A-Z]{2}-[0-9]{2}$",
+          "description": "Numero d'Identification Fiscal",
+          "field_label": "NIF",
+          "pii": true,
+          "encrypt": true
+        }
+      }
+    },
+
+    "actividad": {
+      "description": "Secteur et activite de l'entreprise",
+      "fields": {
+        "sector": {
+          "type": "string",
+          "enum": ["Primario", "Secundario", "Terciario"],
+          "required": true,
+          "description": "Secteur economique principal",
+          "field_label": "SECTOR"
+        },
+        "subsector": {
+          "type": "string",
+          "required": false,
+          "description": "Sous-secteur d'activite",
+          "field_label": "SUBSECTOR"
+        },
+        "objeto_social": {
+          "type": "string",
+          "required": true,
+          "description": "Description de l'activite/objet social",
+          "field_label": "OBJETO SOCIAL"
+        }
+      }
+    },
+
+    "datos_operativos": {
+      "description": "Donnees operationnelles actualisees",
+      "fields": {
+        "numero_establecimientos": {
+          "type": "integer",
+          "required": false,
+          "description": "Nombre d'etablissements",
+          "field_label": "Nº DE ESTABLECIMIENTOS"
+        },
+        "numero_empleados": {
+          "type": "integer",
+          "required": false,
+          "description": "Nombre d'employes",
+          "field_label": "Nº EMPLEADOS"
+        }
+      }
+    },
+
+    "actualizacion": {
+      "description": "Donnees specifiques a la mise a jour annuelle",
+      "fields": {
+        "estado_empresa": {
+          "type": "string",
+          "enum": ["EMPRESA ACTIVA", "EMPRESA INACTIVA", "EN TRAMITE"],
+          "required": true,
+          "description": "Statut certifie de l'entreprise",
+          "field_label": "CERTIFICA"
+        },
+        "fecha_inscripcion_original": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Date de la premiere inscription au registre",
+          "field_label": "FECHA DE INSCRIPCIÓN"
+        },
+        "derecho_ejercer": {
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Droit d'exercer l'activite mercantile"
+        },
+        "ejercicio_economico": {
+          "type": "string",
+          "required": false,
+          "description": "Periode de l'exercice economique autorise"
+        },
+        "obligacion_actualizar": {
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Mention de l'obligation de mise a jour patrimoniale"
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification",
+      "fields": {
+        "tiene_foto_representante": {
+          "type": "boolean",
+          "required": true,
+          "description": "Photo du representant legal presente (coin superieur droit)"
+        },
+        "fecha_emision": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'emission",
+          "date_format": "DD de MMMM de YYYY"
+        },
+        "lugar_emision": {
+          "type": "string",
+          "required": true,
+          "default": "Malabo"
+        },
+        "tiene_firma_director_pymes": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du Director General de Promocion de Pequenas y Medianas Empresas"
+        },
+        "tiene_firma_coordinador": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du Coordinador General"
+        },
+        "tiene_sello_director": {
+          "type": "boolean",
+          "required": true,
+          "description": "Sceau du Director presente"
+        },
+        "tiene_sello_coordinador": {
+          "type": "boolean",
+          "required": true,
+          "description": "Sceau du Coordinador General presente"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "empresa_activa_required",
+      "rule": "estado_empresa == 'EMPRESA ACTIVA'",
+      "error_es": "Solo se aceptan certificados de actualizacion de empresas con estado ACTIVA",
+      "error_fr": "Seuls les certificats de mise a jour d'entreprises avec statut ACTIVA sont acceptes",
+      "severity": "error"
+    },
+    {
+      "id": "nif_format_valid",
+      "rule": "nif MATCHES '^[0-9]{5}[A-Z]{2}-[0-9]{2}$'",
+      "error_es": "Formato de NIF invalido (esperado: XXXXXWC-XX)",
+      "error_fr": "Format NIF invalide (attendu: XXXXXWC-XX)",
+      "severity": "error"
+    },
+    {
+      "id": "foto_required",
+      "rule": "tiene_foto_representante == true",
+      "error_es": "El certificado debe incluir la foto del representante legal",
+      "error_fr": "Le certificat doit inclure la photo du representant legal",
+      "severity": "error"
+    },
+    {
+      "id": "firmas_required",
+      "rule": "tiene_firma_director_pymes == true AND tiene_firma_coordinador == true",
+      "error_es": "El certificado debe tener ambas firmas oficiales",
+      "error_fr": "Le certificat doit avoir les deux signatures officielles",
+      "severity": "error"
+    },
+    {
+      "id": "sellos_required",
+      "rule": "tiene_sello_director == true AND tiene_sello_coordinador == true",
+      "error_es": "El certificado debe tener ambos sellos oficiales",
+      "error_fr": "Le certificat doit avoir les deux sceaux officiels",
+      "severity": "error"
+    },
+    {
+      "id": "ano_coherente",
+      "rule": "ano_actualizacion >= YEAR(fecha_inscripcion_original) + 1",
+      "error_es": "El ano de actualizacion debe ser posterior a la inscripcion original",
+      "error_fr": "L'annee de mise a jour doit etre posterieure a l'inscription originale",
+      "severity": "warning"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Certificat annuel de mise a jour (actualisation) au Registre des Entreprises de GQ. Visuellement quasi identique au Certificado de Inscripcion en el Registro Empresarial, mais le titre indique ACTUALIZACION au lieu d'INSCRIPCION. Delivre apres la premiere annee d'inscription. Contient la photo du representant legal.",
+    "language": "es",
+    "visual_zones": [
+      "En-tete: Logo VUE + Armoiries GQ + R.I. [numero]",
+      "Titre: CERTIFICADO DE ACTUALIZACIÓN EN EL REGISTRO EMPRESARIAL AÑO [YYYY] (attention: ACTUALIZACIÓN et non INSCRIPCIÓN)",
+      "Photo: Coin superieur droit - photo d'identite du representant legal",
+      "Intro: La VENTANILLA UNICA EMPRESARIAL... encargada de la expedicion del Certificado de Actualizacion...",
+      "Tableau de donnees avec champs entreprise (identique a inscription)",
+      "Section CERTIFICA: 'El presente certifica su estado como EMPRESA ACTIVA'",
+      "Mention: 'dandole derecho a ejercer la actividad mercantil durante un ejercicio economico'",
+      "Bas: Date + El Director General de Promocion de Pequenas y Medianas Empresas + El Coordinador General"
+    ],
+    "key_difference_vs_inscripcion": "Le titre dit ACTUALIZACIÓN au lieu d'INSCRIPCIÓN. Le texte introductif mentionne 'Certificado de Actualizacion' au lieu de 'Certificado de Inscripcion'. Le reste est visuellement identique.",
+    "pied_page": "R.G.E. VENTANILLA UNICA EMPRESARIAL - www.ventanillaempresarialgq.com - Ministerio de Comercio y Promocion de Pequenas y Medianas Empresas"
+  },
+
+  "tesseract_patterns": {
+    "numero_ri": [
+      "(?:R\\.?I\\.?)\\s*[:#]?\\s*([0-9]{5,6})"
+    ],
+    "ano_actualizacion": [
+      "(?:EMPRESARIAL\\s*A[ÑN]O)\\s*([0-9]{4})",
+      "(?:ACTUALIZACI[ÓO]N\\s*[A-Za-z\\s]*A[ÑN]O)\\s*([0-9]{4})"
+    ],
+    "estado_empresa": [
+      "(?:estado\\s*como)\\s*(EMPRESA\\s*ACTIVA|EMPRESA\\s*INACTIVA)"
+    ],
+    "denominacion_social": [
+      "(?:DENOMINACI[ÓO]N\\s*SOCIAL)\\s*[:#]?\\s*(.+?)(?=REPRESENTANTE|$)"
+    ],
+    "representante_legal": [
+      "(?:REPRESENTANTE\\s*LEGAL)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "nacionalidad_empresa": [
+      "(?:NACIONALIDAD\\s*EMPRESA)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ]+)"
+    ],
+    "nif": [
+      "(?:NIF)\\s*[:#]?\\s*([0-9]{5}[A-Z]{2}-[0-9]{2})"
+    ],
+    "capital_social": [
+      "(?:CAPITAL\\s*SOCIAL)\\s*[:#]?\\s*([0-9.,]+)"
+    ],
+    "forma_juridica": [
+      "(?:FORMA\\s*JUR[IÍ]DICA)\\s*[:#]?\\s*(SOCIEDAD\\s*(?:LIMITADA|AN[OÓ]NIMA)|SUCURSAL|EMPRESA\\s*INDIVIDUAL)"
+    ],
+    "sector": [
+      "(?:SECTOR)\\s*[:#]?\\s*(Primario|Secundario|Terciario)"
+    ],
+    "objeto_social": [
+      "(?:OBJETO\\s*SOCIAL)\\s*[:#]?\\s*(.+?)(?=N[°oº]|FECHA|$)"
+    ],
+    "numero_expediente_vue": [
+      "(?:N[°oº]?\\s*DE\\s*EXPEDIENTE\\s*VUE)\\s*[:#]?\\s*([0-9]{4,5}/[0-9]{4})"
+    ],
+    "numero_certificado": [
+      "(?:N[°oº]?\\s*DE\\s*CERTIFICADO)\\s*[:#]?\\s*([0-9]+)"
+    ]
+  }
+}

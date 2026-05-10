@@ -1,0 +1,23 @@
+-- Migration 129: Add SRV/CHS references to payment email templates
+-- Date: 2026-02-24
+-- Status: APPLIED via Python script
+--
+-- Description:
+--   Adds {{request_reference}} (SRV-xxxx-xxxxx) and {{payment_reference}} (CSH-xxxxxxxxxxxxxx-xxxxxxxx)
+--   to payment_cash_validated and payment_cash_rejected email templates.
+--   Also replaces remaining "TaxasGE" references with "Facil" in all email template subjects.
+--
+-- Changes:
+--   1. payment_cash_validated: Added reference fields to the details section
+--   2. payment_cash_rejected: Added reference section above the rejection reason
+--   3. All templates: Replaced "TaxasGE" with "Facil" in subject_es/fr/en
+--
+-- Verification:
+--   SELECT template_code,
+--          html_content LIKE '%request_reference%' as has_req_ref,
+--          html_content LIKE '%payment_reference%' as has_pay_ref
+--   FROM email_templates
+--   WHERE template_code IN ('payment_cash_validated', 'payment_cash_rejected');
+--   Expected: Both rows have has_req_ref=true, has_pay_ref=true
+
+-- NO-OP: Migration applied via Python script. Kept for documentation.

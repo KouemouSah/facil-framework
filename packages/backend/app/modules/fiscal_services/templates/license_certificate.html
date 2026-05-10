@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="{{ language or 'es' }}">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ texts.title }} — {{ certificate_number }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1.5cm 1.5cm 2cm 1.5cm;
+            @frame page-footer {
+                -pdf-frame-content: page-footer-content;
+                bottom: 0cm;
+                margin-left: 1.5cm;
+                margin-right: 1.5cm;
+                height: 1.2cm;
+            }
+        }
+        * { margin: 0; padding: 0; }
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 9pt;
+            line-height: 1.3;
+            color: #1a1a1a;
+        }
+
+        /* ── Header ── */
+        .header-table { width: 100%; border-collapse: collapse; margin-bottom: 0; }
+        .header-table td { vertical-align: middle; padding-bottom: 6px; }
+        .logo-cell { width: 80px; }
+        .logo-cell img { height: 40px; }
+        .header-center { text-align: center; }
+        .header-republic { font-size: 8pt; color: #555; letter-spacing: 1px; text-transform: uppercase; }
+        .header-system { font-size: 7pt; color: #888; }
+
+        /* ── Certificate band ── */
+        .cert-band {
+            background: #1a5c1a;
+            color: #fff;
+            text-align: center;
+            padding: 10px 0 8px 0;
+            margin: 8px 0;
+            letter-spacing: 2px;
+        }
+        .cert-band-title { font-size: 13pt; font-weight: bold; }
+        .cert-band-number {
+            font-family: 'Courier New', monospace;
+            font-size: 11pt;
+            margin-top: 3px;
+            letter-spacing: 3px;
+        }
+
+        /* ── Validity period ── */
+        .validity {
+            text-align: center;
+            font-size: 8.5pt;
+            color: #1a5c1a;
+            font-weight: bold;
+            margin: 6px 0 10px 0;
+            padding: 4px 0;
+            border-top: 1px solid #ccc;
+            border-bottom: 1px solid #ccc;
+        }
+
+        /* ── Sections ── */
+        .section { margin-bottom: 10px; }
+        .section-title {
+            font-size: 8.5pt; font-weight: bold; color: #fff;
+            background: #2d6b2d; padding: 3px 10px;
+            margin-bottom: 4px; letter-spacing: 0.5px;
+        }
+        .section-content { padding: 2px 4px; }
+
+        /* ── Info grid ── */
+        .info-grid { width: 100%; border-collapse: collapse; }
+        .info-grid td { padding: 2px 4px; vertical-align: top; font-size: 8.5pt; }
+        .info-label { color: #555; font-weight: bold; white-space: nowrap; width: 25%; }
+        .info-value { color: #1a1a1a; }
+
+        /* ── Totals ── */
+        .totals-section {
+            margin: 10px 0;
+            padding: 8px 12px;
+            background: #f0f7f0;
+            border: 1px solid #2d6b2d;
+        }
+        .totals-grid { width: 100%; border-collapse: collapse; }
+        .totals-grid td { padding: 2px 8px; font-size: 9pt; }
+        .totals-label { font-weight: bold; color: #333; text-align: right; width: 70%; }
+        .totals-value { font-family: monospace; text-align: right; font-weight: bold; }
+        .totals-grand td { border-top: 2px solid #2d6b2d; font-size: 10pt; color: #1a5c1a; padding-top: 4px; }
+
+        /* ── Completion seal ── */
+        .seal-section {
+            text-align: center;
+            margin: 12px 0;
+            padding: 10px;
+        }
+        .seal-badge {
+            display: inline-block;
+            border: 3px solid #1a5c1a;
+            color: #1a5c1a;
+            padding: 6px 24px;
+            font-size: 12pt;
+            font-weight: bold;
+            letter-spacing: 3px;
+        }
+        .seal-date {
+            font-size: 8pt;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        /* ── Footer ── */
+        .footer-table { width: 100%; border-collapse: collapse; margin-top: 10px; border-top: 1px solid #ddd; padding-top: 6px; }
+        .footer-table td { vertical-align: bottom; }
+        .footer-text { font-size: 7.5pt; color: #555; line-height: 1.6; }
+        .footer-legal {
+            font-size: 7pt; color: #2d6b2d; font-weight: 500;
+            margin-top: 4px; padding: 4px 8px;
+            border: 1px solid #2d6b2d; background: #f0f7f0;
+            text-align: center;
+        }
+        .qr-cell { width: 25%; text-align: right; }
+        .qr-box img { width: 80px; height: 80px; }
+
+        /* ── Page footer ── */
+        .page-footer-text { text-align: center; font-size: 6.5pt; color: #aaa; }
+    </style>
+</head>
+<body>
+
+    <!-- ═══ HEADER ═══ -->
+    <table class="header-table">
+        <tr>
+            <td class="logo-cell">
+                {% if logo_base64 %}
+                <img src="data:image/png;base64,{{ logo_base64 }}" alt="Logo">
+                {% endif %}
+            </td>
+            <td class="header-center">
+                <div class="header-republic">{{ texts.republic }}</div>
+                <div class="header-system">{{ texts.system }}</div>
+            </td>
+            <td style="width:80px;"></td>
+        </tr>
+    </table>
+
+    <!-- ═══ CERTIFICATE BAND ═══ -->
+    <div class="cert-band">
+        <div class="cert-band-title">{{ texts.title }}</div>
+        <div class="cert-band-number">{{ certificate_number }}</div>
+    </div>
+
+    <!-- ═══ VALIDITY ═══ -->
+    <div class="validity">
+        {{ texts.validity }}: 01/01/{{ fiscal_year }} — 31/12/{{ fiscal_year }}
+    </div>
+
+    <!-- ═══ COMPANY INFO ═══ -->
+    <div class="section">
+        <div class="section-title">{{ texts.company_section }}</div>
+        <div class="section-content">
+            <table class="info-grid">
+                <tr>
+                    <td class="info-label">{{ texts.company_name }}</td>
+                    <td class="info-value" colspan="3" style="font-size:10pt; font-weight:bold;">{{ company.legal_name }}</td>
+                </tr>
+                <tr>
+                    <td class="info-label">{{ texts.representative }}</td>
+                    <td class="info-value" colspan="3">{{ company.representante_legal }}</td>
+                </tr>
+                <tr>
+                    <td class="info-label">{{ texts.registration }}</td>
+                    <td class="info-value">{{ company.registration_number or company.nif or '-' }}</td>
+                    <td class="info-label">{{ texts.forma_juridica }}</td>
+                    <td class="info-value">{{ company.forma_juridica or '-' }}</td>
+                </tr>
+                <tr>
+                    <td class="info-label">{{ texts.activity }}</td>
+                    <td class="info-value" colspan="3">{{ company.objeto_social or '-' }}</td>
+                </tr>
+                <tr>
+                    <td class="info-label">{{ texts.commerce_type }}</td>
+                    <td class="info-value">{{ company.commerce_type or '-' }}</td>
+                    <td class="info-label">{{ texts.sector }}</td>
+                    <td class="info-value">{{ company.sector_actividad or '-' }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- ═══ LOCATION ═══ -->
+    <div class="section">
+        <div class="section-title">{{ texts.location_section }}</div>
+        <div class="section-content">
+            <table class="info-grid">
+                <tr>
+                    <td class="info-label">{{ texts.zone }}</td>
+                    <td class="info-value">{{ company.zone_code or '-' }}</td>
+                    <td class="info-label">{{ texts.city }}</td>
+                    <td class="info-value">{{ company.city_name or '-' }}</td>
+                </tr>
+                <tr>
+                    <td class="info-label">{{ texts.province }}</td>
+                    <td class="info-value" colspan="3">{{ company.provincia or '-' }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- ═══ FISCAL SUMMARY ═══ -->
+    <div class="section">
+        <div class="section-title">{{ texts.fiscal_section }}</div>
+        <div class="totals-section">
+            <table class="totals-grid">
+                <tr>
+                    <td class="totals-label">{{ texts.total_obligations }}:</td>
+                    <td class="totals-value">{{ total_amount }}</td>
+                </tr>
+                <tr>
+                    <td class="totals-label">{{ texts.total_paid }}:</td>
+                    <td class="totals-value">{{ paid_amount }}</td>
+                </tr>
+                {% if penalty_amount != '0' and penalty_amount != '0 XAF' %}
+                <tr>
+                    <td class="totals-label">{{ texts.penalties }}:</td>
+                    <td class="totals-value" style="color:#dc2626;">{{ penalty_amount }}</td>
+                </tr>
+                {% endif %}
+                <tr class="totals-grand">
+                    <td class="totals-label">{{ texts.balance }}:</td>
+                    <td class="totals-value" style="color:#1a5c1a;">0 XAF</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- ═══ COMPLETION SEAL ═══ -->
+    <div class="seal-section">
+        <div class="seal-badge">✓ {{ texts.seal_text }}</div>
+        <div class="seal-date">
+            {{ texts.completed_on }} {{ completion_date }}
+        </div>
+    </div>
+
+    <!-- ═══ VERIFICATION FOOTER ═══ -->
+    <table class="footer-table">
+        <tr>
+            <td style="width:75%;">
+                <div class="footer-text">
+                    {{ texts.issued_by }}<br>
+                    {{ texts.issued_date }}: {{ print_date }}
+                </div>
+                <div class="footer-legal">
+                    {{ texts.legal_text }}
+                </div>
+            </td>
+            <td class="qr-cell">
+                {% if qr_base64 %}
+                <div class="qr-box">
+                    <img src="data:image/png;base64,{{ qr_base64 }}" alt="QR">
+                </div>
+                <div style="font-size:6pt; color:#2d6b2d; text-align:center; margin-top:2px;">
+                    {{ texts.verify }}
+                </div>
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+
+    <!-- Page footer -->
+    <div id="page-footer-content">
+        <div class="page-footer-text">
+            {{ certificate_number }} — {{ texts.footer_line }}
+        </div>
+    </div>
+
+</body>
+</html>

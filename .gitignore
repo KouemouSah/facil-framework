@@ -1,0 +1,175 @@
+# TaxasGE - Production .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+venv/
+ENV/
+env/
+.venv
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+*.cover
+.hypothesis/
+test_results.txt
+test-results/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Build outputs
+dist/
+.next/
+out/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment files (NEVER commit secrets)
+.env
+.env.local
+.env.*.local
+.env.e2e
+*.pem
+*.key
+credentials.json
+service-account-*.json
+
+# Android release keystores (NEVER commit — stored in GitHub Secrets)
+*-release.keystore
+*.jks
+!debug.keystore
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+.temp/
+COMMIT_MESSAGE.txt
+FILES_SUMMARY.txt
+TREE_STRUCTURE.txt
+IMPLEMENTATION_REPORT.md
+MANUEL_TEST.md
+QUICK_START.md
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Google Cloud
+gcloud-config/
+.gcloud/
+
+# Claude Code — entirely local (agents, plans, skills, reports, sessions,
+# and the per-developer .claudeignore that tunes Claude Code's repo scan)
+.claude/
+.claudeignore
+.mcp.json
+
+# Documentation drafts (keep final docs only)
+**/RAPPORT_DRAFT_*.md
+**/WIP_*.md
+
+# Firebase Service Account Keys (CRITICAL SECURITY)
+**/taxasge-*-firebase-adminsdk-*.json
+config/*.json
+
+# Additional build artifacts
+**/tsconfig.tsbuildinfo
+**/coverage/
+
+# IDE specific
+.vs/
+
+# Environment examples (keep templates)
+!**/.env.example
+!**/.env.*.example
+
+# Firebase Admin SDK Backups (local only)
+.firebase-backup-*/
+
+# SQL Migrations Archives
+**/.github-docs-migrations-archive/
+
+# Docs-internal + GitHub archives (local only — not pushed to remote)
+.github/docs-internal/
+.github/workflows-archive/
+.github/security-tests/
+packages/mobile/scripts/
+# Anomaly: GitHub only reads .github/ at repo root, not nested
+packages/backend/.github/
+Documentations/
+scripts/
+# Centralized local-only archive folder (legacy scripts, snapshots,
+# anything that should never reach the remote — see "Cleanup conventions"
+# in DEPLOYMENT.md).
+_local/
+# packages/backend/scripts/ holds the active utilities (smoke tests run by CI,
+# populate_embeddings used by the Cloud Run Job, cleanup_obsolete_permissions
+# CLI, geoip downloader, deploy/ subfolder). The historical/ subdirectory is
+# kept LOCAL only — past one-shots already executed (apply_migration_*.py,
+# debug_*.py, fix_*.py, etc.). Recoverable from git history if ever needed.
+!packages/backend/scripts/
+!packages/backend/scripts/verify_apk_signature.py
+packages/backend/scripts/historical/
+# Deploy system scripts (Phase A.5+) — tracked
+!deploy/scripts/
+# Generated artifacts from deploy/scripts/render_env.py — local only
+**/.env.deploy.gen
+deploy/.secrets-manifest.json
+deploy/config.yaml
+
+# E2E Test Data (keep README only)
+test-data/*.pdf
+test-data/*.jpg
+test-data/*.png
+test-data/*.md
+!test-data/README.md

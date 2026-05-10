@@ -1,0 +1,337 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "CONTRATO_FUNCIONARIO_GQ_V1",
+  "version": "1.0",
+  "title": "Contrato de Funcionario - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour le contrat de travail des fonctionnaires contractuels de Guinée Équatoriale",
+  "document_type": "CONTRATO_FUNCIONARIO",
+  "country": "GQ",
+
+  "extraction": {
+    "empleado": {
+      "description": "Informations de l'employé contractuel",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": true,
+          "description": "Nom complet de l'employé",
+          "field_label": "Nombre completo",
+          "pii": true
+        },
+        "apellidos": {
+          "type": "string",
+          "required": false,
+          "description": "Apellidos del empleado",
+          "field_label": "Apellidos",
+          "pii": true
+        },
+        "nombres": {
+          "type": "string",
+          "required": false,
+          "description": "Nombres del empleado",
+          "field_label": "Nombres",
+          "pii": true
+        },
+        "matricula": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[A-Z]{0,3}[\\-]?[0-9]{4,10}$",
+          "description": "Matricula del empleado - CRITIQUE pour la vérification",
+          "field_label": "Matrícula",
+          "pii": true,
+          "encrypt": true
+        },
+        "numero_dip": {
+          "type": "string",
+          "required": false,
+          "pattern": "^[0-9]{9}$",
+          "description": "Numéro DIP de l'employé",
+          "field_label": "N° DIP",
+          "pii": true
+        },
+        "fecha_nacimiento": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Fecha de nacimiento",
+          "field_label": "Fecha de nacimiento",
+          "date_format": "DD/MM/YYYY",
+          "pii": true
+        },
+        "domicilio": {
+          "type": "string",
+          "required": false,
+          "description": "Domicilio del empleado",
+          "field_label": "Domicilio",
+          "pii": true
+        }
+      }
+    },
+    "contrato": {
+      "description": "Informations du contrat",
+      "fields": {
+        "numero_contrato": {
+          "type": "string",
+          "required": false,
+          "description": "Numéro du contrat",
+          "field_label": "N° Contrato"
+        },
+        "tipo_contrato": {
+          "type": "string",
+          "required": true,
+          "enum": ["INDEFINIDO", "TEMPORAL", "OBRA_SERVICIO", "INTERINIDAD", "FORMACION", "PRACTICAS"],
+          "description": "Type de contrat",
+          "field_label": "Tipo de contrato"
+        },
+        "fecha_inicio": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date de début du contrat",
+          "field_label": "Fecha de inicio",
+          "date_format": "DD/MM/YYYY"
+        },
+        "fecha_fin": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Date de fin du contrat (si temporaire)",
+          "field_label": "Fecha de fin",
+          "date_format": "DD/MM/YYYY"
+        },
+        "duracion": {
+          "type": "string",
+          "required": false,
+          "description": "Durée du contrat (ex: 1 año, 6 meses)",
+          "field_label": "Duración"
+        },
+        "fecha_firma": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Date de signature du contrat",
+          "field_label": "Fecha de firma",
+          "date_format": "DD/MM/YYYY"
+        }
+      }
+    },
+    "puesto": {
+      "description": "Informations sur le poste",
+      "fields": {
+        "puesto": {
+          "type": "string",
+          "required": true,
+          "description": "Puesto de trabajo",
+          "field_label": "Puesto"
+        },
+        "categoria_profesional": {
+          "type": "string",
+          "required": false,
+          "description": "Categoría profesional",
+          "field_label": "Categoría profesional"
+        },
+        "grupo": {
+          "type": "string",
+          "required": false,
+          "description": "Grupo de cotización",
+          "field_label": "Grupo"
+        },
+        "jornada": {
+          "type": "string",
+          "required": false,
+          "enum": ["COMPLETA", "PARCIAL", "CONTINUA"],
+          "description": "Tipo de jornada laboral",
+          "field_label": "Jornada"
+        },
+        "horario": {
+          "type": "string",
+          "required": false,
+          "description": "Horario de trabajo",
+          "field_label": "Horario"
+        }
+      }
+    },
+    "empleador": {
+      "description": "Informations de l'employeur (Ministère)",
+      "fields": {
+        "ministerio": {
+          "type": "string",
+          "required": true,
+          "description": "Ministerio contratante",
+          "field_label": "Ministerio"
+        },
+        "direccion_general": {
+          "type": "string",
+          "required": false,
+          "description": "Dirección General",
+          "field_label": "Dirección General"
+        },
+        "departamento": {
+          "type": "string",
+          "required": false,
+          "description": "Departamento o Servicio",
+          "field_label": "Departamento"
+        },
+        "centro_trabajo": {
+          "type": "string",
+          "required": false,
+          "description": "Centro de trabajo / Localidad",
+          "field_label": "Centro de trabajo"
+        }
+      }
+    },
+    "retribucion": {
+      "description": "Informations sur la rémunération",
+      "fields": {
+        "salario_mensual": {
+          "type": "number",
+          "required": false,
+          "description": "Salario mensual en XAF",
+          "field_label": "Salario mensual"
+        },
+        "salario_anual": {
+          "type": "number",
+          "required": false,
+          "description": "Salario anual en XAF",
+          "field_label": "Salario anual"
+        },
+        "complementos": {
+          "type": "string",
+          "required": false,
+          "description": "Complementos salariales",
+          "field_label": "Complementos"
+        }
+      }
+    },
+    "firmas": {
+      "description": "Signatures du contrat",
+      "fields": {
+        "firma_empleado": {
+          "type": "boolean",
+          "required": true,
+          "description": "Le contrat est signé par l'employé",
+          "field_label": "Firma empleado"
+        },
+        "firma_empleador": {
+          "type": "boolean",
+          "required": true,
+          "description": "Le contrat est signé par l'employeur",
+          "field_label": "Firma empleador"
+        },
+        "nombre_representante": {
+          "type": "string",
+          "required": false,
+          "description": "Nombre del representante del empleador",
+          "field_label": "Representante"
+        },
+        "tiene_sello": {
+          "type": "boolean",
+          "required": true,
+          "description": "Le contrat a un sello oficial",
+          "field_label": "Sello oficial"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "matricula_present",
+      "rule": "empleado.matricula != null AND empleado.matricula != ''",
+      "error_es": "Falta la matrícula del empleado",
+      "error_fr": "Le matricule de l'employé est manquant",
+      "severity": "error"
+    },
+    {
+      "id": "nombre_present",
+      "rule": "empleado.nombre_completo != null OR (empleado.apellidos != null AND empleado.nombres != null)",
+      "error_es": "Falta el nombre del empleado",
+      "error_fr": "Le nom de l'employé est manquant",
+      "severity": "error"
+    },
+    {
+      "id": "contrato_vigente",
+      "rule": "contrato.fecha_fin IS NULL OR contrato.fecha_fin > TODAY",
+      "error_es": "El contrato ha expirado",
+      "error_fr": "Le contrat a expiré",
+      "severity": "error"
+    },
+    {
+      "id": "firmas_present",
+      "rule": "firmas.firma_empleado == true AND firmas.firma_empleador == true",
+      "error_es": "El contrato debe estar firmado por ambas partes",
+      "error_fr": "Le contrat doit être signé par les deux parties",
+      "severity": "error"
+    },
+    {
+      "id": "fecha_inicio_not_future",
+      "rule": "contrato.fecha_inicio <= TODAY",
+      "error_es": "La fecha de inicio no puede ser futura",
+      "error_fr": "La date de début ne peut pas être future",
+      "severity": "warning"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Contrat de travail (Contrato de Funcionario) pour les employés contractuels de l'administration publique de Guinée Équatoriale.",
+    "language": "es",
+    "date_format": "DD/MM/YYYY",
+    "visual_zones": [
+      "En-tête: REPUBLICA DE GUINEA ECUATORIAL, nom du ministère",
+      "Titre: CONTRATO DE TRABAJO ou CONTRATO LABORAL",
+      "Partie 1: Données de l'employeur (Ministerio, Dirección General)",
+      "Partie 2: Données de l'employé (Nombre, DIP, Matrícula, Domicilio)",
+      "Partie 3: Conditions du contrat (Tipo, Duración, Puesto, Jornada)",
+      "Partie 4: Rémunération (Salario, Complementos)",
+      "Pied: Date, lieu, signatures des deux parties, sello oficial"
+    ],
+    "extraction_priority": [
+      "1. CRITIQUE: matricula - identifiant unique de l'employé",
+      "2. CRITIQUE: nombre_completo (ou apellidos + nombres)",
+      "3. CRITIQUE: tipo_contrato et fecha_inicio",
+      "4. IMPORTANT: puesto - poste de travail",
+      "5. IMPORTANT: ministerio - ministère employeur",
+      "6. UTILE: fecha_fin (si temporaire), salario"
+    ],
+    "contract_types": {
+      "INDEFINIDO": "Contrat à durée indéterminée (CDI)",
+      "TEMPORAL": "Contrat à durée déterminée (CDD)",
+      "OBRA_SERVICIO": "Contrat pour oeuvre ou service déterminé",
+      "INTERINIDAD": "Contrat d'intérim (remplacement)",
+      "FORMACION": "Contrat de formation",
+      "PRACTICAS": "Contrat de stage professionnel"
+    }
+  },
+
+  "tesseract_patterns": {
+    "matricula": [
+      "(?:MATR[IÍ]CULA|MAT\\.?)\\s*[:#]?\\s*([A-Z]{0,3}[\\-]?[0-9]{4,10})",
+      "(?:N[°º]?\\s*)?(?:MAT)\\s*[:#]?\\s*([A-Z0-9\\-]+)"
+    ],
+    "nombre_completo": [
+      "(?:TRABAJADOR|EMPLEADO)\\s*[:#]?\\s*(?:D\\.|DON|DÑA\\.?)?\\s*([A-ZÁÉÍÓÚÑ\\s]+)",
+      "(?:CONTRATADO)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ\\s]+)"
+    ],
+    "numero_dip": [
+      "(?:D\\.?I\\.?P\\.?|DNI|NIF)\\s*[:#]?\\s*([0-9]{9})"
+    ],
+    "puesto": [
+      "(?:PUESTO|CARGO|FUNCI[OÓ]N)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ\\s]+)"
+    ],
+    "tipo_contrato": [
+      "(?:TIPO\\s*(?:DE)?\\s*CONTRATO|MODALIDAD)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ\\s]+)"
+    ],
+    "fecha_inicio": [
+      "(?:INICIO|COMIENZO|DESDE)\\s*[:#]?\\s*(\\d{1,2}[/\\-\\.]\\d{1,2}[/\\-\\.]\\d{2,4})"
+    ],
+    "fecha_fin": [
+      "(?:FIN|HASTA|TERMINACI[OÓ]N)\\s*[:#]?\\s*(\\d{1,2}[/\\-\\.]\\d{1,2}[/\\-\\.]\\d{2,4})"
+    ],
+    "ministerio": [
+      "(?:MINISTERIO\\s*DE)\\s*([A-ZÁÉÍÓÚÑ\\s]+)"
+    ],
+    "salario": [
+      "(?:SALARIO|RETRIBUCI[OÓ]N|SUELDO)\\s*[:#]?\\s*([0-9\\.]+)\\s*(?:XAF|FCFA)?"
+    ]
+  }
+}

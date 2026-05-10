@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="{{ language }}">
+<head>
+<meta charset="UTF-8">
+<title>{{ texts.title }}</title>
+<style>
+@page { size: A4; margin: 2cm 1.5cm 2.5cm 1.5cm; }
+body { font-family: Arial, sans-serif; font-size: 10pt; color: #222; line-height: 1.5; }
+.header { text-align: center; margin-bottom: 20px; }
+.header img { height: 60px; }
+.header h1 { font-size: 16pt; color: #c94040; margin: 8px 0 4px; letter-spacing: 2px; }
+.header h2 { font-size: 11pt; color: #333; margin: 4px 0; }
+.republic { font-size: 9pt; color: #666; }
+.entity { font-size: 10pt; color: #2d5a03; font-weight: bold; margin-top: 4px; }
+.ref { font-size: 8pt; color: #999; margin-top: 8px; }
+.section { margin: 15px 0; }
+.dest-box { border: 1px solid #333; padding: 10px; margin: 15px 0; }
+.dest-label { font-size: 8pt; color: #666; margin-bottom: 4px; }
+.content-box { border-left: 3px solid #c94040; padding: 10px 15px; margin: 15px 0; background: #fff8f8; }
+table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+th, td { padding: 5px 8px; text-align: left; font-size: 9pt; border: 1px solid #ccc; }
+th { background: #fce4e4; font-weight: bold; }
+.total-row { font-weight: bold; background: #fce4e4; }
+.deadline-box { text-align: center; margin: 20px 0; padding: 12px; border: 2px solid #c94040; background: #fff8f8; }
+.deadline-box strong { font-size: 14pt; color: #c94040; }
+.consequence { background: #fce4e4; padding: 10px; margin: 15px 0; border-radius: 4px; }
+.dest-grid { display: table; width: 100%; }
+.dest-row { display: table-row; }
+.dest-cell { display: table-cell; padding: 2px 8px 2px 0; }
+.dest-30 { display: table-cell; width: 30%; padding: 2px 8px 2px 0; }
+.dest-70 { display: table-cell; width: 70%; padding: 2px 8px 2px 0; }
+.signature { margin-top: 40px; }
+.signature-line { border-top: 1px solid #333; width: 200px; margin-top: 40px; padding-top: 4px; font-size: 8pt; }
+.qr { text-align: center; margin-top: 15px; }
+.qr img { width: 90px; height: 90px; }
+.footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: center; font-size: 7pt; color: #999; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div class="republic">REPÚBLICA DE GUINEA ECUATORIAL</div>
+    {% if logo_base64 %}<img src="data:image/png;base64,{{ logo_base64 }}" alt="Logo"><br>{% endif %}
+    <h1>{{ texts.title }}</h1>
+    <h2>{{ texts.subtitle }}</h2>
+    <div class="entity">{{ entity_name }}</div>
+    <div class="ref">Ref: MED-{{ inspection_id[:8] }} | {{ inspection_date }}</div>
+</div>
+
+<div class="dest-box">
+    <div class="dest-label">{{ texts.addressee }}:</div>
+    <div class="dest-grid">
+        <div class="dest-row">
+            <div class="dest-cell"><strong>{{ company_name }}</strong></div>
+            <div class="dest-cell">{% if company_nif and company_nif[:2] == 'PE' %}N° Reg:{% else %}NIF:{% endif %} <strong>{{ company_nif }}</strong></div>
+        </div>
+        {% if zone_code or city_name %}
+        <div class="dest-row">
+            <div class="dest-30">Zona: {{ zone_code or '-' }}</div>
+            <div class="dest-70">Ciudad: {{ city_name or '-' }}</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="content-box">
+    <p>{{ texts.body_1 }}</p>
+    <p>{{ texts.body_2 }}</p>
+</div>
+
+<div class="section">
+    <strong>{{ texts.unpaid_obligations }}:</strong>
+    <table>
+        <thead>
+            <tr>
+                <th>{{ texts.service }}</th>
+                <th>{{ texts.fee_type }}</th>
+                <th style="text-align:right">{{ texts.amount }}</th>
+                <th style="text-align:right">{{ texts.penalty }}</th>
+                <th style="text-align:right">{{ texts.total }}</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for obl in obligations %}
+            <tr>
+                <td>{{ obl.service_name or '-' }}</td>
+                <td>{{ obl.fee_type }}</td>
+                <td style="text-align:right">{{ "{:,.0f}".format(obl.amount) }}</td>
+                <td style="text-align:right">{{ "{:,.0f}".format(obl.penalty_amount or 0) }}</td>
+                <td style="text-align:right">{{ "{:,.0f}".format(obl.amount + (obl.penalty_amount or 0)) }}</td>
+            </tr>
+        {% endfor %}
+            <tr class="total-row">
+                <td colspan="4">{{ texts.total_due }}</td>
+                <td style="text-align:right">{{ "{:,.0f}".format(total_amount) }} XAF</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="deadline-box">
+    {{ texts.deadline_text }}<br>
+    <strong>{{ deadline_date }}</strong>
+</div>
+
+<div class="consequence">
+    <strong>{{ texts.consequence_title }}:</strong><br>
+    {{ texts.consequence_text }}
+</div>
+
+<div class="signature">
+    <p>{{ texts.signature_text }}</p>
+    <div class="signature-line">
+        {{ agent_name }}<br>
+        {{ entity_name }}
+    </div>
+</div>
+
+{% if qr_base64 %}
+<div class="qr">
+    <img src="data:image/png;base64,{{ qr_base64 }}" alt="QR">
+    <br><span style="font-size:7pt;">{{ texts.qr_label }}</span>
+</div>
+{% endif %}
+
+<div class="footer">
+    Facil — Plataforma Digital de Guinea Ecuatorial — {{ generated_at }}
+</div>
+
+</body>
+</html>

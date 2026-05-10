@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>{{ title }}</h2>
+<p>{{ greeting }}</p>
+<p>{{ message }}</p>
+
+<div class="code-box">
+    <div class="code">{{ verification_code }}</div>
+</div>
+
+<div class="alert-box alert-info">
+    <p style="margin: 0;"><strong>{{ expiry_label }}</strong> {{ expiry_time }}</p>
+</div>
+
+<p>{{ ignore_text }}</p>
+{% endblock %}

@@ -1,0 +1,381 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "CERTIFICADO_ACTUALIZACION_PADRON_EMPRESARIAL_GQ_V1",
+  "version": "1.0",
+  "title": "Certificado de Actualizacion en el Registro Empresarial (Padron) - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour le Certificat de mise a jour au Padron Empresarial delivre par la Direccion General de Promocion Empresarial y Competitividad. Document specifique aux AUTONOMOS (comercios individuels: abacerias, bares, tiendas, etc.). Visuellement distinct des certificats VUE: fond vert, timbre fiscal EFECTO de VALORES, champs localidad/provincia separes.",
+  "document_type": "CERTIFICADO_ACTUALIZACION_PADRON_EMPRESARIAL",
+  "country": "GQ",
+  "faces": ["single_page"],
+  "document_nature": "certificat_officiel_annuel",
+  "issuer": "Direccion General de Promocion Empresarial y Competitividad - Ministerio de Comercio",
+  "validity": "annual",
+  "workflows": ["empresa"],
+
+  "extraction": {
+    "documento": {
+      "description": "Informations administratives du certificat",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "CERTIFICADO_ACTUALIZACION_PADRON_EMPRESARIAL",
+          "required": true,
+          "description": "Type de document"
+        },
+        "referencia": {
+          "type": "string",
+          "required": false,
+          "description": "Numero de reference interne (format _XXXXXX / XXX)",
+          "field_label": "Referencia"
+        },
+        "ano_actualizacion": {
+          "type": "integer",
+          "required": true,
+          "description": "Annee de l'actualisation (dans le titre du certificat)",
+          "field_label": "AÑO"
+        },
+        "timbre_fiscal": {
+          "type": "number",
+          "required": false,
+          "description": "Valeur du timbre fiscal EFECTO de VALORES en FCFA",
+          "field_label": "EFECTO de VALORES",
+          "currency": "XAF"
+        },
+        "codigo_timbre": {
+          "type": "string",
+          "required": false,
+          "description": "Code du timbre fiscal (format FXXXXXXXX)",
+          "field_label": "TGE"
+        }
+      }
+    },
+
+    "empresa": {
+      "description": "Donnees de l'entreprise (AUTONOMO)",
+      "fields": {
+        "denominacion_social": {
+          "type": "string",
+          "required": true,
+          "description": "Nom commercial du negocio",
+          "field_label": "DENOMINACIÓN SOCIAL",
+          "pii": true
+        },
+        "representante_legal": {
+          "type": "string",
+          "required": true,
+          "description": "Nom du representant legal (proprietaire pour AUTONOMO)",
+          "field_label": "REPRESENTANTE LEGAL",
+          "pii": true
+        },
+        "nacionalidad": {
+          "type": "string",
+          "required": true,
+          "description": "Nationalite du proprietaire/entreprise",
+          "field_label": "NACIONALIDAD"
+        },
+        "domicilio_social": {
+          "type": "string",
+          "required": true,
+          "description": "Adresse physique du negocio (barrio/quartier, sans la ville)",
+          "field_label": "DOMICILIO SOCIAL",
+          "pii": true
+        },
+        "capital_social": {
+          "type": "number",
+          "required": false,
+          "description": "Capital social en FCFA (souvent vide pour AUTONOMO)",
+          "field_label": "CAPITAL SOCIAL",
+          "currency": "XAF"
+        },
+        "forma_juridica": {
+          "type": "string",
+          "enum": ["AUTONOMO"],
+          "required": true,
+          "description": "Forme juridique — toujours AUTONOMO pour ce type de document",
+          "field_label": "FORMA JURÍDICA"
+        },
+        "numero_registro": {
+          "type": "string",
+          "required": true,
+          "pattern": "^PE-[0-9]{3,6}$",
+          "description": "Numero de registre au Padron Empresarial (format PE-XXXX)",
+          "field_label": "NÚMERO DE REGISTRO",
+          "pii": true
+        },
+        "telefono": {
+          "type": "string",
+          "required": false,
+          "description": "Numero(s) de telephone du negocio",
+          "field_label": "TEL"
+        }
+      }
+    },
+
+    "ubicacion": {
+      "description": "Localisation geographique (champs separes — specifique DGPE)",
+      "fields": {
+        "localidad": {
+          "type": "string",
+          "required": true,
+          "description": "Ville/localite du negocio — correspond a cities.name pour resolution city_id",
+          "field_label": "LOCALIDAD"
+        },
+        "provincia": {
+          "type": "string",
+          "required": true,
+          "description": "Province — BIOKO-NORTE, LITORAL, KIE-NTEM, CENTRO-SUR, WELE-NZAS, DJIBLOHO, ANNOBON",
+          "field_label": "PROVINCIA"
+        }
+      }
+    },
+
+    "actividad": {
+      "description": "Secteur et activite de l'entreprise",
+      "fields": {
+        "sector": {
+          "type": "string",
+          "enum": ["Primario", "Secundario", "Terciario"],
+          "required": true,
+          "description": "Secteur economique principal",
+          "field_label": "SECTOR"
+        },
+        "subsector": {
+          "type": "string",
+          "required": true,
+          "description": "Sous-secteur d'activite (COMERCIO pour les AUTONOMO bundle-eligible)",
+          "field_label": "SUB-SECTOR"
+        },
+        "objeto_social": {
+          "type": "string",
+          "required": true,
+          "description": "Description de l'activite commerciale",
+          "field_label": "OBJETO SOCIAL"
+        }
+      }
+    },
+
+    "datos_operativos": {
+      "description": "Donnees operationnelles",
+      "fields": {
+        "numero_establecimientos": {
+          "type": "integer",
+          "required": false,
+          "description": "Nombre d'etablissements",
+          "field_label": "Nº DE ESTABLECIMIENTOS"
+        },
+        "numero_empleados": {
+          "type": "integer",
+          "required": false,
+          "description": "Nombre d'employes",
+          "field_label": "Nº DE EMPLEADOS"
+        }
+      }
+    },
+
+    "certificacion": {
+      "description": "Contenu de la certification",
+      "fields": {
+        "estado_negocio": {
+          "type": "string",
+          "enum": ["Negocio Activo", "Negocio Inactivo"],
+          "required": true,
+          "description": "Statut certifie du negocio (attention: 'Negocio Activo' et non 'EMPRESA ACTIVA' comme dans les docs VUE)",
+          "field_label": "CERTIFICA"
+        },
+        "derecho_ejercer": {
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Droit d'exercer l'activite pendant un exercice economique"
+        },
+        "vencimiento": {
+          "type": "string",
+          "required": false,
+          "description": "Date/mention de fin de validite (ex: '31 de diciembre de este ano')"
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification (1 seule autorite — DGPE)",
+      "fields": {
+        "tiene_foto_representante": {
+          "type": "boolean",
+          "required": true,
+          "description": "Photo du representant legal presente (coin superieur droit, petit format)"
+        },
+        "fecha_emision": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'emission en toutes lettres",
+          "date_format": "D de MMMM de YYYY"
+        },
+        "lugar_emision": {
+          "type": "string",
+          "required": true,
+          "description": "Lieu d'emission (doit correspondre a localidad)"
+        },
+        "tiene_firma_director_general": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du Director General de Promocion Empresarial y Competitividad"
+        },
+        "tiene_sello_dgpe": {
+          "type": "boolean",
+          "required": true,
+          "description": "Sceau officiel de la DGPE"
+        },
+        "tiene_timbre_fiscal": {
+          "type": "boolean",
+          "required": true,
+          "description": "Timbre fiscal EFECTO de VALORES (TGE) colle sur le document"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "negocio_activo_required",
+      "rule": "estado_negocio == 'Negocio Activo'",
+      "error_es": "Solo se aceptan certificados de negocios con estado Activo",
+      "error_fr": "Seuls les certificats de negocios avec statut Actif sont acceptes",
+      "severity": "error"
+    },
+    {
+      "id": "forma_juridica_autonomo",
+      "rule": "forma_juridica == 'AUTONOMO'",
+      "error_es": "Este documento es exclusivo para AUTONOMOS. Para SL/SA use el certificado VUE",
+      "error_fr": "Ce document est exclusif aux AUTONOMOS. Pour SL/SA utilisez le certificat VUE",
+      "severity": "error"
+    },
+    {
+      "id": "numero_registro_format",
+      "rule": "numero_registro MATCHES '^PE-[0-9]{3,6}$'",
+      "error_es": "Formato de numero de registro invalido (esperado: PE-XXXX)",
+      "error_fr": "Format numero de registre invalide (attendu: PE-XXXX)",
+      "severity": "error"
+    },
+    {
+      "id": "foto_required",
+      "rule": "tiene_foto_representante == true",
+      "error_es": "El certificado debe incluir la foto del representante",
+      "error_fr": "Le certificat doit inclure la photo du representant",
+      "severity": "error"
+    },
+    {
+      "id": "firma_required",
+      "rule": "tiene_firma_director_general == true",
+      "error_es": "El certificado debe tener la firma del Director General",
+      "error_fr": "Le certificat doit avoir la signature du Directeur General",
+      "severity": "error"
+    },
+    {
+      "id": "sello_required",
+      "rule": "tiene_sello_dgpe == true",
+      "error_es": "El certificado debe tener el sello oficial de la DGPE",
+      "error_fr": "Le certificat doit avoir le sceau officiel de la DGPE",
+      "severity": "error"
+    },
+    {
+      "id": "timbre_required",
+      "rule": "tiene_timbre_fiscal == true",
+      "error_es": "El certificado debe tener el timbre fiscal (EFECTO de VALORES)",
+      "error_fr": "Le certificat doit avoir le timbre fiscal (EFECTO de VALORES)",
+      "severity": "error"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Certificat annuel de mise a jour au Padron Empresarial delivre par la DGPE (Direccion General de Promocion Empresarial y Competitividad). Document specifique aux AUTONOMOS (petits commerces individuels). ATTENTION: NE PAS confondre avec le Certificado de Actualizacion en el Registro Empresarial delivre par la VUE (Ventanilla Unica Empresarial) qui concerne les SL/SA.",
+    "language": "es",
+    "visual_zones": [
+      "Haut gauche: Armoiries GQ + REPUBLICA DE GUINEA ECUATORIAL + TESORIA GENERAL DEL ESTADO + valeur timbre fiscal",
+      "Haut droite: Timbre EFECTO de VALORES (TGE) avec code barre + code FXXXXXXXX",
+      "Sous en-tete: Ministerio de Comercio, Industria y Promocion Empresarial + Direccion General de Promocion Empresarial y Competitividad",
+      "Reference: _XXXXXX / XXX + Promocion E. + D.G.P.E.Y.C",
+      "Titre: CERTIFICADO DE ACTUALIZACION EN EL REGISTRO EMPRESARIAL [YYYY] (fond vert)",
+      "Photo: petite photo d'identite du representant (coin droit, sous le timbre)",
+      "Intro: 'Esta Direccion General de Promocion Empresarial y Competitividad, certifica que ha registrado...'",
+      "Tableau donnees: Denominacion Social, Sector/Sub-Sector/Forma Juridica (sur meme ligne), Capital Social/Nacionalidad, Objeto Social, Representante Legal, Localidad/Provincia, Empleados/Establecimientos, Domicilio Social, Numero de Registro/TEL",
+      "Section CERTIFICA: 2 points numerotes (1. donnees coincident, 2. Negocio Activo)",
+      "Bas: ACTUALIZADA EN [lugar], A [date en lettres] + POR UNA GUINEA MEJOR + EL DIRECTOR GENERAL + firma + sello"
+    ],
+    "key_differences_vs_vue": [
+      "Emetteur: DGPE (pas VUE)",
+      "Fond vert (pas blanc)",
+      "Timbre fiscal EFECTO de VALORES colle (VUE n'a pas de timbre)",
+      "Localidad + Provincia = champs separes (VUE a Domicilio Social avec ville incluse)",
+      "Numero de Registro = PE-XXXX (VUE a Nº Expediente VUE = XXXXX/YYYY)",
+      "Estado = 'Negocio Activo' (VUE = 'EMPRESA ACTIVA')",
+      "1 seule signature: El Director General (VUE en a 2: Director PYMES + Coordinador General)",
+      "Pas de NIF sur le document (VUE a NIF)",
+      "Pas de numero_ri, pas de numero_certificado"
+    ],
+    "classification_hint": "AUTONOMO + Terciario + COMERCIO = bundle-eligible (service_bundles apply). Ce document est le declencheur principal de la creation du dossier commercial_licenses."
+  },
+
+  "tesseract_patterns": {
+    "ano_actualizacion": [
+      "(?:REGISTRO\\s*EMPRESARIAL)\\s*([0-9]{4})"
+    ],
+    "denominacion_social": [
+      "(?:DENOMINACI[ÓO]N\\s*SOCIAL)\\s*[:#]?\\s*(.+?)(?=Sector|$)"
+    ],
+    "sector": [
+      "(?:Sector)\\s*[:#]?\\s*(Primario|Secundario|Terciario)"
+    ],
+    "subsector": [
+      "(?:Sub\\s*-?\\s*Sector)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ]+)"
+    ],
+    "forma_juridica": [
+      "(?:Forma\\s*Jur[iíI]dica)\\s*[:#]?\\s*(AUT[OÓ]NOMO)"
+    ],
+    "capital_social": [
+      "(?:Capital\\s*Social)\\s*[:#]?\\s*([0-9.,]+)"
+    ],
+    "nacionalidad": [
+      "(?:Nacionalidad)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ]+)"
+    ],
+    "objeto_social": [
+      "(?:Objeto\\s*Social)\\s*[:#]?\\s*(.+?)(?=Representante|$)"
+    ],
+    "representante_legal": [
+      "(?:Representante\\s*Legal)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+?)(?=Localidad|$)"
+    ],
+    "localidad": [
+      "(?:Localidad)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ]+)"
+    ],
+    "provincia": [
+      "(?:Provincia)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ-]+)"
+    ],
+    "numero_establecimientos": [
+      "(?:N[°ºo]?\\s*de\\s*Establecimientos)\\s*[:#]?\\s*(?:UNO\\s*\\()?([0-9]+)"
+    ],
+    "numero_empleados": [
+      "(?:N[°ºo]?\\s*de\\s*[Ee]mpleados)\\s*[:#]?\\s*([0-9]+)"
+    ],
+    "domicilio_social": [
+      "(?:Domicilio\\s*Social)\\s*[:#]?\\s*(.+?)(?=N[uú]mero|$)"
+    ],
+    "numero_registro": [
+      "(?:N[uú]mero\\s*de\\s*Registro)\\s*[:#]?\\s*(PE-[0-9]{3,6})"
+    ],
+    "telefono": [
+      "(?:TEL)\\s*[:#]?\\s*([0-9\\s/A-Za-z]+)"
+    ],
+    "estado_negocio": [
+      "(?:estado\\s*como)\\s*(Negocio\\s*Activo|Negocio\\s*Inactivo)"
+    ],
+    "timbre_fiscal": [
+      "([0-9.,]+)\\s*F\\.?\\s*CFA"
+    ],
+    "codigo_timbre": [
+      "(F[0-9]{8})"
+    ],
+    "referencia": [
+      "_([0-9]{6}\\s*/\\s*[0-9]{3})"
+    ]
+  }
+}

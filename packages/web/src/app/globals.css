@@ -1,0 +1,227 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here.
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 10%;
+
+    /* Equatorial Guinea colors */
+    --eq-guinea-blue: 207 100% 39%;
+    --eq-guinea-red: 0 79% 46%;
+    --eq-guinea-green: 143 100% 30%;
+    --eq-guinea-yellow: 45 98% 54%;
+
+    /* Modern primary - Green (changed from blue) */
+    --primary: 143 100% 30%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 143 100% 25%;
+
+    /* Secondary - Blue */
+    --secondary: 207 100% 39%;
+    --secondary-foreground: 0 0% 100%;
+
+    /* Muted */
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+
+    /* Accent - Yellow */
+    --accent: 45 98% 54%;
+    --accent-foreground: 240 10% 10%;
+
+    /* Destructive - Red */
+    --destructive: 0 79% 46%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Success - Green */
+    --success: 143 100% 30%;
+    --success-foreground: 0 0% 100%;
+
+    /* Border and input */
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 143 100% 30%;
+
+    --radius: 0.75rem;
+
+    /* Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(var(--eq-guinea-blue)) 0%, hsl(var(--eq-guinea-green)) 50%, hsl(var(--eq-guinea-yellow)) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(143 100% 30% / 0.05) 0%, hsl(150 100% 26% / 0.02) 100%);
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+
+    /* Transitions */
+    --transition-base: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark {
+    --background: 240 10% 8%;
+    --foreground: 0 0% 95%;
+
+    --card: 240 10% 10%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 240 10% 10%;
+    --popover-foreground: 0 0% 95%;
+
+    --primary: 143 100% 35%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 143 100% 28%;
+
+    --secondary: 207 100% 45%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 240 4% 16%;
+    --muted-foreground: 240 5% 65%;
+
+    --accent: 45 98% 58%;
+    --accent-foreground: 240 10% 10%;
+
+    --destructive: 0 79% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 143 100% 30%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 240 4% 16%;
+    --input: 240 4% 16%;
+    --ring: 143 100% 35%;
+
+    --gradient-hero: linear-gradient(135deg, hsl(var(--eq-guinea-blue)) 0%, hsl(var(--eq-guinea-green)) 50%, hsl(var(--eq-guinea-yellow)) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(143 80% 15%) 0%, hsl(143 70% 18%) 100%);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer utilities {
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+
+  .gradient-card {
+    background: var(--gradient-card);
+  }
+
+  .shadow-elegant {
+    box-shadow: 0 10px 30px -10px hsl(var(--primary) / 0.3);
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-in-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.4s ease-out;
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* ============================================================
+   Print styles — clean A4 layout for licencias pricing sheet
+   ============================================================ */
+@media print {
+  /* Reset page — margin 0 removes browser header/footer (URL, date, title) */
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  body {
+    padding: 8mm;
+  }
+
+  /* Force background colors in print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide all non-content elements */
+  header, footer, nav,
+  .breadcrumb, [role="navigation"],
+  [class*="print:hidden"] {
+    display: none !important;
+  }
+
+  /* Reset backgrounds and shadows */
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 8pt !important;
+    line-height: 1.3 !important;
+  }
+
+  /* Cards: no shadows, minimal border */
+  [class*="rounded"] {
+    border-radius: 2px !important;
+  }
+
+  /* No shadows on print */
+  [class*="shadow"] {
+    box-shadow: none !important;
+  }
+
+  /* Ensure content doesn't break awkwardly */
+  .space-y-4 > * {
+    break-inside: avoid;
+  }
+
+  /* Show print-only elements */
+  .print\\:block {
+    display: block !important;
+  }
+  .print\\:flex {
+    display: flex !important;
+  }
+}

@@ -1,0 +1,192 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "VISADO_GQ_V1",
+  "version": "1.0",
+  "title": "Visado de Entrada - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour le Visado (visa d'entree) colle dans le passeport, emis par les consulats/ambassades de Guinee Equatoriale ou la Secretaria de Estado Encargada de Extranjeria. Requis pour les ressortissants HORS CEMAC demandant un permis de residence (Art. 3.A.1.c). Les nationaux CEMAC (CMR, CAF, COG, GAB, TCD) sont exemptes de visa.",
+  "document_type": "VISADO",
+  "country": "GQ",
+  "faces": ["visa_page"],
+  "document_nature": "visa_sticker",
+  "issuer": "Consulats/Ambassades de GQ a l'etranger ou Secretaria de Estado Encargada de Extranjeria",
+
+  "extraction": {
+    "documento": {
+      "description": "Informations administratives du visa",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "VISADO",
+          "required": true,
+          "description": "Type de document",
+          "usage": "Identification du type de document pour le dossier"
+        },
+        "numero_visado": {
+          "type": "string",
+          "required": true,
+          "description": "Numero du visa imprime ou tamponne sur le sticker (ex: 0522616). Generalement en haut a droite du sticker.",
+          "usage": "CRITIQUE — tracabilite et anti-fraude. Permet a l'agent de verifier aupres de l'autorite consulaire si necessaire."
+        },
+        "fecha_expedicion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'emission du visa. Peut etre en format numerique (03 JUN 2011) ou textuel espagnol. Normaliser en YYYY-MM-DD.",
+          "usage": "Verification de validite du visa. Un visa tres ancien peut etre expire."
+        }
+      }
+    },
+
+    "visado": {
+      "description": "Caracteristiques du visa",
+      "fields": {
+        "tipo_visado": {
+          "type": "string",
+          "enum": ["TRANSITO", "DOBLE_TRANSITO", "LIMITADO", "COLECTIVO", "ALTERNATIVO"],
+          "required": true,
+          "description": "Type de visa. Sur le sticker officiel, 4 checkboxes: TRANSITO / DOBLE TRANSITO / LIMITADO / COLECTIVO. Le VISADO ALTERNATIVO est un format different (multi-entrees, longue duree, emis par la Secretaria de Estado). Determiner le type a partir de la case cochee ou du titre du document.",
+          "usage": "CRITIQUE — determine les droits d'entree. Pour un dossier de residencia, le visa doit etre LIMITADO ou ALTERNATIVO. Un visa de TRANSITO n'autorise pas la residence."
+        },
+        "duracion_dias": {
+          "type": "integer",
+          "required": true,
+          "description": "Duree de sejour autorisee en jours. Extraire le nombre entre parentheses ou le nombre en lettres. Exemples: 'TREINTA (30)' → 30, 'DOCE (12) MESES' → 365.",
+          "usage": "CRITIQUE — pour calculer si le sejour depasse la duree autorisee. Cross-validation avec la fecha_entrada_pais pour determiner le depassement eventuel."
+        },
+        "numero_entradas": {
+          "type": "string",
+          "required": true,
+          "description": "Nombre d'entrees autorisees. Texte tel qu'ecrit: 'UNA entrada y salida', 'DOS', 'CUANTAS VECES' (multiple). Pour visado alternativo, generalement 'CUANTAS VECES'.",
+          "usage": "Information pour l'agent — un visa a entree unique deja utilise ne peut pas servir pour une nouvelle entree."
+        },
+        "expedido_por": {
+          "type": "string",
+          "required": false,
+          "description": "Autorite qui a delivre le visa (consulat, ambassade, secretaria de estado). Texte apres 'Expedido por'.",
+          "usage": "Verification d'authenticite — confirme que le visa a ete emis par une autorite reconnue."
+        },
+        "sobre_pasaporte": {
+          "type": "string",
+          "required": false,
+          "description": "Numero de passeport sur lequel le visa est colle. Texte apres 'Sobre Pasaporte'. Peut differer du passeport actuel si le passeport a ete renouvele.",
+          "pii": true,
+          "usage": "Cross-validation avec le numero du passeport presente. Si different, le demandeur a renouvele son passeport depuis l'obtention du visa (warning, pas error si l'ancien passeport est presente)."
+        }
+      }
+    },
+
+    "consul": {
+      "description": "Donnees du consul qui a delivre le visa",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": false,
+          "description": "Nom du consul ou de l'autorite signataire. Souvent en bas du sticker sous 'Visto del Consul'.",
+          "pii": true,
+          "usage": "Information complementaire — identification de l'autorite signataire."
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification du visa",
+      "fields": {
+        "tiene_firma_consul": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du consul ou de l'autorite presente sur le sticker",
+          "usage": "CRITIQUE — un visa sans signature est invalide."
+        },
+        "tiene_sello": {
+          "type": "boolean",
+          "required": true,
+          "description": "Sceau officiel de la Republica de Guinea Ecuatorial present (rond, avec armoiries).",
+          "usage": "CRITIQUE — un visa sans sceau officiel est invalide. Le sceau rond porte les armoiries de GQ."
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "numero_visado_presente",
+      "rule": "documento.numero_visado IS NOT NULL AND documento.numero_visado != ''",
+      "error_es": "No se pudo extraer el número de visado",
+      "severity": "error"
+    },
+    {
+      "id": "tipo_visado_valido",
+      "rule": "visado.tipo_visado IN ('LIMITADO', 'ALTERNATIVO')",
+      "error_es": "El visado debe ser de tipo LIMITADO o ALTERNATIVO para solicitar residencia. Los visados de tránsito no son válidos.",
+      "severity": "error"
+    },
+    {
+      "id": "firma_y_sello_presentes",
+      "rule": "tiene_firma_consul == true AND tiene_sello == true",
+      "error_es": "Falta firma del cónsul o sello oficial de la República de Guinea Ecuatorial",
+      "severity": "error"
+    },
+    {
+      "id": "fecha_expedicion_not_future",
+      "rule": "fecha_expedicion <= TODAY",
+      "error_es": "La fecha de expedición del visado no puede ser futura",
+      "severity": "error"
+    }
+  ],
+
+  "cross_document_validations": [
+    {
+      "id": "pasaporte_coherente",
+      "compare_with": "pasaporte",
+      "rule": "normalize(visado.sobre_pasaporte) == normalize(pasaporte.documento.numero_pasaporte)",
+      "error_es": "El número de pasaporte en el visado no coincide con el pasaporte presentado",
+      "severity": "warning",
+      "note": "Warning car le demandeur peut avoir renouvele son passeport depuis l'obtention du visa. Si c'est le cas, l'ancien passeport doit aussi etre presente."
+    }
+  ],
+
+  "gemini_hints": {
+    "document_type": "Visado (visa d'entree) de Guinee Equatoriale. Sticker autocollant colle dans le passeport OU document visado alternativo/permanencia sur page separee. Emis par un consulat/ambassade GQ a l'etranger ou par la Secretaria de Estado Encargada de Extranjeria pour les visados alternativos.",
+    "language": "es",
+
+    "extraction_priority": [
+      "1. TIPO VISADO (CRITICAL): Determiner le type — LIMITADO (standard) ou ALTERNATIVO (multi-entrees). Les visas de TRANSITO ne sont pas valides pour la residence.",
+      "2. NUMERO VISADO: Numero imprime sur le sticker (haut droite).",
+      "3. DURACION DIAS: Nombre de jours autorises. Extraire le chiffre entre parentheses.",
+      "4. NUMERO ENTRADAS: Nombre d'entrees autorisees (UNA, DOS, CUANTAS VECES).",
+      "5. FECHA EXPEDICION: Date d'emission du visa. Normaliser en YYYY-MM-DD.",
+      "6. SOBRE PASAPORTE: Numero de passeport reference sur le visa.",
+      "7. AUTENTICACION: Signature consul + sceau officiel GQ.",
+      "8. SECONDARY: expedido_por, nombre consul."
+    ],
+
+    "semantic_instructions": {
+      "tipo_visado": "Deux formats possibles: (1) Sticker standard avec 4 checkboxes (TRANSITO, DOBLE TRANSITO, LIMITADO, COLECTIVO) — determiner laquelle est cochee. (2) Document 'VISADO ALTERNATIVO' — c'est un format different, emis par la Secretaria de Estado, generalement multi-entrees et longue duree. Retourner la valeur correspondante de l'enum.",
+      "duracion_dias": "Extraire la duree de sejour autorisee. Le document ecrit typiquement 'hasta TREINTA (30) dias' ou 'DURANTE DOCE (12) MESES'. Convertir en jours: si en mois, multiplier par 30. Retourner le nombre entier.",
+      "numero_entradas": "Extraire tel quel le texte decrivant le nombre d'entrees: 'UNA entrada y salida', 'DOS', 'CUANTAS VECES lo desee'. Ne pas normaliser — l'agent interprete.",
+      "fecha_expedicion": "Date d'emission du visa. Formats multiples: DD MMM YYYY (03 JUN 2011), DD de MMMM de YYYY, DD/MM/YYYY. Normaliser en YYYY-MM-DD.",
+      "sobre_pasaporte": "Numero du passeport sur lequel le visa est colle. Souvent apres 'Sobre Pasaporte' ou 'Sobre pasaporte CI...' ou 'Sobre pasaporte n°...'. Extraire le numero complet.",
+      "autenticacion": "Verifier visuellement: (1) signature du consul ou de l'autorite (bas du sticker, sous 'Visto del Consul' ou 'Firma'), (2) sceau rond officiel de la Republica de Guinea Ecuatorial."
+    },
+
+    "ocr_challenges": [
+      "Sticker colle dans le passeport — peut etre partiellement masque par le pli du passeport",
+      "Champs souvent remplis a la main (stylo bleu/noir) sur formulaire pre-imprime",
+      "Sceaux et tampons d'entree peuvent se superposer au sticker",
+      "Le format VISADO ALTERNATIVO est different du sticker standard",
+      "Qualite photo variable — reflets sur la page plastifiee du passeport",
+      "Numero de visado peut etre tamponne (encre) ou imprime (machine)"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "_note": "Patterns de fallback. Gemini est l'extracteur principal.",
+    "numero_visado": [
+      "(?:VISADO)\\s*(?:N[°ºo])?\\s*[:#]?\\s*([0-9]{5,8})"
+    ],
+    "fecha_expedicion": [
+      "(\\d{1,2}\\s*(?:ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC)\\s*\\d{4})",
+      "(\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{2,4})"
+    ]
+  }
+}

@@ -1,0 +1,288 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "ANTECEDENTES_PENALES_GQ_V1",
+  "version": "1.1",
+  "title": "Certificado Negativo de Antecedentes Penales - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour le Certificado Negativo de Antecedentes Penales emis par le Ministerio de Justicia, Culto e Instituciones Penitenciarias, Direccion General de Instituciones Penitenciarias y Centros de Reeducacion de Menores (Art. 3.A.2.j - Orden Ministerial 01/2021). Utilise pour RENOVACION de residencia (casier GQ). Pour PRIMERA VEZ (casier pays d'origine), voir EXTRAIT_CASIER_JUDICIAIRE_INTERNATIONAL_V1.",
+  "document_type": "ANTECEDENTES_PENALES",
+  "country": "GQ",
+  "faces": ["single_page"],
+  "document_nature": "certificat_officiel",
+  "issuer": "Dirección General de Instituciones Penitenciarias y Centros de Reeducación de Menores, Ministerio de Justicia",
+  "validity_period": "3 months from issue date",
+
+  "extraction": {
+    "documento": {
+      "description": "Informations administratives du certificat",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "ANTECEDENTES_PENALES",
+          "required": true,
+          "description": "Type de document",
+          "usage": "Identification du type de document pour le dossier"
+        },
+        "numero_timbre_fiscal": {
+          "type": "string",
+          "required": false,
+          "description": "Numero du timbre fiscal EFECTO de VALORES colle en haut a droite du document. Format typique: lettre F suivie de chiffres (ex: F00327343).",
+          "usage": "Anti-fraude — permet de verifier l'authenticite du timbre fiscal aupres de la Tesoria General del Estado. Chaque timbre a un numero unique."
+        },
+        "valor_timbre": {
+          "type": "integer",
+          "required": false,
+          "description": "Valeur du timbre fiscal en FCFA telle qu'indiquee sur le timbre",
+          "usage": "Confirmation que le timbre fiscal correct a ete utilise"
+        },
+        "fecha_expedicion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'emission du certificat. En format textuel espagnol dans la formule finale (nombres en lettres). Normaliser en YYYY-MM-DD.",
+          "usage": "CRITIQUE — validation de validite: le certificat doit avoir moins de 3 mois (Art. 3.A.2.j). C'est le champ le plus important apres resultado."
+        },
+        "ciudad_expedicion": {
+          "type": "string",
+          "required": false,
+          "description": "Ville d'emission du certificat, extraite de la formule finale",
+          "usage": "Information complementaire — confirme que le certificat a ete emis en GQ"
+        }
+      }
+    },
+
+    "titular": {
+      "description": "Donnees de la personne certifiee",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": true,
+          "description": "Nom complet du titulaire tel qu'il apparait sur le certificat, apres DON/DOÑA",
+          "pii": true,
+          "usage": "CRITIQUE — cross-validation Levenshtein avec le passeport du demandeur. C'est la preuve que le casier judiciaire GQ concerne bien le demandeur."
+        },
+        "nacionalidad": {
+          "type": "string",
+          "required": true,
+          "description": "Nationalite du titulaire telle qu'ecrite sur le certificat",
+          "usage": "Information pour l'agent. Pour le workflow Residencia RENOVACION, le titulaire est un etranger resident en GQ."
+        },
+        "estado_civil": {
+          "type": "string",
+          "required": false,
+          "description": "Etat civil du titulaire tel qu'ecrit sur le certificat",
+          "usage": "Information complementaire pour le dossier"
+        },
+        "profesion": {
+          "type": "string",
+          "required": false,
+          "description": "Profession du titulaire telle que declaree sur le certificat",
+          "usage": "Information complementaire pour le dossier"
+        },
+        "filiacion_padre": {
+          "type": "string",
+          "required": false,
+          "description": "Nom du pere du titulaire",
+          "pii": true,
+          "usage": "Cross-validation filiation avec le passeport si disponible"
+        },
+        "filiacion_madre": {
+          "type": "string",
+          "required": false,
+          "description": "Nom de la mere du titulaire",
+          "pii": true,
+          "usage": "Cross-validation filiation avec le passeport si disponible"
+        },
+        "lugar_nacimiento": {
+          "type": "string",
+          "required": false,
+          "description": "Lieu de naissance complet (localite, district, province)",
+          "usage": "Cross-validation avec le passeport si disponible"
+        },
+        "fecha_nacimiento": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date de naissance du titulaire. Souvent en format textuel espagnol (nombres en lettres). Normaliser en YYYY-MM-DD.",
+          "pii": true,
+          "usage": "CRITIQUE — cross-validation exacte avec la date de naissance du passeport."
+        },
+        "numero_identificacion": {
+          "type": "string",
+          "required": true,
+          "description": "Numero de document d'identite du titulaire. Peut etre un DIP (citoyens GQ, format 000.000.000), un NIE (residents etrangers), un numero de passeport GQ (format F + chiffres) ou un numero de passeport etranger. Extraire tel quel sans reformater.",
+          "pii": true,
+          "encrypt": true,
+          "usage": "CRITIQUE — cross-validation avec le document d'identite principal du demandeur. Le texte du certificat mentionne 'provisto de DIP/Pasaporte nº'. Pour les etrangers, ce sera generalement leur numero de passeport."
+        },
+        "residencia_actual": {
+          "type": "string",
+          "required": false,
+          "description": "Lieu de residence actuel du titulaire si mentionne sur le certificat",
+          "pii": true,
+          "usage": "Information pour l'agent — peut indiquer si la personne reside encore en GQ ou a l'etranger"
+        }
+      }
+    },
+
+    "certificacion": {
+      "description": "Contenu de la certification penale",
+      "fields": {
+        "resultado": {
+          "type": "string",
+          "enum": ["NEGATIVO", "POSITIVO"],
+          "required": true,
+          "description": "Valeurs INTERNES (pas des mots a chercher dans le corps du texte). NEGATIVO = le document certifie l'absence d'antecedents penaux (casier vierge en GQ). POSITIVO = le document mentionne des antecedents penaux existants. Le mot 'NEGATIVO' peut apparaitre dans le TITRE du document ('Certificado NEGATIVO') mais le resultat doit etre determine SEMANTIQUEMENT a partir du paragraphe CERTIFICA.",
+          "usage": "CRITIQUE — le champ le plus important. Si POSITIVO, le dossier de residencia est rejete. Le texte typique pour NEGATIVO est 'NO CONSTA antecedente penal desfavorable' mais Gemini doit comprendre le SENS du texte, pas chercher cette phrase exacte."
+        },
+        "validez_meses": {
+          "type": "integer",
+          "required": false,
+          "const": 3,
+          "description": "Validite en mois, generalement 3 mois, mentionne explicitement sur le document",
+          "usage": "Confirmation de la duree de validite pour l'agent"
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification du document",
+      "fields": {
+        "tiene_timbre_fiscal": {
+          "type": "boolean",
+          "required": true,
+          "description": "Timbre fiscal EFECTO de VALORES (Tesoria General del Estado) present sur le document",
+          "usage": "CRITIQUE — le certificat d'antecedents penaux GQ DOIT porter un timbre fiscal. C'est un element de securite specifique aux documents officiels GQ. Generalement colle en haut a droite."
+        },
+        "tiene_firma_director": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du Director General de Instituciones Penitenciarias presente",
+          "usage": "CRITIQUE — le certificat necessite la signature du Director General. Generalement en bas sous la mention EL DIRECTOR GENERAL."
+        },
+        "tiene_sello_ministerio": {
+          "type": "boolean",
+          "required": true,
+          "description": "Sceau officiel du Ministerio de Justicia present",
+          "usage": "CRITIQUE — le sceau du ministere est obligatoire pour l'authenticite du document."
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "resultado_negativo",
+      "rule": "resultado == 'NEGATIVO'",
+      "error_es": "El certificado indica antecedentes penales existentes",
+      "severity": "error"
+    },
+    {
+      "id": "certificado_vigente",
+      "rule": "fecha_expedicion + 3 MONTHS > TODAY",
+      "error_es": "Certificado de antecedentes penales caducado (validez: 3 meses)",
+      "severity": "error"
+    },
+    {
+      "id": "timbre_fiscal_presente",
+      "rule": "tiene_timbre_fiscal == true",
+      "error_es": "Falta el timbre fiscal (EFECTO de VALORES)",
+      "severity": "error"
+    },
+    {
+      "id": "firma_y_sello_presentes",
+      "rule": "tiene_firma_director == true AND tiene_sello_ministerio == true",
+      "error_es": "Falta firma del Director General o sello del Ministerio de Justicia",
+      "severity": "error"
+    },
+    {
+      "id": "nombre_presente",
+      "rule": "titular.nombre_completo IS NOT NULL AND titular.nombre_completo != ''",
+      "error_es": "No se pudo extraer el nombre del titular",
+      "severity": "error"
+    },
+    {
+      "id": "identificacion_presente",
+      "rule": "titular.numero_identificacion IS NOT NULL AND titular.numero_identificacion != ''",
+      "error_es": "No se pudo extraer el número de identificación del titular",
+      "severity": "error"
+    },
+    {
+      "id": "fecha_expedicion_not_future",
+      "rule": "fecha_expedicion <= TODAY",
+      "error_es": "La fecha de expedición no puede ser futura",
+      "severity": "error"
+    }
+  ],
+
+  "cross_document_validations": [
+    {
+      "id": "nombre_coherente_pasaporte",
+      "compare_with": "pasaporte",
+      "rule": "levenshtein_match(titular.nombre_completo, pasaporte.titular.apellidos + ' ' + pasaporte.titular.nombres)",
+      "threshold": 0.85,
+      "error_es": "El nombre en los antecedentes penales no coincide con el pasaporte",
+      "severity": "error"
+    },
+    {
+      "id": "fecha_nacimiento_coherente",
+      "compare_with": "pasaporte",
+      "rule": "titular.fecha_nacimiento == pasaporte.titular.fecha_nacimiento",
+      "error_es": "La fecha de nacimiento no coincide con el pasaporte",
+      "severity": "error"
+    },
+    {
+      "id": "numero_identificacion_coherente",
+      "compare_with": "pasaporte",
+      "rule": "normalize(titular.numero_identificacion) == normalize(pasaporte.documento.numero_pasaporte)",
+      "error_es": "El número de identificación en los antecedentes no coincide con el pasaporte presentado",
+      "severity": "error",
+      "note": "Error car pour RENOVACION, le demandeur etranger donne son passeport au Ministerio de Justicia — le numero devrait correspondre. Normalisation: suppression points, espaces, tirets."
+    }
+  ],
+
+  "gemini_hints": {
+    "document_type": "Certificado Negativo de Antecedentes Penales — certificat officiel du Ministerio de Justicia de Guinee Equatoriale attestant l'absence de casier judiciaire. Document sur papier securise avec timbre fiscal EFECTO de VALORES et bordure verte TGE. Format narratif en espagnol avec un paragraphe CERTIFICA central.",
+    "language": "es",
+
+    "extraction_priority": [
+      "1. RESULTADO (CRITICAL): Le document certifie-t-il l'absence d'antecedents penaux? NEGATIVO (pas de casier) ou POSITIVO (casier existant).",
+      "2. NOMBRE COMPLETO: Nom complet du titulaire apres DON/DOÑA.",
+      "3. FECHA NACIMIENTO: Date de naissance. Souvent en lettres. Normaliser en YYYY-MM-DD.",
+      "4. NUMERO IDENTIFICACION: Numero DIP, NIE ou passeport du titulaire.",
+      "5. FECHA EXPEDICION: Date d'emission. Souvent en lettres. Normaliser en YYYY-MM-DD.",
+      "6. TIMBRE FISCAL: Numero et presence du timbre EFECTO de VALORES.",
+      "7. AUTENTICACION: Signature Director General + sceau Ministerio.",
+      "8. SECONDARY: nacionalidad, estado_civil, profesion, filiacion, lugar_nacimiento, residencia_actual, ciudad_expedicion, validez_meses."
+    ],
+
+    "semantic_instructions": {
+      "resultado": "Lire et COMPRENDRE le paragraphe CERTIFICA. NEGATIVO et POSITIVO sont des valeurs INTERNES, pas des mots a chercher dans le corps du texte. Determiner si le document atteste que la personne N'A PAS d'antecedents penaux en GQ (NEGATIVO) ou qu'elle EN A (POSITIVO). Le texte typique pour NEGATIVO est 'NO CONSTA antecedente penal desfavorable'. Le mot 'NEGATIVO' peut apparaitre dans le TITRE du document ('Certificado Negativo de Antecedentes Penales') mais c'est le contenu du paragraphe CERTIFICA qui fait foi. Comprendre le SENS du texte.",
+      "nombre_completo": "Extraire le nom COMPLET du titulaire. Il apparait apres 'DON' ou 'DOÑA' dans le paragraphe CERTIFICA. Ne PAS inclure 'DON'/'DOÑA' dans le nom extrait. Extraire exactement tel qu'ecrit.",
+      "numero_identificacion": "Extraire le numero de document d'identite du titulaire. Le texte mentionne 'provisto de DIP/Pasaporte nº'. Peut etre un DIP (citoyens GQ, format avec points 000.000.000), un passeport GQ (format F + chiffres), un passeport etranger, ou un NIE. Extraire tel quel avec les separateurs.",
+      "fecha_nacimiento": "Date de naissance dans le paragraphe CERTIFICA. Souvent en format textuel espagnol complet avec nombres en lettres ('cinco de noviembre de mil novecientos ochenta y cuatro'). Convertir en chiffres et normaliser en YYYY-MM-DD.",
+      "fecha_expedicion": "Date d'emission dans la formule finale. Format textuel espagnol avec nombres en lettres ('A VEINTICINCO DIAS DEL MES DE MAYO DEL AÑO DOS MIL VEINTIDOS'). Convertir en chiffres et normaliser en YYYY-MM-DD.",
+      "timbre_fiscal": "Verifier visuellement la presence du timbre EFECTO de VALORES en haut a droite. Extraire le numero imprime sur le timbre (format typique F + 8 chiffres) et la valeur en FCFA.",
+      "autenticacion": "Verifier visuellement: (1) signature du Director General (bas du document), (2) sceau rond du Ministerio de Justicia, (3) timbre fiscal EFECTO de VALORES (haut droite). Le document est sur papier securise avec bordure verte et motifs TGE."
+    },
+
+    "ocr_challenges": [
+      "Papier securise avec motifs de fond (bordure verte TGE) peut affecter OCR",
+      "Timbre fiscal colle peut masquer du texte en haut a droite",
+      "Texte narratif continu — extraction semantique necessaire",
+      "Date de naissance en format textuel complet (nombres en lettres espagnol)",
+      "DIP format avec points (000.000.000) ou passeport sans points (F0018179)",
+      "Sceau peut se superposer au texte en bas"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "_note": "Patterns de fallback. Gemini est l'extracteur principal.",
+    "numero_identificacion": [
+      "(?:DIP[/\\s]*Pasaporte|DIP|Pasaporte)\\s*(?:n[°ºo]|n[úu]m\\.?)?\\s*[:#]?\\s*([A-Z]?[0-9]{3}[.,]?[0-9]{3}[.,]?[0-9]{0,3})",
+      "(?:DIP[/\\s]*Pasaporte|DIP|Pasaporte)\\s*(?:n[°ºo]|n[úu]m\\.?)?\\s*[:#]?\\s*([A-Z][0-9]{6,8})"
+    ],
+    "numero_timbre_fiscal": [
+      "(F[0-9]{7,9})"
+    ]
+  }
+}

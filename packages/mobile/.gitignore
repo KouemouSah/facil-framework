@@ -1,0 +1,48 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+app-example
+
+# NOTE on /android and /ios:
+# We commit the native folders (non-CNG mode) so EAS Build can find
+# gradlew + xcodeproj. EAS treats .easignore as ADDITIVE to .gitignore
+# (not a replacement), so a /android rule here would still strip the
+# native folders during upload — even with .easignore present. Leave
+# them un-ignored. If `expo prebuild --clean` regenerates them locally,
+# either commit the regen or `git checkout android ios` to revert.
+facil-release.keystore

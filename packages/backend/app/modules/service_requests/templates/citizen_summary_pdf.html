@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="{{ language or 'es' }}">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1.2cm 1.5cm;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 9pt;
+            line-height: 1.3;
+            color: #1a1a1a;
+        }
+
+        .no-break {
+            page-break-inside: avoid;
+        }
+
+        /* ================================================================
+           HEADER
+           ================================================================ */
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-bottom: 1px solid #3a7104;
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+        }
+
+        .header-table td {
+            vertical-align: middle;
+            padding-bottom: 8px;
+        }
+
+        .logo-cell {
+            width: 130px;
+        }
+
+        .logo-cell img {
+            height: 45px;
+        }
+
+        .ref-cell {
+            text-align: right;
+        }
+
+        .reference-number {
+            font-size: 12pt;
+            font-weight: bold;
+            color: #2d5a03;
+        }
+
+        .reference-date {
+            font-size: 8pt;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        /* ================================================================
+           WORKFLOW TITLE + SELECTION META
+           ================================================================ */
+        .workflow-title-box {
+            padding: 6px 12px;
+            margin-bottom: 10px;
+        }
+
+        .workflow-title-box h2 {
+            margin: 0;
+            font-size: 10pt;
+            color: #333;
+            text-transform: uppercase;
+        }
+
+        .selection-meta {
+            font-size: 9pt;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        /* ================================================================
+           SECTION HEADERS (compact, centered)
+           ================================================================ */
+        .section-header {
+            background: #3a7104;
+            color: white;
+            padding: 3px 12px;
+            font-weight: bold;
+            font-size: 9pt;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .section-container {
+            margin-bottom: 14px;
+        }
+
+        /* ================================================================
+           DATA SECTIONS - photo + 2 columns
+           ================================================================ */
+        .personal-data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .personal-data-table td {
+            vertical-align: top;
+            padding: 0;
+        }
+
+        .photo-cell {
+            width: 98px;
+            padding-right: 16px;
+        }
+
+        .photo-box {
+            width: 80px;
+            height: 100px;
+            border: 1px solid #e5e7eb;
+            text-align: center;
+        }
+
+        .photo-box img {
+            width: 80px;
+            height: 100px;
+        }
+
+        .photo-placeholder {
+            width: 80px;
+            height: 100px;
+            background: #f3f4f6;
+            font-size: 7pt;
+            color: #9ca3af;
+            line-height: 100px;
+            text-align: center;
+        }
+
+        .data-col {
+            width: 48%;
+            vertical-align: top;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table td {
+            padding: 3px 5px;
+            font-size: 8.5pt;
+            border: none;
+        }
+
+        .data-label {
+            width: 40%;
+            color: #6b7280;
+            font-weight: normal;
+        }
+
+        .data-value {
+            font-weight: bold;
+            color: #000;
+        }
+
+        /* ================================================================
+           BORDERED DATA TABLE (for previous document info sections)
+           ================================================================ */
+        .bordered-section .data-table td {
+            border: 1px solid #e5e7eb;
+            padding: 2px 5px;
+        }
+
+        /* ================================================================
+           APPOINTMENT + PAYMENT BLOCKS
+           ================================================================ */
+        .blocks-row-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-bottom: 10px;
+        }
+
+        .appointment-cell {
+            width: 56%;
+            border: 1px solid #3a7104;
+            border-radius: 6px;
+            padding: 10px 12px;
+            vertical-align: top;
+        }
+
+        .appointment-cell-empty {
+            width: 56%;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 10px 12px;
+            vertical-align: top;
+        }
+
+        .spacer-cell {
+            width: 23px;
+            padding: 0;
+            border: none;
+        }
+
+        .payment-cell {
+            width: 44%;
+            border: 1px solid #3a7104;
+            border-radius: 6px;
+            padding: 10px 12px;
+            vertical-align: top;
+        }
+
+        .card-block-title {
+            font-weight: bold;
+            color: #3a7104;
+            font-size: 9pt;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            text-align: left;
+        }
+
+        .payment-cell .card-block-title {
+            text-align: center;
+        }
+
+        .card-block-title {
+            font-weight: bold;
+            color: #3a7104;
+            font-size: 9pt;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            text-align: left;
+        }
+
+        .appointment-detail-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .appointment-detail-table td {
+            padding: 2px 3px;
+            border: none;
+            font-size: 9pt;
+            vertical-align: middle;
+        }
+
+        .appt-label {
+            width: 60px;
+            color: #6b7280;
+            font-size: 8pt;
+        }
+
+        .appt-value {
+            font-weight: bold;
+            color: #2d5a03;
+        }
+
+        .no-appointment-title {
+            font-weight: bold;
+            color: #6b7280;
+            font-size: 9pt;
+            text-transform: uppercase;
+        }
+
+        .no-appointment-text {
+            font-size: 8pt;
+            color: #9ca3af;
+            margin-top: 3px;
+        }
+
+        .payment-amount {
+            font-size: 15pt;
+            font-weight: bold;
+            color: #2d5a03;
+            text-align: center;
+            margin-top: 4px;
+        }
+
+        .payment-currency {
+            font-size: 14pt;
+            font-weight: bold;
+            color: #2d5a03;
+        }
+
+        .payment-label {
+            font-size: 8pt;
+            color: #6b7280;
+            margin-top: 4px;
+            text-transform: uppercase;
+            text-align: center;
+        }
+
+        /* ================================================================
+           FOOTER
+           ================================================================ */
+        .footer-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .footer-table td {
+            vertical-align: bottom;
+            padding-top: 8px;
+        }
+
+        .footer-text-cell {
+            width: 75%;
+        }
+
+        .footer-qr-cell {
+            width: 25%;
+            text-align: right;
+        }
+
+        .footer-text {
+            font-size: 8pt;
+            color: #6b7280;
+            line-height: 1.5;
+        }
+
+        .footer-verify {
+            font-size: 8pt;
+            color: #3a7104;
+            font-weight: 500;
+        }
+
+        .qr-box {
+            width: 70px;
+            height: 70px;
+            text-align: center;
+        }
+
+        .qr-box img {
+            width: 70px;
+            height: 70px;
+        }
+
+        .qr-fallback {
+            width: 60px;
+            height: 60px;
+            border: 1px solid #e5e7eb;
+            background: #f9fafb;
+            text-align: center;
+            font-size: 7pt;
+            color: #9ca3af;
+            line-height: 60px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ================================================================
+         HEADER: Logo + Reference
+         ================================================================ -->
+    <table class="header-table">
+        <tr>
+            <td class="logo-cell">
+                {% if logo_base64 %}
+                <img src="{{ logo_base64 }}" alt="Facil" />
+                {% endif %}
+            </td>
+            <td class="ref-cell">
+                <div class="reference-number">{{ request_number }}</div>
+                <div class="reference-date">{{ generated_at }}</div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- ================================================================
+         WORKFLOW TITLE + SELECTION METADATA (inline)
+         ================================================================ -->
+    <div class="workflow-title-box">
+        <h2>{{ workflow_name }} - {{ solicitud_type_label }}</h2>
+        {% if data_sections | length > 0 %}
+        {% set first = data_sections[0] %}
+        {% if first.title == "Detalles de la Solicitud" %}
+        <div class="selection-meta">
+            {% for field in first.fields %}{{ field.value }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
+        </div>
+        {% endif %}
+        {% endif %}
+    </div>
+
+    <!-- ================================================================
+         DATA SECTIONS (dynamic)
+         - Section 0 "Detalles de la Solicitud" → already rendered inline above
+         - Section 1 (usually "Datos Personales") → rendered with photo
+         - Remaining sections → 2-column layout
+         ================================================================ -->
+
+    {% set ns = namespace(photo_rendered=false, skip_first=false) %}
+    {% if data_sections | length > 0 and data_sections[0].title == "Detalles de la Solicitud" %}
+        {% set ns.skip_first = true %}
+    {% endif %}
+
+    {% for section in data_sections %}
+    {% if loop.index0 == 0 and ns.skip_first %}
+        {# Skip: already rendered as inline meta #}
+    {% elif not ns.photo_rendered %}
+        {# First real data section: render WITH photo #}
+        {% set ns.photo_rendered = true %}
+        <div class="no-break section-container">
+            <div class="section-header">{{ section.title }}</div>
+            {% set columns = section.fields | slice(2) | list %}
+            <table class="personal-data-table">
+                <tr>
+                    <td class="photo-cell">
+                        {% if photo_base64 %}
+                        <div class="photo-box">
+                            <img src="{{ photo_base64 }}" alt="Photo" />
+                        </div>
+                        {% else %}
+                        <div class="photo-placeholder">Sin foto</div>
+                        {% endif %}
+                    </td>
+                    <td class="data-col">
+                        <table class="data-table">
+                            {% for field in columns[0] %}
+                            <tr>
+                                <td class="data-label">{{ field.label }}</td>
+                                <td class="data-value">{{ field.value or '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </table>
+                    </td>
+                    <td class="data-col">
+                        <table class="data-table">
+                            {% if columns | length > 1 %}
+                            {% for field in columns[1] %}
+                            <tr>
+                                <td class="data-label">{{ field.label }}</td>
+                                <td class="data-value">{{ field.value or '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                            {% endif %}
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    {% else %}
+        {# Remaining sections: 2-column layout #}
+        {# Sections with "Certificado" or "Anterior" or "Actual" keep table borders #}
+        {% set is_doc_section = "Certificado" in section.title or "Anterior" in section.title or "Actual" in section.title or "Permiso" in section.title %}
+        <div class="no-break section-container {% if is_doc_section %}bordered-section{% endif %}">
+            <div class="section-header">{{ section.title }}</div>
+            {% set columns = section.fields | slice(2) | list %}
+            <table class="personal-data-table">
+                <tr>
+                    <td class="data-col">
+                        <table class="data-table">
+                            {% for field in columns[0] %}
+                            <tr>
+                                <td class="data-label">{{ field.label }}</td>
+                                <td class="data-value">{{ field.value or '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </table>
+                    </td>
+                    <td class="data-col">
+                        <table class="data-table">
+                            {% if columns | length > 1 %}
+                            {% for field in columns[1] %}
+                            <tr>
+                                <td class="data-label">{{ field.label }}</td>
+                                <td class="data-value">{{ field.value or '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                            {% endif %}
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    {% endif %}
+    {% endfor %}
+
+    <!-- ================================================================
+         APPOINTMENT + PAYMENT (two distinct blocks, side by side)
+         ================================================================ -->
+    <div class="no-break">
+        <table class="blocks-row-table">
+            <tr>
+                {% if appointment %}
+                <td class="appointment-cell">
+                    <div class="card-block-title">{{ texts.scheduled_appointment }}</div>
+                    <table class="appointment-detail-table">
+                        <tr>
+                            <td class="appt-label">{{ texts.date }}:</td>
+                            <td class="appt-value">{{ appointment.date }}</td>
+                        </tr>
+                        <tr>
+                            <td class="appt-label">{{ texts.time }}:</td>
+                            <td class="appt-value">{{ appointment.time }}</td>
+                        </tr>
+                        <tr>
+                            <td class="appt-label">{{ texts.location }}:</td>
+                            <td class="appt-value">{{ appointment.location }}</td>
+                        </tr>
+                    </table>
+                </td>
+                {% else %}
+                <td class="appointment-cell-empty">
+                    <div class="no-appointment-title">{{ texts.scheduled_appointment }}</div>
+                    <div class="no-appointment-text">{{ texts.no_appointment }}</div>
+                </td>
+                {% endif %}
+                <td class="spacer-cell"></td>
+                <td class="payment-cell">
+                    <div class="card-block-title">{{ texts.payment_breakdown }}</div>
+                    <div class="payment-amount">{{ tariff.total_amount }} <span class="payment-currency">XAF</span></div>
+                    <div class="payment-label">{{ payment_status_label }}</div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ================================================================
+         BUNDLE OBLIGATIONS (only for BUNDLE_PAYMENT workflow)
+         ================================================================ -->
+    {% if bundle %}
+    <div class="no-break" style="margin-top: 12px;">
+        <div style="background: #1e3a5f; color: #fff; padding: 6px 10px; font-size: 9pt; font-weight: bold;">
+            {% if language == 'fr' %}Obligations Fiscales — {{ bundle.company_name }}
+            {% elif language == 'en' %}Fiscal Obligations — {{ bundle.company_name }}
+            {% else %}Obligaciones Fiscales — {{ bundle.company_name }}
+            {% endif %}
+            {% if bundle.registration_number %}<span style="font-weight:normal; font-size:8pt; margin-left:8px;">({{ bundle.registration_number }})</span>{% endif %}
+        </div>
+        <table style="width:100%; border-collapse:collapse; font-size:8pt; margin-bottom:4px;">
+            <tr style="background:#eef2f7;">
+                <th style="text-align:left; padding:4px 6px; border-bottom:1px solid #ccc;">
+                    {% if language == 'fr' %}Service{% elif language == 'en' %}Service{% else %}Servicio{% endif %}
+                </th>
+                <th style="text-align:center; padding:4px 6px; border-bottom:1px solid #ccc; width:60px;">
+                    {% if language == 'fr' %}Type{% elif language == 'en' %}Type{% else %}Tipo{% endif %}
+                </th>
+                <th style="text-align:right; padding:4px 6px; border-bottom:1px solid #ccc; width:80px;">
+                    {% if language == 'fr' %}Montant{% elif language == 'en' %}Amount{% else %}Monto{% endif %}
+                </th>
+                <th style="text-align:center; padding:4px 6px; border-bottom:1px solid #ccc; width:80px;">
+                    {% if language == 'fr' %}Statut{% elif language == 'en' %}Status{% else %}Estado{% endif %}
+                </th>
+            </tr>
+            {% for obl in bundle.obligations %}
+            <tr style="{% if obl.is_paid %}background:#f0fdf4;{% endif %}">
+                <td style="padding:3px 6px; border-bottom:1px solid #eee;">{{ obl.service_name }}</td>
+                <td style="padding:3px 6px; border-bottom:1px solid #eee; text-align:center;">
+                    <span style="font-size:7pt; padding:1px 4px; border-radius:3px; {% if obl.fee_type == 'TESORO' %}background:#dbeafe; color:#1e40af;{% elif obl.fee_type == 'MUNICIPAL' %}background:#fef3c7; color:#92400e;{% else %}background:#e0e7ff; color:#3730a3;{% endif %}">{{ obl.fee_type }}</span>
+                </td>
+                <td style="padding:3px 6px; border-bottom:1px solid #eee; text-align:right; font-family:monospace;">{{ obl.amount }} XAF</td>
+                <td style="padding:3px 6px; border-bottom:1px solid #eee; text-align:center;">
+                    {% if obl.is_paid %}<span style="color:#166534;">&#10003; {{ obl.status }}</span>{% else %}<span style="color:#b91c1c;">&#9679; {{ obl.status }}</span>{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+        <!-- Totals row -->
+        <table style="width:100%; border-collapse:collapse; font-size:8pt; margin-top:2px;">
+            <tr style="background:#f8fafc;">
+                <td style="padding:4px 6px; font-weight:bold;">
+                    {% if language == 'fr' %}Total paye{% elif language == 'en' %}Total paid{% else %}Total pagado{% endif %}
+                </td>
+                <td style="padding:4px 6px; text-align:right; font-family:monospace; font-weight:bold; color:#166534;">{{ bundle.paid_amount }} XAF</td>
+                <td style="padding:4px 6px; font-weight:bold;">
+                    {% if language == 'fr' %}Restant{% elif language == 'en' %}Remaining{% else %}Restante{% endif %}
+                </td>
+                <td style="padding:4px 6px; text-align:right; font-family:monospace; font-weight:bold; color:#b91c1c;">{{ bundle.remaining_amount }} XAF</td>
+            </tr>
+        </table>
+        {% if bundle.splits %}
+        <div style="font-size:7pt; color:#666; margin-top:4px; padding:0 6px;">
+            {% if language == 'fr' %}Repartition par entite:{% elif language == 'en' %}Distribution by entity:{% else %}Desglose por entidad:{% endif %}
+            {% for s in bundle.splits %}
+                {{ s.entity_name }}: {{ s.amount }} XAF ({{ s.status }}){% if not loop.last %}, {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- ================================================================
+         FOOTER
+         ================================================================ -->
+    <table class="footer-table">
+        <tr>
+            <td class="footer-text-cell">
+                <div class="footer-text">
+                    <strong>{{ texts.reference }}:</strong> {{ request_number }}<br/>
+                    {{ texts.generated_on }}: {{ generated_at }}
+                </div>
+                <div class="footer-verify">{{ texts.verification_url }} {{ verify_url }}</div>
+            </td>
+            <td class="footer-qr-cell">
+                {% if qr_code_b64 %}
+                <div class="qr-box">
+                    <img src="data:image/png;base64,{{ qr_code_b64 }}" alt="QR" />
+                </div>
+                {% else %}
+                <div class="qr-fallback">QR</div>
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+
+</body>
+</html>

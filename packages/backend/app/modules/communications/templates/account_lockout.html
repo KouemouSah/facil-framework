@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2 style="color: #dc2626;">{{ title }}</h2>
+<p>{{ greeting }}</p>
+<p>{{ message }}</p>
+
+<div class="alert-box alert-danger">
+    <p style="margin: 0; font-weight: bold;">{{ lockout_duration }}</p>
+</div>
+
+<p><strong>{{ if_you_label }}</strong> {{ if_you_message }}</p>
+<p><strong>{{ if_not_you_label }}</strong> {{ if_not_you_message }}</p>
+{% endblock %}

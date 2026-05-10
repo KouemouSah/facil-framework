@@ -1,0 +1,25 @@
+{
+  "name": "Facil — Control Terrain",
+  "short_name": "Facil Control",
+  "description": "Aplicación de control y recaudación en terreno — Guinea Ecuatorial",
+  "start_url": "/es/dashboard/agent",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#2d5a03",
+  "categories": ["government", "finance", "business"],
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo1.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

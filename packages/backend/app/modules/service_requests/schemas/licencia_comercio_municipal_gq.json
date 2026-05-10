@@ -1,0 +1,306 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "LICENCIA_COMERCIO_MUNICIPAL_GQ_V1",
+  "version": "1.0",
+  "title": "Licencia de Comercio Municipal - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour la licence commerciale municipale de GQ. Delivree par les Ayuntamientos (mairies) ou Delegaciones de Hacienda Municipal. Autorise l'exercice d'une activite commerciale dans le territoire municipal. Document annuel complementaire aux certificats VUE.",
+  "document_type": "LICENCIA_COMERCIO_MUNICIPAL",
+  "country": "GQ",
+  "faces": ["single_page"],
+  "document_nature": "licence_municipale",
+  "issuer": "Ayuntamiento / Delegacion de Hacienda Municipal",
+  "validity": "annual",
+  "workflows": ["empresa"],
+
+  "extraction": {
+    "documento": {
+      "description": "Informations du document",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "LICENCIA_COMERCIO_MUNICIPAL",
+          "required": true
+        },
+        "numero_licencia": {
+          "type": "string",
+          "required": true,
+          "description": "Numero de la licence municipale",
+          "field_label": "Nº Licencia / Nº",
+          "pii": true
+        },
+        "ano_fiscal": {
+          "type": "integer",
+          "required": true,
+          "description": "Annee fiscale de validite",
+          "field_label": "Año Fiscal / Ejercicio"
+        }
+      }
+    },
+
+    "ayuntamiento": {
+      "description": "Mairie emettrice",
+      "fields": {
+        "nombre_ayuntamiento": {
+          "type": "string",
+          "required": true,
+          "description": "Nom de la mairie (ex: Ayuntamiento de Malabo, Consejo de Ciudad de Bata)",
+          "field_label": "AYUNTAMIENTO DE / CONSEJO DE CIUDAD DE"
+        },
+        "delegacion": {
+          "type": "string",
+          "required": false,
+          "description": "Delegation emettrice si applicable (ex: Delegacion de Hacienda Municipal)",
+          "field_label": "DELEGACIÓN DE HACIENDA MUNICIPAL"
+        },
+        "municipio": {
+          "type": "string",
+          "required": true,
+          "description": "Municipalite (Malabo, Bata, Mongomo, Evinayong, Ebebiyin, Luba, Riaba, Annobon, etc.)",
+          "field_label": "Municipio"
+        },
+        "provincia": {
+          "type": "string",
+          "enum": ["BIOKO NORTE", "BIOKO SUR", "LITORAL", "CENTRO SUR", "KIE-NTEM", "WELE-NZAS", "ANNOBON", "DJIBLOHO"],
+          "required": false,
+          "description": "Province"
+        }
+      }
+    },
+
+    "titular": {
+      "description": "Titulaire de la licence (personne physique ou morale)",
+      "fields": {
+        "denominacion_social": {
+          "type": "string",
+          "required": true,
+          "description": "Nom de l'entreprise ou du commercant",
+          "field_label": "DENOMINACIÓN SOCIAL / NOMBRE COMERCIAL",
+          "pii": true
+        },
+        "representante_legal": {
+          "type": "string",
+          "required": false,
+          "description": "Representant legal si personne morale",
+          "field_label": "REPRESENTANTE LEGAL",
+          "pii": true
+        },
+        "nif": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[0-9]{5}[A-Z]{2}-[0-9]{2}$",
+          "description": "NIF de l'entreprise ou du commercant",
+          "field_label": "NIF",
+          "pii": true,
+          "encrypt": true
+        },
+        "domicilio_comercial": {
+          "type": "string",
+          "required": true,
+          "description": "Adresse du local commercial / siege",
+          "field_label": "DOMICILIO COMERCIAL / UBICACIÓN",
+          "pii": true
+        },
+        "telefono": {
+          "type": "string",
+          "required": false,
+          "description": "Telephone de contact",
+          "pii": true
+        }
+      }
+    },
+
+    "actividad": {
+      "description": "Activite commerciale autorisee",
+      "fields": {
+        "actividad_principal": {
+          "type": "string",
+          "required": true,
+          "description": "Activite commerciale principale autorisee",
+          "field_label": "ACTIVIDAD / GIRO COMERCIAL"
+        },
+        "tipo_establecimiento": {
+          "type": "string",
+          "required": false,
+          "description": "Type d'etablissement (tienda, almacen, restaurante, taller, oficina, etc.)",
+          "field_label": "TIPO ESTABLECIMIENTO"
+        },
+        "categoria_fiscal": {
+          "type": "string",
+          "required": false,
+          "description": "Categorie fiscale municipale (A, B, C ou 1ra, 2da, 3ra)",
+          "field_label": "CATEGORÍA"
+        }
+      }
+    },
+
+    "paiement": {
+      "description": "Informations de paiement de la taxe municipale",
+      "fields": {
+        "montant_taxe": {
+          "type": "number",
+          "required": false,
+          "description": "Montant de la taxe municipale payee (FCFA)",
+          "field_label": "IMPORTE / TASA",
+          "currency": "XAF",
+          "minimum": 0
+        },
+        "numero_recibo": {
+          "type": "string",
+          "required": false,
+          "description": "Numero du recu de paiement",
+          "field_label": "Nº RECIBO"
+        },
+        "fecha_pago": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Date du paiement de la taxe"
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification",
+      "fields": {
+        "fecha_emision": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'emission de la licence",
+          "date_format": "DD de MMMM de YYYY"
+        },
+        "fecha_validez": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Date d'expiration (generalement 31/12 de l'annee fiscale)"
+        },
+        "lugar_emision": {
+          "type": "string",
+          "required": true,
+          "description": "Lieu d'emission"
+        },
+        "signataire": {
+          "type": "string",
+          "required": false,
+          "description": "Titre du signataire (Delegado de Hacienda Municipal, Alcalde, Concejal de Hacienda)"
+        },
+        "tiene_firma_autoridad": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature de l'autorite municipale presente"
+        },
+        "tiene_sello_ayuntamiento": {
+          "type": "boolean",
+          "required": true,
+          "description": "Sceau officiel de la mairie/municipalite"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "nif_format_valid",
+      "rule": "nif MATCHES '^[0-9]{5}[A-Z]{2}-[0-9]{2}$'",
+      "error_es": "Formato de NIF invalido (esperado: XXXXXWC-XX)",
+      "error_fr": "Format NIF invalide (attendu: XXXXXWC-XX)",
+      "severity": "error"
+    },
+    {
+      "id": "firma_autoridad_obligatoria",
+      "rule": "tiene_firma_autoridad == true",
+      "error_es": "La licencia debe estar firmada por la autoridad municipal",
+      "error_fr": "La licence doit etre signee par l'autorite municipale",
+      "severity": "error"
+    },
+    {
+      "id": "sello_ayuntamiento_obligatorio",
+      "rule": "tiene_sello_ayuntamiento == true",
+      "error_es": "La licencia debe tener el sello oficial del Ayuntamiento",
+      "error_fr": "La licence doit avoir le cachet officiel de la Mairie",
+      "severity": "error"
+    },
+    {
+      "id": "ano_fiscal_vigente",
+      "rule": "ano_fiscal >= YEAR(TODAY) - 1",
+      "error_es": "La licencia municipal no corresponde al ejercicio fiscal vigente o anterior",
+      "error_fr": "La licence municipale ne correspond pas a l'exercice fiscal en cours ou precedent",
+      "severity": "warning"
+    },
+    {
+      "id": "actividad_obligatoria",
+      "rule": "actividad_principal IS NOT NULL AND actividad_principal != ''",
+      "error_es": "La licencia debe indicar la actividad comercial autorizada",
+      "error_fr": "La licence doit indiquer l'activite commerciale autorisee",
+      "severity": "error"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Licence commerciale municipale de Guinee Equatoriale. Document delivre par les mairies (Ayuntamientos) autorisant l'exercice d'une activite commerciale dans le territoire municipal. Complementaire aux certificats VUE (niveau national). Format variable selon les municipalites (pas de format national standardise).",
+    "language": "es",
+    "date_format": "DD/MM/YYYY",
+    "visual_zones": [
+      "En-tete: Armoiries GQ + REPUBLICA DE GUINEA ECUATORIAL + Nom du Ayuntamiento/Consejo de Ciudad",
+      "Sous-titre: DELEGACION DE HACIENDA MUNICIPAL (si applicable)",
+      "Titre: LICENCIA DE COMERCIO / LICENCIA MUNICIPAL DE APERTURA / PATENTE MUNICIPAL",
+      "Corps: Donnees du titulaire - NIF, denomination, domicile, activite",
+      "Zone paiement: Montant de la taxe, numero de recu",
+      "Bas: Date, lieu, signature et sceau de l'autorite municipale",
+      "ATTENTION: Format tres variable selon la municipalite - certaines utilisent des formulaires pre-imprimes, d'autres des documents libres"
+    ],
+    "common_values": {
+      "ayuntamientos": [
+        "Ayuntamiento de Malabo",
+        "Consejo de Ciudad de Bata",
+        "Ayuntamiento de Mongomo",
+        "Ayuntamiento de Evinayong",
+        "Ayuntamiento de Ebebiyin",
+        "Ayuntamiento de Luba"
+      ],
+      "tipos_establecimiento": ["tienda", "almacen", "restaurante", "bar", "taller", "oficina", "farmacia", "supermercado"],
+      "signataires": ["Delegado de Hacienda Municipal", "Alcalde", "Concejal de Hacienda", "Secretario General"]
+    },
+    "ocr_challenges": [
+      "Format non standardise - varie enormement entre municipalites",
+      "Certaines licences sont sur papier simple avec peu de securite",
+      "Formulaires pre-imprimes avec remplissage manuscrit",
+      "Sceaux parfois de mauvaise qualite (encre passee)",
+      "Montants parfois manuscrits ou absents"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "numero_licencia": [
+      "(?:N[°oº]?\\s*(?:de\\s*)?(?:Licencia|LICENCIA))\\s*[:#]?\\s*([0-9A-Z/-]+)",
+      "(?:PATENTE\\s*N[°oº]?)\\s*[:#]?\\s*([0-9]+)"
+    ],
+    "ano_fiscal": [
+      "(?:A[ÑN]O\\s*(?:FISCAL)?)\\s*[:#]?\\s*([0-9]{4})",
+      "(?:EJERCICIO)\\s*[:#]?\\s*([0-9]{4})"
+    ],
+    "nombre_ayuntamiento": [
+      "(?:AYUNTAMIENTO\\s*DE|CONSEJO\\s*DE\\s*CIUDAD\\s*DE)\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "denominacion_social": [
+      "(?:DENOMINACI[ÓO]N\\s*SOCIAL|NOMBRE\\s*COMERCIAL)\\s*[:#]?\\s*(.+?)(?=NIF|REPRESENTANTE|$)"
+    ],
+    "nif": [
+      "(?:NIF|N\\.?I\\.?F\\.?)\\s*[:#]?\\s*([0-9]{5}[A-Z]{2}-[0-9]{2})"
+    ],
+    "domicilio_comercial": [
+      "(?:DOMICILIO\\s*(?:COMERCIAL)?|UBICACI[ÓO]N)\\s*[:#]?\\s*(.+?)(?=TEL|ACTIVIDAD|$)"
+    ],
+    "actividad_principal": [
+      "(?:ACTIVIDAD|GIRO\\s*COMERCIAL)\\s*[:#]?\\s*(.+?)(?=TIPO|CATEGOR|$)"
+    ],
+    "montant_taxe": [
+      "(?:IMPORTE|TASA|MONTO)\\s*[:#]?\\s*([0-9.,]+)\\s*(?:FCFA|F\\.?CFA)?"
+    ],
+    "fecha_emision": [
+      "(\\d{1,2})[/.-](\\d{1,2})[/.-](\\d{4})",
+      "(\\d{1,2})\\s*de\\s*(\\w+)\\s*(?:de(?:l)?\\s*(?:a[ñn]o)?\\s*)?(\\d{4})"
+    ]
+  }
+}

@@ -1,0 +1,430 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "CERTIFICADO_MEDICO_GQ_V1",
+  "version": "1.0",
+  "title": "Certificado Medico - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour les certificats medicaux de GQ. Document transversal utilise par plusieurs workflows (Conducir, Residencia, Pasaporte/evacuation, Trabajo). Supporte 3 types: aptitud (SANO/APTO), enfermedad (diagnostic), evacuacion (transfert a l'etranger).",
+  "document_type": "CERTIFICADO_MEDICO",
+  "country": "GQ",
+  "faces": ["single_page"],
+  "document_nature": "certificat_medical",
+  "issuer": "Centre medical agree de GQ",
+  "workflows": ["conducir", "residencia", "pasaporte", "empresa"],
+
+  "extraction": {
+    "documento": {
+      "description": "Informations du certificat",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "CERTIFICADO_MEDICO",
+          "required": true
+        },
+        "tipo_certificado": {
+          "type": "string",
+          "enum": ["APTITUD", "ENFERMEDAD", "EVACUACION"],
+          "required": true,
+          "description": "Type de certificat: APTITUD (SANO/APTO pour conduire, travailler), ENFERMEDAD (diagnostic specifique), EVACUACION (transfert medical a l'etranger)",
+          "field_label": "CERTIFICADO MEDICO"
+        }
+      }
+    },
+
+    "centro_medico": {
+      "description": "Etablissement de sante emetteur",
+      "fields": {
+        "nombre_centro": {
+          "type": "string",
+          "required": true,
+          "description": "Nom de l'hopital, policlinico ou clinique",
+          "field_label": "Establecimiento / Institucion"
+        },
+        "tipo_centro": {
+          "type": "string",
+          "enum": ["HOSPITAL_REGIONAL", "POLICLINICO", "CLINICA_PRIVADA", "HOSPITAL_MILITAR", "CENTRO_SALUD", "OTRO"],
+          "required": false,
+          "description": "Type d'etablissement"
+        },
+        "localidad": {
+          "type": "string",
+          "required": true,
+          "description": "Ville du centre medical (Malabo, Bata, Mongomo, Evinayong, Ebebiyin, etc.)",
+          "field_label": "Localidad"
+        },
+        "provincia": {
+          "type": "string",
+          "enum": ["BIOKO NORTE", "BIOKO SUR", "LITORAL", "CENTRO SUR", "KIE-NTEM", "WELE-NZAS", "ANNOBON", "DJIBLOHO"],
+          "required": false,
+          "description": "Province du centre medical"
+        }
+      }
+    },
+
+    "medico_principal": {
+      "description": "Medecin principal qui examine et certifie",
+      "fields": {
+        "nombre_medico": {
+          "type": "string",
+          "required": true,
+          "description": "Nom complet du medecin (Dr./Dra.)",
+          "field_label": "Dr./Dra.",
+          "pii": true
+        },
+        "especialidad": {
+          "type": "string",
+          "required": false,
+          "description": "Specialite du medecin (pediatria, medicina general, cirugia, ortopedia, etc.)",
+          "field_label": "Especialidad"
+        },
+        "cooperacion": {
+          "type": "string",
+          "required": false,
+          "description": "Pays de cooperation si medecin etranger (ex: cooperacion egipcia, cubana, china)",
+          "field_label": "Medico de la cooperacion"
+        },
+        "tiene_firma": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du medecin principal presente"
+        }
+      }
+    },
+
+    "medico_secundario": {
+      "description": "Second medecin ou directeur du centre (optionnel, frequent en GQ)",
+      "fields": {
+        "nombre_medico_2": {
+          "type": "string",
+          "required": false,
+          "description": "Nom du second medecin ou directeur du centre",
+          "pii": true
+        },
+        "cargo": {
+          "type": "string",
+          "required": false,
+          "description": "Fonction (Directora General, Jefe de Servicio, etc.)"
+        },
+        "tiene_firma_2": {
+          "type": "boolean",
+          "required": false,
+          "description": "Signature du second medecin presente"
+        }
+      }
+    },
+
+    "paciente": {
+      "description": "Donnees du patient",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": true,
+          "description": "Nom complet du patient",
+          "field_label": "Nombre / Paciente",
+          "pii": true
+        },
+        "edad": {
+          "type": "integer",
+          "required": true,
+          "description": "Age du patient en annees",
+          "field_label": "de ... anos de edad",
+          "minimum": 0,
+          "maximum": 120
+        },
+        "es_mayor_de_edad": {
+          "type": "boolean",
+          "required": false,
+          "description": "Calcule: edad >= 18",
+          "computed": true
+        },
+        "tipo_identificacion": {
+          "type": "string",
+          "enum": ["DIP", "NIE", "PASAPORTE"],
+          "required": false,
+          "description": "Type de document d'identite: DIP (Ecuatoguineens), NIE (etrangers residents), PASAPORTE (etrangers sans residencia). OBLIGATOIRE si majeur.",
+          "field_label": "Tipo de identificacion"
+        },
+        "numero_identificacion": {
+          "type": "string",
+          "required": false,
+          "description": "Numero du document d'identite (DIP, NIE ou Pasaporte). OBLIGATOIRE si majeur (edad >= 18).",
+          "field_label": "Nº DIP / NIE / Pasaporte",
+          "pii": true,
+          "encrypt": true
+        },
+        "nacionalidad": {
+          "type": "string",
+          "required": false,
+          "description": "Nationalite du patient",
+          "field_label": "de nacionalidad"
+        },
+        "domicilio": {
+          "type": "string",
+          "required": false,
+          "description": "Adresse/ville de residence du patient",
+          "field_label": "domiciliado en",
+          "pii": true
+        }
+      }
+    },
+
+    "contenido_medico": {
+      "description": "Contenu medical du certificat",
+      "fields": {
+        "antecedentes": {
+          "type": "string",
+          "required": false,
+          "description": "Antecedents medicaux mentionnes"
+        },
+        "diagnostico": {
+          "type": "string",
+          "required": false,
+          "description": "Diagnostic medical (obligatoire pour ENFERMEDAD et EVACUACION)",
+          "field_label": "Diagnostico"
+        },
+        "resultado": {
+          "type": "string",
+          "enum": ["SANO", "APTO", "NO APTO", "ENFERMO", "EVACUACION_NECESARIA"],
+          "required": false,
+          "description": "Resultat/conclusion du certificat (obligatoire pour APTITUD)",
+          "field_label": "Resultado / encontrandose Clinicamente"
+        },
+        "conducta_a_seguir": {
+          "type": "string",
+          "required": false,
+          "description": "Traitement ou conduite a suivre (obligatoire pour EVACUACION)",
+          "field_label": "Conducta a seguir"
+        },
+        "motivo_certificado": {
+          "type": "string",
+          "required": false,
+          "description": "Motif du certificat (evacuacion, aptitud para conducir, aptitud laboral, etc.)",
+          "field_label": "Motivo"
+        },
+        "examenes_realizados": {
+          "type": "string",
+          "required": false,
+          "description": "Examens physiques et de laboratoire realises",
+          "field_label": "Se le practicaron los examenes"
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification",
+      "fields": {
+        "fecha_certificado": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date du certificat",
+          "field_label": "Fecha / firmado en ... a ... de ... de ...",
+          "date_format": "DD de MMMM de YYYY"
+        },
+        "lugar_certificado": {
+          "type": "string",
+          "required": true,
+          "description": "Lieu de delivrance",
+          "field_label": "en ... / Localidad"
+        },
+        "tiene_sello_centro": {
+          "type": "boolean",
+          "required": true,
+          "description": "Sceau/cachet officiel du centre medical present"
+        },
+        "texto_legal": {
+          "type": "string",
+          "required": false,
+          "description": "Mention legale standard (ex: 'Y PARA QUE CONSTE A LOS EFECTOS OPORTUNOS...')"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "centro_medico_obligatorio",
+      "rule": "nombre_centro IS NOT NULL AND nombre_centro != ''",
+      "error_es": "El nombre del hospital o centro medico es obligatorio",
+      "error_fr": "Le nom de l'hopital ou centre medical est obligatoire",
+      "severity": "error"
+    },
+    {
+      "id": "medico_principal_obligatorio",
+      "rule": "nombre_medico IS NOT NULL AND nombre_medico != ''",
+      "error_es": "El nombre del medico es obligatorio",
+      "error_fr": "Le nom du medecin est obligatoire",
+      "severity": "error"
+    },
+    {
+      "id": "firma_medico_obligatoria",
+      "rule": "tiene_firma == true",
+      "error_es": "El certificado debe estar firmado por el medico",
+      "error_fr": "Le certificat doit etre signe par le medecin",
+      "severity": "error"
+    },
+    {
+      "id": "sello_centro_obligatorio",
+      "rule": "tiene_sello_centro == true",
+      "error_es": "El certificado debe tener el sello oficial del centro medico",
+      "error_fr": "Le certificat doit avoir le cachet officiel du centre medical",
+      "severity": "error"
+    },
+    {
+      "id": "identificacion_mayor_obligatoria",
+      "rule": "IF edad >= 18 THEN numero_identificacion IS NOT NULL AND tipo_identificacion IS NOT NULL",
+      "error_es": "Para pacientes mayores de edad, el tipo y numero de identificacion (DIP/NIE/Pasaporte) son obligatorios",
+      "error_fr": "Pour les patients majeurs, le type et numero d'identification (DIP/NIE/Passeport) sont obligatoires",
+      "severity": "error"
+    },
+    {
+      "id": "fecha_no_futura",
+      "rule": "fecha_certificado <= TODAY",
+      "error_es": "La fecha del certificado no puede ser futura",
+      "error_fr": "La date du certificat ne peut pas etre future",
+      "severity": "error"
+    },
+    {
+      "id": "validez_3_meses",
+      "rule": "fecha_certificado >= TODAY - 90 days",
+      "error_es": "El certificado medico tiene mas de 3 meses. Consulte si es aceptable para su tramite.",
+      "error_fr": "Le certificat medical a plus de 3 mois. Verifiez s'il est acceptable pour votre demarche.",
+      "severity": "warning"
+    },
+    {
+      "id": "resultado_obligatorio_si_aptitud",
+      "rule": "IF tipo_certificado == 'APTITUD' THEN resultado IN ('SANO', 'APTO', 'NO APTO')",
+      "error_es": "Un certificado de aptitud debe indicar el resultado (SANO/APTO/NO APTO)",
+      "error_fr": "Un certificat d'aptitude doit indiquer le resultat (SANO/APTO/NO APTO)",
+      "severity": "error"
+    },
+    {
+      "id": "diagnostico_obligatorio_si_enfermedad",
+      "rule": "IF tipo_certificado IN ('ENFERMEDAD', 'EVACUACION') THEN diagnostico IS NOT NULL",
+      "error_es": "Un certificado de enfermedad o evacuacion debe incluir el diagnostico",
+      "error_fr": "Un certificat de maladie ou evacuation doit inclure le diagnostic",
+      "severity": "error"
+    },
+    {
+      "id": "conducta_obligatoria_si_evacuacion",
+      "rule": "IF tipo_certificado == 'EVACUACION' THEN conducta_a_seguir IS NOT NULL",
+      "error_es": "Un certificado de evacuacion debe indicar la conducta a seguir",
+      "error_fr": "Un certificat d'evacuation doit indiquer la conduite a suivre",
+      "severity": "error"
+    },
+    {
+      "id": "resultado_no_apto_bloquant",
+      "rule": "resultado != 'NO APTO'",
+      "error_es": "El paciente ha sido declarado NO APTO. No puede continuar el tramite.",
+      "error_fr": "Le patient a ete declare NON APTE. Il ne peut pas poursuivre la demarche.",
+      "severity": "error"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Certificat medical de Guinee Equatoriale. Peut etre emis par un hopital public, policlinico, clinique privee ou centre de sante. Frequemment signe par 2 medecins (medecin traitant + directeur du centre). Les medecins de cooperation etrangere (egyptienne, cubaine, chinoise) sont tres frequents en GQ.",
+    "language": "es",
+    "date_format": "DD de MMMM de YYYY",
+    "visual_zones": [
+      "En-tete: Logo/sceau de la Republica de Guinea Ecuatorial + Nom du centre medical + Localite",
+      "Titre centre: CERTIFICADO MEDICO (gros caracteres, parfois en relief ou encadre)",
+      "Paragraphe introductif: 'Yo Dr. [NOM], Medico de la cooperacion [PAYS] / especialista en [SPECIALITE], y [Dra. NOM], directora general de la institucion [NOM CENTRE] de [LOCALITE]'",
+      "Sous-titre: CERTIFICO / CERTIFICA",
+      "Corps: '[Nom patient], de [age] anos de edad, de nacionalidad [NAT], domiciliado en [VILLE]. Ha sido examinado minuciosamente...'",
+      "Zone diagnostique: 'Diagnostico: [description]'",
+      "Zone resultat (aptitud): 'encontrandose Clinicamente: SANO / APTO'",
+      "Zone conduite (evacuacion): 'Conducta a seguir: [traitement]. Motivo por el cual se solicita evacuacion.'",
+      "Formule legale: 'Y PARA QUE CONSTE A LOS EFECTOS OPORTUNOS FIRMO EL PRESENTE CERTIFICADO EN [LIEU] A [DATE]'",
+      "Zone signatures: 1 ou 2 colonnes - Medecin principal (gauche) + Directeur/second medecin (droite)",
+      "Cachet: Sceau rond du centre medical (bleu), parfois avec mention DIRECCION GENERAL ou POLICIA CLINICA"
+    ],
+    "common_values": {
+      "centros_medicos_malabo": [
+        "Hospital Regional de Malabo",
+        "Hospital General de Malabo",
+        "Policlinico de Ela Nguema",
+        "Clinica La Paz",
+        "Clinica Guadalupe"
+      ],
+      "centros_medicos_bata": [
+        "Hospital Regional de Bata",
+        "Policlinico de Bata"
+      ],
+      "centros_medicos_otros": [
+        "Policlinico Virgen de Guadalupe de Mongomo",
+        "Hospital de Evinayong",
+        "Centro de Salud de Ebebiyin"
+      ],
+      "cooperaciones": ["egipcia", "cubana", "china", "marroqui"],
+      "especialidades": ["medicina general", "pediatria", "cirugia", "ortopedia", "ginecologia", "oftalmologia", "cardiologia"],
+      "resultados": ["SANO", "APTO", "NO APTO"]
+    },
+    "ocr_challenges": [
+      "Document souvent photocopie ou en mauvais etat",
+      "Texte manuscrit pour le diagnostic et la conduite a suivre",
+      "Sceau pouvant masquer des signatures",
+      "Nom des medecins de cooperation parfois difficile a lire (translitteration arabe, chinoise)",
+      "Date en format textuel espagnol (VEINTE TRES DE AGOSTO DE 2023)",
+      "Certains certificats n'ont pas de format standardise"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "nombre_centro": [
+      "(?:REPUBLICA\\s*DE\\s*GUINEA\\s*ECUATORIAL)\\s*(.+?)(?=CERTIFICADO|$)",
+      "(?:instituci[oó]n|hospital|policl[ií]nico|cl[ií]nica)\\s*(.+?)(?=de\\s*[A-Z]|$)"
+    ],
+    "localidad": [
+      "(?:EN|en)\\s+(MALABO|BATA|MONGOMO|EVINAYONG|EBEBIYIN|LUBA|RIABA|ANNOBON)",
+      "(?:de|en)\\s+(?:la\\s+ciudad\\s+de\\s+|esta\\s+ciudad\\s+de\\s+)?([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)(?:\\s+a\\s+)"
+    ],
+    "nombre_medico": [
+      "(?:Yo\\s*)?(?:Dr\\.?|Dra\\.?)\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+?)(?=,\\s*(?:M[eé]dico|especialista|[Dd]irectora?))",
+      "(?:Dr\\.?|Dra\\.?)\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "especialidad": [
+      "(?:especialista\\s*en)\\s*([a-záéíóúñ\\s]+?)(?=,|\\.|y\\s+)",
+      "(?:m[eé]dico\\s+)([a-záéíóúñ]+(?:\\s+[a-záéíóúñ]+)?)"
+    ],
+    "cooperacion": [
+      "(?:cooperaci[oó]n)\\s*([a-záéíóúñ]+)",
+      "(?:m[eé]dico\\s+de\\s+la\\s+cooperaci[oó]n)\\s*([a-záéíóúñ]+)"
+    ],
+    "nombre_paciente": [
+      "(?:CERTIFICO|CERTIFICA)\\s*(?:Que)?\\s*(?:el\\s+\\(la\\):\\s*|:?\\s*)([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+?)(?=,\\s*de\\s*\\d)",
+      "(?:paciente|enfermo/a)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "edad": [
+      "(?:de)\\s*(\\d{1,3})\\s*a[ñn]os\\s*de\\s*edad"
+    ],
+    "tipo_identificacion": [
+      "(?:D\\.?I\\.?P\\.?|DIP)",
+      "(?:N\\.?I\\.?E\\.?|NIE|[Rr]esidencia)",
+      "(?:[Pp]asaporte|PASAPORTE)"
+    ],
+    "numero_identificacion": [
+      "(?:D\\.?I\\.?P\\.?|DIP|N\\.?I\\.?E\\.?|NIE|[Pp]asaporte)\\s*(?:n[uú]mero|[Nn][°oº]?)?\\s*[:#]?\\s*([A-Z0-9.,/-]+)"
+    ],
+    "nacionalidad": [
+      "(?:de\\s*nacionalidad)\\s*([A-Za-záéíóúñ]+)"
+    ],
+    "domicilio": [
+      "(?:domiciliado\\s*en)\\s*(?:esta\\s*ciudad\\s*de\\s*)?([A-Za-záéíóúñ\\s]+?)(?=\\.\\s*Ha|,)"
+    ],
+    "diagnostico": [
+      "(?:Diagn[oó]stico)\\s*[:#]?\\s*(.+?)(?=Conducta|Y\\s*PARA|$)"
+    ],
+    "resultado": [
+      "(?:encontr[aá]ndose\\s*(?:Cl[ií]nicamente)?|resultado)\\s*[:#]?\\s*(SANO|APTO|NO\\s*APTO)"
+    ],
+    "conducta_a_seguir": [
+      "(?:Conducta\\s*a\\s*seguir)\\s*[:#.]?\\s*(.+?)(?=Motivo|Y\\s*PARA|$)"
+    ],
+    "fecha_certificado": [
+      "(?:FIRMADO|CERTIFICADO|PRESENTE)\\s*(?:EN)\\s*[A-Za-záéíóúñ]+\\s*(?:A|a)\\s*(?:LOS\\s*)?(.+?)(?:D[IÍ]AS|DE\\s*\\d{4})",
+      "(\\d{1,2})\\s*de\\s*(\\w+)\\s*(?:de(?:l)?\\s*(?:a[ñn]o)?\\s*)?(\\d{4})"
+    ],
+    "lugar_certificado": [
+      "(?:FIRMADO|CERTIFICADO|PRESENTE)\\s*EN\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ]
+  }
+}

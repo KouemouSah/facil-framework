@@ -1,0 +1,1334 @@
+{
+  "bundleWizard": {
+    "registrationNumberPlaceholder": "PE-000000"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "filter": "Filter",
+    "noResults": "No results",
+    "seeAll": "See all",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "submit": "Submit",
+    "close": "Close",
+    "yes": "Yes",
+    "no": "No",
+    "ok": "OK",
+    "offline": "Offline",
+    "offlineMessage": "Check your internet connection",
+    "errorOccurred": "An error occurred. Please try again.",
+    "copied": "Copied to clipboard",
+    "done": "Done",
+    "verify": "Verify",
+    "copy": "Copy"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signUp": "Create Account",
+    "signOut": "Sign Out",
+    "email": "Email address",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "forgotPassword": "Forgot your password?",
+    "resetPassword": "Reset password",
+    "firstName": "First name",
+    "lastName": "Last name",
+    "phone": "Phone number",
+    "role": "Account type",
+    "verificationCode": "Verification code",
+    "sendCode": "Send code",
+    "enterOtp": "Enter the verification code",
+    "twoFactorTitle": "Two-step verification",
+    "twoFactorDescription": "Enter the code from your authenticator app",
+    "rememberMe": "Remember me",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?",
+    "welcomeBack": "Welcome back",
+    "createAccountTitle": "Create your Facil account",
+    "biometricPrompt": "Use your fingerprint or Face ID to sign in",
+    "personalInfo": "Personal information",
+    "enableBiometric": "Biometric login",
+    "enableBiometricDesc": "Enable quick fingerprint login?",
+    "biometricLogin": "Fingerprint",
+    "signOutTitle": "Sign out",
+    "signOutMessage": "Are you sure you want to sign out?",
+    "emailRequired": "Email is required",
+    "invalidEmail": "Invalid email address",
+    "passwordRequired": "Password is required",
+    "confirmPasswordRequired": "Please confirm your password",
+    "passwordMismatch": "Passwords don't match",
+    "passwordTooLong": "Maximum 100 characters",
+    "currentPassword": "Current password",
+    "currentPasswordRequired": "Enter your current password",
+    "newPassword": "New password",
+    "passwordStrength": "Password strength",
+    "passwordStrengthWeak": "Weak",
+    "passwordStrengthMedium": "Medium",
+    "passwordStrengthStrong": "Strong",
+    "passwordRequirements": {
+      "minLength": "Minimum 8 characters",
+      "uppercase": "One uppercase letter",
+      "lowercase": "One lowercase letter",
+      "digit": "One number",
+      "special": "One special character"
+    },
+    "invalidPhoneGE": "Invalid phone (222/555/551/333 + 6 digits)",
+    "phoneHintGE": "Format: 222XXXXXX, 555XXXXXX, 551XXXXXX, 333XXXXXX",
+    "invalidVerificationCode": "Code must be 6 digits",
+    "invalidTwoFactorCode": "Invalid 2FA code",
+    "incorrectPassword": "Incorrect password",
+    "codeRequired": "Code is required",
+    "codeSent": "Code sent",
+    "resendCode": "Resend code",
+    "backToSignIn": "Back to sign in",
+    "sendResetLink": "Send reset link",
+    "resetPasswordSent": "If your email is registered, you'll receive a link to reset your password.",
+    "resetPasswordDescription": "Enter your email address and we'll send you a link to reset your password.",
+    "resetTokenInvalid": "The link has expired or is not valid.",
+    "resetTokenMissing": "Invalid reset link. Please request a new one.",
+    "requestNewLink": "Request new link",
+    "newPasswordTitle": "New password",
+    "passwordResetSuccess": "Password reset",
+    "passwordResetSuccessMessage": "Your password has been successfully reset. You can now sign in.",
+    "passwordChanged": "Password changed successfully",
+    "passwordMustBeDifferent": "New password must be different from current password",
+    "firstNameMin": "Minimum 2 characters",
+    "firstNameMax": "Maximum 50 characters",
+    "lastNameMin": "Minimum 2 characters",
+    "lastNameMax": "Maximum 50 characters"
+  },
+  "home": {
+    "title": "Home",
+    "quickActions": {
+      "services": "Services",
+      "servicesDesc": "850+ procedures",
+      "licencias": "Licenses",
+      "licenciasDesc": "Business simulator",
+      "empresas": "Companies",
+      "empresasDesc": "National directory",
+      "calculador": "Calculator",
+      "calculadorDesc": "Calculate taxes"
+    },
+    "hero": {
+      "hero1": "Nothing easier to serve you",
+      "hero1Desc": "850+ services · Passport · Residence · Vehicles · Companies",
+      "hero2": "Tax AI Assistant",
+      "hero2Desc": "Query laws, taxes and procedures instantly",
+      "hero3": "Tax declarations",
+      "hero3Desc": "Download, fill and submit forms from your phone"
+    }
+  },
+  "guide": {
+    "title": "Guide",
+    "tabs": {
+      "steps": "Steps",
+      "faq": "FAQ",
+      "forms": "Forms"
+    },
+    "steps": {
+      "1_title": "Create your account",
+      "1_desc": "Sign up with your email and verify your identity with a confirmation code.",
+      "2_title": "Sign in",
+      "2_desc": "Access your personal dashboard to manage your requests and procedures.",
+      "3_title": "Choose your procedure",
+      "3_desc": "Select the procedure you want to carry out from the available options.",
+      "4_title": "Upload your documents",
+      "4_desc": "Attach the required documents. Our AI agent analyzes and verifies them automatically.",
+      "5_title": "Complete the form",
+      "5_desc": "Fill in the required information. Data from your documents is pre-filled.",
+      "6_title": "Schedule an appointment",
+      "6_desc": "If needed, select a date and time for your in-person appointment.",
+      "7_title": "Make the payment",
+      "7_desc": "Pay online or in cash. Receive your payment receipt instantly.",
+      "8_title": "Confirmation",
+      "8_desc": "Receive confirmation of your request and track its status in real time.",
+      "intro": "Follow these steps to complete your procedure online with the assistance of our intelligent system. Each step is guided automatically."
+    },
+    "faq": {
+      "q1": "Do I need an account to use Facil?",
+      "a1": "You can explore services and use the AI assistant without an account. To submit a request, a free account is required.",
+      "q2": "How long does a procedure take?",
+      "a2": "It depends on the service. Each service shows its estimated time. You can track status in real time.",
+      "q3": "What payment methods do you accept?",
+      "a3": "Bank transfer, BANGE Mobile Money, credit card, and cash at authorized offices.",
+      "q4": "What languages is Facil available in?",
+      "a4": "Facil is available in Spanish, French, and English. You can switch languages at any time.",
+      "q5": "Is my data secure?",
+      "a5": "Yes. We use end-to-end encryption, two-factor authentication, and comply with international security standards.",
+      "q6": "How do I contact support?",
+      "a6": "Use the AI assistant for common questions, or create a support ticket from the help section."
+    },
+    "forms": {
+      "info": "View and fill out tax forms directly from your device. Tap a form to preview it.",
+      "openError": "Could not open the form.",
+      "retencion_3_petrolero": "Withholding 3% - Resident Petroleum",
+      "retencion_5_petrolero": "Withholding 5% - Resident Petroleum",
+      "retencion_10_nr_petrolero": "Withholding 10% - Non-Resident Petroleum",
+      "retencion_10_nr_comun": "Withholding 10% - Non-Resident Common",
+      "cuota_min_petroliferos": "Min. fiscal quota - Petroleum sector",
+      "cuota_min_comun": "Min. fiscal quota - Common sector",
+      "iva_destajo": "VAT Lump sum",
+      "iva_real": "VAT Real",
+      "imp_prod_petroleros_ivs": "Petroleum Products Tax (IVS)",
+      "imp_prod_petroliferos_fmi": "Petroleum Products Tax (FMI)",
+      "imp_salarios_petrolero": "Salary Tax - Petroleum",
+      "imp_salarios_comun": "Salary Tax - Common Sector",
+      "impreso_comun": "Common form",
+      "liquidacion": "Settlement form"
+    }
+  },
+  "account": {
+    "title": "Account"
+  },
+  "licenses": {
+    "title": "License Simulator",
+    "selectType": "Commerce type",
+    "selectZone": "Commerce zone",
+    "results": "Result",
+    "requiredDocs": "Required documents",
+    "restart": "Restart",
+    "download": "Download",
+    "share": "Share",
+    "copy": "Copy",
+    "copied": "Copied to clipboard",
+    "generatedBy": "Generated by {{app}} — {{date}}"
+  },
+  "directory": {
+    "title": "Company Directory",
+    "searchPlaceholder": "Search company, NIF...",
+    "noResults": "No companies found",
+    "results": "companies"
+  },
+  "dashboard": {
+    "title": "Home",
+    "greeting": "Hello, {{name}}",
+    "stats": {
+      "active": "Active",
+      "completed": "Completed",
+      "pendingAction": "Action required",
+      "totalPaid": "Total paid"
+    },
+    "recentRequests": "Recent requests",
+    "upcomingAppointment": "Upcoming appointment",
+    "quickActions": {
+      "newRequest": "New Request",
+      "myRequests": "My Requests",
+      "myDocuments": "My Documents",
+      "myCompanies": "My Companies",
+      "support": "Support"
+    },
+    "noRequests": "You don't have any requests yet",
+    "startFirstRequest": "Start your first service request",
+    "tabs": {
+      "requests": "Requests",
+      "payments": "Payments",
+      "notifications": "Alerts"
+    },
+    "emptyRequests": "No recent requests",
+    "emptyPayments": "No recent payments",
+    "actionRequired": "Action required"
+  },
+  "services": {
+    "title": "Services",
+    "searchPlaceholder": "Search fiscal services...",
+    "allMinistries": "All ministries",
+    "organizations": "Organizations",
+    "searchWithin": "Search within this organization...",
+    "comingSoon": "Coming soon",
+    "comingSoonDesc": "This feature will be available soon.",
+    "popular": "Popular",
+    "categories": "Categories",
+    "documents": "Required documents",
+    "procedures": "Procedures",
+    "tariff": "Tariff",
+    "startRequest": "Start request",
+    "allServices": "All services",
+    "price": "Price",
+    "expedition": "Issuance",
+    "renewal": "Renewal",
+    "freeService": "Free",
+    "processingTime": "Processing time",
+    "processingDays": "{{count}} days",
+    "relatedServices": "Related services",
+    "legalReference": "Legal basis",
+    "noDescription": "No description available",
+    "results": "{{count}} results",
+    "searchTime": "in {{time}}ms"
+  },
+  "requests": {
+    "title": "My Requests",
+    "new": "New Request",
+    "detail": "Request detail",
+    "bundle": {
+      "total": "Total",
+      "paid": "Paid",
+      "remaining": "Remaining",
+      "paidObligations_one": "{{count}} paid obligation",
+      "paidObligations_other": "{{count}} paid obligations",
+      "pendingObligations_one": "{{count}} pending obligation",
+      "pendingObligations_other": "{{count}} pending obligations",
+      "paymentStatus": {
+        "completed": "Paid",
+        "validated": "Validated",
+        "submitted": "Submitted",
+        "pending_agent_review": "Pending review",
+        "auto_processing": "Processing",
+        "locked_by_agent": "Under review",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "failed": "Failed",
+        "cancelled": "Cancelled",
+        "refunded": "Refunded"
+      }
+    },
+    "status": {
+      "draft": "Draft",
+      "submitted": "Submitted",
+      "processing": "Processing",
+      "under_review": "Under review",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "payment_pending": "Payment pending",
+      "paid": "Paid",
+      "expired": "Expired",
+      "pending_documents": "Docs pending",
+      "validated": "Validated"
+    },
+    "wizard": {
+      "selection": "Selection",
+      "documents": "Documents",
+      "form": "Form",
+      "appointment": "Appointment",
+      "payment": "Payment",
+      "confirmation": "Confirmation"
+    },
+    "uploadDocument": "Upload document",
+    "takePhoto": "Take photo",
+    "chooseFile": "Choose file",
+    "noDocuments": "No documents uploaded",
+    "reference": "Reference",
+    "amount": "Amount",
+    "noResults": "No requests",
+    "filterBy": "Filter by",
+    "statusLabel": "Status",
+    "entity": "Entity",
+    "documents": "Documents",
+    "tariff": "Tariff",
+    "baseAmount": "Base amount",
+    "supplement": "Supplement",
+    "penalties": "Penalties",
+    "totalAmount": "Total",
+    "appointment": "Appointment",
+    "appointmentDate": "Date",
+    "appointmentTime": "Time",
+    "appointmentLocation": "Location",
+    "payment": "Payment",
+    "paymentStatus": "Payment status",
+    "paymentReference": "Payment reference",
+    "receiptNumber": "Receipt no.",
+    "notifications": "Activity"
+  },
+  "chat": {
+    "title": "AI Assistant",
+    "placeholder": "Type your question...",
+    "welcome": "Hello! I'm the Facil assistant. How can I help you?",
+    "typing": "Typing...",
+    "statusSearching": "Searching documents...",
+    "statusAnalyzing": "Analyzing results...",
+    "statusGenerating": "Preparing response...",
+    "errorSending": "Failed to send. Please try again.",
+    "rateLimited": "Too many questions. Please wait a moment.",
+    "suggestions": {
+      "services": "What services do you offer?",
+      "documents": "What documents do I need?",
+      "payment": "How can I pay?",
+      "status": "How do I check my request status?"
+    }
+  },
+  "profile": {
+    "title": "Profile",
+    "editProfile": "Edit profile",
+    "personalInfo": "Personal information",
+    "contactInfo": "Contact information",
+    "language": "Language",
+    "theme": "Theme",
+    "notifications": "Notifications",
+    "biometric": "Biometric access",
+    "about": "About Facil",
+    "version": "Version {{version}}",
+    "support": "Support",
+    "privacyPolicy": "Privacy policy",
+    "termsOfService": "Terms of service",
+    "changePassword": "Change password",
+    "passwordChangeLogout": "After changing your password, you will need to sign in again.",
+    "twoFactor": "2FA Security",
+    "twoFactorEnabled": "Enabled",
+    "twoFactorDisabled": "Disabled",
+    "twoFactorEnable": "Enable 2FA",
+    "twoFactorDisable": "Disable 2FA",
+    "twoFactorSetupTitle": "Set up authentication",
+    "twoFactorSetupDesc": "Copy this secret key into your authenticator app (Google Authenticator, Authy, etc.)",
+    "twoFactorEnterCode": "App code",
+    "twoFactorEnabledSuccess": "2FA enabled successfully",
+    "twoFactorDisabledSuccess": "2FA disabled successfully",
+    "twoFactorDisableConfirm": "Disable 2FA?",
+    "twoFactorBackupCodesWarning": "Save these backup codes in a safe place. You won't be able to see them again.",
+    "copyBackupCodes": "Copy codes",
+    "backupCodesRemaining": "{{count}} backup codes remaining",
+    "sessions": "Active sessions",
+    "sessionsDescription": "{{count}} active sessions on your account",
+    "currentSession": "This device",
+    "lastActivity": "Last activity",
+    "signOutAllOtherDevices": "Sign out other sessions",
+    "signOutAllOtherDevicesDesc": "All sessions except the current one will be signed out.",
+    "otherSessionsRevoked": "Other sessions signed out",
+    "noOtherSessions": "No other active sessions",
+    "address": "Address",
+    "city": "City",
+    "addressMax": "Maximum 200 characters",
+    "cityMax": "Maximum 100 characters",
+    "changeAvatar": "Change profile photo",
+    "takePhoto": "Take photo",
+    "chooseFromGallery": "Choose from gallery",
+    "removeAvatar": "Remove photo",
+    "avatarUpdated": "Profile photo updated",
+    "avatarRemoved": "Profile photo removed",
+    "emailNotifications": "Email notifications",
+    "emailNotificationsDesc": "Receive updates via email",
+    "pushNotifications": "Push notifications",
+    "pushNotificationsDesc": "Receive notifications on your device",
+    "smsNotifications": "SMS notifications",
+    "smsNotificationsDesc": "Receive alerts via text message",
+    "languageTitle": "Select language",
+    "saveChanges": "Save changes",
+    "profileUpdated": "Profile updated successfully",
+    "oldPasswordRequired": "Enter your current password",
+    "passwordSameAsOld": "New password must be different"
+  },
+  "settings": {
+    "title": "Settings",
+    "account": "Account",
+    "security": "Security",
+    "preferences": "Preferences",
+    "appLock": "Biometric lock",
+    "appLockDesc": "Lock app after 5 min in background",
+    "dangerZone": "Danger zone",
+    "biometric": {
+      "title": "Biometric login",
+      "toggle": "Use biometric login",
+      "description": "Sign in with your fingerprint or face after entering your password once.",
+      "note": "Stored credentials are wiped on sign-out and on toggle off.",
+      "unavailable": "Biometric authentication is not available or not enrolled on this device.",
+      "confirmTitle": "Confirm your identity",
+      "confirmBody": "Enter your account password to enable biometric login.",
+      "enabled": "Biometric login enabled",
+      "disabled": "Biometric login disabled",
+      "requires2fa": "Disable 2FA before enabling biometric login."
+    },
+    "notifications": {
+      "title": "Notifications"
+    },
+    "myData": "My data",
+    "exportData": {
+      "title": "Export my data",
+      "subtitle": "Data portability right — RGPD art. 20",
+      "subtitleShort": "JSON download — RGPD art. 20",
+      "description": "Download a JSON file with your profile, your payments and your service requests for the last 90 days. You can save it to Drive, your files, or send it to yourself.",
+      "note": "No documents (PDF / images) are included — only their metadata.",
+      "cta": "Download my data",
+      "preparing": "Preparing your data...",
+      "shareTitle": "Share my Facil data export",
+      "savedTo": "Saved to {{uri}}",
+      "errorBody": "Could not export your data. Please try again."
+    },
+    "deleteAccount": {
+      "title": "Delete my account",
+      "warning": "This action cannot be undone after 30 days.",
+      "bullet1": "Your active sessions will be signed out immediately.",
+      "bullet2": "Your fiscal records remain in the audit ledger as required by law.",
+      "bullet3": "Personal data is purged after 30 days unless you contact support.",
+      "typeDelete": "Type DELETE to confirm",
+      "typeDeleteHint": "Must be the exact uppercase word DELETE.",
+      "cta": "Permanently delete my account",
+      "confirmTitle": "Delete your account?",
+      "confirmBody": "Your account will be marked for deletion. You have 30 days to undo before all data is permanently erased.",
+      "confirmAction": "Delete",
+      "errors": {
+        "wrongPassword": "Incorrect password.",
+        "alreadyDeleted": "Account already scheduled for deletion."
+      }
+    },
+    "about": {
+      "title": "About Facil",
+      "subtitle": "Version, copyright, contact",
+      "tagline": "Adaptable framework for digitizing administrative procedures",
+      "version": "Version",
+      "deployment": "Current deployment",
+      "country": "Republic of Equatorial Guinea",
+      "partner": "In partnership with the General Directorate of Taxes (DGI)",
+      "framework": "Framework",
+      "author": "Author",
+      "contact": "Contact",
+      "repo": "Source repository",
+      "copyrightSuffix": "All rights reserved.",
+      "licenseNote": "Facil is a proprietary framework. The current deployment instance is operated for the Republic of Equatorial Guinea.",
+      "builtWith": "Built with"
+    }
+  },
+  "roles": {
+    "citizen": "Citizen",
+    "business": "Business",
+    "accountant": "Accountant",
+    "admin": "Administrator",
+    "supervisor": "Supervisor"
+  },
+  "security": {
+    "appLocked": "App locked",
+    "verifyIdentity": "Verify your identity to continue",
+    "unlock": "Unlock",
+    "unlockPrompt": "Unlock Facil",
+    "usePin": "Use PIN",
+    "verificationFailed": "Verification failed",
+    "authError": "Authentication error"
+  },
+  "support": {
+    "title": "Support",
+    "newTicket": "New ticket",
+    "subject": "Subject",
+    "description": "Description",
+    "category": "Category",
+    "priority": {
+      "low": "Low",
+      "normal": "Normal",
+      "high": "High",
+      "urgent": "Urgent"
+    },
+    "list": {
+      "title": "My tickets",
+      "empty": "No support tickets yet",
+      "filter": {
+        "all": "All",
+        "active": "Active",
+        "open": "Open",
+        "resolved": "Resolved",
+        "closed": "Closed"
+      },
+      "messages_one": "1 message",
+      "messages_other": "{{count}} messages"
+    },
+    "new": {
+      "title": "New support ticket",
+      "selectCategory": "Pick a category",
+      "subjectPlaceholder": "Summarize your issue in one sentence",
+      "descriptionPlaceholder": "Describe your issue in as much detail as possible",
+      "submit": "Submit ticket",
+      "errors": {
+        "subjectTooShort": "Subject must be at least 5 characters",
+        "descriptionTooShort": "Description must be at least 10 characters",
+        "categoryRequired": "Pick a category",
+        "submitFailed": "Could not create the ticket. Please try again."
+      }
+    },
+    "detail": {
+      "title": "Ticket detail",
+      "ticketNumber": "Ticket number",
+      "createdAt": "Created",
+      "category": "Category",
+      "replyPlaceholder": "Type your reply...",
+      "send": "Send",
+      "close": "Mark as resolved",
+      "closeConfirm": "Mark this ticket as resolved?",
+      "closeConfirmBody": "You won't be able to add new messages.",
+      "closed": "This ticket is closed",
+      "errorLoading": "Could not load the ticket",
+      "errorLoadingMessages": "Could not load messages"
+    },
+    "status": {
+      "open": "Open",
+      "in_progress": "In progress",
+      "pending_user": "Awaiting your reply",
+      "resolved": "Resolved",
+      "closed": "Closed"
+    },
+    "a11y": {
+      "item": "{{subject}}, status {{status}}, ticket {{number}}"
+    },
+    "sendMessage": "Send message"
+  },
+  "calculator": {
+    "addVat": "Add VAT",
+    "annualIncome": "Annual taxable income",
+    "baseAmount": "Amount excl. VAT",
+    "baseAmountForPercentage": "Base amount for calculation",
+    "breakdown": "Breakdown",
+    "breakdownByBracket": "Breakdown by bracket",
+    "calculate": "Calculate",
+    "calculatedAmount": "Calculated fee",
+    "calculationBreakdown": "Calculation breakdown",
+    "calculationError": "Calculation error. Please check the entered values.",
+    "calculationType": "Calculation type",
+    "corporateBreakdown": "Tax breakdown",
+    "corporateFormula": "Tax = Profit × 35%",
+    "corporateTax": "Corporate Tax",
+    "corporateTaxAmount": "Corporate tax",
+    "corporateTaxDesc": "Calculate tax for companies",
+    "description": "Calculate your taxes quickly and accurately",
+    "disclaimer": "These calculations are for informational purposes only. Consult a professional for official declarations.",
+    "effectiveRate": "Effective rate",
+    "enterAmount": "Enter an amount to calculate",
+    "enterVariables": "Enter all required variables to calculate",
+    "errorLoadingDetails": "Error loading service details. Please try again.",
+    "errorLoadingServices": "Error loading services. Please try again.",
+    "extractVat": "Extract VAT",
+    "fiscalServices": "Fiscal Services",
+    "fiscalServicesDesc": "Calculate fees for fiscal services with formulas",
+    "formula": "Formula",
+    "formulaBasedNotice": "Formula-based calculations require visiting the service detail page.",
+    "formulaNotConfigured": "This service does not have a calculation formula configured.",
+    "grossIncome": "Gross income",
+    "history": "History",
+    "incomeTax": "Income Tax",
+    "incomeTaxDesc": "Calculate your personal income tax",
+    "loadingDetails": "Loading details...",
+    "loadingServices": "Loading fiscal services...",
+    "netIncome": "Net income",
+    "netProfit": "Net profit",
+    "noServicesAvailable": "No services available",
+    "noVariablesConfigured": "No variables configured for this formula.",
+    "percentageRate": "Rate applied",
+    "reset": "Reset",
+    "result": "Result",
+    "retry": "Retry",
+    "saveCalculation": "Save calculation",
+    "selectService": "Select a service",
+    "selectServiceFirst": "Select a fiscal service first",
+    "selectServicePlaceholder": "Choose a fiscal service...",
+    "selectServicePrompt": "Select a service to calculate the fee",
+    "serviceCalculationResult": "Fiscal service calculation result",
+    "services": "Services",
+    "servicesCount": "{{count}} services available",
+    "taxBrackets": "Tax brackets",
+    "taxableProfit": "Taxable profit",
+    "title": "Tax Calculator",
+    "totalTax": "Total tax",
+    "totalWithVat": "Amount incl. VAT",
+    "vat": "VAT",
+    "vatAddFormula": "Total = Amount × (1 + 15%)",
+    "vatAmount": "VAT amount",
+    "vatBreakdown": "VAT breakdown",
+    "vatDesc": "Calculate value added tax",
+    "vatExtractFormula": "Base = Total ÷ 1.15",
+    "viewServiceDetails": "View service details"
+  },
+  "payment": {
+    "title": "Payment",
+    "method": "Payment method",
+    "methods": {
+      "mobile_money": "BANGE Mobile Money",
+      "bank_transfer": "Bank transfer",
+      "cash": "Cash",
+      "card": "Card"
+    },
+    "amount": "Amount",
+    "status": {
+      "pending": "Pending",
+      "processing": "Processing",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "pay": "Pay",
+    "receipt": "Receipt"
+  },
+  "payments": {
+    "tabs": {
+      "title": "Payments"
+    },
+    "list": {
+      "title": "My payments",
+      "empty": "No payments yet",
+      "filter": {
+        "all": "All",
+        "pending": "Pending",
+        "completed": "Completed",
+        "failed": "Failed"
+      }
+    },
+    "detail": {
+      "title": "Payment detail",
+      "breakdown": "Breakdown",
+      "baseAmount": "Base amount",
+      "penalties": "Penalties",
+      "interest": "Interest",
+      "total": "Total",
+      "method": "Method",
+      "reference": "Reference",
+      "transactionId": "Transaction ID",
+      "createdAt": "Created at",
+      "paidAt": "Paid at",
+      "viewRequest": "View request",
+      "errorLoading": "Could not load payment"
+    },
+    "status": {
+      "pending": "Pending",
+      "processing": "Processing",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "refunded": "Refunded"
+    },
+    "method": {
+      "mobile_money": "BANGE Mobile Money",
+      "card": "Card",
+      "bank_transfer": "Bank transfer",
+      "cash": "Cash",
+      "check": "Check",
+      "bange_wallet": "BANGE Wallet"
+    },
+    "receipt": {
+      "download": "Download receipt",
+      "unavailable": "Receipt unavailable",
+      "openError": "Could not open receipt"
+    },
+    "unknownMethod": "Payment",
+    "a11y": {
+      "item": "{{title}}, status {{status}}, {{amount}}"
+    },
+    "result": {
+      "checking": "Verifying payment...",
+      "processing": "Payment in progress, please stay in the app",
+      "completed": "Payment successful!",
+      "failed": "Payment failed",
+      "timeout": "Verification in progress, you will be notified",
+      "viewReceipt": "View receipt",
+      "viewRequest": "View request",
+      "retry": "Retry",
+      "goHome": "Back home"
+    },
+    "retry": {
+      "cta": "Retry payment",
+      "title": "Pay this request",
+      "subtitle": "Choose a payment method. We'll re-initiate the payment for this request.",
+      "phoneLabel": "Mobile Money phone number",
+      "submit": "Pay",
+      "methodsLoadError": "Could not load payment methods. Please try again.",
+      "redirecting": "Opening payment page…",
+      "cashPending": "Bring the cash to a treasury counter — you'll receive a notification once an agent confirms.",
+      "checkPending": "Drop off your check at a treasury counter — you'll receive a notification once an agent confirms.",
+      "agentPending": "We've notified an agent. You'll receive a notification once your payment is confirmed.",
+      "unknownResponse": "Payment was initiated but the response was unexpected. Check your payments tab."
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "empty": {
+      "title": "No notifications",
+      "body": "Your notifications will appear here when you receive them."
+    },
+    "unreadCount_one": "{{count}} unread",
+    "unreadCount_other": "{{count}} unread",
+    "actions": {
+      "markAllRead": "Mark all as read",
+      "delete": "Delete"
+    },
+    "permission": {
+      "title": "Enable notifications",
+      "enable": "Tap to allow push alerts",
+      "openSettings": "Tap to open system settings"
+    },
+    "markRead": "Mark as read"
+  },
+  "vault": {
+    "title": "My Documents",
+    "tabs": {
+      "uploads": "My files",
+      "generated": "Generated",
+      "alerts": "Alerts"
+    },
+    "search": {
+      "placeholder": "Search the vault…"
+    },
+    "filters": {
+      "all": "All",
+      "personal": "Personal",
+      "wizard": "From requests",
+      "generated": "Generated",
+      "expiring": "Expiring",
+      "expired": "Expired"
+    },
+    "categories": {
+      "all": "All",
+      "identity": "Identity",
+      "vehicle": "Vehicle",
+      "legal": "Legal",
+      "financial": "Financial",
+      "administrative": "Administrative",
+      "medical": "Medical",
+      "education": "Education",
+      "photo": "Photo",
+      "business": "Business",
+      "employment": "Employment",
+      "other": "Other"
+    },
+    "generationTypes": {
+      "all": "All",
+      "receipts": "Receipts",
+      "certificates": "Certificates",
+      "attestations": "Attestations",
+      "summaries": "Summaries",
+      "confirmations": "Confirmations"
+    },
+    "quota": {
+      "label": "{{used}} of {{total}} MB"
+    },
+    "empty": {
+      "uploads": {
+        "title": "No documents yet",
+        "body": "Upload your IDs, contracts and licences so they're always one tap away.",
+        "cta": "Add a document"
+      },
+      "generated": {
+        "title": "No generated documents",
+        "body": "Receipts and certificates issued by the platform will show up here."
+      },
+      "alerts": {
+        "title": "No alerts",
+        "body": "We'll notify you when a document is about to expire."
+      }
+    },
+    "alerts": {
+      "fallbackMessage": "Tap to see details"
+    },
+    "detail": {
+      "loading": "Loading document…",
+      "loadError": "Could not load the document",
+      "processing": "Processing document…",
+      "openFailed": "Could not open the file",
+      "archived": "Document archived",
+      "deleted": "Document deleted",
+      "actions": {
+        "open": "Open",
+        "archive": "Archive",
+        "delete": "Delete",
+        "reclassify": "Reclassify"
+      },
+      "sections": {
+        "metadata": "Information",
+        "extraction": "Extracted data",
+        "versions": "Versions"
+      },
+      "fields": {
+        "documentType": "Document type",
+        "holderName": "Holder",
+        "documentNumber": "Number",
+        "expiryDate": "Expires",
+        "fileSize": "Size",
+        "createdAt": "Uploaded"
+      }
+    },
+    "upload": {
+      "title": "Upload a document",
+      "uploading": "Uploading…",
+      "success": "Document added",
+      "picker": {
+        "camera": "Camera",
+        "gallery": "Gallery",
+        "document": "Files"
+      },
+      "fields": {
+        "documentTypeHint": "Type (optional)",
+        "documentTypeHintHelp": "E.g. dip, passport, rental_contract",
+        "notes": "Notes (optional)"
+      },
+      "actions": {
+        "upload": "Add to vault"
+      },
+      "duplicate": {
+        "title": "Duplicate document",
+        "body": "This file already exists in your vault. Do you want to replace the previous copy?",
+        "replace": "Replace"
+      }
+    },
+    "picker": {
+      "title": "Pick a document from the vault",
+      "subtitle": "Documents compatible with \"{{documentCode}}\"",
+      "empty": "No matching document in your vault.",
+      "goToVault": "Open the vault"
+    },
+    "readiness": {
+      "banner": {
+        "titleAllReady": "All your documents are ready ({{ready}}/{{total}})",
+        "titlePartial": "{{ready}}/{{total}} documents ready in your vault",
+        "missing": "{{count}} missing",
+        "expiring": "{{count}} expiring"
+      }
+    },
+    "errors": {
+      "mime_invalid": "Only PDF, JPG, PNG and WebP files are accepted.",
+      "file_too_large": "File exceeds the 10 MB limit.",
+      "quota_exceeded": "Your vault is full. Remove documents to continue.",
+      "rate_limit": "Too many uploads. Try again in a few minutes.",
+      "unknown": "An unexpected error occurred."
+    }
+  },
+  "companies": {
+    "title": "My Companies",
+    "empty": {
+      "title": "No companies",
+      "body": "Register your companies to manage their licences and obligations.",
+      "cta": "Create a company"
+    },
+    "card": {
+      "registrationNumber": "Reg. No.",
+      "deadline": "Due",
+      "noLicense": "No active licence",
+      "pendingObligations_one": "{{count}} pending obligation",
+      "pendingObligations_other": "{{count}} pending obligations",
+      "noPending": "Up to date",
+      "pay": "Pay"
+    },
+    "license": {
+      "status": {
+        "draft": "Draft",
+        "pending_payment": "Payment pending",
+        "active": "Active",
+        "expired": "Expired",
+        "revoked": "Revoked",
+        "cancelled": "Cancelled"
+      }
+    },
+    "obligations": {
+      "title": "Obligations",
+      "amount": "Amount",
+      "dueDate": "Due",
+      "status": {
+        "pending": "Pending",
+        "paid": "Paid",
+        "overdue": "Overdue",
+        "cancelled": "Cancelled"
+      },
+      "payAll": "Pay obligations",
+      "empty": "No obligations for this year"
+    },
+    "payments": {
+      "title": "Payment history",
+      "empty": "No payments yet",
+      "viewReceipt": "View receipt"
+    },
+    "archive": {
+      "menuLabel": "Archive my company",
+      "title": "Archive company",
+      "blockedTitle": "Cannot archive",
+      "body": "«{{name}}» will no longer appear in your list of companies and you won't be able to start new procedures for it.",
+      "blockedBody": "«{{name}}» has activities in progress that must be resolved before archiving.",
+      "disclaimer": "This is NOT a deletion. Records (licences, payments, receipts) are retained per fiscal law. An administrator can restore the company.",
+      "blockedHint": "Resolve these activities (pay, cancel or complete) before trying to archive again.",
+      "blockers": {
+        "active_licenses_one": "{{count}} active licence",
+        "active_licenses_other": "{{count}} active licences",
+        "pending_payments_one": "{{count}} payment in progress",
+        "pending_payments_other": "{{count}} payments in progress",
+        "open_requests_one": "{{count}} open request",
+        "open_requests_other": "{{count}} open requests",
+        "active_inspections_one": "{{count}} ongoing inspection",
+        "active_inspections_other": "{{count}} ongoing inspections"
+      },
+      "confirm": "Yes, archive",
+      "submitting": "Archiving…",
+      "seeObligations": "See my obligations",
+      "success": "Company archived"
+    },
+    "create": {
+      "title": "New company",
+      "action": "Create"
+    },
+    "edit": {
+      "title": "Edit company",
+      "action": "Save"
+    },
+    "detail": {
+      "loading": "Loading…",
+      "loadError": "Could not load the company",
+      "noMembers": "No members yet",
+      "summary": {
+        "deadline": "Deadline",
+        "total": "Total",
+        "paid": "Paid"
+      },
+      "sections": {
+        "info": "Information",
+        "license": "Bundle licence",
+        "members": "Members",
+        "payments": "Payments"
+      },
+      "actions": {
+        "edit": "Edit",
+        "delete": "Delete",
+        "manageMembers": "Manage",
+        "downloadLicense": "Download licence (PDF)",
+        "viewPayments": "Payment history"
+      }
+    },
+    "form": {
+      "fields": {
+        "legalName": "Legal name",
+        "taxId": "Tax ID",
+        "representanteLegal": "Legal representative",
+        "regimenFiscal": "Fiscal regime",
+        "formaJuridica": "Legal form",
+        "sectorActividad": "Sector",
+        "cityName": "City",
+        "provincia": "Province",
+        "address": "Address",
+        "email": "Email",
+        "phone": "Phone"
+      },
+      "validation": {
+        "legalNameRequired": "Legal name is required",
+        "taxIdRequired": "Tax ID is required",
+        "representanteRequired": "Legal representative is required",
+        "emailInvalid": "Invalid email"
+      },
+      "classificationHint": "After creation, the fiscal regime may be adjusted automatically based on the data.",
+      "actions": {
+        "submit": "Save"
+      }
+    },
+    "members": {
+      "title": "Members",
+      "roles": {
+        "company_owner": "Owner",
+        "company_admin": "Administrator",
+        "company_accountant": "Accountant",
+        "company_member": "Member"
+      },
+      "roleDescriptions": {
+        "company_admin": "Can manage members and edit the company",
+        "company_accountant": "Access to obligations and payments",
+        "company_member": "Read-only"
+      },
+      "add": {
+        "title": "Add a member",
+        "confirm": "Add",
+        "success": "Member added",
+        "fields": {
+          "userId": "User ID",
+          "userIdHelp": "Ask your collaborator for their user ID in the app.",
+          "role": "Role"
+        },
+        "errors": {
+          "invalidId": "Invalid ID format"
+        }
+      },
+      "role": {
+        "success": "Role updated"
+      },
+      "remove": {
+        "title": "Remove member",
+        "body": "Are you sure you want to remove {{name}}?",
+        "confirm": "Remove",
+        "success": "Member removed"
+      }
+    },
+    "delete": {
+      "title": "Delete company",
+      "body": "This action is irreversible. To confirm, type the exact name: {{name}}",
+      "placeholder": "Legal name",
+      "confirm": "Permanently delete",
+      "success": "Company deleted"
+    },
+    "errors": {
+      "deleteFailed": "Could not delete the company",
+      "unknown": "An unexpected error occurred."
+    }
+  },
+  "detail": {
+    "documents": "Documents",
+    "downloadDocument": "Download",
+    "tariff": "Tariff",
+    "baseAmount": "Base amount",
+    "supplements": "Supplements",
+    "penalties": "Penalties",
+    "total": "Total",
+    "payment": "Payment",
+    "paymentReference": "Payment ref.",
+    "receiptNumber": "Receipt no.",
+    "appointment": "Appointment",
+    "notifications": "Activity",
+    "photo": "Photo",
+    "entity": "Entity",
+    "priority": "Priority",
+    "downloadPDF": "Download PDF summary",
+    "summary": "Summary",
+    "moreInPDF": "+{{count}} more fields in PDF",
+    "pdfSaved": "PDF saved to downloads",
+    "downloadComplete": "Document downloaded",
+    "openFile": "Open"
+  },
+  "errors": {
+    "network": "Connection error. Check your internet.",
+    "unauthorized": "Session expired. Please sign in again.",
+    "forbidden": "You don't have permission for this action.",
+    "notFound": "Resource not found.",
+    "serverError": "Server error. Please try again later.",
+    "validation": "Please check the entered data.",
+    "rateLimit": "Too many requests. Please wait a moment.",
+    "timeout": "The request took too long. Please try again.",
+    "conflict": "Conflict with the current state. Please try again.",
+    "unknown": "An unexpected error occurred."
+  },
+  "wizard": {
+    "title": "New request",
+    "selectWorkflow": "Start a procedure",
+    "steps": "steps",
+    "cancel": "Cancel request",
+    "cancelConfirm": "Are you sure you want to cancel? All data will be lost.",
+    "loading": "Loading session...",
+    "sessionExpired": "Session has expired",
+    "sessionExpiring": "Session expiring soon",
+    "step": {
+      "selection": "Selection",
+      "upload": "Documents",
+      "form": "Form",
+      "appointment": "Appointment",
+      "site": "Location",
+      "payment": "Payment",
+      "confirmation": "Confirmation"
+    },
+    "selection": {
+      "type": "Request type",
+      "expedicion": "First issuance",
+      "renovacion": "Renewal",
+      "duplicado": "Duplicate",
+      "nuevo": "New",
+      "primera_vez": "First time",
+      "legalizacion": "Legalization",
+      "transferencia": "Transfer",
+      "inspeccion": "Inspection",
+      "matriculacion": "Registration",
+      "prorroga": "Extension",
+      "alternativo": "Alternative",
+      "permanencia": "Permanence",
+      "salida_vencido": "Exit after expiration",
+      "promocion": "Promotion",
+      "carnet": "Card",
+      "verificacion": "Verification",
+      "certificado": "Certificate",
+      "permiso": "Permit",
+      "pago": "Payment",
+      "motivo": "Reason",
+      "motivo_vencimiento": "Expiration",
+      "motivo_perdida": "Loss",
+      "motivo_robo": "Theft",
+      "motivo_deterioro": "Damage",
+      "isMinor": "Is the applicant a minor?",
+      "continue": "Continue"
+    },
+    "upload": {
+      "title": "Required documents",
+      "progress": "{{uploaded}} of {{total}} documents",
+      "camera": "Take photo",
+      "gallery": "Gallery",
+      "selectSource": "Select source",
+      "required": "Required",
+      "optional": "Optional",
+      "uploaded": "Uploaded",
+      "pending": "Pending",
+      "error": "Error",
+      "uploadFailed": "Upload failed. Please try again.",
+      "compressing": "Compressing image...",
+      "deleteTitle": "Delete document",
+      "deleteMessage": "Are you sure you want to delete this document?",
+      "deleteFailed": "Failed to delete document.",
+      "permissionRequired": "Permission required",
+      "cameraPermissionMessage": "Camera access is required to take photos.",
+      "galleryPermissionMessage": "Gallery access is required to select photos.",
+      "vault": {
+        "fromVault": "From the vault",
+        "success": "Vault document used",
+        "error": "Could not use the vault document"
+      }
+    },
+    "preview": {
+      "title": "Document preview",
+      "confidence": "Confidence",
+      "processor": "Processor",
+      "confirm": "Confirm",
+      "retry": "Retry",
+      "needsCorrection": "Verify data",
+      "noExtraction": "Could not extract data from document. Check image quality.",
+      "notes": "Correction notes",
+      "notesPlaceholder": "Describe the corrections needed...",
+      "riskWarning": "Risk warning"
+    },
+    "form": {
+      "next": "Next",
+      "previous": "Previous",
+      "saving": "Saving...",
+      "loading": "Loading form...",
+      "loadError": "Failed to load form.",
+      "fieldRequired": "This field is required",
+      "dateFormat": "DD/MM/YYYY"
+    },
+    "appointment": {
+      "selectLocation": "Select location",
+      "selectDay": "Select day",
+      "selectSlot": "Select time slot",
+      "noSlots": "No time slots available",
+      "slot": "slot",
+      "slots": "slots",
+      "confirmed": "Appointment confirmed",
+      "change": "Change appointment",
+      "errorLocations": "Failed to load locations.",
+      "errorDays": "Failed to load available days.",
+      "errorSlots": "Failed to load time slots."
+    },
+    "site": {
+      "selectSite": "Select site",
+      "selectCity": "Select city",
+      "loading": "Loading sites...",
+      "errorLoading": "Failed to load sites.",
+      "other": "Other",
+      "mainOffice": "Main office"
+    },
+    "payment": {
+      "tariffTitle": "Tariff",
+      "baseAmount": "Base amount",
+      "supplement": "Supplement",
+      "total": "Total",
+      "methodTitle": "Payment method",
+      "phoneLabel": "Phone number",
+      "payButton": "Pay {{amount}}",
+      "preparing": "Preparing payment...",
+      "processing": "Processing payment...",
+      "redirecting": "Redirecting to payment...",
+      "errorPrepare": "Failed to prepare payment.",
+      "slotTaken": "The selected time slot is no longer available."
+    },
+    "confirmation": {
+      "title": "Request created",
+      "subtitle": "Your request has been successfully registered.",
+      "reference": "Reference",
+      "paymentStatus": "Payment status",
+      "appointmentDetails": "Appointment details",
+      "viewRequest": "View my request",
+      "backHome": "Back to home"
+    }
+  },
+  "onboarding": {
+    "skip": "Skip",
+    "selectLanguage": "Choose your language",
+    "exploreWithout": "Explore without account",
+    "slide1": {
+      "title": "Welcome to\nFACIL",
+      "desc_sub": "The digital procedures platform",
+      "desc": "Manage your administrative procedures from your phone, anytime, anywhere."
+    },
+    "slide2": {
+      "title": "Smart\nand Secure",
+      "desc_sub": "AI Assistant + Enhanced Security",
+      "desc": "Ask your questions, track your requests\nin real-time.\n2FA authentication and encryption."
+    },
+    "slide3": {
+      "title": "Get started\nnow",
+      "desc_sub": "All in one place",
+      "desc": "Passport, residence, vehicles, contracts...\nStart your first request."
+    }
+  },
+  "workflows": {
+    "PASAPORTE_NUEVO": "Passport Application",
+    "CONDUCIR_NUEVO": "Driving License",
+    "CONTRATO_OBRA": "Commercial Contract Registration",
+    "RESIDENCIA_PRIMERA_VEZ": "Residence Permit for Foreigners",
+    "VEHICULO_PRIMERA_MATRICULACION": "Vehicle Registration and Transfer",
+    "VEHICULO_RENOVACION_ITV": "Vehicle Document Inspection and Renewal",
+    "VEHICULO_DUPLICADO_PERMISO": "Vehicle Document Duplicate",
+    "FP_PROMOCION_ADMINISTRATIVA": "Administrative Promotion",
+    "FP_CARNET_FUNCIONARIO": "Civil Servant Card",
+    "FP_VERIFICACION_FUNCIONARIO": "Civil Servant Verification",
+    "PRORROGA_VISADO": "Visa Procedures",
+    "FP_PERMISO_EXTRAORDINARIO": "Extraordinary Permit",
+    "FP_CERTIFICADO_ADMINISTRATIVO": "Administrative Certificate",
+    "BUNDLE_PAYMENT": "Tax Obligation Payment"
+  },
+  "legal": {
+    "privacy": {
+      "title": "Privacy Policy",
+      "lastUpdated": "Last updated: March 2026",
+      "intro": "The Facil platform, operated by the General Directorate of Taxes of Equatorial Guinea, is committed to protecting the personal data of its users in accordance with applicable legislation.",
+      "dataCollectedTitle": "Data collected",
+      "dataCollectedContent": "We collect the data necessary for the provision of fiscal and administrative services: full name, identity document (DIP/passport), tax identification number (NIF), address, email, phone number, and fiscal and business information as required by the requested procedure.",
+      "purposeTitle": "Purpose of processing",
+      "purposeContent": "Data is used exclusively for:\n- Management of fiscal and administrative procedures\n- Processing of tax declarations\n- Issuance of licenses and certificates\n- Official communications regarding your procedures\n- Identity verification and fraud prevention\n- Improvement of platform services",
+      "legalBasisTitle": "Legal basis",
+      "legalBasisContent": "Data processing is based on compliance with tax obligations established by the legislation of Equatorial Guinea, the public interest in efficient fiscal administration, and user consent upon registering on the platform.",
+      "retentionTitle": "Data retention",
+      "retentionContent": "Personal data is retained for the legally established period for tax obligations (minimum 5 years), or as long as necessary for the purpose for which it was collected. Account data is maintained while the user has an active account.",
+      "sharingTitle": "Data sharing",
+      "sharingContent": "Data may be shared with:\n- Competent government ministries and agencies for processing your requests\n- Banking entities for payment processing (BANGE)\n- Technology providers under confidentiality agreements\n\nNo data is shared with third parties for commercial purposes.",
+      "rightsTitle": "User rights",
+      "rightsContent": "You have the right to access, rectify, and request deletion of your personal data, as well as to restrict or object to its processing. To exercise these rights, contact support through the platform or at the address indicated below.",
+      "securityTitle": "Security measures",
+      "securityContent": "We implement technical and organizational measures to protect your data: encrypted communications (TLS), secure storage with encryption at rest, two-factor authentication (2FA), role-based access control (RBAC), and access auditing.",
+      "contactTitle": "Contact",
+      "contactContent": "For inquiries about data protection, you can contact us through the platform's support module or at the General Directorate of Taxes, Malabo, Equatorial Guinea."
+    },
+    "terms": {
+      "title": "Terms of Use",
+      "lastUpdated": "Last updated: March 2026",
+      "intro": "By using the Facil platform, you accept the following terms and conditions governing access to and use of the digital fiscal administration services of Equatorial Guinea.",
+      "acceptanceTitle": "Acceptance of terms",
+      "acceptanceContent": "Registration and use of the Facil platform implies full acceptance of these terms. If you disagree, you must not use the services. Continued use after modifications constitutes acceptance of the new terms.",
+      "servicesTitle": "Services offered",
+      "servicesContent": "Facil provides digital fiscal administration services including:\n- Tax declaration and payment (VAT, income tax, corporate tax, etc.)\n- Administrative procedure requests (passports, driver's licenses, residence permits, etc.)\n- Commercial license and fiscal obligation management\n- Tracking procedure and payment status\n- Appointment scheduling at government offices",
+      "accountTitle": "User account",
+      "accountContent": "The user is responsible for maintaining the confidentiality of their access credentials. All activity performed with your account will be considered as done by you. In case of unauthorized access, you must notify us immediately through the support module.",
+      "obligationsTitle": "User obligations",
+      "obligationsContent": "The user agrees to:\n- Provide truthful, accurate, and up-to-date information\n- Not use the platform for fraudulent or illegal purposes\n- Comply with tax obligations established by law\n- Not attempt to access unauthorized data or functionalities\n- Respect legal deadlines for declarations and payments",
+      "intellectualPropertyTitle": "Intellectual property",
+      "intellectualPropertyContent": "All platform content (software, design, texts, logos) is the property of the Republic of Equatorial Guinea or its licensors. Its reproduction, distribution, or modification without express authorization is prohibited.",
+      "limitationsTitle": "Limitations of liability",
+      "limitationsContent": "The platform is provided with the greatest possible diligence. However, uninterrupted service availability is not guaranteed. The administration shall not be liable for damages resulting from technical interruptions, transmission errors, or force majeure. Tax calculations are indicative until official validation.",
+      "modificationsTitle": "Modifications",
+      "modificationsContent": "We reserve the right to modify these terms. Modifications will be published on this page with the update date. Substantial changes will be notified to registered users by email.",
+      "jurisdictionTitle": "Applicable law",
+      "jurisdictionContent": "These terms are governed by the legislation of the Republic of Equatorial Guinea. The courts of Malabo shall have jurisdiction for dispute resolution."
+    },
+    "cookies": {
+      "title": "Cookie Policy",
+      "lastUpdated": "Last updated: March 2026",
+      "intro": "This policy explains how the Facil platform uses cookies and similar technologies to ensure proper service operation.",
+      "whatAreTitle": "What are cookies?",
+      "whatAreContent": "Cookies are small text files stored in your browser when you visit a website. They allow us to remember your preferences and improve your browsing experience.",
+      "typesTitle": "Types of cookies used",
+      "typesContent": "Essential cookies: necessary for platform operation (authentication, session, CSRF security). They cannot be disabled.\n\nPreference cookies: store your preferred language (Spanish, French, or English) and display settings.\n\nPerformance cookies: help us understand how the platform is used to improve its operation. They do not collect personally identifiable information.",
+      "purposeTitle": "Purpose of cookies",
+      "purposeContent": "Cookies are used to:\n- Keep your session securely logged in\n- Remember your preferred language\n- Protect against CSRF attacks\n- Improve performance and user experience\n- Remember the state of your in-progress forms",
+      "thirdPartyTitle": "Third-party cookies",
+      "thirdPartyContent": "The platform may include cookies from third-party services for payment processing (BANGE) and performance analytics. These services have their own privacy policies.",
+      "managementTitle": "Cookie management",
+      "managementContent": "You can manage cookies through your browser settings. Please note that disabling essential cookies will prevent normal use of the platform, including logging in and completing procedures.",
+      "contactTitle": "Contact",
+      "contactContent": "For inquiries about cookie usage, you can contact us through the platform's support module."
+    },
+    "acceptance": {
+      "termsPrefix": "I accept the",
+      "termsLink": "Terms of Service",
+      "termsAccessibility": "Accept the Terms of Service",
+      "privacyPrefix": "I confirm I have read the",
+      "privacyLink": "Privacy Policy",
+      "privacyAccessibility": "Accept the Privacy Policy",
+      "required": "You must accept both documents to continue"
+    }
+  }
+}

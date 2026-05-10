@@ -1,0 +1,65 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "zone_code": "A1", "name": "Malabo (Bioko Norte)", "tier": "A", "provincia": "Bioko Norte", "city": "Malabo" },
+      "geometry": { "type": "Polygon", "coordinates": [[[8.55, 3.65], [8.62, 3.58], [8.72, 3.60], [8.82, 3.68], [8.85, 3.78], [8.80, 3.82], [8.72, 3.82], [8.60, 3.78], [8.55, 3.72], [8.55, 3.65]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "zone_code": "A2", "name": "Bata (Litoral Norte)", "tier": "A", "provincia": "Litoral", "city": "Bata" },
+      "geometry": { "type": "Polygon", "coordinates": [[[9.60, 1.72], [9.72, 1.72], [9.82, 1.80], [9.85, 1.95], [9.78, 2.05], [9.65, 2.05], [9.55, 1.95], [9.55, 1.82], [9.60, 1.72]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "zone_code": "A3", "name": "Oyala (Djibloho)", "tier": "A", "provincia": "Djibloho", "city": "Oyala" },
+      "geometry": { "type": "Polygon", "coordinates": [[[10.50, 1.45], [10.65, 1.40], [10.85, 1.48], [10.90, 1.60], [10.82, 1.72], [10.65, 1.75], [10.48, 1.68], [10.45, 1.55], [10.50, 1.45]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "zone_code": "B1", "name": "Ebebiyin (Kie-Ntem)", "tier": "B", "provincia": "Kie-Ntem", "city": "Ebebiyin" },
+      "geometry": { "type": "Polygon", "coordinates": [[[11.02, 1.95], [11.18, 1.92], [11.40, 2.00], [11.45, 2.15], [11.35, 2.25], [11.15, 2.25], [11.00, 2.18], [10.98, 2.05], [11.02, 1.95]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "zone_code": "B2", "name": "Evinayong (Centro Sur)", "tier": "B", "provincia": "Centro Sur", "city": "Evinayong" },
+      "geometry": { "type": "Polygon", "coordinates": [[[10.30, 1.28], [10.52, 1.22], [10.68, 1.30], [10.72, 1.48], [10.60, 1.58], [10.40, 1.58], [10.25, 1.48], [10.22, 1.35], [10.30, 1.28]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "zone_code": "B3", "name": "Mongomo (Wele-Nzas)", "tier": "B", "provincia": "Wele-Nzas", "city": "Mongomo" },
+      "geometry": { "type": "Polygon", "coordinates": [[[11.08, 1.50], [11.25, 1.45], [11.45, 1.52], [11.50, 1.68], [11.40, 1.80], [11.20, 1.82], [11.05, 1.75], [11.00, 1.60], [11.08, 1.50]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "zone_code": "C1", "name": "Luba / Riaba (Bioko Sur)", "tier": "C", "provincia": "Bioko Sur", "city": "Luba" },
+      "geometry": { "type": "Polygon", "coordinates": [[[8.42, 3.32], [8.55, 3.30], [8.68, 3.38], [8.72, 3.52], [8.65, 3.60], [8.50, 3.62], [8.38, 3.55], [8.35, 3.42], [8.42, 3.32]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "zone_code": "C2", "name": "Mbini / Pale (Litoral Sur)", "tier": "C", "provincia": "Litoral", "city": "Mbini" },
+      "geometry": { "type": "Polygon", "coordinates": [[[9.50, 1.35], [9.65, 1.30], [9.80, 1.38], [9.82, 1.55], [9.72, 1.68], [9.55, 1.70], [9.42, 1.60], [9.40, 1.45], [9.50, 1.35]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "zone_code": "C3", "name": "Niefang / Micomeseng", "tier": "C", "provincia": "Centro Sur", "city": "Niefang" },
+      "geometry": { "type": "Polygon", "coordinates": [[[10.10, 1.65], [10.28, 1.60], [10.45, 1.68], [10.48, 1.82], [10.38, 1.92], [10.18, 1.95], [10.05, 1.85], [10.02, 1.72], [10.10, 1.65]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "zone_code": "D1", "name": "Nsork / Akurenam", "tier": "D", "provincia": "Wele-Nzas", "city": "Nsork" },
+      "geometry": { "type": "Polygon", "coordinates": [[[10.78, 1.18], [10.95, 1.15], [11.10, 1.22], [11.12, 1.38], [11.02, 1.48], [10.85, 1.50], [10.72, 1.40], [10.70, 1.28], [10.78, 1.18]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "zone_code": "D2", "name": "Cogo (Litoral)", "tier": "D", "provincia": "Litoral", "city": "Cogo" },
+      "geometry": { "type": "Polygon", "coordinates": [[[9.60, 0.95], [9.78, 0.92], [9.92, 1.00], [9.95, 1.15], [9.85, 1.28], [9.68, 1.30], [9.52, 1.22], [9.48, 1.08], [9.60, 0.95]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "zone_code": "D3", "name": "Annobon", "tier": "D", "provincia": "Annobon", "city": "San Antonio de Pale" },
+      "geometry": { "type": "Polygon", "coordinates": [[[5.58, -1.46], [5.62, -1.48], [5.68, -1.45], [5.70, -1.40], [5.68, -1.35], [5.62, -1.32], [5.56, -1.35], [5.55, -1.40], [5.58, -1.46]]] }
+    }
+  ]
+}

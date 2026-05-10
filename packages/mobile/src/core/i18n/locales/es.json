@@ -1,0 +1,1334 @@
+{
+  "bundleWizard": {
+    "registrationNumberPlaceholder": "PE-000000"
+  },
+  "common": {
+    "loading": "Cargando...",
+    "error": "Error",
+    "retry": "Reintentar",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "save": "Guardar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "noResults": "Sin resultados",
+    "seeAll": "Ver todo",
+    "back": "Volver",
+    "next": "Siguiente",
+    "previous": "Anterior",
+    "submit": "Enviar",
+    "close": "Cerrar",
+    "yes": "Sí",
+    "no": "No",
+    "ok": "Aceptar",
+    "offline": "Sin conexión",
+    "offlineMessage": "Revisa tu conexión a internet",
+    "errorOccurred": "Ha ocurrido un error. Inténtalo de nuevo.",
+    "copied": "Copiado al portapapeles",
+    "done": "Listo",
+    "verify": "Verificar",
+    "copy": "Copiar"
+  },
+  "auth": {
+    "signIn": "Iniciar Sesión",
+    "signUp": "Crear Cuenta",
+    "signOut": "Cerrar Sesión",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "confirmPassword": "Confirmar contraseña",
+    "forgotPassword": "¿Olvidaste tu contraseña?",
+    "resetPassword": "Restablecer contraseña",
+    "firstName": "Nombre",
+    "lastName": "Apellidos",
+    "phone": "Teléfono",
+    "role": "Tipo de cuenta",
+    "verificationCode": "Código de verificación",
+    "sendCode": "Enviar código",
+    "enterOtp": "Ingresa el código de verificación",
+    "twoFactorTitle": "Verificación en dos pasos",
+    "twoFactorDescription": "Ingresa el código de tu aplicación de autenticación",
+    "rememberMe": "Recordarme",
+    "noAccount": "¿No tienes cuenta?",
+    "hasAccount": "¿Ya tienes cuenta?",
+    "welcomeBack": "Bienvenido de nuevo",
+    "createAccountTitle": "Crea tu cuenta Facil",
+    "biometricPrompt": "Usa tu huella dactilar o Face ID para acceder",
+    "personalInfo": "Información personal",
+    "enableBiometric": "Inicio biométrico",
+    "enableBiometricDesc": "¿Activar inicio de sesión rápido con huella digital?",
+    "biometricLogin": "Huella digital",
+    "signOutTitle": "Cerrar sesión",
+    "signOutMessage": "¿Estás seguro de que quieres cerrar sesión?",
+    "emailRequired": "El correo es obligatorio",
+    "invalidEmail": "Correo electrónico inválido",
+    "passwordRequired": "La contraseña es obligatoria",
+    "confirmPasswordRequired": "Confirma tu contraseña",
+    "passwordMismatch": "Las contraseñas no coinciden",
+    "passwordTooLong": "Máximo 100 caracteres",
+    "currentPassword": "Contraseña actual",
+    "currentPasswordRequired": "Ingresa tu contraseña actual",
+    "newPassword": "Nueva contraseña",
+    "passwordStrength": "Seguridad de la contraseña",
+    "passwordStrengthWeak": "Débil",
+    "passwordStrengthMedium": "Media",
+    "passwordStrengthStrong": "Fuerte",
+    "passwordRequirements": {
+      "minLength": "Mínimo 8 caracteres",
+      "uppercase": "Una letra mayúscula",
+      "lowercase": "Una letra minúscula",
+      "digit": "Un número",
+      "special": "Un carácter especial"
+    },
+    "invalidPhoneGE": "Teléfono inválido (222/555/551/333 + 6 dígitos)",
+    "phoneHintGE": "Formato: 222XXXXXX, 555XXXXXX, 551XXXXXX, 333XXXXXX",
+    "invalidVerificationCode": "El código debe tener 6 dígitos",
+    "invalidTwoFactorCode": "Código 2FA inválido",
+    "incorrectPassword": "Contraseña incorrecta",
+    "codeRequired": "El código es obligatorio",
+    "codeSent": "Código enviado",
+    "resendCode": "Reenviar código",
+    "backToSignIn": "Volver a iniciar sesión",
+    "sendResetLink": "Enviar enlace",
+    "resetPasswordSent": "Si tu correo está registrado, recibirás un enlace para restablecer tu contraseña.",
+    "resetPasswordDescription": "Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.",
+    "resetTokenInvalid": "El enlace ha expirado o no es válido.",
+    "resetTokenMissing": "Enlace de restablecimiento no válido. Solicita uno nuevo.",
+    "requestNewLink": "Solicitar nuevo enlace",
+    "newPasswordTitle": "Nueva contraseña",
+    "passwordResetSuccess": "Contraseña restablecida",
+    "passwordResetSuccessMessage": "Tu contraseña ha sido restablecida exitosamente. Ya puedes iniciar sesión.",
+    "passwordChanged": "Contraseña cambiada exitosamente",
+    "passwordMustBeDifferent": "La nueva contraseña debe ser diferente a la actual",
+    "firstNameMin": "Mínimo 2 caracteres",
+    "firstNameMax": "Máximo 50 caracteres",
+    "lastNameMin": "Mínimo 2 caracteres",
+    "lastNameMax": "Máximo 50 caracteres"
+  },
+  "home": {
+    "title": "Inicio",
+    "quickActions": {
+      "services": "Servicios",
+      "servicesDesc": "850+ trámites",
+      "licencias": "Licencias",
+      "licenciasDesc": "Simulador comercial",
+      "empresas": "Empresas",
+      "empresasDesc": "Directorio nacional",
+      "calculador": "Calculador",
+      "calculadorDesc": "Calcular impuestos"
+    },
+    "hero": {
+      "hero1": "Nada más fácil para servirle",
+      "hero1Desc": "850+ servicios · Pasaporte · Residencia · Vehículos · Empresas",
+      "hero2": "Asistente IA fiscal",
+      "hero2Desc": "Consulta leyes, tasas y procedimientos al instante",
+      "hero3": "Declaraciones fiscales",
+      "hero3Desc": "Descarga, rellena y envía formularios desde tu móvil"
+    }
+  },
+  "guide": {
+    "title": "Guía",
+    "tabs": {
+      "steps": "Pasos",
+      "faq": "Preguntas",
+      "forms": "Formularios"
+    },
+    "steps": {
+      "1_title": "Crea tu cuenta",
+      "1_desc": "Regístrate con tu correo electrónico y verifica tu identidad con un código de confirmación.",
+      "2_title": "Inicia sesión",
+      "2_desc": "Accede a tu panel personal para gestionar tus solicitudes y procedimientos.",
+      "3_title": "Elige tu procedimiento",
+      "3_desc": "Selecciona el procedimiento que deseas realizar entre las opciones disponibles.",
+      "4_title": "Sube tus documentos",
+      "4_desc": "Adjunta los documentos requeridos. Nuestro agente IA los analiza y verifica automáticamente.",
+      "5_title": "Completa el formulario",
+      "5_desc": "Rellena la información necesaria. Los datos de tus documentos se pre-rellenan.",
+      "6_title": "Agenda tu cita",
+      "6_desc": "Si es necesario, selecciona fecha y hora para tu cita presencial.",
+      "7_title": "Realiza el pago",
+      "7_desc": "Paga en línea o en efectivo. Recibe tu recibo de pago al instante.",
+      "8_title": "Confirmación",
+      "8_desc": "Recibe la confirmación de tu solicitud y sigue su estado en tiempo real.",
+      "intro": "Sigue estos pasos para completar tu procedimiento en línea con la asistencia de nuestro sistema inteligente. Cada etapa es guiada automáticamente."
+    },
+    "faq": {
+      "q1": "¿Necesito una cuenta para usar Facil?",
+      "a1": "Puedes explorar servicios y usar el asistente IA sin cuenta. Para iniciar un trámite, necesitas crear una cuenta gratuita.",
+      "q2": "¿Cuánto tiempo tarda un trámite?",
+      "a2": "Depende del servicio. Cada servicio indica su tiempo estimado. Puedes seguir el estado en tiempo real desde tu panel.",
+      "q3": "¿Qué métodos de pago aceptan?",
+      "a3": "Aceptamos transferencia bancaria, BANGE Mobile Money, tarjeta y pago en efectivo en oficinas autorizadas.",
+      "q4": "¿En qué idiomas está disponible?",
+      "a4": "Facil está disponible en español, francés e inglés. Puedes cambiar el idioma en cualquier momento.",
+      "q5": "¿Mis datos están seguros?",
+      "a5": "Sí. Utilizamos cifrado de extremo a extremo, autenticación de dos factores y cumplimos con estándares internacionales de seguridad.",
+      "q6": "¿Cómo contacto al soporte?",
+      "a6": "Puedes usar el asistente IA para preguntas frecuentes, o crear un ticket de soporte desde la sección de ayuda."
+    },
+    "forms": {
+      "info": "Visualiza y rellena los formularios fiscales directamente desde tu dispositivo. Toca un formulario para previsualizarlo.",
+      "openError": "No se pudo abrir el formulario.",
+      "retencion_3_petrolero": "Retención 3% - Resid. Petrolero",
+      "retencion_5_petrolero": "Retención 5% - Resid. Petrolero",
+      "retencion_10_nr_petrolero": "Retención 10% - No Resid. Petrolero",
+      "retencion_10_nr_comun": "Retención 10% - No Resid. Sec. Común",
+      "cuota_min_petroliferos": "Cuota mínima fiscal - Sector petrolero",
+      "cuota_min_comun": "Cuota mínima fiscal - Sector común",
+      "iva_destajo": "IVA Destajo",
+      "iva_real": "IVA Real",
+      "imp_prod_petroleros_ivs": "Imp. Prod. Petroleros (IVS)",
+      "imp_prod_petroliferos_fmi": "Imp. Prod. Petrolíferos (FMI)",
+      "imp_salarios_petrolero": "Imp. Sueldos y Salarios - Petrolero",
+      "imp_salarios_comun": "Imp. Sueldos y Salarios - Sec. Común",
+      "impreso_comun": "Impreso común",
+      "liquidacion": "Impreso de liquidación"
+    }
+  },
+  "account": {
+    "title": "Cuenta"
+  },
+  "licenses": {
+    "title": "Simulador de Licencias",
+    "selectType": "Tipo de comercio",
+    "selectZone": "Zona comercial",
+    "results": "Resultado",
+    "requiredDocs": "Documentos requeridos",
+    "restart": "Reiniciar",
+    "download": "Descargar",
+    "share": "Compartir",
+    "copy": "Copiar",
+    "copied": "Copiado al portapapeles",
+    "generatedBy": "Generado por {{app}} — {{date}}"
+  },
+  "directory": {
+    "title": "Directorio de Empresas",
+    "searchPlaceholder": "Buscar empresa, NIF...",
+    "noResults": "No se encontraron empresas",
+    "results": "empresas"
+  },
+  "dashboard": {
+    "title": "Inicio",
+    "greeting": "Hola, {{name}}",
+    "stats": {
+      "active": "Activas",
+      "completed": "Completadas",
+      "pendingAction": "Acción requerida",
+      "totalPaid": "Total pagado"
+    },
+    "recentRequests": "Solicitudes recientes",
+    "upcomingAppointment": "Próxima cita",
+    "quickActions": {
+      "newRequest": "Nueva Solicitud",
+      "myRequests": "Mis Solicitudes",
+      "myDocuments": "Mis Documentos",
+      "myCompanies": "Mis Empresas",
+      "support": "Soporte"
+    },
+    "noRequests": "Aún no tienes solicitudes",
+    "startFirstRequest": "Inicia tu primera solicitud de servicio",
+    "tabs": {
+      "requests": "Solicitudes",
+      "payments": "Pagos",
+      "notifications": "Alertas"
+    },
+    "emptyRequests": "No hay solicitudes recientes",
+    "emptyPayments": "No hay pagos recientes",
+    "actionRequired": "Acción requerida"
+  },
+  "services": {
+    "title": "Servicios",
+    "searchPlaceholder": "Buscar servicios fiscales...",
+    "allMinistries": "Todos los ministerios",
+    "organizations": "Organizaciones",
+    "searchWithin": "Buscar en esta organización...",
+    "comingSoon": "Próximamente",
+    "comingSoonDesc": "Esta función estará disponible pronto.",
+    "popular": "Populares",
+    "categories": "Categorías",
+    "documents": "Documentos requeridos",
+    "procedures": "Procedimientos",
+    "tariff": "Tarifa",
+    "startRequest": "Iniciar solicitud",
+    "allServices": "Todos los servicios",
+    "price": "Precio",
+    "expedition": "Expedición",
+    "renewal": "Renovación",
+    "freeService": "Gratuito",
+    "processingTime": "Tiempo de trámite",
+    "processingDays": "{{count}} días",
+    "relatedServices": "Servicios relacionados",
+    "legalReference": "Base legal",
+    "noDescription": "Sin descripción disponible",
+    "results": "{{count}} resultados",
+    "searchTime": "en {{time}}ms"
+  },
+  "requests": {
+    "title": "Mis Solicitudes",
+    "new": "Nueva Solicitud",
+    "detail": "Detalle de solicitud",
+    "bundle": {
+      "total": "Total",
+      "paid": "Pagado",
+      "remaining": "Restante",
+      "paidObligations_one": "{{count}} obligación pagada",
+      "paidObligations_other": "{{count}} obligaciones pagadas",
+      "pendingObligations_one": "{{count}} obligación pendiente",
+      "pendingObligations_other": "{{count}} obligaciones pendientes",
+      "paymentStatus": {
+        "completed": "Pagado",
+        "validated": "Validado",
+        "submitted": "Enviado",
+        "pending_agent_review": "Pendiente revisión",
+        "auto_processing": "Procesando",
+        "locked_by_agent": "En revisión",
+        "approved": "Aprobado",
+        "rejected": "Rechazado",
+        "failed": "Falló",
+        "cancelled": "Cancelado",
+        "refunded": "Reembolsado"
+      }
+    },
+    "status": {
+      "draft": "Borrador",
+      "submitted": "Enviada",
+      "processing": "En proceso",
+      "under_review": "En revisión",
+      "approved": "Aprobada",
+      "rejected": "Rechazada",
+      "completed": "Completada",
+      "cancelled": "Cancelada",
+      "payment_pending": "Pago pendiente",
+      "paid": "Pagada",
+      "expired": "Expirada",
+      "pending_documents": "Docs pendientes",
+      "validated": "Validada"
+    },
+    "wizard": {
+      "selection": "Selección",
+      "documents": "Documentos",
+      "form": "Formulario",
+      "appointment": "Cita",
+      "payment": "Pago",
+      "confirmation": "Confirmación"
+    },
+    "uploadDocument": "Subir documento",
+    "takePhoto": "Tomar foto",
+    "chooseFile": "Seleccionar archivo",
+    "noDocuments": "Sin documentos subidos",
+    "reference": "Referencia",
+    "amount": "Monto",
+    "noResults": "Sin solicitudes",
+    "filterBy": "Filtrar por",
+    "statusLabel": "Estado",
+    "entity": "Entidad",
+    "documents": "Documentos",
+    "tariff": "Tarifa",
+    "baseAmount": "Monto base",
+    "supplement": "Suplemento",
+    "penalties": "Penalidades",
+    "totalAmount": "Total",
+    "appointment": "Cita",
+    "appointmentDate": "Fecha",
+    "appointmentTime": "Hora",
+    "appointmentLocation": "Lugar",
+    "payment": "Pago",
+    "paymentStatus": "Estado del pago",
+    "paymentReference": "Referencia de pago",
+    "receiptNumber": "Nº de recibo",
+    "notifications": "Actividad"
+  },
+  "chat": {
+    "title": "Asistente IA",
+    "placeholder": "Escribe tu pregunta...",
+    "welcome": "¡Hola! Soy el asistente de Facil. ¿En qué puedo ayudarte?",
+    "typing": "Escribiendo...",
+    "statusSearching": "Buscando en documentos...",
+    "statusAnalyzing": "Analizando resultados...",
+    "statusGenerating": "Preparando respuesta...",
+    "errorSending": "Error al enviar. Inténtalo de nuevo.",
+    "rateLimited": "Demasiadas preguntas. Espera un momento.",
+    "suggestions": {
+      "services": "¿Qué servicios ofrecen?",
+      "documents": "¿Qué documentos necesito?",
+      "payment": "¿Cómo puedo pagar?",
+      "status": "¿Cómo verifico mi solicitud?"
+    }
+  },
+  "profile": {
+    "title": "Perfil",
+    "editProfile": "Editar perfil",
+    "personalInfo": "Información personal",
+    "contactInfo": "Información de contacto",
+    "language": "Idioma",
+    "theme": "Tema",
+    "notifications": "Notificaciones",
+    "biometric": "Acceso biométrico",
+    "about": "Acerca de Facil",
+    "version": "Versión {{version}}",
+    "support": "Soporte",
+    "privacyPolicy": "Política de privacidad",
+    "termsOfService": "Términos de servicio",
+    "changePassword": "Cambiar contraseña",
+    "passwordChangeLogout": "Después de cambiar la contraseña, deberás iniciar sesión nuevamente.",
+    "twoFactor": "Seguridad 2FA",
+    "twoFactorEnabled": "Activado",
+    "twoFactorDisabled": "Desactivado",
+    "twoFactorEnable": "Activar 2FA",
+    "twoFactorDisable": "Desactivar 2FA",
+    "twoFactorSetupTitle": "Configurar autenticación",
+    "twoFactorSetupDesc": "Copia esta clave secreta en tu app de autenticación (Google Authenticator, Authy, etc.)",
+    "twoFactorEnterCode": "Código de la app",
+    "twoFactorEnabledSuccess": "2FA activado correctamente",
+    "twoFactorDisabledSuccess": "2FA desactivado correctamente",
+    "twoFactorDisableConfirm": "¿Desactivar 2FA?",
+    "twoFactorBackupCodesWarning": "Guarda estos códigos de respaldo en un lugar seguro. No podrás verlos de nuevo.",
+    "copyBackupCodes": "Copiar códigos",
+    "backupCodesRemaining": "{{count}} códigos de respaldo restantes",
+    "sessions": "Sesiones activas",
+    "sessionsDescription": "{{count}} sesiones activas en tu cuenta",
+    "currentSession": "Este dispositivo",
+    "lastActivity": "Última actividad",
+    "signOutAllOtherDevices": "Cerrar otras sesiones",
+    "signOutAllOtherDevicesDesc": "Se cerrarán todas las sesiones excepto la actual.",
+    "otherSessionsRevoked": "Otras sesiones cerradas",
+    "noOtherSessions": "No hay otras sesiones activas",
+    "address": "Dirección",
+    "city": "Ciudad",
+    "addressMax": "Máximo 200 caracteres",
+    "cityMax": "Máximo 100 caracteres",
+    "changeAvatar": "Cambiar foto de perfil",
+    "takePhoto": "Tomar foto",
+    "chooseFromGallery": "Elegir de la galería",
+    "removeAvatar": "Eliminar foto",
+    "avatarUpdated": "Foto de perfil actualizada",
+    "avatarRemoved": "Foto de perfil eliminada",
+    "emailNotifications": "Notificaciones por correo",
+    "emailNotificationsDesc": "Recibe actualizaciones por correo electrónico",
+    "pushNotifications": "Notificaciones push",
+    "pushNotificationsDesc": "Recibe notificaciones en tu dispositivo",
+    "smsNotifications": "Notificaciones SMS",
+    "smsNotificationsDesc": "Recibe alertas por mensaje de texto",
+    "languageTitle": "Seleccionar idioma",
+    "saveChanges": "Guardar cambios",
+    "profileUpdated": "Perfil actualizado exitosamente",
+    "oldPasswordRequired": "Ingresa tu contraseña actual",
+    "passwordSameAsOld": "La nueva contraseña debe ser diferente"
+  },
+  "settings": {
+    "title": "Configuración",
+    "account": "Cuenta",
+    "security": "Seguridad",
+    "preferences": "Preferencias",
+    "appLock": "Bloqueo biométrico",
+    "appLockDesc": "Bloquear la app tras 5 min en segundo plano",
+    "dangerZone": "Zona peligrosa",
+    "biometric": {
+      "title": "Inicio de sesión biométrico",
+      "toggle": "Usar inicio de sesión biométrico",
+      "description": "Inicia sesión con tu huella o rostro tras introducir tu contraseña una vez.",
+      "note": "Las credenciales se eliminan al cerrar sesión y al desactivar la opción.",
+      "unavailable": "La autenticación biométrica no está disponible o no está configurada en este dispositivo.",
+      "confirmTitle": "Verifica tu identidad",
+      "confirmBody": "Introduce tu contraseña para activar el inicio biométrico.",
+      "enabled": "Inicio biométrico activado",
+      "disabled": "Inicio biométrico desactivado",
+      "requires2fa": "Desactiva la 2FA antes de activar el inicio biométrico."
+    },
+    "notifications": {
+      "title": "Notificaciones"
+    },
+    "myData": "Mis datos",
+    "exportData": {
+      "title": "Exportar mis datos",
+      "subtitle": "Derecho a la portabilidad — RGPD art. 20",
+      "subtitleShort": "Descarga JSON — RGPD art. 20",
+      "description": "Descarga un archivo JSON con tu perfil, tus pagos y tus solicitudes de los últimos 90 días. Puedes guardarlo en Drive, en tus archivos o enviártelo por correo.",
+      "note": "No se incluyen los documentos (PDF / imágenes) — solo sus metadatos.",
+      "cta": "Descargar mis datos",
+      "preparing": "Preparando tus datos...",
+      "shareTitle": "Compartir mi exportación de datos",
+      "savedTo": "Guardado en {{uri}}",
+      "errorBody": "No se pudieron exportar tus datos. Vuelve a intentarlo."
+    },
+    "deleteAccount": {
+      "title": "Eliminar mi cuenta",
+      "warning": "Esta acción no se puede deshacer pasados 30 días.",
+      "bullet1": "Tus sesiones activas se cerrarán inmediatamente.",
+      "bullet2": "Tus registros fiscales permanecerán en el ledger de auditoría como exige la ley.",
+      "bullet3": "Tus datos personales se eliminarán a los 30 días salvo que contactes con soporte.",
+      "typeDelete": "Escribe DELETE para confirmar",
+      "typeDeleteHint": "Debe ser exactamente la palabra DELETE en mayúsculas.",
+      "cta": "Eliminar mi cuenta de forma permanente",
+      "confirmTitle": "¿Eliminar tu cuenta?",
+      "confirmBody": "Tu cuenta se marcará para eliminación. Tienes 30 días para deshacer la acción antes de que los datos se borren definitivamente.",
+      "confirmAction": "Eliminar",
+      "errors": {
+        "wrongPassword": "Contraseña incorrecta.",
+        "alreadyDeleted": "La cuenta ya está marcada para eliminación."
+      }
+    },
+    "about": {
+      "title": "Acerca de Facil",
+      "subtitle": "Versión, copyright, contacto",
+      "tagline": "Plataforma adaptable para la digitalización de procedimientos administrativos",
+      "version": "Versión",
+      "deployment": "Despliegue actual",
+      "country": "República de Guinea Ecuatorial",
+      "partner": "En colaboración con la Dirección General de Impuestos (DGI)",
+      "framework": "Framework",
+      "author": "Autor",
+      "contact": "Contacto",
+      "repo": "Repositorio fuente",
+      "copyrightSuffix": "Todos los derechos reservados.",
+      "licenseNote": "Facil es un framework propietario. La instancia actual está desplegada para la República de Guinea Ecuatorial.",
+      "builtWith": "Construido con"
+    }
+  },
+  "roles": {
+    "citizen": "Ciudadano",
+    "business": "Empresa",
+    "accountant": "Contable",
+    "admin": "Administrador",
+    "supervisor": "Supervisor"
+  },
+  "security": {
+    "appLocked": "Aplicación bloqueada",
+    "verifyIdentity": "Verifica tu identidad para continuar",
+    "unlock": "Desbloquear",
+    "unlockPrompt": "Desbloquear Facil",
+    "usePin": "Usar PIN",
+    "verificationFailed": "Verificación fallida",
+    "authError": "Error de autenticación"
+  },
+  "support": {
+    "title": "Soporte",
+    "newTicket": "Nuevo ticket",
+    "subject": "Asunto",
+    "description": "Descripción",
+    "category": "Categoría",
+    "priority": {
+      "low": "Baja",
+      "normal": "Normal",
+      "high": "Alta",
+      "urgent": "Urgente"
+    },
+    "list": {
+      "title": "Mis tickets",
+      "empty": "No tienes tickets de soporte",
+      "filter": {
+        "all": "Todos",
+        "active": "Activos",
+        "open": "Abiertos",
+        "resolved": "Resueltos",
+        "closed": "Cerrados"
+      },
+      "messages_one": "1 mensaje",
+      "messages_other": "{{count}} mensajes"
+    },
+    "new": {
+      "title": "Nuevo ticket de soporte",
+      "selectCategory": "Selecciona una categoría",
+      "subjectPlaceholder": "Resume tu problema en una frase",
+      "descriptionPlaceholder": "Describe tu problema con el mayor detalle posible",
+      "submit": "Enviar ticket",
+      "errors": {
+        "subjectTooShort": "El asunto debe tener al menos 5 caracteres",
+        "descriptionTooShort": "La descripción debe tener al menos 10 caracteres",
+        "categoryRequired": "Selecciona una categoría",
+        "submitFailed": "No se pudo crear el ticket. Vuelve a intentarlo."
+      }
+    },
+    "detail": {
+      "title": "Detalle del ticket",
+      "ticketNumber": "N° de ticket",
+      "createdAt": "Creado",
+      "category": "Categoría",
+      "replyPlaceholder": "Escribe tu respuesta...",
+      "send": "Enviar",
+      "close": "Marcar como resuelto",
+      "closeConfirm": "¿Marcar este ticket como resuelto?",
+      "closeConfirmBody": "No podrás añadir nuevos mensajes después.",
+      "closed": "Este ticket está cerrado",
+      "errorLoading": "No se pudo cargar el ticket",
+      "errorLoadingMessages": "No se pudieron cargar los mensajes"
+    },
+    "status": {
+      "open": "Abierto",
+      "in_progress": "En proceso",
+      "pending_user": "Esperando respuesta",
+      "resolved": "Resuelto",
+      "closed": "Cerrado"
+    },
+    "a11y": {
+      "item": "{{subject}}, estado {{status}}, ticket {{number}}"
+    },
+    "sendMessage": "Enviar mensaje"
+  },
+  "calculator": {
+    "addVat": "Agregar IVA",
+    "annualIncome": "Ingreso anual imponible",
+    "baseAmount": "Monto sin IVA",
+    "baseAmountForPercentage": "Monto base para el cálculo",
+    "breakdown": "Desglose",
+    "breakdownByBracket": "Desglose por tramo",
+    "calculate": "Calcular",
+    "calculatedAmount": "Tasa calculada",
+    "calculationBreakdown": "Desglose del cálculo",
+    "calculationError": "Error en el cálculo. Verifique los valores ingresados.",
+    "calculationType": "Tipo de cálculo",
+    "corporateBreakdown": "Desglose del impuesto",
+    "corporateFormula": "Impuesto = Beneficio × 35%",
+    "corporateTax": "Impuesto de Sociedades",
+    "corporateTaxAmount": "Impuesto de sociedades",
+    "corporateTaxDesc": "Calcula el impuesto para empresas",
+    "description": "Calcula tus impuestos de forma rápida y precisa",
+    "disclaimer": "Estos cálculos son solo indicativos. Consulte a un profesional para sus declaraciones oficiales.",
+    "effectiveRate": "Tasa efectiva",
+    "enterAmount": "Ingresa un monto para calcular",
+    "enterVariables": "Ingrese todas las variables requeridas para calcular",
+    "errorLoadingDetails": "Error al cargar los detalles del servicio. Por favor, inténtelo de nuevo.",
+    "errorLoadingServices": "Error al cargar los servicios. Por favor, inténtelo de nuevo.",
+    "extractVat": "Extraer IVA",
+    "fiscalServices": "Servicios Fiscales",
+    "fiscalServicesDesc": "Calcular tasas de servicios fiscales con fórmulas",
+    "formula": "Fórmula",
+    "formulaBasedNotice": "Los cálculos basados en fórmulas requieren visitar la página de detalles del servicio.",
+    "formulaNotConfigured": "Este servicio no tiene una fórmula de cálculo configurada.",
+    "grossIncome": "Ingreso bruto",
+    "history": "Historial",
+    "incomeTax": "Impuesto sobre la Renta",
+    "incomeTaxDesc": "Calcula tu impuesto sobre ingresos personales",
+    "loadingDetails": "Cargando detalles...",
+    "loadingServices": "Cargando servicios fiscales...",
+    "netIncome": "Ingreso neto",
+    "netProfit": "Beneficio neto",
+    "noServicesAvailable": "No hay servicios disponibles",
+    "noVariablesConfigured": "No hay variables configuradas para esta fórmula.",
+    "percentageRate": "Tasa aplicada",
+    "reset": "Reiniciar",
+    "result": "Resultado",
+    "retry": "Reintentar",
+    "saveCalculation": "Guardar cálculo",
+    "selectService": "Seleccionar un servicio",
+    "selectServiceFirst": "Seleccione primero un servicio fiscal",
+    "selectServicePlaceholder": "Elegir un servicio fiscal...",
+    "selectServicePrompt": "Seleccione un servicio para calcular la tasa",
+    "serviceCalculationResult": "Resultado del cálculo del servicio fiscal",
+    "services": "Servicios",
+    "servicesCount": "{{count}} servicios disponibles",
+    "taxBrackets": "Tramos impositivos",
+    "taxableProfit": "Beneficio imponible",
+    "title": "Calculadora de Impuestos",
+    "totalTax": "Impuesto total",
+    "totalWithVat": "Monto con IVA",
+    "vat": "IVA",
+    "vatAddFormula": "Total = Monto × (1 + 15%)",
+    "vatAmount": "Monto IVA",
+    "vatBreakdown": "Desglose IVA",
+    "vatDesc": "Calcula el impuesto sobre el valor agregado",
+    "vatExtractFormula": "Base = Total ÷ 1.15",
+    "viewServiceDetails": "Ver detalles del servicio"
+  },
+  "payment": {
+    "title": "Pago",
+    "method": "Método de pago",
+    "methods": {
+      "mobile_money": "BANGE Mobile Money",
+      "bank_transfer": "Transferencia bancaria",
+      "cash": "Efectivo",
+      "card": "Tarjeta"
+    },
+    "amount": "Monto",
+    "status": {
+      "pending": "Pendiente",
+      "processing": "Procesando",
+      "completed": "Completado",
+      "failed": "Fallido"
+    },
+    "pay": "Pagar",
+    "receipt": "Recibo"
+  },
+  "payments": {
+    "tabs": {
+      "title": "Pagos"
+    },
+    "list": {
+      "title": "Mis pagos",
+      "empty": "Aún no tienes pagos",
+      "filter": {
+        "all": "Todos",
+        "pending": "Pendientes",
+        "completed": "Completados",
+        "failed": "Fallidos"
+      }
+    },
+    "detail": {
+      "title": "Detalle del pago",
+      "breakdown": "Desglose",
+      "baseAmount": "Monto base",
+      "penalties": "Penalidades",
+      "interest": "Intereses",
+      "total": "Total",
+      "method": "Método",
+      "reference": "Referencia",
+      "transactionId": "ID de transacción",
+      "createdAt": "Creado el",
+      "paidAt": "Pagado el",
+      "viewRequest": "Ver solicitud",
+      "errorLoading": "No se pudo cargar el pago"
+    },
+    "status": {
+      "pending": "Pendiente",
+      "processing": "Procesando",
+      "completed": "Completado",
+      "failed": "Fallido",
+      "cancelled": "Cancelado",
+      "refunded": "Reembolsado"
+    },
+    "method": {
+      "mobile_money": "BANGE Mobile Money",
+      "card": "Tarjeta",
+      "bank_transfer": "Transferencia",
+      "cash": "Efectivo",
+      "check": "Cheque",
+      "bange_wallet": "BANGE Wallet"
+    },
+    "receipt": {
+      "download": "Descargar recibo",
+      "unavailable": "Recibo no disponible",
+      "openError": "No se pudo abrir el recibo"
+    },
+    "unknownMethod": "Pago",
+    "a11y": {
+      "item": "{{title}}, estado {{status}}, {{amount}}"
+    },
+    "retry": {
+      "cta": "Reintentar pago",
+      "title": "Pagar esta solicitud",
+      "subtitle": "Elige un método de pago. Reiniciaremos el pago de esta solicitud.",
+      "phoneLabel": "Número de Mobile Money",
+      "submit": "Pagar",
+      "methodsLoadError": "No se pudieron cargar los métodos de pago. Inténtalo de nuevo.",
+      "redirecting": "Abriendo la página de pago…",
+      "cashPending": "Lleva el efectivo a una ventanilla de Tesorería — recibirás una notificación cuando un agente lo confirme.",
+      "checkPending": "Entrega tu cheque en una ventanilla de Tesorería — recibirás una notificación cuando un agente lo confirme.",
+      "agentPending": "Hemos notificado a un agente. Recibirás una notificación cuando se confirme el pago.",
+      "unknownResponse": "El pago se inició pero la respuesta fue inesperada. Revisa tu pestaña de Pagos."
+    },
+    "result": {
+      "checking": "Verificando el pago...",
+      "processing": "Pago en curso, no salgas de la app",
+      "completed": "¡Pago realizado!",
+      "failed": "El pago no se completó",
+      "timeout": "Verificación en curso, recibirás una notificación",
+      "viewReceipt": "Ver recibo",
+      "viewRequest": "Ver solicitud",
+      "retry": "Reintentar",
+      "goHome": "Volver al inicio"
+    }
+  },
+  "notifications": {
+    "title": "Notificaciones",
+    "empty": {
+      "title": "Sin notificaciones",
+      "body": "Cuando recibas una notificación aparecerá aquí."
+    },
+    "unreadCount_one": "{{count}} sin leer",
+    "unreadCount_other": "{{count}} sin leer",
+    "actions": {
+      "markAllRead": "Marcar todo como leído",
+      "delete": "Eliminar"
+    },
+    "permission": {
+      "title": "Activar notificaciones",
+      "enable": "Toca para permitir alertas push",
+      "openSettings": "Toca para abrir los ajustes del sistema"
+    },
+    "markRead": "Marcar como leída"
+  },
+  "vault": {
+    "title": "Mis Documentos",
+    "tabs": {
+      "uploads": "Mis archivos",
+      "generated": "Generados",
+      "alerts": "Alertas"
+    },
+    "search": {
+      "placeholder": "Buscar en el coffre…"
+    },
+    "filters": {
+      "all": "Todos",
+      "personal": "Personales",
+      "wizard": "Trámites",
+      "generated": "Generados",
+      "expiring": "Expiran",
+      "expired": "Vencidos"
+    },
+    "categories": {
+      "all": "Todos",
+      "identity": "Identidad",
+      "vehicle": "Vehículo",
+      "legal": "Legal",
+      "financial": "Financiero",
+      "administrative": "Administrativo",
+      "medical": "Médico",
+      "education": "Educación",
+      "photo": "Foto",
+      "business": "Empresa",
+      "employment": "Empleo",
+      "other": "Otro"
+    },
+    "generationTypes": {
+      "all": "Todos",
+      "receipts": "Recibos",
+      "certificates": "Certificados",
+      "attestations": "Constancias",
+      "summaries": "Resúmenes",
+      "confirmations": "Confirmaciones"
+    },
+    "quota": {
+      "label": "{{used}} de {{total}} MB"
+    },
+    "empty": {
+      "uploads": {
+        "title": "Sin documentos",
+        "body": "Sube tus identificaciones, contratos o licencias para tenerlos siempre a mano.",
+        "cta": "Añadir documento"
+      },
+      "generated": {
+        "title": "Sin documentos generados",
+        "body": "Aquí aparecerán los recibos y certificados emitidos por la plataforma."
+      },
+      "alerts": {
+        "title": "Sin alertas",
+        "body": "Te avisaremos cuando un documento esté por vencer."
+      }
+    },
+    "alerts": {
+      "fallbackMessage": "Toca para ver el detalle"
+    },
+    "detail": {
+      "loading": "Cargando documento…",
+      "loadError": "No se pudo cargar el documento",
+      "processing": "Procesando documento…",
+      "openFailed": "No se pudo abrir el archivo",
+      "archived": "Documento archivado",
+      "deleted": "Documento eliminado",
+      "actions": {
+        "open": "Abrir",
+        "archive": "Archivar",
+        "delete": "Eliminar",
+        "reclassify": "Reclasificar"
+      },
+      "sections": {
+        "metadata": "Información",
+        "extraction": "Datos extraídos",
+        "versions": "Versiones"
+      },
+      "fields": {
+        "documentType": "Tipo de documento",
+        "holderName": "Titular",
+        "documentNumber": "Número",
+        "expiryDate": "Vence",
+        "fileSize": "Tamaño",
+        "createdAt": "Subido"
+      }
+    },
+    "upload": {
+      "title": "Subir documento",
+      "uploading": "Subiendo…",
+      "success": "Documento subido",
+      "picker": {
+        "camera": "Cámara",
+        "gallery": "Galería",
+        "document": "Archivos"
+      },
+      "fields": {
+        "documentTypeHint": "Tipo (opcional)",
+        "documentTypeHintHelp": "Ej. dip, pasaporte, contrato_alquiler",
+        "notes": "Notas (opcional)"
+      },
+      "actions": {
+        "upload": "Subir al coffre"
+      },
+      "duplicate": {
+        "title": "Documento duplicado",
+        "body": "Este archivo ya existe en tu coffre. ¿Quieres reemplazar la copia anterior?",
+        "replace": "Reemplazar"
+      }
+    },
+    "picker": {
+      "title": "Elige un documento del coffre",
+      "subtitle": "Documentos compatibles con \"{{documentCode}}\"",
+      "empty": "No tienes ningún documento de este tipo en el coffre.",
+      "goToVault": "Ir al coffre"
+    },
+    "readiness": {
+      "banner": {
+        "titleAllReady": "Todos tus documentos están listos ({{ready}}/{{total}})",
+        "titlePartial": "{{ready}}/{{total}} documentos listos en tu coffre",
+        "missing": "{{count}} faltante(s)",
+        "expiring": "{{count}} por vencer"
+      }
+    },
+    "errors": {
+      "mime_invalid": "Solo aceptamos PDF, JPG, PNG o WebP.",
+      "file_too_large": "El archivo supera los 10 MB.",
+      "quota_exceeded": "Has llenado tu coffre. Borra documentos antes de continuar.",
+      "rate_limit": "Demasiadas subidas. Inténtalo en unos minutos.",
+      "unknown": "Ha ocurrido un error inesperado."
+    }
+  },
+  "companies": {
+    "title": "Mis Empresas",
+    "empty": {
+      "title": "Sin empresas",
+      "body": "Registra tus empresas para gestionar sus licencias y obligaciones.",
+      "cta": "Crear empresa"
+    },
+    "card": {
+      "registrationNumber": "Nº Registro",
+      "deadline": "Vence",
+      "noLicense": "Sin licencia activa",
+      "pendingObligations_one": "{{count}} obligación pendiente",
+      "pendingObligations_other": "{{count}} obligaciones pendientes",
+      "noPending": "Al día",
+      "pay": "Pagar"
+    },
+    "license": {
+      "status": {
+        "draft": "Borrador",
+        "pending_payment": "Pago pendiente",
+        "active": "Activa",
+        "expired": "Vencida",
+        "revoked": "Revocada",
+        "cancelled": "Cancelada"
+      }
+    },
+    "obligations": {
+      "title": "Obligaciones",
+      "amount": "Importe",
+      "dueDate": "Vence",
+      "status": {
+        "pending": "Pendiente",
+        "paid": "Pagado",
+        "overdue": "Vencido",
+        "cancelled": "Cancelado"
+      },
+      "payAll": "Pagar obligaciones",
+      "empty": "No hay obligaciones para este año"
+    },
+    "payments": {
+      "title": "Historial de pagos",
+      "empty": "Aún no hay pagos",
+      "viewReceipt": "Ver recibo"
+    },
+    "archive": {
+      "menuLabel": "Archivar mi empresa",
+      "title": "Archivar empresa",
+      "blockedTitle": "No se puede archivar",
+      "body": "«{{name}}» dejará de aparecer en tu lista de empresas y no podrás iniciar nuevos trámites para ella.",
+      "blockedBody": "«{{name}}» tiene actividades en curso que deben resolverse antes de archivar.",
+      "disclaimer": "Esto NO es una eliminación. Los registros (licencias, pagos, recibos) quedan conservados conforme a la ley fiscal. Un administrador puede restaurarla.",
+      "blockedHint": "Resuelve estas actividades (paga, cancela o completa) antes de volver a intentar archivar.",
+      "blockers": {
+        "active_licenses_one": "{{count}} licencia activa",
+        "active_licenses_other": "{{count}} licencias activas",
+        "pending_payments_one": "{{count}} pago en proceso",
+        "pending_payments_other": "{{count}} pagos en proceso",
+        "open_requests_one": "{{count}} solicitud abierta",
+        "open_requests_other": "{{count}} solicitudes abiertas",
+        "active_inspections_one": "{{count}} inspección en curso",
+        "active_inspections_other": "{{count}} inspecciones en curso"
+      },
+      "confirm": "Sí, archivar",
+      "submitting": "Archivando…",
+      "seeObligations": "Ver mis obligaciones",
+      "success": "Empresa archivada"
+    },
+    "create": {
+      "title": "Nueva empresa",
+      "action": "Crear"
+    },
+    "edit": {
+      "title": "Editar empresa",
+      "action": "Guardar"
+    },
+    "detail": {
+      "loading": "Cargando…",
+      "loadError": "No se pudo cargar la empresa",
+      "noMembers": "Aún no hay miembros",
+      "summary": {
+        "deadline": "Vencimiento",
+        "total": "Total",
+        "paid": "Pagado"
+      },
+      "sections": {
+        "info": "Información",
+        "license": "Licencia bundle",
+        "members": "Miembros",
+        "payments": "Pagos"
+      },
+      "actions": {
+        "edit": "Editar",
+        "delete": "Eliminar",
+        "manageMembers": "Gestionar",
+        "downloadLicense": "Descargar licencia (PDF)",
+        "viewPayments": "Historial de pagos"
+      }
+    },
+    "form": {
+      "fields": {
+        "legalName": "Razón social",
+        "taxId": "NIF / CIF",
+        "representanteLegal": "Representante legal",
+        "regimenFiscal": "Régimen fiscal",
+        "formaJuridica": "Forma jurídica",
+        "sectorActividad": "Sector de actividad",
+        "cityName": "Ciudad",
+        "provincia": "Provincia",
+        "address": "Dirección",
+        "email": "Email",
+        "phone": "Teléfono"
+      },
+      "validation": {
+        "legalNameRequired": "Razón social obligatoria",
+        "taxIdRequired": "NIF / CIF obligatorio",
+        "representanteRequired": "Representante legal obligatorio",
+        "emailInvalid": "Email no válido"
+      },
+      "classificationHint": "Tras crear la empresa, su régimen fiscal podrá actualizarse automáticamente según los datos.",
+      "actions": {
+        "submit": "Guardar"
+      }
+    },
+    "members": {
+      "title": "Miembros",
+      "roles": {
+        "company_owner": "Propietario",
+        "company_admin": "Administrador",
+        "company_accountant": "Contador",
+        "company_member": "Miembro"
+      },
+      "roleDescriptions": {
+        "company_admin": "Puede gestionar miembros y editar la empresa",
+        "company_accountant": "Acceso a obligaciones y pagos",
+        "company_member": "Solo lectura"
+      },
+      "add": {
+        "title": "Añadir miembro",
+        "confirm": "Añadir",
+        "success": "Miembro añadido",
+        "fields": {
+          "userId": "ID de usuario",
+          "userIdHelp": "Pídale a su colaborador su ID de usuario en la app.",
+          "role": "Rol"
+        },
+        "errors": {
+          "invalidId": "Formato de ID no válido"
+        }
+      },
+      "role": {
+        "success": "Rol actualizado"
+      },
+      "remove": {
+        "title": "Eliminar miembro",
+        "body": "¿Estás seguro de eliminar a {{name}}?",
+        "confirm": "Eliminar",
+        "success": "Miembro eliminado"
+      }
+    },
+    "delete": {
+      "title": "Eliminar empresa",
+      "body": "Esta acción es irreversible. Para confirmar, escribe el nombre exacto: {{name}}",
+      "placeholder": "Razón social",
+      "confirm": "Eliminar definitivamente",
+      "success": "Empresa eliminada"
+    },
+    "errors": {
+      "deleteFailed": "No se pudo eliminar la empresa",
+      "unknown": "Ha ocurrido un error inesperado."
+    }
+  },
+  "detail": {
+    "documents": "Documentos",
+    "downloadDocument": "Descargar",
+    "tariff": "Tarifa",
+    "baseAmount": "Monto base",
+    "supplements": "Suplementos",
+    "penalties": "Penalidades",
+    "total": "Total",
+    "payment": "Pago",
+    "paymentReference": "Ref. pago",
+    "receiptNumber": "Nº recibo",
+    "appointment": "Cita",
+    "notifications": "Actividad",
+    "photo": "Foto",
+    "entity": "Entidad",
+    "priority": "Prioridad",
+    "downloadPDF": "Descargar resumen PDF",
+    "summary": "Resumen",
+    "moreInPDF": "+{{count}} campos más en el PDF",
+    "pdfSaved": "PDF guardado en descargas",
+    "downloadComplete": "Documento descargado",
+    "openFile": "Abrir"
+  },
+  "errors": {
+    "network": "Error de conexión. Verifica tu internet.",
+    "unauthorized": "Sesión expirada. Inicia sesión de nuevo.",
+    "forbidden": "No tienes permiso para esta acción.",
+    "notFound": "Recurso no encontrado.",
+    "serverError": "Error del servidor. Inténtalo más tarde.",
+    "validation": "Verifica los datos ingresados.",
+    "rateLimit": "Demasiadas solicitudes. Espera un momento.",
+    "timeout": "La solicitud tardó demasiado. Inténtalo de nuevo.",
+    "conflict": "Conflicto con el estado actual. Inténtalo de nuevo.",
+    "unknown": "Ha ocurrido un error inesperado."
+  },
+  "wizard": {
+    "title": "Nueva solicitud",
+    "selectWorkflow": "Iniciar un trámite",
+    "steps": "pasos",
+    "cancel": "Cancelar solicitud",
+    "cancelConfirm": "¿Seguro que deseas cancelar? Se perderán todos los datos.",
+    "loading": "Cargando sesión...",
+    "sessionExpired": "La sesión ha expirado",
+    "sessionExpiring": "La sesión expira pronto",
+    "step": {
+      "selection": "Selección",
+      "upload": "Documentos",
+      "form": "Formulario",
+      "appointment": "Cita",
+      "site": "Ubicación",
+      "payment": "Pago",
+      "confirmation": "Confirmación"
+    },
+    "selection": {
+      "type": "Tipo de solicitud",
+      "expedicion": "Expedición (primera vez)",
+      "renovacion": "Renovación",
+      "duplicado": "Duplicado",
+      "nuevo": "Nuevo",
+      "primera_vez": "Primera vez",
+      "legalizacion": "Legalización",
+      "transferencia": "Transferencia",
+      "inspeccion": "Inspección",
+      "matriculacion": "Matriculación",
+      "prorroga": "Prórroga",
+      "alternativo": "Alternativo",
+      "permanencia": "Permanencia",
+      "salida_vencido": "Salida por vencimiento",
+      "promocion": "Promoción",
+      "carnet": "Carnet",
+      "verificacion": "Verificación",
+      "certificado": "Certificado",
+      "permiso": "Permiso",
+      "pago": "Pago",
+      "motivo": "Motivo",
+      "motivo_vencimiento": "Vencimiento",
+      "motivo_perdida": "Pérdida",
+      "motivo_robo": "Robo",
+      "motivo_deterioro": "Deterioro",
+      "isMinor": "¿Es menor de edad?",
+      "continue": "Continuar"
+    },
+    "upload": {
+      "title": "Documentos requeridos",
+      "progress": "{{uploaded}} de {{total}} documentos",
+      "camera": "Tomar foto",
+      "gallery": "Galería",
+      "selectSource": "Seleccionar origen",
+      "required": "Obligatorio",
+      "optional": "Opcional",
+      "uploaded": "Subido",
+      "pending": "Pendiente",
+      "error": "Error",
+      "uploadFailed": "Error al subir el documento. Inténtalo de nuevo.",
+      "compressing": "Comprimiendo imagen...",
+      "deleteTitle": "Eliminar documento",
+      "deleteMessage": "¿Seguro que deseas eliminar este documento?",
+      "deleteFailed": "Error al eliminar el documento.",
+      "permissionRequired": "Permiso requerido",
+      "cameraPermissionMessage": "Se necesita acceso a la cámara para tomar fotos.",
+      "galleryPermissionMessage": "Se necesita acceso a la galería para seleccionar fotos.",
+      "vault": {
+        "fromVault": "Desde el coffre",
+        "success": "Documento del coffre utilizado",
+        "error": "No se pudo usar el documento del coffre"
+      }
+    },
+    "preview": {
+      "title": "Vista previa del documento",
+      "confidence": "Confianza",
+      "processor": "Procesador",
+      "confirm": "Confirmar",
+      "retry": "Reintentar",
+      "needsCorrection": "Verificar datos",
+      "noExtraction": "No se pudieron extraer datos del documento. Verifica la calidad de la imagen.",
+      "notes": "Notas de corrección",
+      "notesPlaceholder": "Describe las correcciones necesarias...",
+      "riskWarning": "Advertencia de riesgo"
+    },
+    "form": {
+      "next": "Siguiente",
+      "previous": "Anterior",
+      "saving": "Guardando...",
+      "loading": "Cargando formulario...",
+      "loadError": "Error al cargar el formulario.",
+      "fieldRequired": "Este campo es obligatorio",
+      "dateFormat": "DD/MM/AAAA"
+    },
+    "appointment": {
+      "selectLocation": "Seleccionar ubicación",
+      "selectDay": "Seleccionar día",
+      "selectSlot": "Seleccionar horario",
+      "noSlots": "No hay horarios disponibles",
+      "slot": "horario",
+      "slots": "horarios",
+      "confirmed": "Cita confirmada",
+      "change": "Cambiar cita",
+      "errorLocations": "Error al cargar las ubicaciones.",
+      "errorDays": "Error al cargar los días disponibles.",
+      "errorSlots": "Error al cargar los horarios."
+    },
+    "site": {
+      "selectSite": "Seleccionar sitio",
+      "selectCity": "Seleccionar ciudad",
+      "loading": "Cargando sitios...",
+      "errorLoading": "Error al cargar los sitios.",
+      "other": "Otro",
+      "mainOffice": "Sede principal"
+    },
+    "payment": {
+      "tariffTitle": "Tarifa",
+      "baseAmount": "Monto base",
+      "supplement": "Suplemento",
+      "total": "Total",
+      "methodTitle": "Método de pago",
+      "phoneLabel": "Número de teléfono",
+      "payButton": "Pagar {{amount}}",
+      "preparing": "Preparando pago...",
+      "processing": "Procesando pago...",
+      "redirecting": "Redirigiendo al pago...",
+      "errorPrepare": "Error al preparar el pago.",
+      "slotTaken": "El horario seleccionado ya no está disponible."
+    },
+    "confirmation": {
+      "title": "Solicitud creada",
+      "subtitle": "Tu solicitud ha sido registrada correctamente.",
+      "reference": "Referencia",
+      "paymentStatus": "Estado del pago",
+      "appointmentDetails": "Detalles de la cita",
+      "viewRequest": "Ver mi solicitud",
+      "backHome": "Volver al inicio"
+    }
+  },
+  "onboarding": {
+    "skip": "Saltar",
+    "selectLanguage": "Selecciona tu idioma",
+    "exploreWithout": "Explorar sin cuenta",
+    "slide1": {
+      "title": "Bienvenido a\nFACIL",
+      "desc_sub": "La plataforma digital de los trámites",
+      "desc": "Gestiona tus trámites administrativos desde tu teléfono, en cualquier momento y lugar."
+    },
+    "slide2": {
+      "title": "Inteligente\ny Seguro",
+      "desc_sub": "Asistente IA + Seguridad reforzada",
+      "desc": "Haz tus preguntas, sigue tus solicitudes\nen tiempo real.\nAutenticación 2FA y cifrado."
+    },
+    "slide3": {
+      "title": "Comienza\nahora",
+      "desc_sub": "Todo en un solo lugar",
+      "desc": "Pasaporte, residencia, vehículos, contratos...\nInicia tu primera solicitud."
+    }
+  },
+  "workflows": {
+    "PASAPORTE_NUEVO": "Solicitud de Pasaporte",
+    "CONDUCIR_NUEVO": "Permiso de Conducir",
+    "CONTRATO_OBRA": "Registro de Contrato Comercial",
+    "RESIDENCIA_PRIMERA_VEZ": "Permiso de Residencia para Extranjeros",
+    "VEHICULO_PRIMERA_MATRICULACION": "Matriculación y Transferencia de Vehículos",
+    "VEHICULO_RENOVACION_ITV": "Inspección y Renovación de Documentos de Vehículos",
+    "VEHICULO_DUPLICADO_PERMISO": "Duplicado de Documentos de Vehículos",
+    "FP_PROMOCION_ADMINISTRATIVA": "Promoción Administrativa",
+    "FP_CARNET_FUNCIONARIO": "Carnet de Funcionario",
+    "FP_VERIFICACION_FUNCIONARIO": "Verificación de Funcionario",
+    "PRORROGA_VISADO": "Trámites de Visado",
+    "FP_PERMISO_EXTRAORDINARIO": "Permiso Extraordinario",
+    "FP_CERTIFICADO_ADMINISTRATIVO": "Certificado Administrativo",
+    "BUNDLE_PAYMENT": "Pago de Obligaciones Fiscales"
+  },
+  "legal": {
+    "privacy": {
+      "title": "Política de Privacidad",
+      "lastUpdated": "Última actualización: marzo 2026",
+      "intro": "La plataforma Facil, operada por la Dirección General de Impuestos de Guinea Ecuatorial, se compromete a proteger los datos personales de sus usuarios conforme a la legislación vigente.",
+      "dataCollectedTitle": "Datos recopilados",
+      "dataCollectedContent": "Recopilamos los datos necesarios para la prestación de los servicios fiscales y administrativos: nombre completo, documento de identidad (DIP/pasaporte), número de identificación fiscal (NIF), dirección, correo electrónico, número de teléfono, e información fiscal y empresarial según el trámite solicitado.",
+      "purposeTitle": "Finalidad del tratamiento",
+      "purposeContent": "Los datos se utilizan exclusivamente para:\n- Gestión de trámites fiscales y administrativos\n- Procesamiento de declaraciones de impuestos\n- Emisión de licencias y certificados\n- Comunicaciones oficiales relativas a sus trámites\n- Verificación de identidad y prevención del fraude\n- Mejora de los servicios de la plataforma",
+      "legalBasisTitle": "Base legal",
+      "legalBasisContent": "El tratamiento de datos se fundamenta en el cumplimiento de obligaciones legales tributarias establecidas por la legislación de Guinea Ecuatorial, el interés público en la administración fiscal eficiente, y el consentimiento del usuario al registrarse en la plataforma.",
+      "retentionTitle": "Conservación de datos",
+      "retentionContent": "Los datos personales se conservan durante el período legalmente establecido para las obligaciones fiscales (mínimo 5 años), o mientras sea necesario para la finalidad para la que fueron recopilados. Los datos de cuenta se mantienen mientras el usuario tenga una cuenta activa.",
+      "sharingTitle": "Cesión de datos",
+      "sharingContent": "Los datos pueden ser compartidos con:\n- Ministerios y organismos gubernamentales competentes para la tramitación de sus solicitudes\n- Entidades bancarias para el procesamiento de pagos (BANGE)\n- Proveedores tecnológicos bajo acuerdos de confidencialidad\n\nNo se ceden datos a terceros con fines comerciales.",
+      "rightsTitle": "Derechos del usuario",
+      "rightsContent": "Tiene derecho a acceder, rectificar y solicitar la eliminación de sus datos personales, así como a limitar u oponerse a su tratamiento. Para ejercer estos derechos, contacte con soporte a través de la plataforma o en la dirección indicada más abajo.",
+      "securityTitle": "Medidas de seguridad",
+      "securityContent": "Implementamos medidas técnicas y organizativas para proteger sus datos: cifrado de comunicaciones (TLS), almacenamiento seguro con cifrado en reposo, autenticación de dos factores (2FA), control de acceso basado en roles (RBAC), y auditoría de accesos.",
+      "contactTitle": "Contacto",
+      "contactContent": "Para consultas sobre protección de datos, puede contactarnos a través del módulo de soporte de la plataforma o en la Dirección General de Impuestos, Malabo, Guinea Ecuatorial."
+    },
+    "terms": {
+      "title": "Términos de Uso",
+      "lastUpdated": "Última actualización: marzo 2026",
+      "intro": "Al utilizar la plataforma Facil, usted acepta los siguientes términos y condiciones que rigen el acceso y uso de los servicios digitales de la administración fiscal de Guinea Ecuatorial.",
+      "acceptanceTitle": "Aceptación de los términos",
+      "acceptanceContent": "El registro y uso de la plataforma Facil implica la aceptación íntegra de estos términos. Si no está de acuerdo, no debe utilizar los servicios. El uso continuado tras modificaciones constituye aceptación de los nuevos términos.",
+      "servicesTitle": "Servicios ofrecidos",
+      "servicesContent": "Facil proporciona servicios digitales de administración fiscal incluyendo:\n- Declaración y pago de impuestos (IVA, IRPF, Impuesto de Sociedades, etc.)\n- Solicitud de trámites administrativos (pasaportes, licencias de conducir, permisos de residencia, etc.)\n- Gestión de licencias comerciales y obligaciones fiscales\n- Consulta del estado de trámites y pagos\n- Programación de citas en oficinas gubernamentales",
+      "accountTitle": "Cuenta de usuario",
+      "accountContent": "El usuario es responsable de mantener la confidencialidad de sus credenciales de acceso. Toda actividad realizada con su cuenta se considerará realizada por usted. En caso de acceso no autorizado, debe notificarlo inmediatamente a través del módulo de soporte.",
+      "obligationsTitle": "Obligaciones del usuario",
+      "obligationsContent": "El usuario se compromete a:\n- Proporcionar información veraz, exacta y actualizada\n- No utilizar la plataforma para fines fraudulentos o ilegales\n- Cumplir con las obligaciones fiscales establecidas por la ley\n- No intentar acceder a datos o funcionalidades no autorizadas\n- Respetar los plazos legales de declaración y pago",
+      "intellectualPropertyTitle": "Propiedad intelectual",
+      "intellectualPropertyContent": "Todo el contenido de la plataforma (software, diseño, textos, logotipos) es propiedad de la República de Guinea Ecuatorial o sus licenciantes. Queda prohibida su reproducción, distribución o modificación sin autorización expresa.",
+      "limitationsTitle": "Limitaciones de responsabilidad",
+      "limitationsContent": "La plataforma se ofrece con la mayor diligencia posible. No obstante, no se garantiza la disponibilidad ininterrumpida del servicio. La administración no será responsable de daños derivados de interrupciones técnicas, errores de transmisión, o causas de fuerza mayor. Los cálculos fiscales tienen carácter orientativo hasta su validación oficial.",
+      "modificationsTitle": "Modificaciones",
+      "modificationsContent": "Nos reservamos el derecho de modificar estos términos. Las modificaciones se publicarán en esta página con la fecha de actualización. Los cambios sustanciales serán notificados a los usuarios registrados por correo electrónico.",
+      "jurisdictionTitle": "Legislación aplicable",
+      "jurisdictionContent": "Estos términos se rigen por la legislación de la República de Guinea Ecuatorial. Para la resolución de controversias serán competentes los tribunales de Malabo."
+    },
+    "cookies": {
+      "title": "Política de Cookies",
+      "lastUpdated": "Última actualización: marzo 2026",
+      "intro": "Esta política explica cómo la plataforma Facil utiliza cookies y tecnologías similares para garantizar el correcto funcionamiento del servicio.",
+      "whatAreTitle": "¿Qué son las cookies?",
+      "whatAreContent": "Las cookies son pequeños archivos de texto que se almacenan en su navegador cuando visita un sitio web. Permiten recordar sus preferencias y mejorar su experiencia de navegación.",
+      "typesTitle": "Tipos de cookies utilizadas",
+      "typesContent": "Cookies esenciales: necesarias para el funcionamiento de la plataforma (autenticación, sesión, seguridad CSRF). No pueden desactivarse.\n\nCookies de preferencias: almacenan su idioma preferido (español, francés o inglés) y configuraciones de visualización.\n\nCookies de rendimiento: nos ayudan a entender cómo se utiliza la plataforma para mejorar su funcionamiento. No recopilan información personal identificable.",
+      "purposeTitle": "Finalidad de las cookies",
+      "purposeContent": "Las cookies se utilizan para:\n- Mantener su sesión iniciada de forma segura\n- Recordar su idioma preferido\n- Proteger contra ataques de falsificación de solicitudes (CSRF)\n- Mejorar el rendimiento y la experiencia de usuario\n- Recordar el estado de sus formularios en curso",
+      "thirdPartyTitle": "Cookies de terceros",
+      "thirdPartyContent": "La plataforma puede incluir cookies de servicios de terceros para el procesamiento de pagos (BANGE) y análisis de rendimiento. Estos servicios tienen sus propias políticas de privacidad.",
+      "managementTitle": "Gestión de cookies",
+      "managementContent": "Puede gestionar las cookies a través de la configuración de su navegador. Tenga en cuenta que desactivar las cookies esenciales impedirá el uso normal de la plataforma, incluyendo el inicio de sesión y la realización de trámites.",
+      "contactTitle": "Contacto",
+      "contactContent": "Para consultas sobre el uso de cookies, puede contactarnos a través del módulo de soporte de la plataforma."
+    },
+    "acceptance": {
+      "termsPrefix": "Acepto las",
+      "termsLink": "Condiciones Generales de Uso",
+      "termsAccessibility": "Aceptar las Condiciones Generales de Uso",
+      "privacyPrefix": "Confirmo haber leído la",
+      "privacyLink": "Política de Privacidad",
+      "privacyAccessibility": "Aceptar la Política de Privacidad",
+      "required": "Debe aceptar ambos documentos para continuar"
+    }
+  }
+}

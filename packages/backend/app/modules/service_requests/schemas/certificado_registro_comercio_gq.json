@@ -1,0 +1,350 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "CERTIFICADO_REGISTRO_COMERCIO_GQ_V1",
+  "version": "1.0",
+  "title": "Certificado de Registro en Comercio - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour le Certificat d'inscription au Registre du Commerce annuel (avec photo)",
+  "document_type": "CERTIFICADO_REGISTRO_COMERCIO",
+  "country": "GQ",
+  "faces": ["single_page"],
+  "document_nature": "certificat_officiel_annuel",
+  "issuer": "Ventanilla Unica Empresarial",
+  "validity": "annual",
+
+  "extraction": {
+    "documento": {
+      "description": "Informations administratives du certificat",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "CERTIFICADO_REGISTRO_COMERCIO",
+          "required": true,
+          "description": "Type de document"
+        },
+        "numero_ri": {
+          "type": "string",
+          "required": true,
+          "description": "Numero R.I.",
+          "field_label": "R.I.",
+          "pii": true
+        },
+        "ano_certificado": {
+          "type": "integer",
+          "required": true,
+          "description": "Annee du certificat (ex: 2023)",
+          "field_label": "AÑO"
+        },
+        "numero_expediente_vue": {
+          "type": "string",
+          "required": true,
+          "description": "Numero de expediente VUE",
+          "field_label": "Nº DE EXPEDIENTE VUE",
+          "pii": true
+        },
+        "numero_certificado": {
+          "type": "string",
+          "required": true,
+          "description": "Numero de certificat",
+          "field_label": "Nº DE CERTIFICADO",
+          "pii": true
+        },
+        "observacion": {
+          "type": "string",
+          "enum": ["PRIMERA EXPEDICION", "RENOVACION", "DUPLICADO"],
+          "required": false,
+          "description": "Type d'emission",
+          "field_label": "OBSERVACIÓN"
+        }
+      }
+    },
+
+    "empresa": {
+      "description": "Donnees de l'entreprise",
+      "fields": {
+        "denominacion_social": {
+          "type": "string",
+          "required": true,
+          "description": "Nom de l'entreprise",
+          "field_label": "DENOMINACIÓN SOCIAL",
+          "pii": true
+        },
+        "representante_legal": {
+          "type": "string",
+          "required": true,
+          "description": "Nom du representant legal",
+          "field_label": "REPRESENTANTE LEGAL",
+          "pii": true
+        },
+        "nacionalidad_empresa": {
+          "type": "string",
+          "required": true,
+          "description": "Nationalite de l'entreprise",
+          "field_label": "NACIONALIDAD EMPRESA"
+        },
+        "domicilio_social": {
+          "type": "string",
+          "required": true,
+          "description": "Adresse du siege social",
+          "field_label": "DOMICILIO SOCIAL",
+          "pii": true
+        },
+        "capital_social": {
+          "type": "number",
+          "required": true,
+          "description": "Capital social en F. CFAS",
+          "field_label": "CAPITAL SOCIAL",
+          "currency": "XAF"
+        },
+        "forma_juridica": {
+          "type": "string",
+          "enum": ["SOCIEDAD LIMITADA", "SOCIEDAD ANONIMA", "SUCURSAL", "EMPRESA INDIVIDUAL"],
+          "required": true,
+          "description": "Forme juridique",
+          "field_label": "FORMA JURÍDICA"
+        }
+      }
+    },
+
+    "actividad": {
+      "description": "Secteur et activite de l'entreprise",
+      "fields": {
+        "sector": {
+          "type": "string",
+          "enum": ["Primario", "Secundario", "Terciario"],
+          "required": true,
+          "description": "Secteur economique principal",
+          "field_label": "SECTOR"
+        },
+        "subsector": {
+          "type": "string",
+          "required": false,
+          "description": "Sous-secteur d'activite",
+          "field_label": "SUBSECTOR"
+        },
+        "objeto_social": {
+          "type": "string",
+          "required": true,
+          "description": "Description de l'activite",
+          "field_label": "OBJETO SOCIAL"
+        }
+      }
+    },
+
+    "datos_operativos": {
+      "description": "Donnees operationnelles",
+      "fields": {
+        "fecha_inscripcion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'inscription originale",
+          "field_label": "FECHA DE INSCRIPCIÓN",
+          "date_format": "DD/MM/YYYY"
+        },
+        "numero_establecimientos": {
+          "type": "integer",
+          "required": false,
+          "description": "Nombre d'etablissements",
+          "field_label": "Nº ESTABLECIMIENTOS"
+        },
+        "telefono": {
+          "type": "string",
+          "required": false,
+          "description": "Telephone",
+          "field_label": "TELEFONO",
+          "pii": true
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "required": false,
+          "description": "Email",
+          "field_label": "EMAIL",
+          "pii": true
+        }
+      }
+    },
+
+    "derechos_incluidos": {
+      "description": "Droits inclus dans le certificat",
+      "fields": {
+        "inscripcion_comercio": {
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Inscription au Commerce"
+        },
+        "libreta_comercial": {
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Libreta Comercial"
+        },
+        "alta_anual": {
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Alta Anual"
+        },
+        "ficha_comercial": {
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Ficha Comercial"
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification",
+      "fields": {
+        "tiene_foto_representante": {
+          "type": "boolean",
+          "required": true,
+          "description": "Photo du representant legal presente (coin superieur droit)"
+        },
+        "fecha_emision": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'emission du certificat",
+          "date_format": "DD de MMMM de YYYY"
+        },
+        "lugar_emision": {
+          "type": "string",
+          "required": true,
+          "default": "Malabo"
+        },
+        "tiene_firma_director": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du Director General presente"
+        },
+        "tiene_firma_coordinador": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du Coordinador General presente"
+        },
+        "tiene_sello_director": {
+          "type": "boolean",
+          "required": true,
+          "description": "Sceau du Director General present"
+        },
+        "tiene_sello_coordinador": {
+          "type": "boolean",
+          "required": true,
+          "description": "Sceau du Coordinador General present"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "ano_certificado_valid",
+      "rule": "ano_certificado >= 2020 AND ano_certificado <= CURRENT_YEAR + 1",
+      "error_es": "El ano del certificado no es valido",
+      "error_fr": "L'annee du certificat n'est pas valide",
+      "severity": "error"
+    },
+    {
+      "id": "foto_representante_required",
+      "rule": "tiene_foto_representante == true",
+      "error_es": "El certificado debe incluir la foto del representante legal",
+      "error_fr": "Le certificat doit inclure la photo du representant legal",
+      "severity": "error"
+    },
+    {
+      "id": "firmas_required",
+      "rule": "tiene_firma_director == true AND tiene_firma_coordinador == true",
+      "error_es": "El certificado debe tener ambas firmas oficiales",
+      "error_fr": "Le certificat doit avoir les deux signatures officielles",
+      "severity": "error"
+    },
+    {
+      "id": "sellos_required",
+      "rule": "tiene_sello_director == true AND tiene_sello_coordinador == true",
+      "error_es": "El certificado debe tener ambos sellos oficiales",
+      "error_fr": "Le certificat doit avoir les deux sceaux officiels",
+      "severity": "error"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Certificat annuel d'inscription au Registre du Commerce - document avec photo du representant legal, valide pour l'annee indiquee",
+    "language": "es",
+    "visual_zones": [
+      "En-tete: Logo VUE + Armoiries GQ + R.I. [numero]",
+      "Titre: CERTIFICADO DE REGISTRO EN COMERCIO AÑO [YYYY]",
+      "Photo: Coin superieur droit - photo d'identite du representant legal",
+      "Intro: La VENTANILLA UNICA EMPRESARIAL... Certifica que, su empresa queda registrada...",
+      "Tableau de donnees: DENOMINACION SOCIAL, REPRESENTANTE LEGAL, NACIONALIDAD EMPRESA, etc.",
+      "Section activite: SECTOR, SUBSECTOR, OBJETO SOCIAL",
+      "Numeros: FECHA INSCRIPCION, Nº ESTABLECIMIENTOS, TELEFONO, EMAIL, Nº EXPEDIENTE VUE, Nº CERTIFICADO",
+      "Observation: PRIMERA EXPEDICION / RENOVACION / DUPLICADO",
+      "Mention legale: El presente Certificado recoge los derechos de la Inscripcion en Comercio, Libreta Comercial...",
+      "Bas: Date + El Director General + El Coordinador General + signatures + sceaux"
+    ],
+    "key_visual_elements": {
+      "photo": "Photo identite format passeport dans cadre vert, coin superieur droit",
+      "deux_signatures": "El Director General (gauche) + El Coordinador General (droite)",
+      "deux_sceaux": "Sceaux ronds bleus sous chaque signature"
+    },
+    "secteurs": {
+      "Primario": "Agriculture, Peche, Extraction",
+      "Secundario": "Industrie, Construction",
+      "Terciario": "Services, Commerce"
+    }
+  },
+
+  "tesseract_patterns": {
+    "numero_ri": [
+      "(?:R\\.?I\\.?)\\s*[:#]?\\s*([0-9]{5,6})"
+    ],
+    "ano_certificado": [
+      "(?:COMERCIO\\s*A[ÑN]O)\\s*([0-9]{4})"
+    ],
+    "denominacion_social": [
+      "(?:DENOMINACI[ÓO]N\\s*SOCIAL)\\s*[:#]?\\s*(.+?)(?=REPRESENTANTE|$)"
+    ],
+    "representante_legal": [
+      "(?:REPRESENTANTE\\s*LEGAL)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "nacionalidad_empresa": [
+      "(?:NACIONALIDAD\\s*EMPRESA)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ]+)"
+    ],
+    "domicilio_social": [
+      "(?:DOMICILIO\\s*SOCIAL)\\s*[:#]?\\s*(.+?)(?=CAPITAL|$)"
+    ],
+    "capital_social": [
+      "(?:CAPITAL\\s*SOCIAL)\\s*[:#]?\\s*([0-9.,]+)"
+    ],
+    "forma_juridica": [
+      "(?:FORMA\\s*JUR[IÍ]DICA)\\s*[:#]?\\s*(SOCIEDAD\\s*(?:LIMITADA|AN[OÓ]NIMA)|S\\.?[LA]\\.?)"
+    ],
+    "sector": [
+      "(?:SECTOR)\\s*[:#]?\\s*(Primario|Secundario|Terciario)"
+    ],
+    "subsector": [
+      "(?:SUBSECTOR)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "objeto_social": [
+      "(?:OBJETO\\s*SOCIAL)\\s*[:#]?\\s*(.+?)(?=FECHA|$)"
+    ],
+    "fecha_inscripcion": [
+      "(?:FECHA\\s*DE\\s*INSCRIPCI[OÓ]N)\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})"
+    ],
+    "numero_establecimientos": [
+      "(?:N[°oº]?\\s*ESTABLECIMIENTOS)\\s*[:#]?\\s*([0-9]+)"
+    ],
+    "numero_expediente_vue": [
+      "(?:N[°oº]?\\s*DE\\s*EXPEDIENTE\\s*VUE)\\s*[:#]?\\s*([0-9]{5}/[0-9]{4})"
+    ],
+    "numero_certificado": [
+      "(?:N[°oº]?\\s*DE\\s*CERTIFICADO)\\s*[:#]?\\s*([0-9]+)"
+    ],
+    "observacion": [
+      "(?:OBSERVACI[OÓ]N)\\s*[:#]?\\s*(PRIMERA\\s*EXPEDICI[OÓ]N|RENOVACI[OÓ]N|DUPLICADO)"
+    ]
+  }
+}

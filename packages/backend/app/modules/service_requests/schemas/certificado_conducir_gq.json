@@ -1,0 +1,442 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "CERTIFICADO_CONDUCIR_GQ_V1",
+  "version": "1.0",
+  "title": "Certificado para Conducir - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour le Certificado para Conducir (permis de conduire temporaire) de Guinee Equatoriale",
+  "document_type": "CERTIFICADO_CONDUCIR",
+  "country": "GQ",
+  "faces": ["recto_verso_depliant"],
+  "document_nature": "autorisation_temporaire",
+
+  "extraction": {
+    "documento": {
+      "description": "Informations administratives du document",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "CERTIFICADO_CONDUCIR",
+          "required": true,
+          "description": "Type de document"
+        },
+        "organismo_emisor": {
+          "type": "string",
+          "required": false,
+          "default": "Direccion General de Trafico Rodado y Seguridad Vial",
+          "description": "Organisme emetteur",
+          "field_label": "Ministerio del Interior y Cooperaciones locales"
+        },
+        "reg_numero": {
+          "type": "string",
+          "required": true,
+          "description": "Numero de registre (ex: V106)",
+          "field_label": "Reg. Numero",
+          "pii": true
+        },
+        "lugar_expedicion": {
+          "type": "string",
+          "required": true,
+          "description": "Lieu d'emission (ex: Malabo, Bata)",
+          "field_label": "LUGAR DE EXPEDICIÓN"
+        },
+        "fecha_expedicion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'emission",
+          "field_label": "FECHA DE EXPEDICIÓN",
+          "date_format": "DD/MM/YYYY"
+        },
+        "valido_hasta": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date de validite (expiration) - max 1 an apres emission",
+          "field_label": "VALIDO HASTA",
+          "date_format": "DD/MM/YYYY"
+        }
+      }
+    },
+
+    "titular": {
+      "description": "Donnees du titulaire du certificat",
+      "fields": {
+        "tipo_identificacion": {
+          "type": "string",
+          "enum": ["DIP", "NIE"],
+          "required": true,
+          "description": "Type d'identification: DIP pour natifs GQ, NIE pour etrangers",
+          "field_label": "1. D.I.P / NIE"
+        },
+        "numero_identificacion": {
+          "type": "string",
+          "required": true,
+          "description": "Numero DIP (natifs) ou NIE (etrangers)",
+          "field_label": "1. D.I.P",
+          "pii": true
+        },
+        "fecha_nacimiento": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date de naissance",
+          "field_label": "2. FECHA DE NACIMIENTO",
+          "date_format": "DD/MM/YYYY",
+          "pii": true
+        },
+        "apellidos": {
+          "type": "string",
+          "required": true,
+          "description": "Noms de famille",
+          "field_label": "3. APELLIDOS",
+          "pii": true
+        },
+        "nombre": {
+          "type": "string",
+          "required": true,
+          "description": "Prenom(s)",
+          "field_label": "4. NOMBRE",
+          "pii": true
+        },
+        "domicilio": {
+          "type": "string",
+          "required": false,
+          "description": "Adresse de residence",
+          "field_label": "6. DOMICILIO",
+          "pii": true
+        },
+        "tiene_foto": {
+          "type": "boolean",
+          "required": true,
+          "description": "Photo d'identite presente"
+        }
+      }
+    },
+
+    "permiso": {
+      "description": "Donnees du permis/licence de conduire",
+      "fields": {
+        "clases_permiso": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["A", "B", "B+", "C", "D", "E", "F"]
+          },
+          "required": true,
+          "description": "Classes de permis autorisees (peuvent etre multiples)",
+          "field_label": "5. CLASE DE PERMISO O LICENCIA"
+        },
+        "clase_principal": {
+          "type": "string",
+          "enum": ["A", "B", "B+", "C", "D", "E", "F"],
+          "required": true,
+          "description": "Classe principale marquee/cochee"
+        },
+        "antiguedad_desde": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Date d'anciennete du permis original",
+          "field_label": "a.- Antigüedad desde",
+          "date_format": "DD/MM/YYYY"
+        },
+        "observacion_b": {
+          "type": "string",
+          "required": false,
+          "description": "Observation ligne b",
+          "field_label": "b.-"
+        },
+        "observacion_c": {
+          "type": "string",
+          "required": false,
+          "description": "Observation ligne c",
+          "field_label": "c.-"
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification et validation du document",
+      "fields": {
+        "tiene_qr_code": {
+          "type": "boolean",
+          "required": true,
+          "description": "Presence du QR Code de verification (coin inferieur gauche)"
+        },
+        "qr_code_lisible": {
+          "type": "boolean",
+          "required": false,
+          "description": "Le QR Code est lisible/scannable"
+        },
+        "tiene_sello_dgt": {
+          "type": "boolean",
+          "required": true,
+          "description": "Presence du grand sceau bleu Direccion General de Trafico"
+        },
+        "texto_sello": {
+          "type": "string",
+          "required": false,
+          "description": "Texte du sceau (ex: DIRECCION GENERAL DE TRAFICO RODADO)"
+        },
+        "tiene_sello_foto": {
+          "type": "boolean",
+          "required": false,
+          "description": "Presence du petit sceau sur la photo d'identite"
+        },
+        "tiene_firma": {
+          "type": "boolean",
+          "required": true,
+          "description": "Presence de la signature de l'autorite competente"
+        },
+        "cargo_firmante": {
+          "type": "string",
+          "required": false,
+          "default": "AUTORIDAD COMPETENTE",
+          "description": "Titre/cargo du signataire",
+          "field_label": "FIRMA DE LA AUTORIDAD COMPETENTE"
+        },
+        "nombre_firmante": {
+          "type": "string",
+          "required": false,
+          "description": "Nom du signataire si lisible",
+          "pii": true
+        }
+      }
+    },
+
+    "restricciones": {
+      "description": "Restrictions et conditions d'utilisation",
+      "fields": {
+        "requiere_documento_identidad": {
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Doit etre accompagne d'un document d'identite officiel"
+        },
+        "es_autorizacion_temporal": {
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Est une autorisation temporaire (max 1 an)"
+        },
+        "requiere_permiso_original": {
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Necessite le permis/licence original"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "certificado_not_expired",
+      "rule": "valido_hasta > TODAY",
+      "error_es": "El certificado para conducir ha caducado",
+      "error_fr": "Le certificat de conduite a expire",
+      "severity": "error"
+    },
+    {
+      "id": "certificado_expiring_soon",
+      "rule": "valido_hasta > TODAY + 30 DAYS",
+      "error_es": "El certificado expira en menos de 30 dias",
+      "error_fr": "Le certificat expire dans moins de 30 jours",
+      "severity": "warning"
+    },
+    {
+      "id": "validez_max_un_ano",
+      "rule": "valido_hasta <= fecha_expedicion + 365 DAYS",
+      "error_es": "La validez no puede exceder 1 ano desde la expedicion",
+      "error_fr": "La validite ne peut exceder 1 an depuis l'emission",
+      "severity": "error"
+    },
+    {
+      "id": "identificacion_required",
+      "rule": "numero_identificacion IS NOT NULL AND LENGTH(numero_identificacion) >= 7",
+      "error_es": "El numero de identificacion (DIP o NIE) es obligatorio",
+      "error_fr": "Le numero d'identification (DIP ou NIE) est obligatoire",
+      "severity": "error"
+    },
+    {
+      "id": "clase_permiso_required",
+      "rule": "clase_principal IS NOT NULL",
+      "error_es": "La clase de permiso debe estar indicada",
+      "error_fr": "La classe de permis doit etre indiquee",
+      "severity": "error"
+    },
+    {
+      "id": "foto_required",
+      "rule": "tiene_foto == true",
+      "error_es": "El certificado debe tener foto de identidad",
+      "error_fr": "Le certificat doit avoir une photo d'identite",
+      "severity": "error"
+    },
+    {
+      "id": "qr_code_presente",
+      "rule": "tiene_qr_code == true",
+      "error_es": "El certificado debe tener codigo QR de verificacion",
+      "error_fr": "Le certificat doit avoir un code QR de verification",
+      "severity": "warning"
+    },
+    {
+      "id": "sello_dgt_required",
+      "rule": "tiene_sello_dgt == true",
+      "error_es": "El certificado debe tener el sello de la Direccion General de Trafico",
+      "error_fr": "Le certificat doit avoir le sceau de la Direction Generale du Trafic",
+      "severity": "error"
+    },
+    {
+      "id": "firma_required",
+      "rule": "tiene_firma == true",
+      "error_es": "El certificado debe estar firmado por la autoridad competente",
+      "error_fr": "Le certificat doit etre signe par l'autorite competente",
+      "severity": "error"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Certificado para Conducir - permis de conduire temporaire de Guinee Equatoriale, valide max 1 an, doit etre accompagne du permis original et d'une piece d'identite",
+    "language": "es",
+    "multilingual": ["es", "fr", "en"],
+    "date_format": "DD/MM/YYYY",
+    "visual_zones": {
+      "couverture": [
+        "Bandeau tricolore GQ (vert, blanc, rouge) en haut a gauche",
+        "Armoiries de GQ (arbre ceiba) a droite",
+        "En-tete: REPUBLICA DE GUINEA ECUATORIAL",
+        "Sous-titre: Ministerio del Interior y Cooperaciones locales",
+        "Sous-titre: Direccion General de Trafico Rodado y Seguridad Vial",
+        "Titre principal: CERTIFICADO PARA CONDUCIR (rouge)",
+        "Sous-titres: Certificat de Conduire / Driving Certificate",
+        "Zone gauche: Texte explicatif sur autorisation TEMPORAL",
+        "Zone droite: VALIDO PARA CONDUCIR EN GUINEA ECUATORIAL..."
+      ],
+      "donnees": [
+        "Zone superieure gauche: 1. D.I.P (numero)",
+        "Zone superieure droite: 2. FECHA DE NACIMIENTO",
+        "Ligne: 3. APELLIDOS",
+        "Ligne: 4. NOMBRE",
+        "Ligne avec cases: 5. CLASE DE PERMISO O LICENCIA (A, B, C, D, E, F)",
+        "Ligne: 6. DOMICILIO",
+        "Ligne gauche: 7. LUGAR DE EXPEDICION",
+        "Ligne: 8. FECHA DE EXPEDICION | 9. VALIDO HASTA",
+        "Zone OBSERVACIONES: a.- Antiguedad desde, b.-, c.-",
+        "Bas gauche: Reg. Numero",
+        "Photo d'identite: coin droit avec petit sceau bleu",
+        "QR Code: coin inferieur gauche",
+        "Grand sceau bleu: centre/droite",
+        "Signature: droite, sous texte FIRMA DE LA AUTORIDAD COMPETENTE"
+      ]
+    },
+    "clases_permiso_description": {
+      "A": "Motocyclettes",
+      "B": "Vehicules legers (voitures)",
+      "B+": "Vehicules legers avec remorque",
+      "C": "Camions/poids lourds",
+      "D": "Autobus/transport de personnes",
+      "E": "Vehicules articules",
+      "F": "Vehicules agricoles/speciaux"
+    },
+    "elements_authentification": {
+      "qr_code": {
+        "position": "Coin inferieur gauche",
+        "description": "Code QR noir sur fond blanc pour verification electronique",
+        "obligatoire": true
+      },
+      "sello_dgt": {
+        "position": "Centre-droite du document, sur les donnees",
+        "description": "Grand sceau rond bleu avec texte DIRECCION GENERAL DE TRAFICO RODADO et armoiries",
+        "couleur": "Bleu encre",
+        "forme": "Rond, grand format",
+        "obligatoire": true
+      },
+      "sello_foto": {
+        "position": "Sur la photo d'identite",
+        "description": "Petit sceau rond bleu sur la photo",
+        "obligatoire": false
+      },
+      "firma": {
+        "position": "Zone inferieure droite",
+        "description": "Signature manuscrite sous le texte 'FIRMA DE LA AUTORIDAD COMPETENTE'",
+        "obligatoire": true
+      },
+      "foto": {
+        "position": "Coin droit du document",
+        "description": "Photo d'identite du titulaire, format passeport",
+        "obligatoire": true
+      }
+    },
+    "nature_document": {
+      "type": "Autorisation temporaire",
+      "validite_max": "1 an",
+      "conditions": [
+        "Doit etre accompagne du permis/licence original",
+        "Doit etre accompagne d'un document d'identite officiel",
+        "Valide uniquement en Guinee Equatoriale"
+      ]
+    },
+    "ocr_challenges": [
+      "Reflets sur document plastifie",
+      "Sceaux bleus qui peuvent masquer du texte",
+      "Cases a cocher pour les classes de permis",
+      "Photo qui peut affecter l'OCR de la zone droite",
+      "Texte trilingue sur la couverture"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "tipo_identificacion": [
+      "(D\\.?I\\.?P\\.?|N\\.?I\\.?E\\.?)",
+      "(?:1\\.?\\s*)(D\\.?I\\.?P|N\\.?I\\.?E)"
+    ],
+    "numero_identificacion": [
+      "(?:D\\.?I\\.?P\\.?|N\\.?I\\.?E\\.?)\\s*[:#]?\\s*([0-9]{7,})",
+      "(?:1\\.?\\s*(?:D\\.?I\\.?P|N\\.?I\\.?E))\\s*[:#]?\\s*([A-Z]?[0-9]{7,})"
+    ],
+    "fecha_nacimiento": [
+      "(?:FECHA\\s*DE\\s*NACIMIENTO)\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})",
+      "(?:2\\.?\\s*FECHA\\s*DE\\s*NACIMIENTO)\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})"
+    ],
+    "apellidos": [
+      "(?:APELLIDOS?)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)",
+      "(?:3\\.?\\s*APELLIDOS?)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "nombre": [
+      "(?:4\\.?\\s*NOMBRE)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)",
+      "(?:NOMBRE)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "clase_permiso": [
+      "(?:CLASE\\s*DE\\s*PERMISO).*?([ABCDEF]\\+?)",
+      "(?:5\\.?\\s*CLASE).*?\\[?([ABCDEF]\\+?)\\]?"
+    ],
+    "domicilio": [
+      "(?:DOMICILIO)\\s*[:#]?\\s*(.+?)(?=\\n|LUGAR|$)",
+      "(?:6\\.?\\s*DOMICILIO)\\s*[:#]?\\s*(.+?)(?=\\n|7\\.|$)"
+    ],
+    "lugar_expedicion": [
+      "(?:LUGAR\\s*DE\\s*EXPEDICI[OÓ]N)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)",
+      "(?:7\\.?\\s*LUGAR)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "fecha_expedicion": [
+      "(?:FECHA\\s*DE\\s*EXPEDICI[OÓ]N)\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})",
+      "(?:8\\.?\\s*FECHA\\s*DE\\s*EXPEDI)\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})"
+    ],
+    "valido_hasta": [
+      "(?:V[AÁ]LIDO\\s*HASTA)\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})",
+      "(?:9\\.?\\s*V[AÁ]LIDO\\s*HASTA)\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})"
+    ],
+    "antiguedad_desde": [
+      "(?:Antig[üu]edad\\s*desde)\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})",
+      "(?:a\\.?-?\\s*Antig[üu]edad)\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})"
+    ],
+    "reg_numero": [
+      "(?:Reg\\.?\\s*N[uú]mero)\\s*[:#]?\\s*([A-Z]?[0-9]+)",
+      "(?:Registro\\s*N[°o]?)\\s*[:#]?\\s*([A-Z]?[0-9]+)"
+    ],
+    "texto_sello": [
+      "(DIRECCI[OÓ]N\\s*GENERAL\\s*DE\\s*TR[AÁ]FICO)",
+      "(MINISTERIO\\s*DEL\\s*INTERIOR)"
+    ]
+  }
+}

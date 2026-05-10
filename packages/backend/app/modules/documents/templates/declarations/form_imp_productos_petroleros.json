@@ -1,0 +1,20 @@
+{
+  "name": "imp_productos_petroleros",
+  "category": "petroleum_products_tax",
+  "description": "Impuesto sobre Productos Pétroliferos - IVS y FMI",
+  "version": "1.0",
+  "fields": [
+    {"id": "nif", "label": ["N.I.F."], "type": "text", "pattern": "\\d{8}[A-Z]", "required": true},
+    {"id": "representacion_empresa", "label": ["En nombre y representación de la empresa"], "type": "text", "required": true},
+    {"id": "ejercicio", "label": ["Ejercicio"], "type": "year", "required": true},
+    {"id": "periodo", "label": ["Periodo"], "type": "text", "required": true},
+    {"id": "fecha", "label": ["Fecha"], "type": "date", "required": true},
+    {"id": "prod_sujetos_precio", "label": ["01 Precio"], "type": "currency", "required": true},
+    {"id": "prod_sujetos_cuota", "label": ["02 Cuota"], "type": "currency", "required": true},
+    {"id": "prod_sujetos_total", "label": ["03 Total Devengado"], "type": "currency", "required": true},
+    {"id": "total_a_ingresar", "label": ["020 Total a Ingresar", "Total a Ingresar"], "type": "currency", "required": true}
+  ],
+  "validations": [
+    {"type": "format", "field": "nif", "pattern": "^\\d{8}[A-Z]$", "error_message": "Formato NIF inválido"}
+  ]
+}

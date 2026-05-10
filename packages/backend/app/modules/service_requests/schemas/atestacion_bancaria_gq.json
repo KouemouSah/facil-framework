@@ -1,0 +1,191 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "ATESTACION_BANCARIA_GQ_V1",
+  "version": "1.1",
+  "title": "Atestación de Cuenta Bancaria - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour l'Atestacion de Cuenta Bancaria emise par une banque operant en Guinea Ecuatorial (Art. 3.A.1.l / Art. 3.A.2.k - Orden Ministerial 01/2021). Alternative legale: tarjeta visa internacional.",
+  "document_type": "ATESTACION_BANCARIA",
+  "country": "GQ",
+  "faces": ["single_page"],
+  "document_nature": "certificat_bancaire",
+  "issuer": "Banque operant en Guinea Ecuatorial (toute entite financiere regulee)",
+
+  "extraction": {
+    "documento": {
+      "description": "Informations administratives du document",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "ATESTACION_BANCARIA",
+          "required": true,
+          "description": "Type de document",
+          "usage": "Identification du type de document pour le dossier"
+        },
+        "fecha_expedicion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'emission de l'attestation. Normaliser en YYYY-MM-DD quel que soit le format source (textuel espagnol, DD/MM/YYYY, etc.).",
+          "usage": "Verification de fraicheur du document — pour le dossier agent"
+        },
+        "ciudad_expedicion": {
+          "type": "string",
+          "required": false,
+          "description": "Ville d'emission de l'attestation",
+          "usage": "Information complementaire"
+        }
+      }
+    },
+
+    "banco": {
+      "description": "Informations de la banque emettrice",
+      "fields": {
+        "nombre_banco": {
+          "type": "string",
+          "required": true,
+          "description": "Nom de la banque ou entite financiere tel qu'il apparait sur le document (en-tete, logo, corps du texte)",
+          "usage": "CRITIQUE — identification de l'etablissement bancaire emetteur. Le nom exact permet a l'agent de verifier que c'est une banque operant legalement en GQ. Extraire tel quel sans normaliser."
+        },
+        "sede_social": {
+          "type": "string",
+          "required": false,
+          "description": "Adresse du siege social ou de la succursale de la banque",
+          "usage": "Information complementaire — confirme que la banque opere en GQ"
+        },
+        "numero_agencia": {
+          "type": "string",
+          "required": false,
+          "description": "Numero ou identifiant de l'agence emettrice (si mentionne)",
+          "usage": "Tracabilite"
+        }
+      }
+    },
+
+    "cliente": {
+      "description": "Donnees du client titulaire du compte",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": true,
+          "description": "Nom complet du client titulaire du compte tel qu'il apparait sur l'attestation",
+          "pii": true,
+          "usage": "CRITIQUE — cross-validation avec le passeport du demandeur (Levenshtein). C'est la preuve que le demandeur possede un compte bancaire en GQ."
+        },
+        "numero_cuenta": {
+          "type": "string",
+          "required": true,
+          "description": "Numero de compte bancaire complet. Format variable selon banque (peut inclure code banque, code agence, numero compte, cle RIB, espaces, tirets).",
+          "pii": true,
+          "encrypt": true,
+          "usage": "CRITIQUE — preuve d'existence du compte. Doit etre non vide. L'agent ne verifie pas le numero mais sa presence atteste l'ouverture du compte."
+        },
+        "tipo_cuenta": {
+          "type": "string",
+          "required": false,
+          "description": "Type de compte si mentionne (courant, epargne, compte entreprise, etc.)",
+          "usage": "Information complementaire"
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification du document",
+      "fields": {
+        "tiene_firma": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature d'un responsable de la banque presente sur le document",
+          "usage": "CRITIQUE — une attestation sans signature est invalide"
+        },
+        "tiene_sello_banco": {
+          "type": "boolean",
+          "required": true,
+          "description": "Sceau, tampon ou cachet officiel de la banque present",
+          "usage": "CRITIQUE — une attestation sans sceau est invalide"
+        },
+        "tiene_logo_banco": {
+          "type": "boolean",
+          "required": false,
+          "description": "Logo officiel de la banque present (generalement en en-tete)",
+          "usage": "Renforce l'authenticite mais non bloquant"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "firma_y_sello_presentes",
+      "rule": "tiene_firma == true AND tiene_sello_banco == true",
+      "error_es": "Falta firma de un responsable del banco o sello oficial del banco",
+      "severity": "error"
+    },
+    {
+      "id": "cuenta_no_vacia",
+      "rule": "cliente.numero_cuenta IS NOT NULL AND cliente.numero_cuenta != ''",
+      "error_es": "No se pudo extraer el número de cuenta bancaria",
+      "severity": "error"
+    },
+    {
+      "id": "nombre_cliente_no_vacio",
+      "rule": "cliente.nombre_completo IS NOT NULL AND cliente.nombre_completo != ''",
+      "error_es": "No se pudo extraer el nombre del titular de la cuenta",
+      "severity": "error"
+    },
+    {
+      "id": "nombre_banco_no_vacio",
+      "rule": "banco.nombre_banco IS NOT NULL AND banco.nombre_banco != ''",
+      "error_es": "No se pudo identificar el banco emisor",
+      "severity": "error"
+    },
+    {
+      "id": "fecha_expedicion_not_future",
+      "rule": "fecha_expedicion <= TODAY",
+      "error_es": "La fecha de expedición no puede ser futura",
+      "severity": "error"
+    }
+  ],
+
+  "cross_document_validations": [
+    {
+      "id": "nombre_coherente_pasaporte",
+      "compare_with": "pasaporte",
+      "rule": "levenshtein_match(cliente.nombre_completo, pasaporte.titular.apellidos + ' ' + pasaporte.titular.nombres)",
+      "threshold": 0.85,
+      "error_es": "El nombre del titular de la cuenta no coincide con el pasaporte",
+      "severity": "error"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_type": "Attestation bancaire emise par une banque operant en Guinee Equatoriale. Document certifiant qu'une personne possede un compte ouvert dans cette banque.",
+    "language": "es (principalement, certaines banques a capitaux etrangers peuvent utiliser FR ou EN dans l'en-tete)",
+
+    "semantic_instructions": {
+      "nombre_banco": "Identifier le nom de la banque emettrice. Il peut apparaitre dans: l'en-tete du document, le logo, le corps du texte, le cachet. Extraire le nom tel qu'ecrit. Les banques en GQ changent parfois de nom (ex: CCEI BANK GE devenu Afriland First Bank GE). Ne pas normaliser.",
+      "nombre_completo": "Extraire le nom COMPLET du client titulaire du compte. C'est la personne dont l'attestation certifie l'existence du compte. Generalement dans le corps du texte, dans une phrase du type 'el nombre de [NOM] como cliente titular'. Extraire exactement tel qu'ecrit.",
+      "numero_cuenta": "Extraire le numero de compte COMPLET. Le format varie selon la banque (espaces, tirets, points, cle RIB). Ne pas reformater. Inclure tous les chiffres et separateurs tels qu'ecrits.",
+      "fecha_expedicion": "Date d'emission de l'attestation. Peut etre en format textuel espagnol ('A [X] DIAS DEL MES DE [mois] DE [annee]') ou en format numerique. Normaliser en YYYY-MM-DD.",
+      "autenticacion": "Verifier visuellement: (1) signature d'un responsable bancaire, (2) cachet/sceau officiel de la banque, (3) logo de la banque en en-tete."
+    },
+
+    "ocr_challenges": [
+      "Logo de banque variable — pas un critere d'extraction fiable",
+      "Numero de compte en format variable (espaces, tirets, points, cle RIB)",
+      "Document peut etre original, copie certifiee, ou scan",
+      "Certaines banques format lettre, d'autres format certificat",
+      "Date en format textuel espagnol ou format numerique"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "_note": "Patterns de fallback. Gemini est l'extracteur principal.",
+    "numero_cuenta": [
+      "(?:cuenta|Cuenta)\\s*(?:N[°ºo]|n[úu]m\\.?)?\\s*[:#]?\\s*([0-9][0-9\\s./-]+[0-9])",
+      "([0-9]{4,5}\\s+[0-9]{4,5}\\s+[0-9]{8,15}(?:-[0-9]{2})?)"
+    ],
+    "fecha_expedicion": [
+      "(\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{2,4})"
+    ]
+  }
+}

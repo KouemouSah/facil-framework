@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="{{ language or 'es' }}">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ texts.receipt_title }} - {{ receipt_number }}</title>
+    <style>
+        @page {
+            size: 80mm 250mm;
+            margin: 3mm;
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 8pt;
+            line-height: 1.3;
+            color: #222;
+            margin: 0;
+            padding: 0;
+            width: 74mm;
+        }
+
+        /* Separator lines */
+        .sep {
+            border-bottom: 1px solid #ccc;
+            margin: 4px 0;
+        }
+        .sep-bold {
+            border-bottom: 2px solid #333;
+            margin: 4px 0;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            padding-bottom: 3px;
+        }
+        .header img {
+            width: 30mm;
+            height: auto;
+        }
+        .header p {
+            margin: 1px 0;
+            font-size: 7pt;
+            color: #555;
+        }
+
+        /* Receipt title band — black border, no fill */
+        .receipt-title {
+            border: 3px solid #000;
+            text-align: center;
+            padding: 5px 0;
+            margin: 4px 0;
+            font-size: 10pt;
+            font-weight: bold;
+            color: #000;
+            letter-spacing: 1px;
+        }
+        .receipt-number {
+            text-align: center;
+            font-family: 'Courier New', monospace;
+            font-size: 11pt;
+            font-weight: bold;
+            padding: 3px 0;
+            color: #1e40af;
+        }
+
+        /* Key-value rows */
+        .kv-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .kv-table td {
+            padding: 2px 0;
+            vertical-align: top;
+            font-size: 8pt;
+        }
+        .kv-table .label {
+            color: #666;
+            width: 35%;
+            font-size: 7pt;
+        }
+        .kv-table .value {
+            font-weight: 600;
+            text-align: right;
+        }
+
+        /* Section headers */
+        .section-title {
+            font-size: 7pt;
+            font-weight: bold;
+            color: #1e40af;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 3px 0 1px;
+        }
+
+        /* Breakdown table */
+        .breakdown {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .breakdown td {
+            padding: 2px 0;
+            font-size: 8pt;
+        }
+        .breakdown .item-name {
+            width: 65%;
+        }
+        .breakdown .item-amount {
+            text-align: right;
+            font-family: 'Courier New', monospace;
+        }
+        .breakdown .supplement .item-name {
+            padding-left: 8px;
+            font-size: 7pt;
+            color: #666;
+        }
+        .breakdown .supplement .item-amount {
+            font-size: 7pt;
+            color: #666;
+        }
+
+        /* Total — black bold, no background */
+        .total-row td {
+            padding: 4px 0;
+            font-weight: bold;
+            font-size: 10pt;
+            color: #000;
+        }
+
+        /* Validation stamp */
+        .stamp {
+            text-align: center;
+            padding: 5px 0;
+        }
+        .stamp-badge {
+            border: 2px solid #059669;
+            background: #ecfdf5;
+            padding: 4px 10px;
+            font-size: 9pt;
+            font-weight: bold;
+            color: #059669;
+            letter-spacing: 1px;
+        }
+        .stamp-info {
+            font-size: 7pt;
+            color: #555;
+            margin-top: 2px;
+        }
+
+        /* QR section */
+        .qr-section {
+            text-align: center;
+            padding: 4px 0;
+        }
+        .qr-section img {
+            width: 55mm;
+            height: 55mm;
+        }
+        .qr-label {
+            font-size: 6pt;
+            color: #666;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            font-size: 6pt;
+            color: #888;
+            padding-top: 3px;
+        }
+        .footer p {
+            margin: 1px 0;
+        }
+
+        /* Print optimization */
+        @media print {
+            body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header: Logo + Ministry + Treasury name -->
+    <div class="header">
+        {% if logo_base64 %}
+        <img src="data:image/png;base64,{{ logo_base64 }}" alt="FACIL">
+        {% else %}
+        <p style="font-size: 11pt; font-weight: bold; color: #1e40af;">FACIL</p>
+        {% endif %}
+        <p>{{ treasury.ministry }}</p>
+        <p>{{ treasury.name }}</p>
+    </div>
+
+    <div class="sep"></div>
+
+    <!-- Receipt title + number -->
+    <div class="receipt-title">{{ texts.receipt_title }}</div>
+    <div class="receipt-number">{{ receipt_number }}</div>
+
+    <div class="sep"></div>
+
+    <!-- Payment info -->
+    <table class="kv-table">
+        <tr>
+            <td class="label">{{ texts.payment_date }}</td>
+            <td class="value">{{ payment_date }}</td>
+        </tr>
+        <tr>
+            <td class="label">{{ texts.payment_method }}</td>
+            <td class="value">{{ payment_method_label }}</td>
+        </tr>
+        <tr>
+            <td class="label">{{ texts.reference }}</td>
+            <td class="value" style="font-size: 7pt;">{{ payment_reference }}</td>
+        </tr>
+        <tr>
+            <td class="label">{{ texts.status }}</td>
+            <td class="value" style="color: #059669;">{{ texts.status_completed }}</td>
+        </tr>
+    </table>
+
+    <div class="sep"></div>
+
+    <!-- Payer info: email + phone only -->
+    <div class="section-title">{{ texts.payer_info }}</div>
+    <table class="kv-table">
+        <tr>
+            <td class="label">{{ texts.payer_email }}</td>
+            <td class="value" style="font-size: 7pt;">{{ payer.email or '-' }}</td>
+        </tr>
+        {% if payer.phone %}
+        <tr>
+            <td class="label">{{ texts.payer_phone }}</td>
+            <td class="value">{{ payer.phone }}</td>
+        </tr>
+        {% endif %}
+    </table>
+
+    <div class="sep"></div>
+
+    <!-- Service info -->
+    <div class="section-title">{{ texts.service_info }}</div>
+    <table class="kv-table">
+        <tr>
+            <td class="label">{{ texts.workflow_code }}</td>
+            <td class="value">{{ workflow_code or '-' }}</td>
+        </tr>
+        {% if service_request_reference %}
+        <tr>
+            <td class="label">{{ texts.request_reference }}</td>
+            <td class="value">{{ service_request_reference }}</td>
+        </tr>
+        {% endif %}
+        {% if solicitud_type %}
+        <tr>
+            <td class="label">{{ texts.solicitud_type }}</td>
+            <td class="value">{{ solicitud_type_label }}</td>
+        </tr>
+        {% endif %}
+        {% if entity_code %}
+        <tr>
+            <td class="label">{{ texts.entity_code }}</td>
+            <td class="value">{{ entity_code }}</td>
+        </tr>
+        {% endif %}
+    </table>
+
+    <div class="sep"></div>
+
+    <!-- Payment breakdown -->
+    <div class="section-title">{{ texts.payment_breakdown }}</div>
+    <table class="breakdown">
+        <tr>
+            <td class="item-name">{{ breakdown.base_description or texts.base_tariff }}</td>
+            <td class="item-amount">{{ breakdown.base_amount_formatted }}</td>
+        </tr>
+        {% for supplement in breakdown.supplements %}
+        <tr class="supplement">
+            <td class="item-name">{{ supplement.name_es }}</td>
+            <td class="item-amount">{{ supplement.subtotal_formatted }}</td>
+        </tr>
+        {% endfor %}
+        {% if breakdown.penalties_amount > 0 %}
+        <tr>
+            <td class="item-name">{{ breakdown.penalty_reason or texts.penalties }}</td>
+            <td class="item-amount">{{ breakdown.penalties_formatted }}</td>
+        </tr>
+        {% endif %}
+    </table>
+    <div class="sep-bold"></div>
+    <table class="breakdown">
+        <tr class="total-row">
+            <td class="item-name">{{ texts.total }}</td>
+            <td class="item-amount">{{ breakdown.total_formatted }}</td>
+        </tr>
+    </table>
+
+    <div class="sep"></div>
+
+    <!-- Validation stamp -->
+    {% if validated_by %}
+    <div class="stamp">
+        <div class="stamp-badge">VALIDADO - TESORO PUBLICO</div>
+        <div class="stamp-info">
+            {{ validated_by_name or validated_by }} | {{ validated_at }}
+        </div>
+        <div class="stamp-info">
+            {{ texts.validation_code }}: {{ receipt_number[-8:] if receipt_number else '-' }}
+        </div>
+    </div>
+    <div class="sep"></div>
+    {% endif %}
+
+    <!-- QR Code -->
+    <div class="qr-section">
+        {% if qr_code_base64 %}
+        <img src="data:image/png;base64,{{ qr_code_base64 }}" alt="QR">
+        {% endif %}
+        <div class="qr-label">{{ texts.scan_to_verify }}</div>
+        {% if verification_url %}
+        <div style="font-size: 5pt; color: #999; word-break: break-all; padding: 0 5px;">{{ verification_url }}</div>
+        {% endif %}
+    </div>
+
+    <div class="sep"></div>
+
+    <!-- Footer -->
+    <div class="footer">
+        <p>{{ texts.receipt_number }}: {{ receipt_number }}</p>
+        <p>{{ texts.generated_on }}: {{ generated_at }}</p>
+        <p style="margin-top: 3px;">{{ texts.legal_disclaimer }}</p>
+        <p style="margin-top: 3px;">{{ texts.legal_notice }}</p>
+    </div>
+</body>
+</html>

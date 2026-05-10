@@ -1,0 +1,421 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "PASAPORTE_INTERNATIONAL_V1",
+  "version": "1.0",
+  "title": "Pasaporte / Passport - International (ICAO Doc 9303)",
+  "description": "Schema d'extraction generique pour tout passeport etranger conforme ICAO Doc 9303 (TD3). Utilise pour les workflows impliquant des ressortissants etrangers (Residencia, vehicules, etc.).",
+  "document_type": "PASAPORTE",
+  "country": "INTERNATIONAL",
+  "faces": ["data_page"],
+  "document_nature": "document_identite",
+  "issuer": "Autorite nationale du pays emetteur",
+  "standard": "ICAO Doc 9303 - Machine Readable Travel Documents (TD3)",
+
+  "extraction": {
+    "documento": {
+      "description": "Informations du document",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "enum": ["P", "S", "D"],
+          "required": true,
+          "description": "Type de passeport: P=Ordinaire, S=Service, D=Diplomatique",
+          "field_label": "Type/Tipo/Type",
+          "source": "data_page"
+        },
+        "codigo_pais": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[A-Z]{3}$",
+          "description": "Code pays ISO 3166-1 alpha-3 (ex: FRA, CMR, ESP, CIV, NGA, GBR, USA, CHN...)",
+          "field_label": "Code/Codigo/Code du pays/Country code",
+          "source": "data_page",
+          "note": "Doit etre different de GNQ (passeport etranger). Extrait du champ visuel ou de la MRZ positions 3-5 ligne 1."
+        },
+        "numero_pasaporte": {
+          "type": "string",
+          "required": true,
+          "description": "Numero de passeport (format variable selon pays)",
+          "field_label": "Passport No./No. Pasaporte/Passeport Nº",
+          "source": "data_page",
+          "pii": true,
+          "encrypt": true,
+          "note": "Format tres variable: FRA=2d2L5d (90RF02331), CMR=2L6d (AA184589), ESP=3L6d (ZAB000221), CIV=2dL6d (58C106304), NGA=L8d (A00000000). Ne pas valider par pattern fixe."
+        },
+        "fecha_expedicion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date of issue / Fecha de expedicion / Date de delivrance",
+          "field_label": "Date of issue/Fecha de expedición/Date de délivrance",
+          "source": "data_page",
+          "note": "Formats multiples: DD MM YYYY, DD.MM.YYYY, DD MMM YY, DD/MM/YYYY"
+        },
+        "fecha_expiracion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date of expiry / Fecha de caducidad / Date d'expiration",
+          "field_label": "Date of expiry/Fecha de caducidad/Date d'expiration",
+          "source": "data_page",
+          "note": "Formats multiples selon pays",
+          "validation": {
+            "rule": "check_expiry",
+            "warning_months": 6,
+            "error": "Pasaporte expirado o por expirar"
+          }
+        },
+        "autoridad_emisora": {
+          "type": "string",
+          "required": false,
+          "description": "Autorite emettrice (Prefecture, Ministry, Immigration Office...)",
+          "field_label": "Authority/Autoridad/Autorité",
+          "source": "data_page"
+        }
+      }
+    },
+
+    "titular": {
+      "description": "Informations du titulaire",
+      "fields": {
+        "apellidos": {
+          "type": "string",
+          "required": true,
+          "description": "Nom de famille / Surname / Apellido(s)",
+          "field_label": "Surname/Apellidos/Nom",
+          "source": "data_page",
+          "pii": true,
+          "note": "Peut etre en MAJUSCULES. Certains pays separent nom patronymique et nom d'usage."
+        },
+        "nombres": {
+          "type": "string",
+          "required": true,
+          "description": "Prenoms / Given names / Nombre(s)",
+          "field_label": "Given names/Nombres/Prénoms",
+          "source": "data_page",
+          "pii": true
+        },
+        "sexo": {
+          "type": "string",
+          "enum": ["M", "F"],
+          "required": true,
+          "description": "Sexe / Sex / Sexo: M=Male/Masculino, F=Female/Femenino",
+          "field_label": "Sex/Sexo/Sexe",
+          "source": "data_page"
+        },
+        "nacionalidad": {
+          "type": "string",
+          "required": true,
+          "description": "Nationalite du titulaire (texte ou code ISO). Doit etre DIFFERENTE de GNQ/ECUATOGUINEANO.",
+          "field_label": "Nationality/Nacionalidad/Nationalité",
+          "source": "data_page",
+          "note": "Format variable: texte complet (FRANÇAISE, CAMEROUNAISE, ESPAÑOLA, IVOIRIENNE, NIGERIAN) ou code ISO (FRA, CMR, ESP, CIV, NGA). La MRZ ligne 2 positions 11-13 contient toujours le code ISO."
+        },
+        "fecha_nacimiento": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date de naissance / Date of birth / Fecha de nacimiento",
+          "field_label": "Date of birth/Fecha de nacimiento/Date de naissance",
+          "source": "data_page",
+          "pii": true,
+          "note": "Formats multiples selon pays. MRZ ligne 2 positions 14-19 (YYMMDD) est le plus fiable."
+        },
+        "lugar_nacimiento": {
+          "type": "string",
+          "required": false,
+          "description": "Lieu de naissance / Place of birth / Lugar de nacimiento",
+          "field_label": "Place of birth/Lugar de nacimiento/Lieu de naissance",
+          "source": "data_page"
+        },
+        "profesion": {
+          "type": "string",
+          "required": false,
+          "description": "Profession (present sur certains passeports: Cameroun, Nigeria, GQ)",
+          "field_label": "Profession/Profesión",
+          "source": "data_page"
+        },
+        "domicilio": {
+          "type": "string",
+          "required": false,
+          "description": "Domicile/Residence (present sur certains passeports: France, Nigeria, Cote d'Ivoire)",
+          "field_label": "Domicile/Residence/Résidence",
+          "source": "data_page",
+          "pii": true
+        },
+        "numero_identidad_nacional": {
+          "type": "string",
+          "required": false,
+          "description": "Numero d'identite nationale si present (DNI espagnol, N° national camerounais, Personal No. nigerien)",
+          "field_label": "Personal No./No. Nacional/N° National",
+          "source": "data_page",
+          "pii": true,
+          "note": "Absent sur la plupart des passeports. Present: ESP (DNI), CMR (N° national), NGA (Personal No.), GQ (DIP)."
+        }
+      }
+    },
+
+    "mrz": {
+      "description": "Zone MRZ (Machine Readable Zone) - TD3 ICAO Doc 9303 (universel)",
+      "format": "TD3",
+      "lines": 2,
+      "chars_per_line": 44,
+      "source": "data_page",
+      "fields": {
+        "linea_1": {
+          "type": "string",
+          "required": true,
+          "pattern": "^P[<A-Z][A-Z]{3}[A-Z<]{39}$",
+          "length": 44,
+          "description": "Premiere ligne MRZ: P< + pays (3 lettres ISO) + nom<<prenoms",
+          "structure": {
+            "position_1": "P (Passeport)",
+            "position_2": "< ou sous-type (S/D)",
+            "positions_3_5": "Code pays ISO 3166-1 alpha-3 (FRA, CMR, ESP, CIV, NGA, etc.)",
+            "positions_6_44": "APELLIDO<<NOMBRES<<<<..."
+          }
+        },
+        "linea_2": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[A-Z0-9<]{9}[0-9][A-Z]{3}[0-9]{7}[MF<][0-9]{7}[A-Z0-9<]{14}[0-9]{2}$",
+          "length": 44,
+          "description": "Deuxieme ligne MRZ: numero + check + pays + fecha_nac + check + sexo + fecha_exp + check + optionnel + check_final",
+          "structure": {
+            "positions_1_9": "Numero pasaporte (9 chars, padde avec < si plus court)",
+            "position_10": "Check digit numero",
+            "positions_11_13": "Nationalite code ISO (FRA, CMR, ESP, etc.)",
+            "positions_14_19": "Fecha nacimiento (YYMMDD)",
+            "position_20": "Check digit fecha nac",
+            "position_21": "Sexo (M/F/<)",
+            "positions_22_27": "Fecha expiracion (YYMMDD)",
+            "position_28": "Check digit fecha exp",
+            "positions_29_42": "Donnees optionnelles (numero national, etc.)",
+            "position_43": "Check digit optionnel",
+            "position_44": "Check digit composite"
+          }
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "pasaporte_not_expired",
+      "rule": "fecha_expiracion > TODAY",
+      "error_es": "Pasaporte expirado",
+      "error_fr": "Passeport expiré",
+      "severity": "error"
+    },
+    {
+      "id": "pasaporte_expiring_soon",
+      "rule": "fecha_expiracion > TODAY + 6 MONTHS",
+      "error_es": "Pasaporte expira en menos de 6 meses",
+      "error_fr": "Passeport expire dans moins de 6 mois",
+      "severity": "warning"
+    },
+    {
+      "id": "no_es_pasaporte_gq",
+      "rule": "documento.codigo_pais != 'GNQ'",
+      "error_es": "Este schema es para pasaportes extranjeros. Para pasaporte de GQ, usar PASAPORTE_GQ_V1.",
+      "severity": "error",
+      "note": "Passeport GQ doit utiliser le schema specifique PASAPORTE_GQ_V1 qui gere le DIP et les specificites locales."
+    },
+    {
+      "id": "codigo_pais_iso",
+      "rule": "LENGTH(documento.codigo_pais) == 3 AND documento.codigo_pais MATCHES '^[A-Z]{3}$'",
+      "error_es": "Código de país no válido (se requiere código ISO 3166-1 alpha-3)",
+      "severity": "error"
+    },
+    {
+      "id": "mrz_apellido_match",
+      "rule": "mrz.linea_1 CONTAINS titular.apellidos",
+      "error_es": "MRZ no coincide con apellido",
+      "error_fr": "MRZ ne correspond pas au nom de famille",
+      "severity": "error"
+    },
+    {
+      "id": "mrz_numero_match",
+      "rule": "documento.numero_pasaporte IN mrz.linea_2[0:9]",
+      "error_es": "Número de pasaporte no coincide con MRZ",
+      "error_fr": "Numéro de passeport ne correspond pas au MRZ",
+      "severity": "error"
+    },
+    {
+      "id": "mrz_pais_match",
+      "rule": "documento.codigo_pais == mrz.linea_2[10:13]",
+      "error_es": "Código de país no coincide con MRZ",
+      "error_fr": "Code pays ne correspond pas au MRZ",
+      "severity": "error"
+    },
+    {
+      "id": "mrz_sexo_match",
+      "rule": "titular.sexo == mrz.linea_2[20]",
+      "error_es": "Sexo no coincide con MRZ",
+      "error_fr": "Sexe ne correspond pas au MRZ",
+      "severity": "error"
+    },
+    {
+      "id": "mrz_checksum_valid",
+      "rule": "validate_mrz_checksums(mrz)",
+      "error_es": "Checksum MRZ inválido (posible falsificación)",
+      "error_fr": "Checksum MRZ invalide (possible falsification)",
+      "severity": "error"
+    },
+    {
+      "id": "fecha_expedicion_not_future",
+      "rule": "fecha_expedicion <= TODAY",
+      "error_es": "La fecha de expedición no puede ser futura",
+      "severity": "error"
+    }
+  ],
+
+  "cross_document_validations": [],
+
+  "gemini_hints": {
+    "document_description": "Passeport etranger (non-GQ) conforme ICAO Doc 9303. Le titulaire est un ressortissant etranger demandant un permis de residence ou un service administratif en Guinee Equatoriale. Le passeport peut etre de n'importe quel pays (France, Cameroun, Espagne, Cote d'Ivoire, Nigeria, etc.).",
+    "language": "Variable selon pays. Bilingue le plus souvent: FR/EN (francophone), ES/EN (hispanophone), EN (anglophone). Les labels ICAO sont standardises.",
+    "date_formats": [
+      "DD MM YYYY (France, Espagne)",
+      "DD.MM.YYYY (Cameroun)",
+      "DD MM YY (Cote d'Ivoire)",
+      "DD MMM YY (Nigeria, certains anglophones)",
+      "DD/MM/YYYY (certains pays)"
+    ],
+    "visual_zones": [
+      "En-tete: Nom du pays + armoiries/embleme national (tres variable)",
+      "Zone gauche: Photo du titulaire + Signature",
+      "Zone centrale-droite: Donnees textuelles (structure ICAO standard mais langue variable)",
+      "Zone inferieure: MRZ (2 lignes de 44 caracteres) - TOUJOURS present et standardise"
+    ],
+    "field_labels_by_language": {
+      "english": {
+        "surname": "Surname",
+        "given_names": "Given names",
+        "nationality": "Nationality",
+        "date_of_birth": "Date of birth",
+        "sex": "Sex",
+        "place_of_birth": "Place of birth",
+        "date_of_issue": "Date of issue",
+        "date_of_expiry": "Date of expiry",
+        "authority": "Authority",
+        "passport_no": "Passport No."
+      },
+      "french": {
+        "surname": "Nom",
+        "given_names": "Prénoms",
+        "nationality": "Nationalité",
+        "date_of_birth": "Date de naissance",
+        "sex": "Sexe",
+        "place_of_birth": "Lieu de naissance",
+        "date_of_issue": "Date de délivrance",
+        "date_of_expiry": "Date d'expiration",
+        "authority": "Autorité",
+        "passport_no": "Passeport Nº"
+      },
+      "spanish": {
+        "surname": "Apellidos",
+        "given_names": "Nombres",
+        "nationality": "Nacionalidad",
+        "date_of_birth": "Fecha de nacimiento",
+        "sex": "Sexo",
+        "place_of_birth": "Lugar de nacimiento",
+        "date_of_issue": "Fecha de expedición",
+        "date_of_expiry": "Fecha de caducidad",
+        "authority": "Autoridad",
+        "passport_no": "No. Pasaporte"
+      }
+    },
+    "mrz_format": "TD3 (passeport standard OACI/ICAO). Universel pour tous les pays.",
+    "ocr_challenges": [
+      "LANGUE VARIABLE: les labels changent selon le pays (Nom/Surname/Apellidos)",
+      "FORMAT DATE VARIABLE: DD MM YYYY, DD.MM.YYYY, DD MMM YY, DD/MM/YYYY",
+      "FORMAT NUMERO VARIABLE: pas de pattern universel, chaque pays a son propre format",
+      "QUALITE VARIABLE: scan, photo, reflets sur page plastifiee",
+      "CHAMPS OPTIONNELS: certains pays ont des champs supplementaires (taille, profession, etc.)",
+      "NOMS COMPOSES: apostrophes (N'GUESSAN), tirets, espaces multiples",
+      "ACCENTS: caracteres diacritiques dans les noms (ex: JOSÉ, MÜLLER, BJÖRK)",
+      "MRZ est la source la PLUS FIABLE: toujours en ASCII, format standardise, avec checksums"
+    ],
+    "extraction_strategy": "STRATEGIE EN 2 PASSES: 1) Extraire la MRZ d'abord (plus fiable, format standardise ASCII, checksums). 2) Enrichir avec les champs visuels (lieu naissance, autorite, profession, etc.). En cas de conflit entre MRZ et champs visuels, PRIVILEGIER la MRZ pour: nom, prenom, date naissance, sexe, nationalite, numero passeport, dates.",
+    "country_examples": {
+      "FRA": {"name": "France", "number_format": "2 chiffres + 2 lettres + 5 chiffres (90RF02331)", "language": "FR/EN"},
+      "CMR": {"name": "Cameroun", "number_format": "2 lettres + 6 chiffres (AA184589)", "language": "FR/EN"},
+      "ESP": {"name": "España", "number_format": "3 lettres + 6 chiffres (ZAB000221)", "language": "ES/EN/FR"},
+      "CIV": {"name": "Côte d'Ivoire", "number_format": "2 chiffres + 1 lettre + 6 chiffres (58C106304)", "language": "FR/EN"},
+      "NGA": {"name": "Nigeria", "number_format": "1 lettre + 8 chiffres (A00000000)", "language": "EN"}
+    },
+    "month_mapping": {
+      "JAN": "01", "FEB": "02", "MAR": "03", "APR": "04",
+      "MAY": "05", "JUN": "06", "JUL": "07", "AUG": "08",
+      "SEP": "09", "OCT": "10", "NOV": "11", "DEC": "12",
+      "ENE": "01", "ABR": "04", "AGO": "08", "DIC": "12",
+      "JANV": "01", "FEVR": "02", "MARS": "03", "AVR": "04",
+      "JUIL": "07", "AOUT": "08", "SEPT": "09", "NOVE": "11", "DECE": "12"
+    }
+  },
+
+  "tesseract_patterns": {
+    "numero_pasaporte": [
+      "(?:PASSPORT\\s*(?:NO|N[°ºo])|NO\\.?\\s*(?:PASAPORTE|PASSEPORT))\\s*[.:#/]?\\s*([A-Z0-9]{6,12})",
+      "(?:PASSEPORT\\s*N[°ºo])\\s*[.:#/]?\\s*([A-Z0-9]{6,12})"
+    ],
+    "apellidos": [
+      "(?:SURNAME|APELLIDOS?|NOM)\\s*[/#:]?\\s*([A-ZÁÉÍÓÚÑÇÜÖÄ][A-Za-záéíóúñçüöä'\\s-]+)",
+      "(?:1[./]?)\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ'\\s-]+)"
+    ],
+    "nombres": [
+      "(?:GIVEN\\s*NAMES?|NOMBRES?|PR[ÉE]NOMS?)\\s*[/#:]?\\s*([A-ZÁÉÍÓÚÑÇÜÖÄ][A-Za-záéíóúñçüöä'\\s-]+)",
+      "(?:2[./]?)\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ'\\s-]+)"
+    ],
+    "fecha_nacimiento": [
+      "(?:DATE\\s*(?:OF\\s*)?BIRTH|FECHA\\s*(?:DE\\s*)?NACIMIENTO|DATE\\s*(?:DE\\s*)?NAISSANCE)\\s*[/#:]?\\s*(\\d{1,2}[\\s./-]\\d{1,2}[\\s./-]\\d{2,4})",
+      "(?:DATE\\s*(?:OF\\s*)?BIRTH|FECHA\\s*(?:DE\\s*)?NACIMIENTO|DATE\\s*(?:DE\\s*)?NAISSANCE)\\s*[/#:]?\\s*(\\d{1,2}\\s*[A-Z]{3,4}\\s*\\d{2,4})"
+    ],
+    "fecha_expedicion": [
+      "(?:DATE\\s*(?:OF\\s*)?ISSUE|FECHA\\s*(?:DE\\s*)?EXPEDICI[OÓ]N|DATE\\s*(?:DE\\s*)?D[ÉE]LIVRANCE)\\s*[/#:]?\\s*(\\d{1,2}[\\s./-]\\d{1,2}[\\s./-]\\d{2,4})",
+      "(?:DATE\\s*(?:OF\\s*)?ISSUE|FECHA\\s*(?:DE\\s*)?EXPEDICI[OÓ]N|DATE\\s*(?:DE\\s*)?D[ÉE]LIVRANCE)\\s*[/#:]?\\s*(\\d{1,2}\\s*[A-Z]{3,4}\\s*\\d{2,4})"
+    ],
+    "fecha_expiracion": [
+      "(?:DATE\\s*(?:OF\\s*)?EXPIRY|FECHA\\s*(?:DE\\s*)?(?:CADUCIDAD|EXPIRACI[OÓ]N)|DATE\\s*(?:D')?EXPIRATION)\\s*[/#:]?\\s*(\\d{1,2}[\\s./-]\\d{1,2}[\\s./-]\\d{2,4})",
+      "(?:DATE\\s*(?:OF\\s*)?EXPIRY|VALID\\s*UNTIL|CADUCA)\\s*[/#:]?\\s*(\\d{1,2}\\s*[A-Z]{3,4}\\s*\\d{2,4})"
+    ],
+    "lugar_nacimiento": [
+      "(?:PLACE\\s*(?:OF\\s*)?BIRTH|LUGAR\\s*(?:DE\\s*)?NACIMIENTO|LIEU\\s*(?:DE\\s*)?NAISSANCE)\\s*[/#:]?\\s*([A-ZÁÉÍÓÚÑÇÜÖÄ][A-Za-záéíóúñçüöä\\s()'-]+)"
+    ],
+    "nacionalidad": [
+      "(?:NATIONALITY|NACIONALIDAD|NATIONALIT[ÉE])\\s*[/#:]?\\s*([A-ZÁÉÍÓÚÑÇÜÖÄ][A-Za-záéíóúñçüöä]+)"
+    ],
+    "sexo": [
+      "(?:SEX|SEXO|SEXE)\\s*[/#:]?\\s*([MF])",
+      "\\b([MF])\\b"
+    ],
+    "codigo_pais": [
+      "(?:CODE|C[OÓ]DIGO|CODE\\s*(?:DU\\s*)?PAYS|COUNTRY\\s*CODE)\\s*[/#:]?\\s*([A-Z]{3})"
+    ],
+    "tipo_documento": [
+      "(?:TYPE|TIPO)\\s*[/#:]?\\s*([PSD])"
+    ]
+  },
+
+  "mrz_parsing": {
+    "line_1": {
+      "document_type": {"start": 0, "end": 2, "description": "P< ou PS ou PD"},
+      "country_code": {"start": 2, "end": 5, "description": "Code ISO 3 lettres (tout pays)"},
+      "names": {"start": 5, "end": 44, "separator": "<<", "description": "APELLIDO<<NOMBRES"}
+    },
+    "line_2": {
+      "passport_number": {"start": 0, "end": 9},
+      "check_digit_1": {"start": 9, "end": 10},
+      "nationality": {"start": 10, "end": 13, "description": "Code ISO 3 lettres (tout pays)"},
+      "birth_date": {"start": 13, "end": 19, "format": "YYMMDD"},
+      "check_digit_2": {"start": 19, "end": 20},
+      "sex": {"start": 20, "end": 21, "values": ["M", "F", "<"]},
+      "expiry_date": {"start": 21, "end": 27, "format": "YYMMDD"},
+      "check_digit_3": {"start": 27, "end": 28},
+      "optional_data": {"start": 28, "end": 42, "description": "Donnees nationales (variable)"},
+      "check_digit_4": {"start": 42, "end": 43},
+      "composite_check": {"start": 43, "end": 44}
+    }
+  }
+}

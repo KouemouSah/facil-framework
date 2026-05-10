@@ -1,0 +1,72 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+tests/
+*.test.py
+
+# Environment
+.env
+.env.local
+.env.*.local
+.venv/
+venv/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+docs/
+*.txt
+!requirements.txt
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Cloud
+.gcloud/
+.firebase/
+
+# Backup and archive
+*.bak
+*.tmp
+*.backup
+legacy/
+archive/
+
+# DB migrations applied by GitHub Actions (deploy-backend-staging.yml),
+# not at runtime startup — no need to ship 321 .sql files in the image.
+database/migrations/
+# Legacy migrations folder (kept locally, untracked from git)
+migrations/
+# Anomaly: nested .github/ has no semantic for GitHub or Docker
+.github/
+# Misc local-only files
+coverage.xml
+test_results.txt

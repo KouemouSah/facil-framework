@@ -1,0 +1,290 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "CARNET_FUNCIONARIO_GQ_V1",
+  "version": "1.0",
+  "title": "Carnet de Funcionario - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour le carnet d'identification des fonctionnaires de Guinée Équatoriale",
+  "document_type": "CARNET_FUNCIONARIO",
+  "country": "GQ",
+  "faces": ["recto", "verso"],
+
+  "extraction": {
+    "titular": {
+      "description": "Informations du titulaire du carnet",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": true,
+          "description": "Nom complet du fonctionnaire",
+          "field_label": "Nombre completo",
+          "pii": true
+        },
+        "apellidos": {
+          "type": "string",
+          "required": false,
+          "description": "Apellidos del funcionario",
+          "field_label": "Apellidos",
+          "pii": true,
+          "source": "recto"
+        },
+        "nombres": {
+          "type": "string",
+          "required": false,
+          "description": "Nombres del funcionario",
+          "field_label": "Nombres",
+          "pii": true,
+          "source": "recto"
+        },
+        "matricula": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[A-Z]{0,3}[\\-]?[0-9]{4,10}$",
+          "description": "Matricula del funcionario - CRITIQUE pour la vérification",
+          "field_label": "Matrícula",
+          "pii": true,
+          "encrypt": true,
+          "source": "recto"
+        },
+        "numero_dip": {
+          "type": "string",
+          "required": false,
+          "pattern": "^[0-9]{9}$",
+          "description": "Numéro DIP du fonctionnaire",
+          "field_label": "N° DIP",
+          "pii": true,
+          "source": "verso"
+        },
+        "fecha_nacimiento": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Fecha de nacimiento",
+          "field_label": "Fecha de nacimiento",
+          "date_format": "DD/MM/YYYY",
+          "pii": true,
+          "source": "verso"
+        },
+        "sexo": {
+          "type": "string",
+          "enum": ["M", "F"],
+          "required": false,
+          "description": "Sexo del funcionario",
+          "field_label": "Sexo",
+          "source": "recto"
+        },
+        "foto_presente": {
+          "type": "boolean",
+          "required": true,
+          "description": "Le carnet contient une photo du fonctionnaire",
+          "field_label": "Foto presente",
+          "source": "recto"
+        }
+      }
+    },
+    "carnet": {
+      "description": "Informations du carnet",
+      "fields": {
+        "numero_carnet": {
+          "type": "string",
+          "required": true,
+          "description": "Numéro du carnet de fonctionnaire",
+          "field_label": "N° Carnet"
+        },
+        "fecha_emision": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'émission du carnet",
+          "field_label": "Fecha de emisión",
+          "date_format": "DD/MM/YYYY",
+          "source": "recto"
+        },
+        "fecha_expiracion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'expiration du carnet",
+          "field_label": "Fecha de expiración",
+          "date_format": "DD/MM/YYYY",
+          "source": "recto",
+          "validation": {
+            "rule": "must_be_future",
+            "error": "Carnet de funcionario expirado"
+          }
+        },
+        "lugar_emision": {
+          "type": "string",
+          "required": false,
+          "description": "Lugar de emisión (Malabo, Bata)",
+          "field_label": "Lugar de emisión",
+          "source": "recto"
+        }
+      }
+    },
+    "puesto": {
+      "description": "Informations sur le poste",
+      "fields": {
+        "cargo": {
+          "type": "string",
+          "required": true,
+          "description": "Cargo actual del funcionario",
+          "field_label": "Cargo",
+          "source": "recto"
+        },
+        "categoria": {
+          "type": "string",
+          "required": false,
+          "enum": ["A1", "A2", "B1", "B2", "C1", "C2", "D"],
+          "description": "Categoría administrativa",
+          "field_label": "Categoría",
+          "source": "recto"
+        },
+        "escala": {
+          "type": "string",
+          "required": false,
+          "description": "Escala del funcionario",
+          "field_label": "Escala",
+          "source": "verso"
+        },
+        "ministerio": {
+          "type": "string",
+          "required": true,
+          "description": "Ministerio de adscripción",
+          "field_label": "Ministerio",
+          "source": "recto"
+        },
+        "direccion_general": {
+          "type": "string",
+          "required": false,
+          "description": "Dirección General o Secretaría",
+          "field_label": "Dirección General",
+          "source": "verso"
+        }
+      }
+    },
+    "seguridad": {
+      "description": "Éléments de sécurité",
+      "fields": {
+        "tiene_firma": {
+          "type": "boolean",
+          "required": true,
+          "description": "Le carnet a une signature du titulaire",
+          "field_label": "Firma titular",
+          "source": "recto"
+        },
+        "tiene_sello": {
+          "type": "boolean",
+          "required": true,
+          "description": "Le carnet a un sello oficial",
+          "field_label": "Sello oficial",
+          "source": "recto"
+        },
+        "codigo_barras": {
+          "type": "string",
+          "required": false,
+          "description": "Código de barras o QR si presente",
+          "field_label": "Código de barras",
+          "source": "verso"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "carnet_not_expired",
+      "rule": "carnet.fecha_expiracion > TODAY",
+      "error_es": "Carnet de funcionario expirado",
+      "error_fr": "Carte de fonctionnaire expirée",
+      "severity": "error"
+    },
+    {
+      "id": "matricula_present",
+      "rule": "titular.matricula != null AND titular.matricula != ''",
+      "error_es": "Falta la matrícula del funcionario",
+      "error_fr": "Le matricule du fonctionnaire est manquant",
+      "severity": "error"
+    },
+    {
+      "id": "nombre_present",
+      "rule": "titular.nombre_completo != null OR (titular.apellidos != null AND titular.nombres != null)",
+      "error_es": "Falta el nombre del funcionario",
+      "error_fr": "Le nom du fonctionnaire est manquant",
+      "severity": "error"
+    },
+    {
+      "id": "foto_present",
+      "rule": "titular.foto_presente == true",
+      "error_es": "El carnet debe tener foto del funcionario",
+      "error_fr": "La carte doit avoir une photo du fonctionnaire",
+      "severity": "error"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Carnet de fonctionnaire (Carnet de Funcionario) de Guinée Équatoriale. Carte d'identification officielle pour les agents de l'État.",
+    "language": "es",
+    "date_format": "DD/MM/YYYY",
+    "visual_zones": {
+      "recto": [
+        "En-tête: REPUBLICA DE GUINEA ECUATORIAL, MINISTERIO DE LA FUNCION PUBLICA",
+        "Titre: CARNET DE FUNCIONARIO ou TARJETA DE IDENTIFICACION",
+        "Zone gauche: Photo du fonctionnaire",
+        "Zone centrale: Apellidos, Nombres, Matrícula, Cargo, Categoría",
+        "Zone droite: Fecha emisión, Fecha expiración",
+        "Zone inférieure: Firma del titular, N° Carnet"
+      ],
+      "verso": [
+        "Données supplémentaires: N° DIP, Fecha de nacimiento, Escala",
+        "Ministerio et Dirección General",
+        "Code-barres ou QR code si présent",
+        "Sello oficial du Ministerio de la Función Pública"
+      ]
+    },
+    "extraction_priority": [
+      "1. CRITIQUE: matricula - identifiant unique du fonctionnaire",
+      "2. CRITIQUE: nombre_completo (ou apellidos + nombres)",
+      "3. CRITIQUE: fecha_expiracion - doit être valide",
+      "4. IMPORTANT: cargo - poste actuel",
+      "5. IMPORTANT: ministerio - ministère d'affectation",
+      "6. UTILE: categoria, escala, numero_carnet"
+    ],
+    "card_format": "Format carte d'identité standard (ID-1), plastifiée"
+  },
+
+  "tesseract_patterns": {
+    "matricula": [
+      "(?:MATR[IÍ]CULA|MAT\\.?)\\s*[:#]?\\s*([A-Z]{0,3}[\\-]?[0-9]{4,10})",
+      "(?:N[°º]?\\s*)?(?:MAT)\\s*[:#]?\\s*([A-Z0-9\\-]+)"
+    ],
+    "numero_carnet": [
+      "(?:N[°º]?\\s*)?(?:CARNET|TARJETA)\\s*[:#]?\\s*([A-Z0-9\\-]+)",
+      "(?:CARNET\\s*N[°º]?)\\s*[:#]?\\s*([0-9]+)"
+    ],
+    "apellidos": [
+      "APELLIDOS?\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ\\s]+)",
+      "SURNAME\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ\\s]+)"
+    ],
+    "nombres": [
+      "NOMBRES?\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ\\s]+)",
+      "GIVEN\\s*NAME\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ\\s]+)"
+    ],
+    "cargo": [
+      "CARGO\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ\\s]+)",
+      "PUESTO\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ\\s]+)"
+    ],
+    "categoria": [
+      "CATEGOR[IÍ]A\\s*[:#]?\\s*([A-D][12]?)",
+      "CAT\\.?\\s*[:#]?\\s*([A-D][12]?)"
+    ],
+    "fecha_emision": [
+      "(?:EMISI[OÓ]N|EXPEDIDO)\\s*[:#]?\\s*(\\d{1,2}[/\\-\\.]\\d{1,2}[/\\-\\.]\\d{2,4})"
+    ],
+    "fecha_expiracion": [
+      "(?:EXPIRA|V[AÁ]LIDO\\s*HASTA|CADUCIDAD)\\s*[:#]?\\s*(\\d{1,2}[/\\-\\.]\\d{1,2}[/\\-\\.]\\d{2,4})"
+    ],
+    "ministerio": [
+      "(?:MINISTERIO\\s*DE)\\s*([A-ZÁÉÍÓÚÑ\\s]+)"
+    ]
+  }
+}

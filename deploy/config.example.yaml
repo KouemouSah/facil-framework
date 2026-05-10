@@ -1,0 +1,233 @@
+# ============================================================================
+# Facil — Deployment Configuration Template
+# ============================================================================
+# Copy this file to `deploy/config.yaml` and fill in your values.
+# `deploy/config.yaml` is gitignored — your real config never enters git.
+#
+# Convention used in this file:
+#   <something>_secret  -> A reference to a *secret name* in your provider's
+#                          secret store (GCP Secret Manager, AWS Secrets
+#                          Manager, etc.). The actual value is fetched at
+#                          deploy time. NEVER paste secret values inline.
+#   <something>         -> A plain config value. Safe to paste inline.
+#
+# Required values are marked with [REQUIRED]. Everything else has a sane
+# default. The validator (deploy/scripts/validate_config.py) will flag any
+# missing required field before deploy starts.
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# 1. Meta — Identifies this deployment.
+# ----------------------------------------------------------------------------
+meta:
+  config_version: 1                    # Schema version. Do NOT change manually.
+  project_name: facil                  # [REQUIRED] Used as a prefix for resource names.
+  environment: production              # production | staging | development
+  version: latest                      # Image tag to deploy. e.g. 'v1.2.3' or commit SHA.
+
+# ----------------------------------------------------------------------------
+# 2. Database — Postgres connection.
+# ----------------------------------------------------------------------------
+database:
+  # Use either DATABASE_URL directly (recommended for managed Postgres) or
+  # the discrete fields below (for self-hosted / docker-local).
+  url_secret: database-url             # [REQUIRED] Secret name in your provider holding the full DATABASE_URL.
+  # Fallback fields if you need to construct the URL from parts:
+  host: ""                             # Empty when using a Cloud SQL socket via DATABASE_URL.
+  port: 5432
+  name: ""
+  user: ""
+  password_secret: ""                  # Secret name holding the DB password (when host/port/name/user are set).
+  ssl_mode: require                    # disable | require | verify-ca | verify-full
+  pool:
+    min_connections: 10
+    max_connections: 20
+    pool_timeout_seconds: 30
+  # Optional Supabase bridge (set if app code reads SUPABASE_URL/ANON_KEY).
+  supabase_url_secret: supabase-url
+  supabase_anon_key_secret: supabase-anon-key
+
+# ----------------------------------------------------------------------------
+# 3. Redis — Cache + rate limiting + idempotency.
+# ----------------------------------------------------------------------------
+redis:
+  url_secret: REDIS_URL                # [REQUIRED] Secret name in your provider holding the full REDIS_URL.
+  cache_ttl_seconds: 3600              # Default cache TTL (1h).
+
+# ----------------------------------------------------------------------------
+# 4. Auth — JWT, sessions, TOTP, payment receipts.
+# ----------------------------------------------------------------------------
+auth:
+  jwt_secret_name: jwt-secret-key                 # [REQUIRED] Secret name (HS256 signing key).
+  app_secret_name: jwt-secret-key                 # [REQUIRED] Can reuse JWT or have its own.
+  totp_encryption_secret: totp-encryption-key     # [REQUIRED] Fernet base64 key for 2FA secret encryption.
+  receipt_verification_secret: receipt-verification-secret  # HMAC key for QR receipt tokens.
+  access_token_minutes: 30
+  refresh_token_days: 30
+
+# ----------------------------------------------------------------------------
+# 5. Firebase — Push notifications + Storage.
+# ----------------------------------------------------------------------------
+firebase:
+  project_id: ""                       # [REQUIRED] e.g. 'facil-prod' or 'taxasge-dev'.
+  storage_bucket: ""                   # [REQUIRED] Bucket name (without gs:// prefix).
+  android_app_id: ""                   # Android Firebase App ID (for FCM).
+  # Two distinct secrets for dev vs prod environments. Set the one that
+  # matches meta.environment, leave the other empty.
+  service_account_dev_secret: firebase-admin-key-dev
+  service_account_pro_secret: firebase-admin-key-pro
+
+# ----------------------------------------------------------------------------
+# 6. AI — Gemini / Vertex AI.
+# ----------------------------------------------------------------------------
+ai:
+  # Provide either gemini_api_key_secret OR rely on Vertex AI ADC
+  # (Application Default Credentials inherited from the runtime).
+  gemini_api_key_secret: ""            # Secret name. Empty = use Vertex ADC.
+  google_cloud_project: ""             # [REQUIRED if Vertex] GCP project hosting Vertex AI.
+  google_cloud_location: us-central1   # GCP region for Vertex models.
+  models:
+    chat: gemini-2.5-flash             # Conversational chat model.
+    pro: gemini-2.5-flash              # Heavier/longer reasoning. Promote to gemini-2.5-pro if budget allows.
+    embedding: text-embedding-005      # Embedding model for RAG.
+  generation:
+    max_output_tokens: 2048
+    temperature: 0.5
+    top_p: 0.9
+    top_k: 40
+
+# ----------------------------------------------------------------------------
+# 7. Payments — One sub-section per gateway. Set 'enabled: false' to skip.
+# ----------------------------------------------------------------------------
+payments:
+  bange:
+    enabled: false                     # Enable BANGE Mobile Money.
+    api_url: ""
+    merchant_id: ""
+    api_key_secret: ""                 # Set when enabled.
+    webhook_secret_secret: ""
+  ecobank:
+    enabled: false
+    api_url: ""
+    client_id: ""
+    client_secret_secret: ""
+    webhook_secret_secret: ""
+    primary_methods: ""                # Comma-separated method codes for priority.
+  mpgs:
+    enabled: false                     # Mastercard Payment Gateway Services.
+    api_url: ""
+    merchant_id: ""
+    api_password_secret: ""
+    webhook_secret_secret: ""
+    api_version: "85"
+    primary_methods: card
+
+# ----------------------------------------------------------------------------
+# 8. SMTP — Outbound email (transactional).
+# ----------------------------------------------------------------------------
+smtp:
+  host: ""                             # e.g. 'smtp.gmail.com'.
+  port: 587
+  username: ""
+  password_secret: smtp-password       # Secret name (e.g. 'smtp-password').
+  use_tls: true
+  from_email: ""
+  from_name: Facil
+
+# ----------------------------------------------------------------------------
+# 9. Observability — All optional. Leave empty to disable.
+# ----------------------------------------------------------------------------
+observability:
+  # Sentry — separate DSNs for backend and web (different Sentry projects).
+  # Stored in Secret Manager for parity with sensitive secrets, even though
+  # DSN values are technically public (visible in client bundle network calls).
+  sentry_dsn_backend_secret: sentry-dsn-backend
+  sentry_dsn_web_secret: sentry-dsn-web
+  sentry_auth_token_secret: sentry-auth-token   # Build-time only (sourcemap upload).
+  # LogRocket — public app id, kept in Secret Manager for parity.
+  logrocket_app_id_secret: logrocket-app-id
+  # Grafana Cloud — OTLP traces + metrics endpoint.
+  grafana_otlp_endpoint: ""            # e.g. 'https://otlp-gateway-prod-eu-west-3.grafana.net/otlp'.
+  grafana_token_secret: grafana-sa-token   # Secret name (CAP token).
+  # MaxMind GeoLite2 license key (auto-downloads the DB at boot).
+  maxmind_license_key_secret: maxmind-license-key
+  slack_webhook_url: ""                # For internal alerts.
+
+# ----------------------------------------------------------------------------
+# 10. Server — API host/port + URLs surfaced in emails, mobile deep links, etc.
+# ----------------------------------------------------------------------------
+server:
+  api_host: 0.0.0.0
+  port: 8080                           # Cloud Run uses 8080 by default.
+  frontend_url: ""                     # [REQUIRED] e.g. 'https://facil.gq'.
+  api_base_url: ""                     # [REQUIRED] e.g. 'https://api.facil.gq'.
+  mobile_deep_link_schemes: facil      # Comma-separated.
+  log_level: INFO                      # DEBUG | INFO | WARNING | ERROR | CRITICAL.
+
+# ----------------------------------------------------------------------------
+# 11. Legal — Document versions surfaced in the app.
+# ----------------------------------------------------------------------------
+legal:
+  privacy_version: "1.0.0"
+  privacy_last_updated: "2026-05-02"
+  terms_version: "1.0.0"
+  terms_last_updated: "2026-05-02"
+  cookies_version: "1.0.0"
+  cookies_last_updated: "2026-05-02"
+
+# ----------------------------------------------------------------------------
+# 12. Cron — Auth secret for /cron/* endpoints.
+# ----------------------------------------------------------------------------
+cron:
+  secret_name: cron-secret             # [REQUIRED] Bearer token for /cron/* endpoints.
+
+# ----------------------------------------------------------------------------
+# 13. Features — Boolean toggles.
+# ----------------------------------------------------------------------------
+features:
+  scheduler_enabled: true
+  rate_limit_enabled: true
+  metrics_enabled: true
+  structured_logging: true
+  executive_tools: false
+  llm_routing: false
+  penalties: false
+
+# ----------------------------------------------------------------------------
+# Provider-specific blocks.
+# Only the section matching --provider=<name> is consumed at deploy time.
+# ----------------------------------------------------------------------------
+
+# 14. GCP — Cloud Run + Cloud SQL + Secret Manager.
+gcp:
+  project_id: ""                       # [REQUIRED if provider=gcp]
+  region: us-central1
+  backend_service_name: facil-backend
+  frontend_service_name: facil-frontend
+  cloud_sql_instance: ""               # Optional: 'project:region:instance'. Empty = use external Postgres.
+  custom_domain_backend: ""            # e.g. 'api.facil.gq'.
+  custom_domain_frontend: ""           # e.g. 'facil.gq'.
+
+# 15. AWS — ECS + RDS + Secrets Manager (Phase A.5.7, P2).
+aws:
+  region: us-east-1
+  backend_cluster: facil-backend
+  rds_instance: ""
+
+# 16. Docker Compose local — Dev environment.
+docker_local:
+  backend_port: 8080
+  frontend_port: 3000
+  postgres_image: postgres:16-alpine
+  postgres_volume: facil_pgdata
+  redis_image: redis:7-alpine
+
+# ----------------------------------------------------------------------------
+# 17. Optional advanced overrides — Pass any of the 95 backend TUNABLES that
+# you need to tweak. These map 1:1 to env vars (consult deploy/AUDIT.md §1.3).
+# ----------------------------------------------------------------------------
+env_overrides:
+  # Example:
+  # QUEUE_DEFAULT_SLA_HOURS: 48
+  # SCORING_WEIGHT_WORKLOAD: 0.30
+  # SCHEDULER_OUTBOX_INTERVAL: 60

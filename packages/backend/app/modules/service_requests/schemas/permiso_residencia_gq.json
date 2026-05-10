@@ -1,0 +1,406 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "PERMISO_RESIDENCIA_GQ_V1",
+  "version": "1.0",
+  "title": "Permiso de Residencia - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour le Permis de Residence de Guinee Equatoriale (pour etrangers)",
+  "document_type": "PERMISO_RESIDENCIA",
+  "country": "GQ",
+  "faces": ["recto", "verso"],
+  "target_holders": "foreigners",
+
+  "extraction": {
+    "documento": {
+      "description": "Informations du document",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "PERMISO_RESIDENCIA",
+          "required": true,
+          "description": "Type de document"
+        },
+        "numero_nie": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[A-Z][0-9]{8}$",
+          "description": "N°N.I.E. - Numero de Identificacion de Extranjero (ex: E12495738)",
+          "field_label": "N°N.I.E.",
+          "source": "recto",
+          "pii": true,
+          "encrypt": true
+        },
+        "numero_registro": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[A-Z][0-9]{8}$",
+          "description": "N° REG - Numero de registro (ex: F10016559)",
+          "field_label": "N° REG",
+          "source": "verso",
+          "pii": true
+        },
+        "numero_rp": {
+          "type": "string",
+          "required": false,
+          "pattern": "^RP[0-9]{7}$",
+          "description": "Numero RP lateral (ex: RP1012522)",
+          "source": "verso"
+        },
+        "fecha_expedicion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Fecha de expedicion de este permiso",
+          "field_label": "FECHA DE EXPEDICIÓN",
+          "source": "recto",
+          "date_format": "DD.MM.YYYY"
+        },
+        "fecha_expiracion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Fecha de expiracion",
+          "field_label": "FECHA DE EXPIRACIÓN",
+          "source": "recto",
+          "date_format": "DD.MM.YYYY",
+          "validation": {
+            "rule": "must_be_future",
+            "error": "Permiso de residencia expirado"
+          }
+        },
+        "fecha_primera_residencia": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Fecha de emision de la primera residencia (historique)",
+          "field_label": "FECHA EMISIÓN PRIMERA RESIDENCIA",
+          "source": "verso",
+          "date_format": "DD.MM.YYYY"
+        }
+      }
+    },
+
+    "titular": {
+      "description": "Informations du titulaire (etranger)",
+      "fields": {
+        "apellidos": {
+          "type": "string",
+          "required": true,
+          "description": "Apellido(s) del titular",
+          "field_label": "APELLIDOS",
+          "source": "recto",
+          "pii": true
+        },
+        "nombres": {
+          "type": "string",
+          "required": true,
+          "description": "Nombre(s) del titular",
+          "field_label": "NOMBRE",
+          "source": "recto",
+          "pii": true
+        },
+        "sexo": {
+          "type": "string",
+          "enum": ["M", "F"],
+          "required": true,
+          "description": "Sexo: M=Masculino, F=Femenino",
+          "field_label": "SEXO",
+          "source": "recto"
+        },
+        "fecha_nacimiento": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Fecha de nacimiento",
+          "field_label": "FECHA DE NACIMIENTO",
+          "source": "recto",
+          "date_format": "DD.MM.YYYY",
+          "pii": true
+        },
+        "lugar_nacimiento": {
+          "type": "string",
+          "required": true,
+          "description": "Lugar de nacimiento (ville, pays)",
+          "field_label": "LUGAR DE NACIMIENTO",
+          "source": "verso"
+        },
+        "nacionalidad": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[A-Z]{3}$",
+          "description": "Nacionalidad - Code ISO 3 lettres du pays d'origine (ex: CMR, NGA, SEN)",
+          "field_label": "NACIONALIDAD",
+          "source": "recto",
+          "note": "Ne peut PAS etre GNQ (reservé aux citoyens avec DIP)"
+        },
+        "numero_pasaporte": {
+          "type": "string",
+          "required": true,
+          "description": "Numero de pasaporte del pais de origen",
+          "field_label": "NO DE PASAPORTE",
+          "source": "recto",
+          "pii": true,
+          "encrypt": true
+        },
+        "estado_civil": {
+          "type": "string",
+          "enum": ["SOLTERO/A", "CASADO/A", "DIVORCIADO/A", "VIUDO/A"],
+          "required": true,
+          "description": "Estado civil del titular",
+          "field_label": "ESTADO CIVIL",
+          "source": "verso"
+        },
+        "profesion": {
+          "type": "string",
+          "required": true,
+          "description": "Profesion del titular",
+          "field_label": "PROFESIÓN",
+          "source": "verso"
+        },
+        "direccion_gq": {
+          "type": "string",
+          "required": true,
+          "description": "Direccion de residencia en Guinea Ecuatorial",
+          "field_label": "DIRECCIÓN EN GUINEA ECUATORIAL",
+          "source": "verso",
+          "pii": true
+        },
+        "lugar_trabajo": {
+          "type": "string",
+          "required": false,
+          "description": "Lugar de trabajo en Guinea Ecuatorial",
+          "field_label": "LUGAR DE TRABAJO",
+          "source": "verso"
+        }
+      }
+    },
+
+    "mrz": {
+      "description": "Zone MRZ (Machine Readable Zone) - 3 lignes TD1",
+      "format": "TD1",
+      "lines": 3,
+      "chars_per_line": 30,
+      "source": "verso",
+      "fields": {
+        "linea_1": {
+          "type": "string",
+          "required": true,
+          "pattern": "^AR[A-Z]{3}[A-Z0-9<]{25}$",
+          "length": 30,
+          "description": "Premiere ligne MRZ: AR (residence) + pays hote + type + numero",
+          "structure": {
+            "positions_1_2": "AR (type document: Autorisation Residence)",
+            "positions_3_5": "GNQ (pays hote)",
+            "positions_6_7": "RP (sous-type: Residence Permit)",
+            "positions_8_30": "Numero + NIE + check digits"
+          },
+          "example": "ARGNQRP10125223E12495738<<<<<<"
+        },
+        "linea_2": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[0-9]{7}[MF<][0-9]{7}[A-Z]{3}[A-Z0-9<]{8}[0-9]$",
+          "length": 30,
+          "description": "Deuxieme ligne MRZ: fecha nac + sexo + fecha exp + nacionalidad + check",
+          "structure": {
+            "positions_1_6": "Fecha nacimiento (YYMMDD)",
+            "position_7": "Check digit fecha nac",
+            "position_8": "Sexo (M/F)",
+            "positions_9_14": "Fecha expiracion (YYMMDD)",
+            "position_15": "Check digit fecha exp",
+            "positions_16_18": "Nacionalidad origen (CMR, NGA, etc.)",
+            "positions_19_29": "Donnees optionnelles",
+            "position_30": "Check digit composite"
+          },
+          "example": "8509266M2501268CMR<<<<<<<<<<<4"
+        },
+        "linea_3": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[A-Z<]{30}$",
+          "length": 30,
+          "description": "Troisieme ligne MRZ: APELLIDO<<NOMBRES",
+          "example": "KOUEMOU<SAH<<JEAN<EMAC<<<<<<<<<<"
+        }
+      }
+    }
+  },
+
+  "mrz_parsing": {
+    "line_1": {
+      "document_type": {"start": 0, "end": 2, "expected": "AR"},
+      "country_code": {"start": 2, "end": 5, "expected": "GNQ"},
+      "document_number": {"start": 5, "end": 14},
+      "check_digit_1": {"start": 14, "end": 15},
+      "optional_data_1": {"start": 15, "end": 30}
+    },
+    "line_2": {
+      "birth_date": {"start": 0, "end": 6, "format": "YYMMDD"},
+      "check_digit_2": {"start": 6, "end": 7},
+      "sex": {"start": 7, "end": 8, "values": ["M", "F", "<"]},
+      "expiry_date": {"start": 8, "end": 14, "format": "YYMMDD"},
+      "check_digit_3": {"start": 14, "end": 15},
+      "nationality": {"start": 15, "end": 18, "description": "Code ISO 3 lettres pays d'origine"},
+      "optional_data_2": {"start": 18, "end": 29},
+      "composite_check": {"start": 29, "end": 30}
+    },
+    "line_3": {
+      "names": {"start": 0, "end": 30, "separator": "<<", "description": "APELLIDO<<NOMBRES"}
+    }
+  },
+
+  "validations": [
+    {
+      "id": "permiso_not_expired",
+      "rule": "fecha_expiracion > TODAY",
+      "error_es": "Permiso de residencia expirado",
+      "error_fr": "Permis de residence expire",
+      "severity": "error"
+    },
+    {
+      "id": "permiso_expiring_soon",
+      "rule": "fecha_expiracion > TODAY + 3 MONTHS",
+      "error_es": "Permiso de residencia expira en menos de 3 meses",
+      "error_fr": "Permis de residence expire dans moins de 3 mois",
+      "severity": "warning"
+    },
+    {
+      "id": "nacionalidad_not_gnq",
+      "rule": "nacionalidad != 'GNQ'",
+      "error_es": "Ciudadanos de GQ deben usar DIP, no permiso de residencia",
+      "error_fr": "Les citoyens GQ doivent utiliser le DIP, pas le permis de residence",
+      "severity": "error"
+    },
+    {
+      "id": "mrz_apellido_match",
+      "rule": "mrz.linea_3 CONTAINS titular.apellidos",
+      "error_es": "MRZ no coincide con apellido",
+      "error_fr": "MRZ ne correspond pas au nom",
+      "severity": "error"
+    },
+    {
+      "id": "mrz_nacionalidad_match",
+      "rule": "titular.nacionalidad IN mrz.linea_2[15:18]",
+      "error_es": "Nacionalidad no coincide con MRZ",
+      "error_fr": "Nationalite ne correspond pas au MRZ",
+      "severity": "error"
+    },
+    {
+      "id": "mrz_sexo_match",
+      "rule": "titular.sexo == mrz.linea_2[7]",
+      "error_es": "Sexo no coincide con MRZ",
+      "error_fr": "Sexe ne correspond pas au MRZ",
+      "severity": "error"
+    },
+    {
+      "id": "mrz_checksum_valid",
+      "rule": "validate_mrz_checksums(mrz)",
+      "error_es": "Checksum MRZ invalido",
+      "error_fr": "Checksum MRZ invalide",
+      "severity": "error"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Permiso de Residencia de Guinea Ecuatorial - documento de identidad para extranjeros residentes",
+    "language": "es",
+    "date_format": "DD.MM.YYYY (avec points)",
+    "visual_zones": {
+      "recto": [
+        "En-tete: REPUBLICA DE GUINEA ECUATORIAL / PERMISO DE RESIDENCIA",
+        "Logo GE en haut a droite",
+        "Zone gauche: Photo du titulaire",
+        "Zone centrale: APELLIDOS, NOMBRE, NACIONALIDAD (code ISO 3 lettres)",
+        "Zone centrale-bas: FECHA DE NACIMIENTO, SEXO, NO DE PASAPORTE",
+        "Zone inferieure: FECHA DE EXPEDICIÓN, FECHA DE EXPIRACIÓN",
+        "Zone signatures: FIRMA DEL TITULAR, FIRMA DE LA AUTORIDAD",
+        "Zone inferieure gauche: N°N.I.E. (lettre + 8 chiffres)"
+      ],
+      "verso": [
+        "Zone superieure: N° REG, FECHA EMISIÓN PRIMERA RESIDENCIA",
+        "Zone centrale gauche: LUGAR DE NACIMIENTO",
+        "Zone centrale: ESTADO CIVIL, PROFESIÓN",
+        "Zone centrale-bas: DIRECCIÓN EN GUINEA ECUATORIAL",
+        "Zone inferieure: LUGAR DE TRABAJO",
+        "Zone droite: Logo CNEDOGE, numero RP lateral",
+        "Zone inferieure: MRZ (3 lignes de 30 caracteres)"
+      ]
+    },
+    "color_scheme": "Fond rose/violet avec hologrammes de securite",
+    "key_differences_from_dip": [
+      "Titre: PERMISO DE RESIDENCIA (pas DOCUMENTO DE IDENTIDAD)",
+      "Champ NACIONALIDAD: code ISO pays etranger (CMR, NGA, SEN, etc.)",
+      "Champ NO DE PASAPORTE: numero passeport du pays d'origine",
+      "Champ LUGAR DE TRABAJO: specifique aux residents etrangers",
+      "MRZ commence par AR (pas ID)"
+    ],
+    "common_nationalities": {
+      "CMR": "Cameroun",
+      "NGA": "Nigeria",
+      "SEN": "Senegal",
+      "MLI": "Mali",
+      "GHA": "Ghana",
+      "CIV": "Cote d'Ivoire",
+      "ESP": "Espagne",
+      "CHN": "Chine",
+      "LBN": "Liban",
+      "MAR": "Maroc"
+    },
+    "ocr_challenges": [
+      "Fond rose peut affecter la lisibilite",
+      "Hologrammes CNEDOGE peuvent masquer du texte",
+      "Photo de mauvaise qualite",
+      "MRZ partiellement visible",
+      "Deux faces a traiter separement"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "numero_nie": [
+      "N[°o]?\\s*N\\.?I\\.?E\\.?\\s*[:#]?\\s*([A-Z][0-9]{8})",
+      "NIE\\s*[:#]?\\s*([A-Z][0-9]{8})"
+    ],
+    "numero_registro": [
+      "N[°o]?\\s*REG\\.?\\s*[:#]?\\s*([A-Z][0-9]{8})",
+      "REGISTRO\\s*[:#]?\\s*([A-Z][0-9]{8})"
+    ],
+    "numero_pasaporte": [
+      "(?:NO\\.?\\s*(?:DE\\s*)?PASAPORTE|PASSPORT)\\s*[:#]?\\s*([A-Z0-9]{6,12})"
+    ],
+    "apellidos": [
+      "APELLIDOS?\\s*[:#]?\\s*([A-Z\\s]+)"
+    ],
+    "nombres": [
+      "NOMBRE\\s*[:#]?\\s*([A-Z\\s]+)"
+    ],
+    "nacionalidad": [
+      "NACIONALIDAD\\s*[:#]?\\s*([A-Z]{3})"
+    ],
+    "fecha_nacimiento": [
+      "(?:FECHA\\s*(?:DE\\s*)?NACIMIENTO)\\s*[:#]?\\s*(\\d{2}\\.\\d{2}\\.\\d{4})"
+    ],
+    "fecha_expedicion": [
+      "(?:FECHA\\s*(?:DE\\s*)?EXPEDICI[OÓ]N)\\s*[:#]?\\s*(\\d{2}\\.\\d{2}\\.\\d{4})"
+    ],
+    "fecha_expiracion": [
+      "(?:FECHA\\s*(?:DE\\s*)?EXPIRACI[OÓ]N)\\s*[:#]?\\s*(\\d{2}\\.\\d{2}\\.\\d{4})"
+    ],
+    "fecha_primera_residencia": [
+      "(?:FECHA\\s*EMISI[OÓ]N\\s*PRIMERA\\s*RESIDENCIA)\\s*[:#]?\\s*(\\d{2}\\.\\d{2}\\.\\d{4})"
+    ],
+    "estado_civil": [
+      "ESTADO\\s*CIVIL\\s*[:#]?\\s*(SOLTERO/A|CASADO/A|DIVORCIADO/A|VIUDO/A)"
+    ],
+    "profesion": [
+      "PROFESI[OÓ]N\\s*[:#]?\\s*([A-Z\\s]+)"
+    ],
+    "direccion_gq": [
+      "DIRECCI[OÓ]N\\s*(?:EN\\s*)?(?:GUINEA\\s*ECUATORIAL)?\\s*[:#]?\\s*(.+)"
+    ],
+    "lugar_trabajo": [
+      "LUGAR\\s*(?:DE\\s*)?TRABAJO\\s*[:#]?\\s*(.+)"
+    ],
+    "lugar_nacimiento": [
+      "LUGAR\\s*(?:DE\\s*)?NACIMIENTO\\s*[:#]?\\s*(.+)"
+    ]
+  }
+}

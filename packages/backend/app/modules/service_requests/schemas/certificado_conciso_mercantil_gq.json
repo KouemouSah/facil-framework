@@ -1,0 +1,339 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "CERTIFICADO_CONCISO_MERCANTIL_GQ_V1",
+  "version": "1.0",
+  "title": "Certificado Conciso del Registro Mercantil - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour le Certificat Concis du Registre du Commerce (format narratif legal)",
+  "document_type": "CERTIFICADO_CONCISO_MERCANTIL",
+  "country": "GQ",
+  "faces": ["single_page"],
+  "document_nature": "certificat_officiel_legal",
+  "issuer": "Unidad del Registro Mercantil de la VUE",
+  "format": "narratif",
+
+  "extraction": {
+    "documento": {
+      "description": "Informations administratives du certificat",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "CERTIFICADO_CONCISO",
+          "required": true,
+          "description": "Type de document"
+        },
+        "numero_ri": {
+          "type": "string",
+          "required": true,
+          "description": "Numero R.I.",
+          "field_label": "R.I.",
+          "pii": true
+        },
+        "region": {
+          "type": "string",
+          "enum": ["Region Insular", "Region Continental"],
+          "required": true,
+          "description": "Region du Registro Mercantil",
+          "field_label": "De la Región"
+        }
+      }
+    },
+
+    "registrador": {
+      "description": "Donnees du registrateur",
+      "fields": {
+        "nombre_registrador": {
+          "type": "string",
+          "required": true,
+          "description": "Nom du registrateur (Jurista, Registrador/a)",
+          "pii": true
+        },
+        "titulo_registrador": {
+          "type": "string",
+          "required": false,
+          "default": "Jurista, Registradora de la Propiedad y Mercantil",
+          "description": "Titre complet du registrateur"
+        },
+        "cargo": {
+          "type": "string",
+          "required": false,
+          "default": "REGISTRADORA MERCANTIL",
+          "description": "Cargo officiel"
+        }
+      }
+    },
+
+    "inscripcion": {
+      "description": "Donnees d'inscription au registre (extraites du texte narratif)",
+      "fields": {
+        "folio": {
+          "type": "string",
+          "required": true,
+          "description": "Numero de folio dans le livre",
+          "field_label": "al folio"
+        },
+        "libro": {
+          "type": "string",
+          "required": true,
+          "description": "Numero/nom du livre (ex: 283Bis de Sociedades)",
+          "field_label": "del libro"
+        },
+        "seccion": {
+          "type": "string",
+          "required": false,
+          "description": "Section du registre (ex: Seccion de Bioko)",
+          "field_label": "de esta Sección de"
+        },
+        "tipo_inscripcion": {
+          "type": "string",
+          "enum": ["primera vez", "modificacion", "cancelacion"],
+          "required": false,
+          "default": "primera vez",
+          "description": "Type d'inscription"
+        }
+      }
+    },
+
+    "sociedad": {
+      "description": "Donnees de la societe inscrite",
+      "fields": {
+        "denominacion_social": {
+          "type": "string",
+          "required": true,
+          "description": "Nom de la societe",
+          "field_label": "Sociedad Mercantil denominada",
+          "pii": true
+        },
+        "capital_fundacional": {
+          "type": "number",
+          "required": true,
+          "description": "Capital de fondation en F. CFAS",
+          "field_label": "capital fundacional de",
+          "currency": "XAF"
+        },
+        "capital_en_letras": {
+          "type": "string",
+          "required": false,
+          "description": "Capital exprime en lettres"
+        }
+      }
+    },
+
+    "notario": {
+      "description": "Donnees du notaire ayant autorise l'acte",
+      "fields": {
+        "nombre_notario": {
+          "type": "string",
+          "required": true,
+          "description": "Nom du notaire",
+          "field_label": "autorizado por",
+          "pii": true
+        },
+        "titulo_notario": {
+          "type": "string",
+          "required": false,
+          "default": "Notario",
+          "description": "Titre du notaire"
+        },
+        "fecha_autorizacion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'autorisation de l'acte notarie",
+          "field_label": "en fecha",
+          "date_format": "DD de MMMM del año YYYY"
+        },
+        "numero_protocolo": {
+          "type": "string",
+          "required": true,
+          "description": "Numero de protocole notarial (ex: 8.678)",
+          "field_label": "bajo número"
+        }
+      }
+    },
+
+    "entrada_registro": {
+      "description": "Donnees d'entree au registre mercantil",
+      "fields": {
+        "hora_entrada": {
+          "type": "string",
+          "required": false,
+          "description": "Heure d'entree au registre",
+          "field_label": "a las ... horas de hoy"
+        },
+        "asiento_numero": {
+          "type": "string",
+          "required": false,
+          "description": "Numero d'asiento",
+          "field_label": "con el asiento número"
+        },
+        "folio_diario": {
+          "type": "string",
+          "required": false,
+          "description": "Folio du livre Diario",
+          "field_label": "folio ... del libro"
+        },
+        "libro_diario": {
+          "type": "string",
+          "required": false,
+          "description": "Numero du livre Diario",
+          "field_label": "Diario"
+        },
+        "impuesto_derechos_reales": {
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Impot sur les Droits Reels paye",
+          "field_label": "Pagado el Impuesto de Derechos Reales"
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification",
+      "fields": {
+        "fecha_certificacion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date de certification",
+          "field_label": "Malabo a [fecha]",
+          "date_format": "DD de MMMM del año YYYY"
+        },
+        "lugar_certificacion": {
+          "type": "string",
+          "required": true,
+          "default": "Malabo"
+        },
+        "tiene_firma_registrador": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du registrateur presente"
+        },
+        "tiene_sello_ministerio_justicia": {
+          "type": "boolean",
+          "required": true,
+          "description": "Sceau du Ministerio de Justicia presente (rond, bleu)"
+        },
+        "texto_certificado_duplicado": {
+          "type": "boolean",
+          "required": false,
+          "description": "Mention 'CERTIFICADO DUPLICADO DE CONCISO' presente"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "firma_registrador_required",
+      "rule": "tiene_firma_registrador == true",
+      "error_es": "El certificado debe estar firmado por el Registrador Mercantil",
+      "error_fr": "Le certificat doit etre signe par le Registrateur Mercantile",
+      "severity": "error"
+    },
+    {
+      "id": "sello_justicia_required",
+      "rule": "tiene_sello_ministerio_justicia == true",
+      "error_es": "El certificado debe tener el sello del Ministerio de Justicia",
+      "error_fr": "Le certificat doit avoir le sceau du Ministere de la Justice",
+      "severity": "error"
+    },
+    {
+      "id": "impuesto_pagado",
+      "rule": "impuesto_derechos_reales == true",
+      "error_es": "El Impuesto de Derechos Reales debe estar pagado",
+      "error_fr": "L'Impot sur les Droits Reels doit etre paye",
+      "severity": "warning"
+    },
+    {
+      "id": "capital_positive",
+      "rule": "capital_fundacional > 0",
+      "error_es": "El capital fundacional debe ser mayor a cero",
+      "error_fr": "Le capital de fondation doit etre superieur a zero",
+      "severity": "error"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Certificat Concis du Registro Mercantil - document legal au format narratif certifiant l'inscription d'une societe au registre du commerce",
+    "language": "es",
+    "format": "narratif_legal",
+    "date_format": "DD de MMMM del año YYYY",
+    "visual_zones": [
+      "En-tete: Logo VUE + Armoiries GQ + R.I. [numero]",
+      "Ligne: De la Región [Insular/Continental]",
+      "Titre centre: CERTIFICADO CONCISO",
+      "Paragraphe 1: Identification du registrateur - Doña [NOM], Jurista, Registradora de la Propiedad y Mercantil de la Región [X]",
+      "Paragraphe 2: Ante la UNIDAD DEL REGISTRO MERCANTIL DE LA VENTANILLA ÚNICA EMPRESARIAL...",
+      "Paragraphe CERTIFICA: Que, al folio [X] del libro [X] de Sociedades de esta Sección de [X] aparece inscrita por primera vez la Sociedad Mercantil denominada [NOM], con un capital fundacional de [MONTANT] de Francos C.fas, constituida y autorizada por Don [NOTARIO], Notario, en fecha [DATE], bajo número [PROTOCOLE] Orden de su protocolo, documento que tuvo entrada en esta unidad de Registro Mercantil, a las [HEURE] horas de hoy, con el asiento número [X] folio [X] del libro [X] Diario [X]. Pagado el Impuesto de Derechos Reales.",
+      "Date et lieu: Malabo a [DATE]",
+      "Paragraphe final (optionnel): Y PARA QUE ASÍ CONSTE Y SURTA EFECTOS...",
+      "Signature: REGISTRADOR/A MERCANTIL + sceau Ministerio de Justicia"
+    ],
+    "extraction_approach": "Ce document est au format narratif. Les donnees doivent etre extraites du texte continu, pas de champs structures.",
+    "key_phrases": [
+      "CERTIFICA: Que, al folio",
+      "aparece inscrita por primera vez la Sociedad Mercantil denominada",
+      "con un capital fundacional de",
+      "constituida y autorizada por",
+      "en fecha",
+      "bajo número",
+      "Orden de su protocolo",
+      "Pagado el Impuesto de Derechos Reales"
+    ],
+    "sceau": {
+      "type": "Ministerio de Justicia y Culto",
+      "position": "Bas centre, sous la signature",
+      "couleur": "Bleu",
+      "forme": "Rond avec armoiries"
+    }
+  },
+
+  "tesseract_patterns": {
+    "numero_ri": [
+      "(?:R\\.?I\\.?)\\s*[:#]?\\s*([0-9]{5,6})"
+    ],
+    "region": [
+      "(?:De\\s*la\\s*)?(?:Regi[oó]n)\\s*(Insular|Continental)"
+    ],
+    "nombre_registrador": [
+      "(?:Do[ñn]a?\\.?)\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+?)(?=,\\s*Jurista)"
+    ],
+    "folio": [
+      "(?:al\\s*folio)\\s*([0-9]+)"
+    ],
+    "libro": [
+      "(?:del\\s*libro)\\s*([0-9A-Za-z]+(?:\\s*(?:Bis|de\\s*Sociedades))?)"
+    ],
+    "seccion": [
+      "(?:Secci[oó]n\\s*de)\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "denominacion_social": [
+      "(?:Sociedad\\s*Mercantil\\s*denominada)\\s*([A-Z0-9][A-Za-z0-9\\s.,]+?)(?=,\\s*con)"
+    ],
+    "capital_fundacional": [
+      "(?:capital\\s*fundacional\\s*de)\\s*(?:UN\\s*MILLON|[A-Z\\s]+)?\\s*\\(?([0-9.,]+)\\)?\\s*(?:de\\s*)?(?:Francos|F\\.?\\s*C\\.?fas)"
+    ],
+    "capital_en_letras": [
+      "(?:capital\\s*fundacional\\s*de)\\s*([A-Z\\s]+)\\s*\\([0-9.,]+"
+    ],
+    "nombre_notario": [
+      "(?:autorizado\\s*por)\\s*(?:Don|Do[ñn]a)\\.?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+?)(?=,\\s*Notario)"
+    ],
+    "fecha_autorizacion": [
+      "(?:en\\s*fecha)\\s*(\\d{1,2})\\s*de\\s*(\\w+)\\s*del\\s*a[ñn]o\\s*(\\d{4})"
+    ],
+    "numero_protocolo": [
+      "(?:bajo\\s*n[uú]mero)\\s*\\(?([0-9.,]+)\\)?"
+    ],
+    "hora_entrada": [
+      "(?:a\\s*las)\\s*(\\d{1,2}[:.h]\\d{2})\\s*(?:horas)"
+    ],
+    "asiento_numero": [
+      "(?:asiento\\s*n[uú]mero)\\s*([0-9]+\\s*(?:bis)?)"
+    ],
+    "fecha_certificacion": [
+      "(Malabo|Bata)\\s*a\\s*(\\d{1,2})\\s*de\\s*(\\w+)\\s*del\\s*a[ñn]o\\s*(?:dos\\s*mil\\s*)?(\\w+)"
+    ]
+  }
+}

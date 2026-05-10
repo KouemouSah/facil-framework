@@ -1,0 +1,478 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "ITV_GQ_V1",
+  "version": "1.0",
+  "title": "Tarjeta ITV - Inspeccion Tecnica de Vehiculos",
+  "description": "Schema d'extraction pour la Tarjeta de Inspeccion Tecnica de Vehiculos de Guinee Equatoriale",
+  "document_type": "ITV",
+  "country": "GQ",
+  "faces": ["recto", "verso"],
+
+  "extraction": {
+    "documento": {
+      "description": "Informations administratives du document",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "ITV",
+          "required": true,
+          "description": "Type de document"
+        },
+        "organismo": {
+          "type": "string",
+          "required": false,
+          "default": "MINISTERIO DE COMERCIO, INDUSTRIA Y PROMOCION EMPRESARIAL",
+          "description": "Ministere emetteur"
+        },
+        "direccion_general": {
+          "type": "string",
+          "required": false,
+          "default": "DIRECCION GENERAL DE INDUSTRIA",
+          "description": "Direction generale"
+        },
+        "numero_serie": {
+          "type": "string",
+          "required": true,
+          "description": "Numero de serie de la tarjeta (ex: N SERIE: R.I.2023 14707)",
+          "field_label": "N SERIE",
+          "source": "recto",
+          "pii": true
+        },
+        "estacion_itv": {
+          "type": "string",
+          "required": false,
+          "description": "Station ITV (ex: Estacion ITV Malabo)",
+          "field_label": "ESTACIÓN ITV"
+        }
+      }
+    },
+
+    "titular": {
+      "description": "Donnees du titulaire",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": false,
+          "description": "Nom complet du titulaire (DON/DONA ...)",
+          "field_label": "DON/DOÑA",
+          "source": "recto",
+          "pii": true
+        }
+      }
+    },
+
+    "vehiculo": {
+      "description": "Donnees du vehicule",
+      "fields": {
+        "matricula": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[A-Z]{2}-[0-9]{3}-[A-Z0-9]{1,2}$",
+          "description": "Numero d'immatriculation",
+          "field_label": "MATRÍCULA",
+          "source": "verso",
+          "pii": true
+        },
+        "numero_bastidor": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[A-HJ-NPR-Z0-9]{17}$",
+          "description": "Numero de chassis/VIN",
+          "field_label": "NÚMERO DE BASTIDOR",
+          "source": "verso",
+          "pii": true
+        },
+        "destino": {
+          "type": "string",
+          "required": false,
+          "description": "Destination/usage du vehicule",
+          "field_label": "DESTINO"
+        }
+      }
+    },
+
+    "caracteristicas_tecnicas": {
+      "description": "Caracteristiques techniques",
+      "fields": {
+        "marca": {
+          "type": "string",
+          "required": false,
+          "description": "Marque",
+          "field_label": "MARCA",
+          "source": "verso"
+        },
+        "tipo": {
+          "type": "string",
+          "required": false,
+          "description": "Type (ex: APPD)",
+          "field_label": "TIPO"
+        },
+        "variante": {
+          "type": "string",
+          "required": false,
+          "description": "Variante",
+          "field_label": "VARIANTE"
+        },
+        "denominacion_comercial": {
+          "type": "string",
+          "required": false,
+          "description": "Nom commercial/Modele",
+          "field_label": "DENOMINACIÓN COMERCIAL",
+          "source": "verso"
+        },
+        "procedencia": {
+          "type": "string",
+          "required": false,
+          "description": "Origine (EUROPA, ASIA, etc.)",
+          "field_label": "PROCEDENCIA"
+        },
+        "tara_kg": {
+          "type": "number",
+          "required": false,
+          "description": "Poids a vide en Kg",
+          "field_label": "TARA (KG)"
+        },
+        "pma_kg": {
+          "type": "number",
+          "required": false,
+          "description": "P.M.A. (Kg)",
+          "field_label": "P.M.A. (KG)"
+        },
+        "pmr_kg": {
+          "type": "number",
+          "required": false,
+          "description": "P.M.R. (Kg)",
+          "field_label": "P.M.R. (KG)"
+        },
+        "numero_asientos": {
+          "type": "integer",
+          "required": false,
+          "description": "Nombre de sieges",
+          "field_label": "Nº ASIENTOS"
+        },
+        "categoria": {
+          "type": "string",
+          "required": false,
+          "description": "Categorie (ex: SEGUNDA A)",
+          "field_label": "CATEGORÍA"
+        },
+        "forma_carruaje": {
+          "type": "string",
+          "required": false,
+          "description": "Forme de carrosserie",
+          "field_label": "FORMA CARRUAJE"
+        }
+      }
+    },
+
+    "dimensiones": {
+      "description": "Dimensions du vehicule",
+      "fields": {
+        "longitud_mm": {
+          "type": "number",
+          "required": false,
+          "description": "Longueur en mm",
+          "field_label": "LONGITUD (MM)"
+        },
+        "anchura_mm": {
+          "type": "number",
+          "required": false,
+          "description": "Largeur en mm",
+          "field_label": "ANCHURA (MM)"
+        },
+        "anchura_total_mm": {
+          "type": "number",
+          "required": false,
+          "description": "Largeur totale en mm",
+          "field_label": "ANCHURA TOTAL (MM)"
+        },
+        "altura_total_mm": {
+          "type": "number",
+          "required": false,
+          "description": "Hauteur totale en mm",
+          "field_label": "ALTURA TOTAL (MM)"
+        },
+        "vias_anteriores_mm": {
+          "type": "number",
+          "required": false,
+          "description": "Voies anterieures en mm"
+        },
+        "vias_posteriores_mm": {
+          "type": "number",
+          "required": false,
+          "description": "Voies posterieures en mm"
+        },
+        "voladizo_mm": {
+          "type": "number",
+          "required": false,
+          "description": "Porte-a-faux en mm"
+        },
+        "numero_neumaticos": {
+          "type": "integer",
+          "required": false,
+          "description": "Nombre de pneus"
+        },
+        "dimension_neumaticos": {
+          "type": "string",
+          "required": false,
+          "description": "Dimension des pneus (ex: 205/60R16)",
+          "field_label": "DIMENSIÓN NEUMÁTICOS"
+        }
+      }
+    },
+
+    "motor": {
+      "description": "Donnees du moteur",
+      "fields": {
+        "marca": {
+          "type": "string",
+          "required": false,
+          "description": "Marque du moteur",
+          "field_label": "MARCA MOTOR"
+        },
+        "modelo": {
+          "type": "string",
+          "required": false,
+          "description": "Modele du moteur",
+          "field_label": "MODELO MOTOR"
+        },
+        "tipo_combustible": {
+          "type": "string",
+          "enum": ["GASOLINA", "DIESEL", "ELECTRICO", "HIBRIDO", "GAS", "EXPLOSION"],
+          "required": false,
+          "description": "Type de carburant",
+          "field_label": "COMBUSTIBLE"
+        },
+        "numero_cilindros": {
+          "type": "string",
+          "required": false,
+          "description": "Nombre de cylindres",
+          "field_label": "Nº CILINDROS"
+        },
+        "potencia_fiscal_cvf": {
+          "type": "number",
+          "required": false,
+          "description": "Puissance fiscale en CV",
+          "field_label": "POTENCIA FISCAL (CVF)"
+        }
+      }
+    },
+
+    "inspeccion_actual": {
+      "description": "Inspection en cours (la plus recente)",
+      "fields": {
+        "fecha_inspeccion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date de la derniere inspection",
+          "field_label": "FECHA INSPECCIÓN",
+          "source": "recto",
+          "date_format": "DD/MM/YYYY"
+        },
+        "valedero_hasta": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Valide jusqu'a",
+          "field_label": "VALEDERO HASTA",
+          "source": "recto",
+          "date_format": "DD/MM/YYYY",
+          "validation": {
+            "rule": "must_be_future",
+            "error": "ITV expiree"
+          }
+        },
+        "resultado": {
+          "type": "string",
+          "enum": ["FAVORABLE", "DESFAVORABLE", "NEGATIVA"],
+          "required": false,
+          "description": "Resultat de l'inspection",
+          "field_label": "RESULTADO"
+        },
+        "sello_estacion": {
+          "type": "boolean",
+          "required": false,
+          "description": "Presence du sceau de la station"
+        },
+        "firma_ingeniero": {
+          "type": "boolean",
+          "required": false,
+          "description": "Signature de l'ingenieur"
+        }
+      }
+    },
+
+    "inspecciones_periodicas": {
+      "description": "Historique des inspections (tableau)",
+      "is_array": true,
+      "fields": {
+        "fecha_inspeccion": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "date_format": "DD/MM/YYYY"
+        },
+        "valedera_hasta": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "date_format": "DD/MM/YYYY"
+        },
+        "ingeniero_jefe": {
+          "type": "string",
+          "required": false
+        },
+        "sello": {
+          "type": "boolean",
+          "required": false
+        }
+      }
+    },
+
+    "observaciones": {
+      "description": "Notes et observations",
+      "fields": {
+        "observaciones": {
+          "type": "string",
+          "required": false,
+          "description": "Observations additionnelles (ex: D.O.N.M.)",
+          "field_label": "OBSERVACIONES"
+        },
+        "reformas_autorizadas": {
+          "type": "string",
+          "required": false,
+          "description": "Reformes autorisees",
+          "field_label": "REFORMAS AUTORIZADAS"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "itv_not_expired",
+      "rule": "valedero_hasta > TODAY",
+      "error_es": "La Inspeccion Tecnica ha caducado. El vehiculo no puede circular sin ITV vigente.",
+      "error_fr": "L'inspection technique a expire. Le vehicule ne peut pas circuler sans ITV valide.",
+      "severity": "error"
+    },
+    {
+      "id": "itv_expiring_soon",
+      "rule": "valedero_hasta > TODAY + 30 DAYS",
+      "error_es": "La ITV expira en menos de 30 dias",
+      "error_fr": "L'ITV expire dans moins de 30 jours",
+      "severity": "warning"
+    },
+    {
+      "id": "resultado_favorable",
+      "rule": "resultado == 'FAVORABLE'",
+      "error_es": "El resultado de la inspeccion no es favorable",
+      "error_fr": "Le resultat de l'inspection n'est pas favorable",
+      "severity": "warning"
+    },
+    {
+      "id": "matricula_format_valid",
+      "rule": "matricula MATCHES '^[A-Z]{2}-[0-9]{3}-[A-Z0-9]{1,2}$'",
+      "error_es": "Formato de matricula invalido",
+      "error_fr": "Format d'immatriculation invalide",
+      "severity": "error"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Tarjeta de Inspeccion Tecnica de Vehiculos (ITV) de Guinea Ecuatorial - carte bleue d'inspection technique obligatoire",
+    "language": "es",
+    "date_format": "DD/MM/YYYY",
+    "visual_zones": {
+      "recto": [
+        "En-tete: MINISTERIO DE COMERCIO, INDUSTRIA Y PROMOCION EMPRESARIAL",
+        "Sous-titre: DIRECCION GENERAL DE INDUSTRIA",
+        "Logo ITV/ITVE en haut a gauche",
+        "Titre: TARJETA DE INSPECCION TECNICA DE VEHICULOS",
+        "Zone gauche: N SERIE, Estacion ITV",
+        "Zone centrale: Nom du titulaire (DON/DONA...)",
+        "Tableau INSPECCIONES PERIODICAS: Colonnes Fecha, Valedero Hasta, Ingeniero Jefe, Sello",
+        "Couleur: Fond bleu caracteristique"
+      ],
+      "verso": [
+        "Section VEHICULO: Matricula, Destino, Numero Bastidor",
+        "Tableau CARACTERISTICAS TECNICAS (colonne gauche): Marca, Tipo, Variante, Denominacion, Procedencia",
+        "Tableau CARACTERISTICAS TECNICAS (colonne gauche suite): Tara, PMA, PMR, PM Ejes, Asientos, Categoria",
+        "Tableau DIMENSIONES (colonne droite): Longitud, Anchura, Altura Total, Vias, Voladizo, Distancia Ejes",
+        "Section MOTOR: Marca, Modelo, Combustible, Cilindros, Potencia Fiscal",
+        "Zone inferieure: Observaciones, Reformas Autorizadas"
+      ]
+    },
+    "ocr_challenges": [
+      "Carte bleue avec fond qui peut affecter l'OCR",
+      "Format paysage avec tableaux denses",
+      "Sceaux qui masquent du texte",
+      "Signatures manuscrites",
+      "Nombreuses abbreviations techniques",
+      "Petits caracteres dans les tableaux"
+    ],
+    "common_values": {
+      "resultado": ["FAVORABLE", "DESFAVORABLE", "NEGATIVA"],
+      "combustible": ["GASOLINA", "DIESEL", "EXPLOSION", "ELECTRICO"],
+      "categoria": ["SEGUNDA A", "SEGUNDA B", "PRIMERA"]
+    },
+    "inspection_frequency": {
+      "new_vehicles": "4 ans apres immatriculation",
+      "old_vehicles": "Tous les 2 ans",
+      "public_transport": "Annuel"
+    }
+  },
+
+  "tesseract_patterns": {
+    "matricula": [
+      "(?:MATR[IÍ]CULA)\\s*[:#]?\\s*([A-Z]{2}[-\\s]?[0-9]{3}[-\\s]?[A-Z0-9]{1,2})"
+    ],
+    "numero_serie": [
+      "(?:N\\s*SERIE|SERIE)\\s*[:#]?\\s*(R\\.?I\\.?[0-9]{4}\\s*[0-9]+)"
+    ],
+    "numero_bastidor": [
+      "(?:BASTIDOR|N[°o]?\\s*BASTIDOR)\\s*[:#]?\\s*([A-HJ-NPR-Z0-9]{17})"
+    ],
+    "nombre_completo": [
+      "(?:DON|DO[ÑN]A)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "marca": [
+      "(?:MARCA)\\s*[:#]?\\s*([A-Z]+)",
+      "\\b(HYUNDAI|TOYOTA|NISSAN|FORD|CHEVROLET|KIA|MERCEDES|BMW|HONDA|MITSUBISHI)\\b"
+    ],
+    "denominacion_comercial": [
+      "(?:DENOMINACI[OÓ]N\\s*COMERCIAL)\\s*[:#]?\\s*([A-Z0-9]+)"
+    ],
+    "fecha_inspeccion": [
+      "(?:FECHA)\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})"
+    ],
+    "valedero_hasta": [
+      "(?:VALEDERO\\s*HASTA|V[AÁ]LIDO\\s*HASTA)\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})"
+    ],
+    "tipo_combustible": [
+      "(?:COMBUSTIBLE)\\s*[:#]?\\s*(GASOLINA|DIESEL|ELECTRICO|HIBRIDO|GAS|EXPLOSI[OÓ]N)"
+    ],
+    "potencia_fiscal": [
+      "(?:POTENCIA\\s*FISCAL|CVF)\\s*[:#]?\\s*([0-9]+(?:[.,][0-9]+)?)"
+    ],
+    "numero_asientos": [
+      "(?:N[°o]?\\s*ASIENTOS)\\s*[:#]?\\s*([0-9]+)"
+    ],
+    "tara": [
+      "(?:TARA)\\s*[:#]?\\s*([0-9]+(?:[.,][0-9]+)?)"
+    ],
+    "pma": [
+      "(?:P\\.?M\\.?A\\.?)\\s*[:#]?\\s*([0-9]+(?:[.,][0-9]+)?)"
+    ],
+    "categoria": [
+      "(?:CATEGOR[IÍ]A)\\s*[:#]?\\s*([A-Z]+\\s*[A-Z0-9]*)"
+    ],
+    "estacion_itv": [
+      "(?:ESTACI[OÓ]N\\s*ITV)\\s*[:#]?\\s*([A-Za-záéíóúñ\\s]+)"
+    ],
+    "resultado": [
+      "(?:RESULTADO)\\s*[:#]?\\s*(FAVORABLE|DESFAVORABLE|NEGATIVA)"
+    ]
+  }
+}

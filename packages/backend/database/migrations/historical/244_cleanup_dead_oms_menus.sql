@@ -1,0 +1,16 @@
+-- Migration 244: Remove dead OMS menu blocks from tesoro roles
+--
+-- The OMS menu block points to 3 URLs that don't exist:
+--   /dashboard/agent/oms/licenses     — NO page.tsx exists
+--   /dashboard/agent/oms/compliance   — NO page.tsx exists
+--   /dashboard/admin/fiscal-services  — ADMIN page, not for supervisors
+--
+-- Removed from:
+--   supervisor_tesoro (was 9 menus → 8)
+--   agent_tesoro (was 5 menus → 4)
+--
+-- The OMS module pages will be created in a future sprint.
+-- When ready, the menu block will be re-added to appropriate roles only.
+
+-- Already executed via Python script (psycopg2) on 2026-03-20.
+-- This migration file documents the change for git history.

@@ -1,0 +1,293 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "ESCRITURA_CONSTITUCION_GQ_V1",
+  "version": "1.0",
+  "title": "Escritura de Constitucion de Sociedad Mercantil - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour la couverture de l'acte notarie de constitution de societe (Copia Autorizada)",
+  "document_type": "ESCRITURA_CONSTITUCION",
+  "country": "GQ",
+  "faces": ["single_page_cover"],
+  "document_nature": "acte_notarie",
+  "issuer": "Unidad Notarial de la VUE",
+
+  "extraction": {
+    "documento": {
+      "description": "Informations administratives de l'acte",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "ESCRITURA_CONSTITUCION",
+          "required": true,
+          "description": "Type de document"
+        },
+        "tipo_copia": {
+          "type": "string",
+          "enum": ["COPIA AUTORIZADA", "COPIA SIMPLE", "ORIGINAL"],
+          "required": true,
+          "default": "COPIA AUTORIZADA",
+          "description": "Type de copie",
+          "field_label": "COPIA AUTORIZADA"
+        },
+        "region": {
+          "type": "string",
+          "enum": ["REGION INSULAR", "REGION CONTINENTAL"],
+          "required": true,
+          "description": "Region de la Unidad Notarial",
+          "field_label": "REGIÓN"
+        },
+        "numero_expediente": {
+          "type": "string",
+          "required": true,
+          "description": "Numero d'expediente (ex: 04200-2.022)",
+          "field_label": "Núm. Exp",
+          "pii": true
+        },
+        "numero_vue": {
+          "type": "string",
+          "required": true,
+          "description": "Numero VUE (ex: 8.678)",
+          "field_label": "Núm. VUE",
+          "pii": true
+        },
+        "numero_protocolo": {
+          "type": "string",
+          "required": false,
+          "description": "Numero de protocole notarial"
+        }
+      }
+    },
+
+    "presentacion": {
+      "description": "Donnees de presentation au registre (cachet superieur)",
+      "fields": {
+        "hora_presentacion": {
+          "type": "string",
+          "required": false,
+          "description": "Heure de presentation (ex: 13:04)",
+          "field_label": "PRESENTADO A LAS"
+        },
+        "dia_presentacion": {
+          "type": "integer",
+          "required": false,
+          "description": "Jour de presentation"
+        },
+        "mes_presentacion": {
+          "type": "integer",
+          "required": false,
+          "description": "Mois de presentation"
+        },
+        "ano_presentacion": {
+          "type": "integer",
+          "required": false,
+          "description": "Annee de presentation"
+        },
+        "asiento_numero": {
+          "type": "string",
+          "required": false,
+          "description": "Numero d'asiento",
+          "field_label": "ASIENTO Nº"
+        },
+        "folio": {
+          "type": "string",
+          "required": false,
+          "description": "Folio",
+          "field_label": "FOLIO"
+        },
+        "diario": {
+          "type": "string",
+          "required": false,
+          "description": "Numero de diario",
+          "field_label": "DIARIO"
+        }
+      }
+    },
+
+    "escritura": {
+      "description": "Donnees de l'acte de constitution",
+      "fields": {
+        "tipo_escritura": {
+          "type": "string",
+          "required": true,
+          "default": "ESCRITURA DE CONSTITUCION DE UNA SOCIEDAD MERCANTIL",
+          "description": "Type d'escritura",
+          "field_label": "De"
+        },
+        "sociedad_nombre": {
+          "type": "string",
+          "required": true,
+          "description": "Nom de la societe constituee",
+          "field_label": "Otorgada por",
+          "pii": true
+        },
+        "a_favor_de": {
+          "type": "string",
+          "required": false,
+          "default": "LA MISMA",
+          "description": "Beneficiaire (generalement LA MISMA)",
+          "field_label": "A favor de la"
+        }
+      }
+    },
+
+    "notario": {
+      "description": "Donnees du notaire",
+      "fields": {
+        "nombre_notario": {
+          "type": "string",
+          "required": true,
+          "description": "Nom complet du notaire",
+          "field_label": "Autorizada por",
+          "pii": true
+        },
+        "titulo_notario": {
+          "type": "string",
+          "required": false,
+          "default": "Notario con residencia en",
+          "description": "Titre du notaire"
+        },
+        "residencia_notario": {
+          "type": "string",
+          "required": true,
+          "description": "Ville de residence du notaire (Malabo, Bata)",
+          "field_label": "Notario con residencia en"
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification",
+      "fields": {
+        "fecha_autorizacion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'autorisation de l'acte",
+          "field_label": "Malabo, [fecha]",
+          "date_format": "DD de MMMM YYYY"
+        },
+        "lugar_autorizacion": {
+          "type": "string",
+          "required": true,
+          "description": "Lieu d'autorisation",
+          "default": "Malabo"
+        },
+        "tiene_sello_registro": {
+          "type": "boolean",
+          "required": false,
+          "description": "Sceau du registre present (coin superieur)"
+        },
+        "tiene_sello_notarial": {
+          "type": "boolean",
+          "required": false,
+          "description": "Sceau notarial present"
+        },
+        "tiene_logo_vue": {
+          "type": "boolean",
+          "required": false,
+          "description": "Logo Ventanilla Unica Empresarial present"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "numero_expediente_required",
+      "rule": "numero_expediente IS NOT NULL",
+      "error_es": "El numero de expediente es obligatorio",
+      "error_fr": "Le numero d'expediente est obligatoire",
+      "severity": "error"
+    },
+    {
+      "id": "numero_vue_required",
+      "rule": "numero_vue IS NOT NULL",
+      "error_es": "El numero VUE es obligatorio",
+      "error_fr": "Le numero VUE est obligatoire",
+      "severity": "error"
+    },
+    {
+      "id": "notario_required",
+      "rule": "nombre_notario IS NOT NULL",
+      "error_es": "El nombre del notario es obligatorio",
+      "error_fr": "Le nom du notaire est obligatoire",
+      "severity": "error"
+    },
+    {
+      "id": "sociedad_nombre_required",
+      "rule": "sociedad_nombre IS NOT NULL",
+      "error_es": "El nombre de la sociedad es obligatorio",
+      "error_fr": "Le nom de la societe est obligatoire",
+      "severity": "error"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Couverture de la Copia Autorizada de l'Escritura de Constitucion - acte notarie officiel de creation de societe en Guinee Equatoriale",
+    "language": "es",
+    "date_format": "DD de MMMM YYYY ou DD de MMMM de YYYY",
+    "visual_zones": [
+      "Coin superieur gauche: Armoiries GQ avec etoiles + texte UNIDAD PAZ JUSTICIA",
+      "Cachet superieur: REPUBLICA DE GUINEA ECUATORIAL, PRESENTADO A LAS..., DIA, MES, ASIENTO, FOLIO, DIARIO, MALABO",
+      "Titre principal: REPUBLICA DE GUINEA ECUATORIAL",
+      "Sous-titre: UNIDAD NOTARIAL DE LA VUE - REGION [INSULAR/CONTINENTAL]",
+      "Numeros: Num. Exp: [expediente] / Num. VUE: [numero]",
+      "Grand titre: COPIA AUTORIZADA",
+      "Description: De ESCRITURA DE CONSTITUCION DE UNA SOCIEDAD MERCANTIL",
+      "Otorgada por: [Nom de la societe]",
+      "A favor de la: MISMA",
+      "Autorizada por: Don/Doña [Nom du notaire]",
+      "Logo VUE en bas a gauche (cercle tricolore)",
+      "Notario con residencia en [Ville]",
+      "Date: [Ville], [Date]"
+    ],
+    "key_elements": {
+      "cachet_registro": "Cachet rectangulaire en haut avec donnees de presentation",
+      "armoiries": "Armoiries GQ avec arbre ceiba et etoiles",
+      "logo_vue": "Logo tricolore (vert, blanc, rouge) de la VUE"
+    },
+    "common_notarios": [
+      "Don Pergentino Angue Ondo Angue",
+      "Don Juan Pedro Ndong Mba",
+      "Doña Maria Elena Nguema"
+    ],
+    "ocr_challenges": [
+      "Cachet de presentation souvent peu lisible",
+      "Texte calligraphie pour le nom du notaire",
+      "Format de date en lettres"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "numero_expediente": [
+      "(?:N[uú]m\\.?\\s*Exp\\.?)\\s*[:#]?\\s*([0-9]{5}-[0-9]\\.[0-9]{3})",
+      "(?:EXPEDIENTE)\\s*[:#]?\\s*([0-9]{5}[-/][0-9]{4})"
+    ],
+    "numero_vue": [
+      "(?:N[uú]m\\.?\\s*VUE)\\s*[:#]?\\s*([0-9.,]+)"
+    ],
+    "sociedad_nombre": [
+      "(?:Otorgada\\s*por)\\s*[:#]?\\s*(.+?)(?=-|A\\s*favor|$)"
+    ],
+    "nombre_notario": [
+      "(?:Autorizada\\s*por)\\s*[:#]?\\s*(?:Don|Do[ñn]a)\\.?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+?)(?=,|Notario|$)"
+    ],
+    "residencia_notario": [
+      "(?:Notario\\s*con\\s*residencia\\s*en)\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "fecha_autorizacion": [
+      "(Malabo|Bata)\\s*,?\\s*(\\d{1,2})\\s*de\\s*(\\w+)\\s*(?:de)?\\s*2\\.?0?\\s*([0-9]{2})"
+    ],
+    "hora_presentacion": [
+      "(?:PRESENTADO\\s*A\\s*LAS?)\\s*(\\d{1,2}[:.h]\\d{2})"
+    ],
+    "asiento_numero": [
+      "(?:ASIENTO\\s*N[°oº]?)\\s*[:#]?\\s*([0-9A-Z]+)"
+    ],
+    "folio": [
+      "(?:FOLIO)\\s*[:#]?\\s*([0-9]+)"
+    ],
+    "diario": [
+      "(?:DIARIO)\\s*[:#]?\\s*([0-9A-Zº°]+)"
+    ]
+  }
+}

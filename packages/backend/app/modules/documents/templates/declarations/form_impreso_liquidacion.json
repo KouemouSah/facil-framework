@@ -1,0 +1,25 @@
+{
+  "name": "impreso_liquidacion",
+  "category": "tax_settlement",
+  "description": "Impreso de Liquidación - Formulario de liquidación fiscal",
+  "version": "1.0",
+  "fields": [
+    {"id": "nif", "label": ["N.I.F."], "type": "text", "pattern": "\\d{8}[A-Z]", "required": true},
+    {"id": "representacion_empresa", "label": ["En nombre y representación de la empresa"], "type": "text", "required": true},
+    {"id": "ejercicio", "label": ["Ejercicio"], "type": "year", "required": true},
+    {"id": "periodo", "label": ["Periodo"], "type": "text", "required": true},
+    {"id": "fecha", "label": ["Fecha"], "type": "date", "required": true},
+    {"id": "base_imponible", "label": ["Base Imponible"], "type": "currency", "required": true},
+    {"id": "tipo_gravamen", "label": ["Tipo de gravamen"], "type": "percentage", "required": true},
+    {"id": "cuota", "label": ["Cuota"], "type": "currency", "required": true},
+    {"id": "deducciones_periodo", "label": ["Deducciones del periodo"], "type": "currency", "required": false},
+    {"id": "deducciones_anteriores", "label": ["Deducciones de periodos anteriores"], "type": "currency", "required": false},
+    {"id": "recargo", "label": ["Recargo"], "type": "currency", "required": false},
+    {"id": "interes_demora", "label": ["Interés de demora"], "type": "currency", "required": false},
+    {"id": "sanciones", "label": ["Sanciones"], "type": "currency", "required": false},
+    {"id": "total_a_ingresar", "label": ["Total a ingresar"], "type": "currency", "required": true}
+  ],
+  "validations": [
+    {"type": "calculation", "formula": "cuota = base_imponible * (tipo_gravamen / 100)", "tolerance": 0.01}
+  ]
+}

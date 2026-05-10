@@ -1,0 +1,238 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "AUTORIZACION_PARENTAL_GQ_V1",
+  "version": "1.0",
+  "title": "Autorización Parental - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour l'autorisation parentale (tout format accepté)",
+  "document_type": "AUTORIZACION_PARENTAL",
+  "country": "GQ",
+  "accepts_any_format": true,
+
+  "extraction": {
+    "menor": {
+      "description": "Datos del menor",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": true,
+          "description": "Nombre completo del menor",
+          "field_label": "Nombre del menor",
+          "pii": true
+        },
+        "fecha_nacimiento": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Fecha de nacimiento del menor",
+          "field_label": "Fecha de nacimiento",
+          "date_format": "DD/MM/YYYY",
+          "pii": true
+        },
+        "lugar_nacimiento": {
+          "type": "string",
+          "required": false,
+          "description": "Lugar de nacimiento del menor",
+          "field_label": "Lugar de nacimiento"
+        },
+        "nacionalidad": {
+          "type": "string",
+          "required": false,
+          "description": "Nacionalidad del menor",
+          "field_label": "Nacionalidad",
+          "default": "ECUATOGUINEANA"
+        }
+      }
+    },
+    "representante_1": {
+      "description": "Primer representante (Padre/Madre/Tutor) - SIEMPRE REQUERIDO",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": true,
+          "description": "Nombre completo del representante 1",
+          "field_label": "Nombre del representante 1",
+          "pii": true
+        },
+        "parentesco": {
+          "type": "string",
+          "enum": ["PADRE", "MADRE", "TUTOR_LEGAL", "OTRO"],
+          "required": false,
+          "description": "Relación con el menor",
+          "field_label": "Parentesco"
+        },
+        "documento_tipo": {
+          "type": "string",
+          "enum": ["DIP", "NIE", "PASAPORTE"],
+          "required": true,
+          "description": "Tipo de documento de identidad del representante 1",
+          "field_label": "Tipo de documento"
+        },
+        "documento_numero": {
+          "type": "string",
+          "required": true,
+          "description": "Número del DIP/NIE/Pasaporte del representante 1 - CRÍTICO para validación cruzada",
+          "field_label": "N° Documento",
+          "pii": true,
+          "encrypt": true
+        },
+        "tiene_firma": {
+          "type": "boolean",
+          "required": true,
+          "description": "¿El representante 1 ha firmado el documento?",
+          "field_label": "Firma presente"
+        }
+      }
+    },
+    "representante_2": {
+      "description": "Segundo representante (si aplica - cuando hay dos padres/tutores)",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": false,
+          "description": "Nombre completo del representante 2",
+          "field_label": "Nombre del representante 2",
+          "pii": true
+        },
+        "parentesco": {
+          "type": "string",
+          "enum": ["PADRE", "MADRE", "TUTOR_LEGAL", "OTRO"],
+          "required": false,
+          "description": "Relación con el menor",
+          "field_label": "Parentesco"
+        },
+        "documento_tipo": {
+          "type": "string",
+          "enum": ["DIP", "NIE", "PASAPORTE"],
+          "required": false,
+          "description": "Tipo de documento de identidad del representante 2",
+          "field_label": "Tipo de documento"
+        },
+        "documento_numero": {
+          "type": "string",
+          "required": false,
+          "description": "Número del DIP/NIE/Pasaporte del representante 2 - CRÍTICO para validación cruzada",
+          "field_label": "N° Documento",
+          "pii": true,
+          "encrypt": true
+        },
+        "tiene_firma": {
+          "type": "boolean",
+          "required": false,
+          "description": "¿El representante 2 ha firmado el documento?",
+          "field_label": "Firma presente"
+        }
+      }
+    },
+    "documento": {
+      "description": "Metadatos del documento de autorización",
+      "fields": {
+        "fecha_autorizacion": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Fecha de firma de la autorización (validez máxima 90 días)",
+          "field_label": "Fecha de autorización",
+          "date_format": "DD/MM/YYYY"
+        },
+        "es_representante_unico": {
+          "type": "boolean",
+          "required": true,
+          "description": "true si solo hay un firmante (padre único, custodia exclusiva, etc.)",
+          "field_label": "Representante único"
+        },
+        "motivo_representante_unico": {
+          "type": "string",
+          "required": false,
+          "description": "Motivo si es representante único (custodia exclusiva, fallecimiento, etc.)",
+          "field_label": "Motivo"
+        },
+        "lugar_firma": {
+          "type": "string",
+          "required": false,
+          "description": "Lugar donde se firma la autorización",
+          "field_label": "Lugar"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "autorizacion_vigente",
+      "rule": "fecha_autorizacion + 90 days > TODAY",
+      "error_es": "La autorización ha expirado (máximo 90 días de validez)",
+      "error_fr": "L'autorisation a expiré (validité maximale 90 jours)",
+      "severity": "error"
+    },
+    {
+      "id": "firma_rep1_presente",
+      "rule": "representante_1.tiene_firma == true",
+      "error_es": "Falta la firma del representante 1",
+      "error_fr": "Signature du représentant 1 manquante",
+      "severity": "error"
+    },
+    {
+      "id": "firma_rep2_si_aplica",
+      "rule": "IF !documento.es_representante_unico THEN representante_2.tiene_firma == true",
+      "error_es": "Falta la firma del representante 2 (requerida si hay dos representantes)",
+      "error_fr": "Signature du représentant 2 manquante (requise s'il y a deux représentants)",
+      "severity": "error"
+    },
+    {
+      "id": "documento_rep1_presente",
+      "rule": "representante_1.documento_numero != null AND representante_1.documento_numero != ''",
+      "error_es": "Falta el número de documento del representante 1",
+      "error_fr": "Numéro de document du représentant 1 manquant",
+      "severity": "error"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Autorización parental para tramitación de pasaporte de menor en Guinea Ecuatorial. CUALQUIER FORMATO es aceptado - el documento puede ser manuscrito, impreso o una combinación.",
+    "language": "es",
+    "date_format": "DD/MM/YYYY",
+    "visual_zones": [
+      "Encabezado: Título del documento (puede variar: 'Autorización Parental', 'Consentimiento', etc.)",
+      "Sección Menor: Datos del niño/niña (nombre, fecha nacimiento)",
+      "Sección Representante 1: Nombre, tipo y número de documento (DIP/NIE/Pasaporte), firma",
+      "Sección Representante 2 (si aplica): Nombre, tipo y número de documento, firma",
+      "Pie: Fecha y lugar de firma"
+    ],
+    "extraction_priority": [
+      "1. CRÍTICO: Número de documento (DIP/NIE/Pasaporte) de CADA representante que firma",
+      "2. CRÍTICO: Tipo de documento de cada representante (DIP, NIE o PASAPORTE)",
+      "3. CRÍTICO: Detectar si hay 1 o 2 firmantes (es_representante_unico)",
+      "4. CRÍTICO: Verificar presencia de firmas (tiene_firma)",
+      "5. IMPORTANTE: Fecha de la autorización (para validar vigencia de 90 días)",
+      "6. IMPORTANTE: Nombre completo del menor",
+      "7. ÚTIL: Nombres de los representantes",
+      "8. ÚTIL: Parentesco (padre, madre, tutor)"
+    ],
+    "format_flexibility": "Ce document peut avoir différents formats (manuscrit, imprimé, formulaire officiel). Chercher les informations clés même si la disposition varie. Les numéros de document sont TOUJOURS prioritaires.",
+    "document_number_patterns": {
+      "DIP": "9 chiffres (ex: 123456789)",
+      "NIE": "1 lettre + 8 chiffres (ex: E12495738)",
+      "PASAPORTE": "Variable selon pays, généralement lettres + chiffres"
+    },
+    "signature_detection": "Chercher des zones de signature (lignes, rectangles, ou signatures manuscrites). Marquer tiene_firma=true si une signature est visible dans la zone correspondante."
+  },
+
+  "tesseract_patterns": {
+    "documento_numero_dip": [
+      "(?:DIP|D\\.?I\\.?P\\.?)\\s*[:#]?\\s*([0-9]{9})",
+      "(?:N[°o]?\\s*)?(?:DIP|D\\.?I\\.?P\\.?)\\s*[:#]?\\s*([0-9]{9})"
+    ],
+    "documento_numero_nie": [
+      "(?:NIE|N\\.?I\\.?E\\.?)\\s*[:#]?\\s*([A-Z][0-9]{8})",
+      "(?:N[°o]?\\s*)?(?:NIE|N\\.?I\\.?E\\.?)\\s*[:#]?\\s*([A-Z][0-9]{8})"
+    ],
+    "documento_numero_pasaporte": [
+      "(?:PASAPORTE|PASSPORT)\\s*[:#]?\\s*([A-Z0-9]{6,12})",
+      "(?:N[°o]?\\s*)?(?:PASAPORTE|PASSPORT)\\s*[:#]?\\s*([A-Z0-9]{6,12})"
+    ],
+    "fecha_autorizacion": [
+      "(?:FECHA|DATE)\\s*[:#]?\\s*(\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{2,4})",
+      "(?:EN|A)\\s+\\w+\\s*,?\\s*(?:A|EL)?\\s*(\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{2,4})"
+    ]
+  }
+}

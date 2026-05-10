@@ -1,0 +1,400 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "NOTA_INGRESO_DGI_GQ_V1",
+  "version": "1.0",
+  "title": "Nota de Ingreso DGI - Contribuciones Directas e Indirectas - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour la Nota de Ingreso emise par la Direccion General de Impuestos y Contribuciones (DGI) du Ministerio de Hacienda. Utilisee pour le paiement d'impots (IRPF, CMF, IVA, etc.) par les entreprises et particuliers.",
+  "document_type": "NOTA_INGRESO_DGI",
+  "country": "GQ",
+  "faces": ["single_page"],
+  "document_nature": "recu_paiement_fiscal",
+  "issuer": "Direccion General de Impuestos y Contribuciones",
+  "ministry": "Ministerio de Hacienda, Economia y Planificacion",
+  "service": "Servicios de Gestion Tributaria",
+
+  "extraction": {
+    "documento": {
+      "description": "Informations administratives du document",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "NOTA_INGRESO_DGI",
+          "required": true,
+          "description": "Type de document"
+        },
+        "sous_titre": {
+          "type": "string",
+          "const": "CONTRIBUCIONES DIRECTAS E INDIRECTAS",
+          "required": true,
+          "description": "Sous-titre indiquant le type de contributions"
+        }
+      }
+    },
+
+    "organisme": {
+      "description": "En-tete officiel de l'organisme emetteur",
+      "fields": {
+        "ministerio": {
+          "type": "string",
+          "required": true,
+          "default": "Ministerio de Hacienda, Economia y Planificacion",
+          "description": "Ministere emetteur",
+          "field_label": "Ministerio de Hacienda, Economia y Planificacion"
+        },
+        "direccion_general": {
+          "type": "string",
+          "required": true,
+          "default": "Direccion General de Impuestos y Contribuciones",
+          "description": "Direction Generale",
+          "field_label": "Direccion General de Impuestos y Contribuciones"
+        },
+        "servicio": {
+          "type": "string",
+          "required": true,
+          "default": "Servicios de Gestion Tributaria",
+          "description": "Service emetteur",
+          "field_label": "Servicios de Gestion Tributaria"
+        }
+      }
+    },
+
+    "liquidacion": {
+      "description": "Donnees de liquidation fiscale",
+      "fields": {
+        "numero_liquidacion": {
+          "type": "string",
+          "required": true,
+          "description": "Numero de liquidation (ex: 03-1038/23)",
+          "field_label": "Num. Liq.",
+          "pii": true
+        },
+        "codigo_impuesto": {
+          "type": "string",
+          "required": true,
+          "description": "Code de l'impot (ex: AA0420)",
+          "field_label": "Codigo Impuesto"
+        }
+      }
+    },
+
+    "contribuyente": {
+      "description": "Donnees du contribuable (particulier ou entreprise)",
+      "fields": {
+        "nombre_contribuyente": {
+          "type": "string",
+          "required": false,
+          "description": "Nom du contribuable ou raison sociale",
+          "field_label": "Contribuyente",
+          "pii": true
+        },
+        "nif": {
+          "type": "string",
+          "required": true,
+          "description": "Numero d'Identification Fiscal du contribuable",
+          "field_label": "N.I.F.",
+          "pii": true,
+          "encrypt": true
+        },
+        "direccion": {
+          "type": "string",
+          "required": false,
+          "description": "Adresse du contribuable (barrio/zona)",
+          "field_label": "Direccion",
+          "pii": true
+        },
+        "numero_telefono": {
+          "type": "string",
+          "required": false,
+          "description": "Telephone du contribuable",
+          "field_label": "Numero de Tlf",
+          "pii": true
+        },
+        "depositario": {
+          "type": "string",
+          "required": false,
+          "description": "Depositaire",
+          "field_label": "Depositario"
+        }
+      }
+    },
+
+    "referencia_legal": {
+      "description": "Base legale du paiement",
+      "fields": {
+        "ley_referencia": {
+          "type": "string",
+          "required": false,
+          "default": "Ley Num. 4/2004, de fecha 28 de Octubre",
+          "description": "Loi de reference du systeme tributaire de GE",
+          "field_label": "Ley reguladora del sistema Tributario"
+        },
+        "texto_legal": {
+          "type": "string",
+          "required": false,
+          "description": "Texte legal de reference (autoliquidation)"
+        }
+      }
+    },
+
+    "paiement": {
+      "description": "Donnees de paiement",
+      "fields": {
+        "concepto": {
+          "type": "string",
+          "required": true,
+          "description": "Concept du paiement / type d'impot (ex: IRPF/CMF - 2023, IVA DESTAJO, RETENCION)",
+          "field_label": "en concepto de"
+        },
+        "monto": {
+          "type": "number",
+          "required": true,
+          "description": "Montant a payer en FCFA",
+          "field_label": "el monto de",
+          "minimum": 0,
+          "currency": "XAF"
+        },
+        "monto_en_letras": {
+          "type": "string",
+          "required": false,
+          "description": "Montant en lettres si present"
+        }
+      }
+    },
+
+    "cuentas_estado": {
+      "description": "Comptes bancaires du Tresor Public (fixes, imprimes sur le document)",
+      "fields": {
+        "cuenta_bange": {
+          "type": "string",
+          "required": false,
+          "description": "Compte BANGE",
+          "field_label": "BANGE",
+          "default": "3700036801-3"
+        },
+        "cuenta_bgfi": {
+          "type": "string",
+          "required": false,
+          "description": "Compte BGFI",
+          "field_label": "BGFI",
+          "default": "00106046001-15"
+        },
+        "cuenta_cceibank": {
+          "type": "string",
+          "required": false,
+          "description": "Compte CCEIBANK",
+          "field_label": "CCEIBANK",
+          "default": "00000161001-22"
+        },
+        "cuenta_sgb_ge": {
+          "type": "string",
+          "required": false,
+          "description": "Compte SGB GE",
+          "field_label": "SGB GE",
+          "default": "27110104801-87"
+        },
+        "cuenta_ecobank": {
+          "type": "string",
+          "required": false,
+          "description": "Compte ECOBANK",
+          "field_label": "ECOBANK",
+          "default": "00101637001035-01"
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification et verification",
+      "fields": {
+        "fecha_emision": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'emission",
+          "field_label": "Malabo, a [fecha]",
+          "date_format": "DD de MMMM de YYYY"
+        },
+        "lugar_emision": {
+          "type": "string",
+          "required": true,
+          "description": "Lieu d'emission",
+          "default": "Malabo"
+        },
+        "signataire": {
+          "type": "string",
+          "required": false,
+          "description": "Titre du signataire",
+          "default": "EL RESPONSABLE DE LOS SERVICIOS"
+        },
+        "tiene_firma": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du responsable presente"
+        },
+        "tiene_sello": {
+          "type": "boolean",
+          "required": true,
+          "description": "Sceau DGI / Gestion Tributaria present"
+        },
+        "nota_disclaimer": {
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Presence de la mention 'LA OBTENCION DE ESTA NOTA DE INGRESO, NO IMPLICA QUE LOS SERVICIOS TRIBUTARIOS NO PUEDAN EJERCER SUS ATRIBUCIONES'"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "numero_liquidacion_format",
+      "rule": "numero_liquidacion MATCHES '^[0-9]{2}-[0-9]{3,5}/[0-9]{2,4}$'",
+      "error_es": "Formato de numero de liquidacion invalido (debe ser XX-XXXX/YY)",
+      "error_fr": "Format numero de liquidation invalide (doit etre XX-XXXX/YY)",
+      "severity": "warning"
+    },
+    {
+      "id": "codigo_impuesto_format",
+      "rule": "codigo_impuesto MATCHES '^[A-Z]{2}[0-9]{4}$'",
+      "error_es": "Formato de codigo de impuesto invalido (debe ser AA0000)",
+      "error_fr": "Format code impot invalide (doit etre AA0000)",
+      "severity": "warning"
+    },
+    {
+      "id": "monto_positivo",
+      "rule": "monto > 0",
+      "error_es": "El monto debe ser mayor a cero",
+      "error_fr": "Le montant doit etre superieur a zero",
+      "severity": "error"
+    },
+    {
+      "id": "concepto_requerido",
+      "rule": "concepto IS NOT NULL AND concepto != ''",
+      "error_es": "El concepto de pago es obligatorio",
+      "error_fr": "Le concept de paiement est obligatoire",
+      "severity": "error"
+    },
+    {
+      "id": "nif_requerido",
+      "rule": "nif IS NOT NULL AND nif != ''",
+      "error_es": "El NIF del contribuyente es obligatorio",
+      "error_fr": "Le NIF du contribuable est obligatoire",
+      "severity": "error"
+    },
+    {
+      "id": "firma_y_sello",
+      "rule": "tiene_firma == true AND tiene_sello == true",
+      "error_es": "La nota debe tener firma y sello del responsable",
+      "error_fr": "La nota doit avoir la signature et le sceau du responsable",
+      "severity": "error"
+    },
+    {
+      "id": "organisme_is_hacienda",
+      "rule": "ministerio CONTAINS 'Hacienda' OR direccion_general CONTAINS 'Impuestos'",
+      "error_es": "Esta nota debe ser emitida por el Ministerio de Hacienda / DGI",
+      "error_fr": "Cette nota doit etre emise par le Ministere des Finances / DGI",
+      "severity": "error"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Nota de Ingreso emise par la Direccion General de Impuestos y Contribuciones (DGI) du Ministerio de Hacienda de Guinee Equatoriale. Document fiscal officiel pour le paiement d'impots (IRPF, CMF, IVA, etc.). Format: page unique avec en-tete officiel, zone identification contribuable, zone paiement, comptes bancaires du Tresor.",
+    "language": "es",
+    "date_format": "DD/MM/YYYY ou DD de MMMM de YYYY",
+    "visual_zones": [
+      "En-tete superieur gauche: Armoiries GQ (arbre ceiba + 4 etoiles)",
+      "En-tete centre: REPUBLICA DE GUINEA ECUATORIAL / Ministerio de Hacienda, Economia y Planificacion / Direccion General de Impuestos y Contribuciones / Servicios de Gestion Tributaria",
+      "Sous-titre: CONTRIBUCIONES DIRECTAS E INDIRECTAS",
+      "Titre droite: NOTA DE INGRESO (gros caracteres gras)",
+      "Zone identification (gauche): Num. Liq: [numero] / Codigo Impuesto: [code]",
+      "Zone identification (droite): Contribuyente / N.I.F. / Direccion / Numero de Tlf / Depositario / Telefono",
+      "Paragraphe legal: Reference a la Ley Num. 4/2004",
+      "Zone manuscrite: 'En efecto, conforme a la autoliquidacion presentada por el contribuyente [NOM]... en concepto de [IMPOT]... el monto de [MONTANT] FCFA'",
+      "Date et signature: 'Malabo, a [fecha]' + 'POR UNA GUINEA MEJOR / EL RESPONSABLE DE LOS SERVICIOS / FIRMA Y SELLO'",
+      "Zone comptes bancaires: 'N° CUENTA DEL ESTADO: BANCOS' avec liste: BANGE, BGFI, CCEIBANK, SGB GE, ECOBANK + numeros de comptes",
+      "Pied de page: NOTA: LA OBTENCION DE ESTA NOTA DE INGRESO, NO IMPLICA QUE LOS SERVICIOS TRIBUTARIOS NO PUEDAN EJERCER SUS ATRIBUCIONES QUE POR LEY TRIBUTARIA VIGENTE"
+    ],
+    "key_fields_positions": {
+      "num_liquidacion": "Gauche, sous l'en-tete, apres 'Num. Liq:'",
+      "codigo_impuesto": "Gauche, sous num_liquidacion, apres 'Codigo Impuesto:'",
+      "nif": "Droite, apres 'N.I.F.'",
+      "concepto": "Dans le paragraphe manuscrit, apres 'en concepto de'",
+      "monto": "Dans le paragraphe manuscrit, apres 'el monto de' suivi de FCFA",
+      "cuentas_bancarias": "Bas du document, tableau avec 5 banques et numeros de comptes"
+    },
+    "common_values": {
+      "concepto": [
+        "IRPF/CMF",
+        "IVA DESTAJO",
+        "IVA REGIMEN REAL",
+        "RETENCION IRPF",
+        "RETENCION IVA",
+        "IMPUESTO SOCIEDADES",
+        "CUOTA MINIMA CMF",
+        "CUOTA MINIMA IVA"
+      ],
+      "lugar_emision": ["Malabo", "Bata"],
+      "bancos_estado": ["BANGE", "BGFI", "CCEIBANK", "SGB GE", "ECOBANK"]
+    },
+    "ocr_challenges": [
+      "Zone manuscrite (concepto, monto, NIF) souvent peu lisible",
+      "Sceau du responsable peut masquer du texte",
+      "Codigo Impuesto parfois manuscrit",
+      "Montant en chiffres avec separateurs variables (points, virgules, espaces)",
+      "Paragraphe legal en petits caracteres",
+      "Comptes bancaires en bas peuvent etre coupes par la photo"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "numero_liquidacion": [
+      "(?:N[uú]m\\.?\\s*Liq\\.?)\\s*[:#]?\\s*([0-9]{2}-[0-9]{3,5}/[0-9]{2,4})",
+      "([0-9]{2}-[0-9]{3,5}/[0-9]{2,4})"
+    ],
+    "codigo_impuesto": [
+      "(?:C[oó]digo\\s*Impuesto)\\s*[:#]?\\s*([A-Z]{2}[0-9]{4})",
+      "(?:C[oó]d(?:igo)?\\.?\\s*Imp(?:uesto)?\\.?)\\s*[:#]?\\s*([A-Z0-9]{6})"
+    ],
+    "nif": [
+      "(?:N\\.?I\\.?F\\.?)\\s*[:#]?\\s*(.+?)(?=Direcci|$)",
+      "(?:N\\.?I\\.?F\\.?)\\s*[:#]?\\s*([A-Z0-9][A-Za-z0-9\\s]+)"
+    ],
+    "contribuyente": [
+      "(?:Contribuyente)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)",
+      "(?:contribuyente)\\s*(.+?)(?=\\.\\.\\.|ante|en\\s*concepto)"
+    ],
+    "direccion": [
+      "(?:Direcci[oó]n)\\s*[:#]?\\s*(.+?)(?=N[uú]mero|Tel|$)"
+    ],
+    "concepto": [
+      "(?:en\\s*concepto\\s*de)\\s*[.:#]?\\s*(.+?)(?=,\\s*el\\s*Responsable|el\\s*monto|$)",
+      "(?:concepto)\\s*[:#]?\\s*(IRPF|CMF|IVA|RETENCION|IMPUESTO|CUOTA)[\\s/A-Z]*"
+    ],
+    "monto": [
+      "(?:el\\s*monto\\s*de)\\s*[.:#]?\\s*#?\\s*([0-9.,]+)\\s*#?\\s*(?:FCFA|F\\.?CFA|FCOS)",
+      "([0-9]{1,3}(?:[.,]\\s?[0-9]{3})+)\\s*(?:FCFA|FCOS|F\\.?CFA)"
+    ],
+    "fecha_emision": [
+      "(?:Malabo|Bata)\\s*[,.]?\\s*a\\.?\\s*(\\d{1,2})\\s*[.:]?\\s*de\\.?\\s*(\\w+)\\s*[.:]?\\s*de\\.?\\s*(\\d{4})",
+      "(\\d{1,2})[/.-](\\d{1,2})[/.-](\\d{2,4})"
+    ],
+    "lugar_emision": [
+      "(Malabo|Bata)\\s*[,.]\\s*a"
+    ],
+    "cuenta_bange": [
+      "(?:BANGE)\\s*[.]+\\s*([0-9]{10}-[0-9])"
+    ],
+    "cuenta_bgfi": [
+      "(?:BGFI)\\s*[.]+\\s*([0-9]{11}-[0-9]{2})"
+    ],
+    "cuenta_cceibank": [
+      "(?:CCEIBANK)\\s*[.]+\\s*([0-9]{11}-[0-9]{2})"
+    ],
+    "cuenta_sgb_ge": [
+      "(?:SGB\\s*GE)\\s*[.]+\\s*([0-9]{11}-[0-9]{2})"
+    ],
+    "cuenta_ecobank": [
+      "(?:ECOBANK)\\s*[.]+\\s*([0-9]{14}-[0-9]{2})"
+    ]
+  }
+}

@@ -1,0 +1,37 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+  repositories {
+    google()
+    mavenCentral()
+  }
+  dependencies {
+        classpath 'com.google.gms:google-services:4.4.1'
+    classpath('com.android.tools.build:gradle')
+    classpath('com.facebook.react:react-native-gradle-plugin')
+    classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
+  }
+}
+
+allprojects {
+  repositories {
+    google()
+    mavenCentral()
+    maven { url 'https://www.jitpack.io' }
+    // LogRocket React Native — native Android module artifacts
+    maven { url 'https://storage.googleapis.com/logrocket-maven/' }
+  }
+}
+
+ext {
+  ndkVersion = "27.1.12297006"
+  // LogRocket RN @1.62 requires Android API 25 (7.1 Nougat MR1) — Expo
+  // default is 24. Android 7.0 install base in 2026 is < 0.5% globally
+  // and near-zero in our target market. Raising minSdk is preferable to
+  // tools:overrideLibrary (which would mask runtime crashes on 7.0
+  // devices when LogRocket touches an API introduced in 7.1).
+  minSdkVersion = 25
+}
+
+apply plugin: "expo-root-project"
+apply plugin: "com.facebook.react.rootproject"

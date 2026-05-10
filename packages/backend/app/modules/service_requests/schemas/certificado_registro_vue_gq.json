@@ -1,0 +1,292 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "CERTIFICADO_REGISTRO_VUE_GQ_V1",
+  "version": "1.0",
+  "title": "Certificado de Registro en la Ventanilla Unica Empresarial - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour le Certificat de Registro dans la VUE (donnees techniques detaillees)",
+  "document_type": "CERTIFICADO_REGISTRO_VUE",
+  "country": "GQ",
+  "faces": ["single_page"],
+  "document_nature": "certificat_officiel",
+  "issuer": "Ventanilla Unica Empresarial",
+
+  "extraction": {
+    "documento": {
+      "description": "Informations administratives du certificat",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "CERTIFICADO_REGISTRO_VUE",
+          "required": true,
+          "description": "Type de document"
+        },
+        "numero_ri": {
+          "type": "string",
+          "required": true,
+          "description": "Numero R.I. (Registro de Inscripcion)",
+          "field_label": "R.I.",
+          "pii": true
+        },
+        "region": {
+          "type": "string",
+          "enum": ["Region Insular", "Region Continental"],
+          "required": false,
+          "description": "Region de l'entreprise"
+        },
+        "numero_inventario_vue": {
+          "type": "string",
+          "required": true,
+          "description": "Numero d'inventaire VUE",
+          "field_label": "Nº INVENTARIO VUE",
+          "pii": true
+        },
+        "numero_expediente": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[0-9]{5}/[0-9]{4}$",
+          "description": "Numero de expediente (ex: 04200/2022)",
+          "field_label": "Nº EXPEDIENTE",
+          "pii": true
+        }
+      }
+    },
+
+    "empresa": {
+      "description": "Donnees de l'entreprise",
+      "fields": {
+        "denominacion_social": {
+          "type": "string",
+          "required": true,
+          "description": "Nom complet de l'entreprise (dans le texte d'intro)",
+          "pii": true
+        },
+        "representante_legal": {
+          "type": "string",
+          "required": true,
+          "description": "Nom du representant legal",
+          "field_label": "REPRESENTANTE LEGAL",
+          "pii": true
+        },
+        "objeto_social": {
+          "type": "string",
+          "required": true,
+          "description": "Objet social de l'entreprise",
+          "field_label": "OBJETO SOCIAL"
+        },
+        "forma_juridica": {
+          "type": "string",
+          "enum": ["S.L.", "S.A.", "SUCURSAL", "EMPRESA INDIVIDUAL", "COOPERATIVA"],
+          "required": true,
+          "description": "Forme juridique abregee",
+          "field_label": "FORMA JURÍDICA"
+        },
+        "capital_social": {
+          "type": "number",
+          "required": true,
+          "description": "Capital social en F. CFAS",
+          "field_label": "CAPITAL SOCIAL",
+          "currency": "XAF"
+        },
+        "nif": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[0-9]{5}[A-Z]{2}-[0-9]{2}$",
+          "description": "Numero d'Identification Fiscal",
+          "field_label": "NIF",
+          "pii": true,
+          "encrypt": true
+        }
+      }
+    },
+
+    "registros": {
+      "description": "Numeros d'enregistrement",
+      "fields": {
+        "numero_protocolo": {
+          "type": "string",
+          "required": false,
+          "description": "Numero de protocole notarial",
+          "field_label": "Nº PROTOCOLO"
+        },
+        "numero_reg_mercantil": {
+          "type": "string",
+          "required": false,
+          "description": "Numero de Registro Mercantil (ex: F140 L 283 BIS)",
+          "field_label": "Nº REG. MERCANTIL"
+        }
+      }
+    },
+
+    "ubicacion": {
+      "description": "Localisation de l'entreprise",
+      "fields": {
+        "domicilio_social": {
+          "type": "string",
+          "required": true,
+          "description": "Adresse du siege social",
+          "field_label": "DOMICILIO SOCIAL",
+          "pii": true
+        },
+        "numero_establecimientos": {
+          "type": "integer",
+          "required": false,
+          "description": "Nombre d'etablissements",
+          "field_label": "Nº ESTABLECIMIENTOS"
+        },
+        "numero_empleados": {
+          "type": "integer",
+          "required": false,
+          "description": "Nombre d'employes",
+          "field_label": "Nº EMPLEADOS"
+        },
+        "otras_direcciones": {
+          "type": "string",
+          "required": false,
+          "description": "Autres adresses si existantes",
+          "field_label": "OTRAS DIRECCIONES"
+        }
+      }
+    },
+
+    "contacto": {
+      "description": "Coordonnees de contact",
+      "fields": {
+        "telefono": {
+          "type": "string",
+          "required": false,
+          "description": "Telephone",
+          "field_label": "TELÉFONO",
+          "pii": true
+        },
+        "correo_electronico": {
+          "type": "string",
+          "format": "email",
+          "required": false,
+          "description": "Email",
+          "field_label": "CORREO ELECTRÓNICO",
+          "pii": true
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification",
+      "fields": {
+        "fecha_emision": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'emission",
+          "field_label": "Malabo a [fecha]",
+          "date_format": "DD de MMMM de YYYY"
+        },
+        "lugar_emision": {
+          "type": "string",
+          "required": true,
+          "default": "Malabo"
+        },
+        "tiene_firma_coordinador": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du Coordinador General presente"
+        },
+        "tiene_sello_vue": {
+          "type": "boolean",
+          "required": true,
+          "description": "Sceau VUE present"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "nif_format_valid",
+      "rule": "nif MATCHES '^[0-9]{5}[A-Z]{2}-[0-9]{2}$'",
+      "error_es": "Formato de NIF invalido",
+      "error_fr": "Format NIF invalide",
+      "severity": "error"
+    },
+    {
+      "id": "firma_coordinador_required",
+      "rule": "tiene_firma_coordinador == true",
+      "error_es": "El certificado debe estar firmado por el Coordinador General",
+      "error_fr": "Le certificat doit etre signe par le Coordinateur General",
+      "severity": "error"
+    },
+    {
+      "id": "sello_vue_required",
+      "rule": "tiene_sello_vue == true",
+      "error_es": "El certificado debe tener el sello de la VUE",
+      "error_fr": "Le certificat doit avoir le sceau de la VUE",
+      "severity": "error"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Certificat de Registro en la Ventanilla Unica Empresarial - document technique avec tous les numeros d'enregistrement de l'entreprise",
+    "language": "es",
+    "visual_zones": [
+      "En-tete: Logo VUE + Armoiries GQ + R.I. [numero]",
+      "Sous-titre: Region [Insular/Continental]",
+      "Titre: CERTIFICADO DE REGISTRO EN LA VENTANILLA UNICA EMPRESARIAL",
+      "Intro: La Ventanilla Unica Empresarial expide el presente Certificado de Registro a la Empresa [NOM], como se detalla:",
+      "Tableau de donnees avec 2 colonnes: labels | valeurs",
+      "Champs: Nº INVENTARIO VUE, Nº EXPEDIENTE, REPRESENTANTE LEGAL, OBJETO SOCIAL, FORMA JURIDICA, CAPITAL SOCIAL, Nº PROTOCOLO, Nº REG. MERCANTIL, NIF, DOMICILIO SOCIAL, Nº ESTABLECIMIENTOS, Nº EMPLEADOS, OTRAS DIRECCIONES, TELEFONO, CORREO ELECTRONICO",
+      "Bas: Date + El Coordinador General + signature + sceau"
+    ],
+    "key_identifiers": {
+      "ri": "Coin superieur droit",
+      "nif": "Format 5 chiffres + 2 lettres + tiret + 2 chiffres",
+      "expediente": "Format 5 chiffres / 4 chiffres annee"
+    }
+  },
+
+  "tesseract_patterns": {
+    "numero_ri": [
+      "(?:R\\.?I\\.?)\\s*[:#]?\\s*([0-9]{5,6})"
+    ],
+    "numero_inventario_vue": [
+      "(?:N[°oº]?\\s*INVENTARIO\\s*VUE)\\s*[:#]?\\s*([0-9]+)"
+    ],
+    "numero_expediente": [
+      "(?:N[°oº]?\\s*EXPEDIENTE)\\s*[:#]?\\s*([0-9]{5}/[0-9]{4})"
+    ],
+    "representante_legal": [
+      "(?:REPRESENTANTE\\s*LEGAL)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "objeto_social": [
+      "(?:OBJETO\\s*SOCIAL)\\s*[:#]?\\s*(.+?)(?=FORMA|$)"
+    ],
+    "forma_juridica": [
+      "(?:FORMA\\s*JUR[IÍ]DICA)\\s*[:#]?\\s*(S\\.?L\\.?|S\\.?A\\.?|SOCIEDAD\\s*LIMITADA)"
+    ],
+    "capital_social": [
+      "(?:CAPITAL\\s*SOCIAL)\\s*[:#]?\\s*([0-9.,]+)\\s*(?:F\\.?\\s*CFAS?)?"
+    ],
+    "nif": [
+      "(?:NIF)\\s*[:#]?\\s*([0-9]{5}[A-Z]{2}-[0-9]{2})"
+    ],
+    "numero_protocolo": [
+      "(?:N[°oº]?\\s*PROTOCOLO)\\s*[:#]?\\s*([0-9.,]+)"
+    ],
+    "numero_reg_mercantil": [
+      "(?:N[°oº]?\\s*REG\\.?\\s*MERCANTIL)\\s*[:#]?\\s*([A-Z0-9\\s]+)"
+    ],
+    "domicilio_social": [
+      "(?:DOMICILIO\\s*SOCIAL)\\s*[:#]?\\s*(.+?)(?=N[°oº]|$)"
+    ],
+    "numero_establecimientos": [
+      "(?:N[°oº]?\\s*ESTABLECIMIENTOS)\\s*[:#]?\\s*([0-9]+)"
+    ],
+    "numero_empleados": [
+      "(?:N[°oº]?\\s*EMPLEADOS)\\s*[:#]?\\s*([0-9]+)"
+    ],
+    "telefono": [
+      "(?:TEL[ÉE]FONO)\\s*[:#]?\\s*([0-9\\s]{9,})"
+    ],
+    "correo_electronico": [
+      "(?:CORREO\\s*ELECTR[ÓO]NICO)\\s*[:#]?\\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+)"
+    ]
+  }
+}

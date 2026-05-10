@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<style>
+  @page { size: A4; margin: 2cm 1.5cm; }
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 11px; color: #333; line-height: 1.4; }
+  .header { display: flex; border-bottom: 3px solid #1B5E20; padding-bottom: 10px; margin-bottom: 15px; }
+  .header-logo { width: 100px; }
+  .header-title { text-align: right; flex: 1; }
+  .header-title h1 { font-size: 18px; color: #1B5E20; margin: 0; }
+  .header-title p { font-size: 10px; color: #666; margin: 2px 0 0; }
+  h2 { font-size: 14px; color: #1B5E20; border-bottom: 1px solid #e0e0e0; padding-bottom: 4px; margin-top: 20px; }
+  h3 { font-size: 12px; color: #333; margin: 12px 0 6px; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 16px; }
+  th { background: #f5f5f5; font-weight: 600; text-align: left; padding: 6px 8px; border: 1px solid #ddd; font-size: 10px; }
+  td { padding: 5px 8px; border: 1px solid #ddd; font-size: 10px; }
+  .kpi-grid { display: flex; gap: 10px; margin: 12px 0; }
+  .kpi-card { flex: 1; border: 1px solid #ddd; border-radius: 6px; padding: 10px; text-align: center; }
+  .kpi-value { font-size: 22px; font-weight: 700; }
+  .kpi-label { font-size: 9px; color: #666; text-transform: uppercase; margin-top: 2px; }
+  .green { color: #2E7D32; }
+  .red { color: #C62828; }
+  .blue { color: #1565C0; }
+  .orange { color: #E65100; }
+  .meta-table td { border: none; padding: 3px 8px; }
+  .meta-table td:first-child { color: #666; width: 120px; }
+  .footer { margin-top: 20px; padding-top: 8px; border-top: 1px solid #ddd; font-size: 9px; color: #999; text-align: center; }
+  .qr { width: 70px; height: 70px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 9px; font-weight: 600; }
+  .badge-completed { background: #E8F5E9; color: #2E7D32; }
+  .badge-conforme { background: #E8F5E9; color: #2E7D32; }
+  .badge-non_conforme { background: #FFEBEE; color: #C62828; }
+  .badge-in_progress { background: #FFF3E0; color: #E65100; }
+  .badge-absent { background: #FFEBEE; color: #C62828; }
+  .badge-assigned { background: #E3F2FD; color: #1565C0; }
+  .progress-bar { height: 8px; background: #e0e0e0; border-radius: 4px; margin: 4px 0; }
+  .progress-fill { height: 8px; background: #2E7D32; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<table style="border:none;margin-bottom:15px;border-bottom:3px solid #1B5E20;padding-bottom:10px">
+<tr style="border:none">
+<td style="border:none;width:100px;vertical-align:middle">
+{% if logo_base64 %}<img src="data:image/png;base64,{{ logo_base64 }}" style="width:80px"/>{% endif %}
+</td>
+<td style="border:none;text-align:right;vertical-align:middle">
+<div style="font-size:18px;font-weight:700;color:#1B5E20">Informe de Mision de Campo</div>
+<div style="font-size:10px;color:#666">{{ mission_date }} | {{ location_name }}</div>
+</td>
+</tr>
+</table>
+
+<!-- Mission Info -->
+<h2>1. Informacion General</h2>
+<table class="meta-table" style="margin-bottom:12px">
+<tr><td>Titulo</td><td><strong>{{ mission_title }}</strong></td></tr>
+<tr><td>Fecha</td><td>{{ mission_date }}</td></tr>
+<tr><td>Supervisor</td><td>{{ supervisor_name }}</td></tr>
+<tr><td>Ubicacion</td><td>{{ location_name }}</td></tr>
+<tr><td>Estado</td><td><span class="badge badge-{{ status }}">{{ status }}</span></td></tr>
+<tr><td>Inicio</td><td>{{ started_at }}</td></tr>
+<tr><td>Finalizacion</td><td>{{ completed_at }}</td></tr>
+</table>
+
+{% if zone_names %}
+<h3>Zonas asignadas</h3>
+<ul>
+{% for z in zone_names %}
+<li>{{ z }}</li>
+{% endfor %}
+</ul>
+{% endif %}
+
+<!-- KPIs -->
+<h2>2. Resultados</h2>
+<table style="border:none">
+<tr style="border:none">
+<td style="border:1px solid #ddd;border-radius:6px;padding:10px;text-align:center;width:25%">
+<div class="kpi-value blue">{{ actual_total }}/{{ target_total }}</div>
+<div class="kpi-label">Inspecciones</div>
+<div class="progress-bar"><div class="progress-fill" style="width:{{ completion_pct }}%"></div></div>
+<div style="font-size:9px;color:#666">{{ completion_pct }}% completado</div>
+</td>
+<td style="border:1px solid #ddd;border-radius:6px;padding:10px;text-align:center;width:25%">
+<div class="kpi-value green">{{ conformity_rate }}%</div>
+<div class="kpi-label">Conformidad</div>
+<div style="font-size:9px;margin-top:4px">{{ conforme }} conformes / {{ non_conforme }} no conformes</div>
+</td>
+<td style="border:1px solid #ddd;border-radius:6px;padding:10px;text-align:center;width:25%">
+<div class="kpi-value orange">{{ collected_amount }}</div>
+<div class="kpi-label">XAF Recaudados</div>
+</td>
+<td style="border:1px solid #ddd;border-radius:6px;padding:10px;text-align:center;width:25%">
+<div class="kpi-value">{{ avg_duration }}</div>
+<div class="kpi-label">Min. Promedio</div>
+</td>
+</tr>
+</table>
+
+<!-- Agents -->
+<h2>3. Agentes ({{ agents|length }})</h2>
+<table>
+<thead>
+<tr>
+<th>Agente</th>
+<th>Estado</th>
+<th>Objetivo</th>
+<th>Realizadas</th>
+<th>%</th>
+<th>Zonas</th>
+</tr>
+</thead>
+<tbody>
+{% for a in agents %}
+<tr>
+<td>{{ a.get('agent_name', a.get('first_name', '') + ' ' + a.get('last_name', '')) }}</td>
+<td><span class="badge badge-{{ a.status }}">{{ a.status }}</span></td>
+<td style="text-align:center">{{ a.target_inspections }}</td>
+<td style="text-align:center">{{ a.actual_inspections }}</td>
+<td style="text-align:center">
+{% set pct = (a.actual_inspections / a.target_inspections * 100)|round if a.target_inspections else 0 %}
+{{ pct|int }}%
+</td>
+<td style="font-size:9px">{{ a.get('assigned_zones', [])|join(', ') if a.get('assigned_zones') else '-' }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+<!-- Inspections -->
+<h2>4. Inspecciones Realizadas ({{ inspections|length }})</h2>
+{% if inspections %}
+<table>
+<thead>
+<tr>
+<th>Empresa</th>
+<th>NIF</th>
+<th>Zona</th>
+<th>Agente</th>
+<th>Resultado</th>
+<th>Pago</th>
+</tr>
+</thead>
+<tbody>
+{% for i in inspections %}
+<tr>
+<td>{{ i.company_name }}</td>
+<td style="font-size:9px">{{ i.company_nif }}</td>
+<td>{{ i.zone_code or '-' }}</td>
+<td>{{ i.agent_name }}</td>
+<td><span class="badge badge-{{ i.result or 'in_progress' }}">{{ i.result or 'pending' }}</span></td>
+<td>{% if i.payment_collected %}{{ i.payment_amount|default(0, true) }} XAF{% else %}-{% endif %}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% else %}
+<p style="color:#666;font-style:italic">Aucune inspection realisee.</p>
+{% endif %}
+
+{% if notes %}
+<h2>5. Notas</h2>
+<p style="white-space:pre-wrap;background:#f9f9f9;padding:10px;border-radius:4px;font-size:10px">{{ notes }}</p>
+{% endif %}
+
+<!-- Footer -->
+<div class="footer">
+<table style="border:none;width:100%">
+<tr style="border:none">
+<td style="border:none;text-align:left;vertical-align:middle">
+Ref: MISSION-{{ mission_id[:8]|upper }} | Generado: {{ generated_at }}
+</td>
+<td style="border:none;text-align:center;vertical-align:middle">
+Facil - Plataforma de Servicios Fiscales de Guinea Ecuatorial
+</td>
+<td style="border:none;text-align:right;vertical-align:middle">
+{% if qr_base64 %}<img src="data:image/png;base64,{{ qr_base64 }}" class="qr"/>{% endif %}
+</td>
+</tr>
+</table>
+</div>
+
+</body>
+</html>

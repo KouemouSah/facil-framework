@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="{{ language or 'es' }}">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1.2cm 1.5cm;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 9pt;
+            line-height: 1.3;
+            color: #1a1a1a;
+        }
+
+        .no-break {
+            page-break-inside: avoid;
+        }
+
+        /* ================================================================
+           HEADER — Logo + Title + Barcode
+           ================================================================ */
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-bottom: 3px solid #2563eb;
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+        }
+
+        .header-table td {
+            vertical-align: middle;
+            padding-bottom: 8px;
+        }
+
+        .logo-cell {
+            width: 70px;
+        }
+
+        .logo-cell img {
+            width: 60px;
+            height: 60px;
+        }
+
+        .logo-fallback {
+            width: 60px;
+            height: 60px;
+            background: #1d4ed8;
+            color: white;
+            font-weight: bold;
+            font-size: 16pt;
+            text-align: center;
+            line-height: 60px;
+        }
+
+        .title-cell {
+            padding-left: 10px;
+        }
+
+        .platform-name {
+            font-size: 16pt;
+            font-weight: bold;
+            color: #2563eb;
+        }
+
+        .platform-subtitle {
+            font-size: 7pt;
+            color: #666;
+        }
+
+        .document-type {
+            font-size: 11pt;
+            font-weight: bold;
+            color: #1e40af;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 3px;
+        }
+
+        .barcode-cell {
+            text-align: right;
+            width: 140px;
+        }
+
+        .barcode {
+            font-family: 'Libre Barcode 39', 'Free 3 of 9', monospace;
+            font-size: 26pt;
+            letter-spacing: -2px;
+        }
+
+        .barcode-text {
+            font-size: 7pt;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        /* ================================================================
+           REFERENCE BOX — Blue banner with status badge
+           ================================================================ */
+        .reference-box {
+            background: #1d4ed8;
+            color: white;
+            padding: 8px 14px;
+            margin-bottom: 12px;
+        }
+
+        .ref-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .ref-table td {
+            vertical-align: middle;
+            padding: 0;
+        }
+
+        .ref-left {
+            width: 65%;
+        }
+
+        .ref-right {
+            text-align: right;
+        }
+
+        .reference-number {
+            font-size: 13pt;
+            font-weight: bold;
+        }
+
+        .workflow-info {
+            font-size: 8pt;
+            opacity: 0.9;
+            margin-top: 1px;
+        }
+
+        .validation-date {
+            font-size: 8pt;
+            opacity: 0.9;
+        }
+
+        .status-badge {
+            display: inline-block;
+            background: #16a34a;
+            color: white;
+            padding: 2px 12px;
+            font-size: 9pt;
+            font-weight: bold;
+            margin-top: 3px;
+        }
+
+        /* ================================================================
+           DATA SECTIONS (dynamic, from workflow)
+           ================================================================ */
+        .section-header {
+            background: #f3f4f6;
+            padding: 4px 10px;
+            font-weight: bold;
+            font-size: 9pt;
+            color: #374151;
+            border-left: 3px solid #2563eb;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .section-container {
+            margin-bottom: 10px;
+        }
+
+        .personal-data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .personal-data-table td {
+            vertical-align: top;
+            padding: 0;
+        }
+
+        .photo-cell {
+            width: 92px;
+            padding-right: 12px;
+        }
+
+        .photo-box {
+            width: 80px;
+            height: 100px;
+            border: 2px solid #e5e7eb;
+            background: #f9fafb;
+        }
+
+        .photo-box img {
+            width: 80px;
+            height: 100px;
+        }
+
+        .photo-placeholder {
+            width: 80px;
+            height: 100px;
+            background: #f3f4f6;
+            font-size: 7pt;
+            color: #9ca3af;
+            line-height: 100px;
+            text-align: center;
+        }
+
+        .data-col {
+            width: 48%;
+            vertical-align: top;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table td {
+            padding: 2px 5px;
+            font-size: 8.5pt;
+            border: none;
+        }
+
+        .data-label {
+            width: 40%;
+            color: #6b7280;
+        }
+
+        .data-value {
+            font-weight: bold;
+            color: #000;
+        }
+
+        /* Bordered variant for document/certificate sections */
+        .bordered-section .data-table td {
+            border: 1px solid #e5e7eb;
+            padding: 2px 5px;
+        }
+
+        /* ================================================================
+           SELECTION META (inline under title)
+           ================================================================ */
+        .selection-meta {
+            font-size: 8pt;
+            color: #6b7280;
+            margin-top: 2px;
+            padding: 0 14px;
+            margin-bottom: 8px;
+        }
+
+        /* ================================================================
+           APPOINTMENT + PAYMENT ROW
+           ================================================================ */
+        .blocks-row-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-bottom: 10px;
+        }
+
+        .appointment-td {
+            width: 56%;
+            border: 1px solid #2563eb;
+            padding: 8px 10px;
+            vertical-align: top;
+        }
+
+        .appointment-td-empty {
+            width: 56%;
+            border: 1px solid #d1d5db;
+            padding: 8px 10px;
+            vertical-align: top;
+        }
+
+        .spacer-td {
+            width: 20px;
+            border: none;
+        }
+
+        .payment-td {
+            width: 44%;
+            border: 1px solid #2563eb;
+            padding: 8px 10px;
+            vertical-align: top;
+        }
+
+        .card-title {
+            font-weight: bold;
+            color: #1e40af;
+            font-size: 8pt;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .appt-detail-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .appt-detail-table td {
+            padding: 1px 3px;
+            border: none;
+            font-size: 8.5pt;
+            vertical-align: middle;
+        }
+
+        .appt-label {
+            width: 55px;
+            color: #6b7280;
+            font-size: 8pt;
+        }
+
+        .appt-value {
+            font-weight: bold;
+            color: #1e40af;
+        }
+
+        .no-appt-title {
+            font-weight: bold;
+            color: #6b7280;
+            font-size: 8pt;
+            text-transform: uppercase;
+        }
+
+        .no-appt-text {
+            font-size: 8pt;
+            color: #9ca3af;
+            margin-top: 2px;
+        }
+
+        .payment-amount {
+            font-size: 14pt;
+            font-weight: bold;
+            color: #065f46;
+            text-align: center;
+            margin-top: 3px;
+        }
+
+        .payment-currency {
+            font-size: 8pt;
+            font-weight: normal;
+        }
+
+        .payment-status-label {
+            font-size: 7pt;
+            color: #047857;
+            text-align: center;
+            margin-top: 2px;
+        }
+
+        /* ================================================================
+           AGENT SIGNATURE BOX
+           ================================================================ */
+        .agent-box {
+            background: #f0f9ff;
+            border: 1px solid #bfdbfe;
+            padding: 6px 12px;
+            margin-bottom: 8px;
+            font-size: 8pt;
+        }
+
+        .agent-label {
+            color: #6b7280;
+        }
+
+        .agent-name {
+            font-weight: bold;
+            color: #1e40af;
+        }
+
+        /* ================================================================
+           NOTICE BOX
+           ================================================================ */
+        .notice-box {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            padding: 6px 12px;
+            margin-bottom: 8px;
+            font-size: 8pt;
+            color: #166534;
+        }
+
+        .notice-title {
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+
+        /* ================================================================
+           FOOTER
+           ================================================================ */
+        .footer-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .footer-table td {
+            vertical-align: bottom;
+            padding-top: 6px;
+        }
+
+        .footer-text-cell {
+            width: 75%;
+        }
+
+        .footer-qr-cell {
+            width: 25%;
+            text-align: right;
+        }
+
+        .footer-text {
+            font-size: 7pt;
+            color: #6b7280;
+            line-height: 1.5;
+        }
+
+        .footer-verify {
+            font-size: 7pt;
+            color: #2563eb;
+            font-weight: 500;
+        }
+
+        .qr-box {
+            width: 65px;
+            height: 65px;
+            text-align: center;
+        }
+
+        .qr-box img {
+            width: 65px;
+            height: 65px;
+        }
+
+        .qr-fallback {
+            width: 55px;
+            height: 55px;
+            border: 1px solid #e5e7eb;
+            background: #f9fafb;
+            text-align: center;
+            font-size: 7pt;
+            color: #9ca3af;
+            line-height: 55px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ================================================================
+         HEADER: Logo + Title + Barcode
+         ================================================================ -->
+    <table class="header-table">
+        <tr>
+            <td class="logo-cell">
+                {% if logo_base64 %}
+                <img src="{{ logo_base64 }}" alt="Facil" />
+                {% else %}
+                <div class="logo-fallback">F</div>
+                {% endif %}
+            </td>
+            <td class="title-cell">
+                <div class="platform-name">Facil</div>
+                <div class="platform-subtitle">{{ texts.platform_subtitle }}</div>
+                <div class="document-type">{{ texts.certificate_title }}</div>
+            </td>
+            <td class="barcode-cell">
+                {% if barcode_value %}
+                <div class="barcode">*{{ barcode_value }}*</div>
+                <div class="barcode-text">{{ barcode_value }}</div>
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+
+    <!-- ================================================================
+         REFERENCE BOX — Blue banner with VALIDATED badge
+         ================================================================ -->
+    <div class="reference-box">
+        <table class="ref-table">
+            <tr>
+                <td class="ref-left">
+                    <div class="reference-number">{{ request_number }}</div>
+                    <div class="workflow-info">{{ workflow_name }} - {{ solicitud_type_label }}</div>
+                </td>
+                <td class="ref-right">
+                    <div class="validation-date">{{ texts.validated_on }}: {{ validated_at }}</div>
+                    <div class="status-badge">{{ texts.status_validated }}</div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ================================================================
+         SELECTION META (if first section is "Detalles de la Solicitud")
+         ================================================================ -->
+    {% if data_sections | length > 0 %}
+    {% set first = data_sections[0] %}
+    {% if first.title == "Detalles de la Solicitud" %}
+    <div class="selection-meta">
+        {% for field in first.fields %}{{ field.label }}: <strong>{{ field.value }}</strong>{% if not loop.last %} &middot; {% endif %}{% endfor %}
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <!-- ================================================================
+         DATA SECTIONS (dynamic from workflow.get_pdf_data_sections)
+         - First real section: rendered WITH photo
+         - Remaining: 2-column layout
+         ================================================================ -->
+    {% set ns = namespace(photo_rendered=false, skip_first=false) %}
+    {% if data_sections | length > 0 and data_sections[0].title == "Detalles de la Solicitud" %}
+        {% set ns.skip_first = true %}
+    {% endif %}
+
+    {% for section in data_sections %}
+    {% if loop.index0 == 0 and ns.skip_first %}
+        {# Skip: rendered as inline meta above #}
+    {% elif not ns.photo_rendered %}
+        {# First real data section: WITH photo #}
+        {% set ns.photo_rendered = true %}
+        <div class="no-break section-container">
+            <div class="section-header">{{ section.title }}</div>
+            {% set columns = section.fields | slice(2) | list %}
+            <table class="personal-data-table">
+                <tr>
+                    <td class="photo-cell">
+                        {% if photo_base64 %}
+                        <div class="photo-box">
+                            <img src="{{ photo_base64 }}" alt="Photo" />
+                        </div>
+                        {% else %}
+                        <div class="photo-placeholder">{{ texts.no_photo }}</div>
+                        {% endif %}
+                    </td>
+                    <td class="data-col">
+                        <table class="data-table">
+                            {% for field in columns[0] %}
+                            <tr>
+                                <td class="data-label">{{ field.label }}</td>
+                                <td class="data-value">{{ field.value or '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </table>
+                    </td>
+                    <td class="data-col">
+                        <table class="data-table">
+                            {% if columns | length > 1 %}
+                            {% for field in columns[1] %}
+                            <tr>
+                                <td class="data-label">{{ field.label }}</td>
+                                <td class="data-value">{{ field.value or '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                            {% endif %}
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    {% else %}
+        {# Remaining sections: 2-column #}
+        {% set is_doc_section = "Certificado" in section.title or "Anterior" in section.title or "Actual" in section.title or "Permiso" in section.title %}
+        <div class="no-break section-container {% if is_doc_section %}bordered-section{% endif %}">
+            <div class="section-header">{{ section.title }}</div>
+            {% set columns = section.fields | slice(2) | list %}
+            <table class="personal-data-table">
+                <tr>
+                    <td class="data-col">
+                        <table class="data-table">
+                            {% for field in columns[0] %}
+                            <tr>
+                                <td class="data-label">{{ field.label }}</td>
+                                <td class="data-value">{{ field.value or '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </table>
+                    </td>
+                    <td class="data-col">
+                        <table class="data-table">
+                            {% if columns | length > 1 %}
+                            {% for field in columns[1] %}
+                            <tr>
+                                <td class="data-label">{{ field.label }}</td>
+                                <td class="data-value">{{ field.value or '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                            {% endif %}
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    {% endif %}
+    {% endfor %}
+
+    <!-- ================================================================
+         APPOINTMENT + PAYMENT
+         ================================================================ -->
+    <div class="no-break">
+        <table class="blocks-row-table">
+            <tr>
+                {% if appointment %}
+                <td class="appointment-td">
+                    <div class="card-title">{{ texts.scheduled_appointment }}</div>
+                    <table class="appt-detail-table">
+                        <tr>
+                            <td class="appt-label">{{ texts.date }}:</td>
+                            <td class="appt-value">{{ appointment.date }}</td>
+                        </tr>
+                        <tr>
+                            <td class="appt-label">{{ texts.time }}:</td>
+                            <td class="appt-value">{{ appointment.time }}</td>
+                        </tr>
+                        <tr>
+                            <td class="appt-label">{{ texts.location }}:</td>
+                            <td class="appt-value">{{ appointment.location }}</td>
+                        </tr>
+                    </table>
+                </td>
+                {% else %}
+                <td class="appointment-td-empty">
+                    <div class="no-appt-title">{{ texts.scheduled_appointment }}</div>
+                    <div class="no-appt-text">{{ texts.no_appointment }}</div>
+                </td>
+                {% endif %}
+                <td class="spacer-td"></td>
+                <td class="payment-td">
+                    <div class="card-title" style="text-align:center;">{{ texts.total }}</div>
+                    <div class="payment-amount">{{ tariff.total_amount }} <span class="payment-currency">XAF</span></div>
+                    <div class="payment-status-label">{{ payment_status_label }}</div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ================================================================
+         AGENT SIGNATURE
+         ================================================================ -->
+    {% if agent_name %}
+    <div class="no-break agent-box">
+        <span class="agent-label">{{ texts.validated_by }}:</span>
+        <span class="agent-name">{{ agent_name }}</span>
+        {% if agent_entity %}
+        <span class="agent-label"> &mdash; {{ agent_entity }}</span>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- ================================================================
+         NOTICE BOX
+         ================================================================ -->
+    <div class="no-break notice-box">
+        <div class="notice-title">{{ texts.important_notice }}</div>
+        {{ texts.notice_content }}
+    </div>
+
+    <!-- ================================================================
+         FOOTER: Reference + QR
+         ================================================================ -->
+    <table class="footer-table">
+        <tr>
+            <td class="footer-text-cell">
+                <div class="footer-text">
+                    <strong>{{ texts.reference }}:</strong> {{ request_number }}<br/>
+                    {{ texts.generated_on }}: {{ generated_at }}
+                </div>
+                <div class="footer-verify">{{ texts.verify_at }}: {{ verify_url }}/verify/{{ request_number }}</div>
+            </td>
+            <td class="footer-qr-cell">
+                {% if qr_code_b64 %}
+                <div class="qr-box">
+                    <img src="data:image/png;base64,{{ qr_code_b64 }}" alt="QR" />
+                </div>
+                {% else %}
+                <div class="qr-fallback">QR</div>
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+
+</body>
+</html>

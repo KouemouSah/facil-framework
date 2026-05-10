@@ -1,0 +1,20 @@
+{
+  "name": "imp_sueldos_salarios",
+  "category": "payroll_tax",
+  "description": "Impuesto sobre Sueldos y Salarios - Petrolero y Sec. Común",
+  "version": "1.0",
+  "fields": [
+    {"id": "nif", "label": ["N.I.F."], "type": "text", "pattern": "\\d{8}[A-Z]", "required": true},
+    {"id": "representacion_empresa", "label": ["En nombre y representación de la empresa"], "type": "text", "required": true},
+    {"id": "ejercicio", "label": ["Ejercicio"], "type": "year", "required": true},
+    {"id": "periodo", "label": ["Periodo"], "type": "text", "required": true},
+    {"id": "fecha", "label": ["Fecha"], "type": "date", "required": true},
+    {"id": "importe_total_retenidas", "label": ["Importe total de las cuotas retenidas"], "type": "currency", "required": true},
+    {"id": "recargos", "label": ["Recargos"], "type": "currency", "required": false},
+    {"id": "intereses_demora", "label": ["Intereses de demora"], "type": "currency", "required": false},
+    {"id": "total_a_ingresar", "label": ["Total a Ingresar"], "type": "currency", "required": true}
+  ],
+  "validations": [
+    {"type": "format", "field": "nif", "pattern": "^\\d{8}[A-Z]$", "error_message": "Formato NIF inválido"}
+  ]
+}

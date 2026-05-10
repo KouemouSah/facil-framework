@@ -1,0 +1,325 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "NOTA_INGRESO_RESIDENCIA_GQ_V1",
+  "version": "1.2",
+  "title": "Nota de Ingreso - Residencia (Titre de Sejour) - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour la Nota de Ingreso emise par la Direccion General de Extranjeria y Fronteras, utilisee dans le workflow Residencia (titre de sejour)",
+  "document_type": "NOTA_INGRESO_RESIDENCIA",
+  "country": "GQ",
+  "faces": ["single_page"],
+  "document_nature": "recu_paiement_officiel",
+  "issuer": "Direccion General de Extranjeria y Fronteras",
+  "ministry": "Ministerio de Seguridad Nacional",
+  "workflow": "residencia",
+
+  "extraction": {
+    "bloc_administratif": {
+      "description": "Donnees de l'organisme emetteur (en-tete du document)",
+      "fields": {
+        "organisme_emetteur": {
+          "type": "string",
+          "required": true,
+          "description": "Ministere (MINISTERIO DE SEGURIDAD NACIONAL)",
+          "default": "MINISTERIO DE SEGURIDAD NACIONAL",
+          "field_label": "MINISTERIO DE SEGURIDAD NACIONAL"
+        },
+        "departement_emetteur": {
+          "type": "string",
+          "required": true,
+          "description": "Direction (DIRECCION GENERAL DE EXTRANJERIA Y FRONTERAS)",
+          "default": "DIRECCION GENERAL DE EXTRANJERIA Y FRONTERAS",
+          "field_label": "DIRECCION GENERAL DE EXTRANJERIA Y FRONTERAS"
+        },
+        "code_reference": {
+          "type": "string",
+          "required": false,
+          "description": "Code manuscrit de reference (ex: AA0516)"
+        }
+      }
+    },
+
+    "bloc_paiement": {
+      "description": "Informations de paiement pour le titre de sejour",
+      "fields": {
+        "numero_nota": {
+          "type": "string",
+          "required": true,
+          "description": "Numero unique de la nota (ex: 1.804/10)",
+          "pattern": "^[0-9.,]+/[0-9]+$",
+          "field_label": "N°"
+        },
+        "concepto_pago": {
+          "type": "string",
+          "required": true,
+          "description": "Concept du paiement (ex: Renovacion de residencia, Primera residencia)",
+          "field_label": "Concepto de Pago de"
+        },
+        "periode": {
+          "type": "string",
+          "required": false,
+          "description": "Periode de validite (ex: 12 meses)",
+          "field_label": "Para un periodo de"
+        },
+        "montant_chiffre": {
+          "type": "number",
+          "required": true,
+          "description": "Montant en chiffres (FCFA). Extraire le nombre entre # ... # F.cfas",
+          "minimum": 0,
+          "field_label": "Son: #...# F.cfas"
+        },
+        "montant_lettre": {
+          "type": "string",
+          "required": false,
+          "description": "Montant en lettres (ex: cien mil francos)",
+          "field_label": "La Cantidad de"
+        },
+        "type_compte": {
+          "type": "string",
+          "required": false,
+          "description": "Type de compte: cuenta_propia ou cuenta_empresa (entre parentheses apres le nom)",
+          "enum": ["cuenta_propia", "cuenta_empresa"]
+        },
+        "compte_destinataire": {
+          "type": "string",
+          "required": false,
+          "description": "Compte destino (ex: TESORERIA GENERAL DEL ESTADO)",
+          "field_label": "Tiene que ingresar en la Cuenta de la"
+        }
+      }
+    },
+
+    "bloc_beneficiaire": {
+      "description": "Demandeur du titre de sejour",
+      "fields": {
+        "nom_demandeur": {
+          "type": "string",
+          "required": false,
+          "description": "Nom complet du demandeur (apres Don/Dna:)",
+          "pii": true,
+          "field_label": "Don/Dna:"
+        },
+        "is_entreprise": {
+          "type": "boolean",
+          "required": false,
+          "description": "true si detecte comme entreprise (cuenta_empresa)",
+          "default": false
+        },
+        "nif_entreprise": {
+          "type": "string",
+          "required": false,
+          "description": "NIF si entreprise sponsor"
+        },
+        "nombre_beneficiaires": {
+          "type": "integer",
+          "required": false,
+          "description": "Nombre de personnes couvertes (reagrupacion familiale)",
+          "minimum": 1
+        }
+      }
+    },
+
+    "bloc_verification": {
+      "description": "Donnees de verification et validite du document",
+      "fields": {
+        "date_emission": {
+          "type": "string",
+          "required": true,
+          "description": "Date emission au format YYYY-MM-DD. Chercher apres le lieu (Malabo, a DD de MES de YYYY)",
+          "format": "date",
+          "field_label": "Malabo, a ... de ... de ..."
+        },
+        "dias_validez": {
+          "type": "integer",
+          "required": true,
+          "description": "Jours de validite (15 jours standard). Chercher 'se caduca a los X dias'",
+          "default": 15,
+          "minimum": 1,
+          "extraction_hint": "Chercher 'se caduca a los X dias' ou 'valido por X dias'"
+        },
+        "fecha_caducidad": {
+          "type": "string",
+          "required": false,
+          "description": "Date d'expiration calculee (date_emission + dias_validez jours). Format YYYY-MM-DD",
+          "format": "date",
+          "computed": true
+        },
+        "lieu_emission": {
+          "type": "string",
+          "required": false,
+          "description": "Lieu d'emission (Malabo, Bata)",
+          "field_label": "Ciudad"
+        },
+        "signataire": {
+          "type": "string",
+          "required": false,
+          "description": "Titre du signataire (ex: EL JEFE DE LA SECCION ECONOMICA)"
+        },
+        "tampon_officiel": {
+          "type": "boolean",
+          "required": false,
+          "description": "Tampon Direccion General de Extranjeria visible (rond bleu)",
+          "default": false
+        }
+      }
+    }
+  },
+
+  "db_mapping": {
+    "table": "fiscal_service_data",
+    "fields": {
+      "bloc_administratif.organisme_emetteur": "organisme_emetteur",
+      "bloc_administratif.departement_emetteur": "departement_emetteur",
+      "bloc_administratif.code_reference": "code_reference",
+      "bloc_paiement.numero_nota": "numero_nota",
+      "bloc_paiement.concepto_pago": "concepto_pago",
+      "bloc_paiement.periode": "periode",
+      "bloc_paiement.montant_chiffre": "montant_chiffre",
+      "bloc_paiement.montant_lettre": "montant_lettre",
+      "bloc_paiement.type_compte": "type_compte",
+      "bloc_paiement.compte_destinataire": "compte_destinataire",
+      "bloc_beneficiaire.nom_demandeur": "nom_demandeur",
+      "bloc_verification.date_emission": "date_emission",
+      "bloc_verification.dias_validez": "dias_validez",
+      "bloc_verification.fecha_caducidad": "date_expiration",
+      "bloc_verification.signataire": "signataire",
+      "bloc_verification.tampon_officiel": "tampon_officiel"
+    }
+  },
+
+  "required_for_completion": {
+    "critical": [
+      "numero_nota",
+      "concepto_pago",
+      "montant_chiffre",
+      "date_emission",
+      "dias_validez",
+      "organisme_emetteur",
+      "departement_emetteur"
+    ],
+    "important": [
+      "montant_lettre",
+      "periode",
+      "type_compte",
+      "nom_demandeur",
+      "signataire",
+      "tampon_officiel",
+      "lieu_emission"
+    ],
+    "optional": [
+      "code_reference",
+      "compte_destinataire",
+      "nif_entreprise",
+      "nombre_beneficiaires",
+      "fecha_caducidad"
+    ]
+  },
+
+  "validations": [
+    {
+      "id": "nota_no_expirada",
+      "rule": "fecha_caducidad >= TODAY",
+      "error_es": "La nota de ingreso ha caducado. Por favor, solicite una nueva.",
+      "error_fr": "La nota de ingreso a expire. Veuillez en demander une nouvelle.",
+      "severity": "error"
+    },
+    {
+      "id": "montant_coherence",
+      "rule": "montant_chiffre > 0",
+      "error_es": "El monto debe ser mayor a cero",
+      "error_fr": "Le montant doit etre superieur a zero",
+      "severity": "error"
+    },
+    {
+      "id": "tampon_officiel_present",
+      "rule": "tampon_officiel == true",
+      "error_es": "La nota debe tener el tampon oficial de Extranjeria",
+      "error_fr": "La nota doit avoir le tampon officiel d'Extranjeria",
+      "severity": "warning"
+    },
+    {
+      "id": "organisme_is_extranjeria",
+      "rule": "organisme_emetteur CONTAINS 'SEGURIDAD' OR departement_emetteur CONTAINS 'EXTRANJERIA'",
+      "error_es": "Esta nota de ingreso debe ser emitida por Extranjeria",
+      "error_fr": "Cette nota de ingreso doit etre emise par Extranjeria",
+      "severity": "error"
+    }
+  ],
+
+  "computed_fields": {
+    "fecha_caducidad": {
+      "formula": "date_emission + dias_validez days",
+      "example": "2025-01-15 + 15 days = 2025-01-30"
+    }
+  },
+
+  "gemini_hints": {
+    "document_description": "Nota de Ingreso emise par la Direccion General de Extranjeria y Fronteras pour le paiement du titre de sejour (residencia) en Guinee Equatoriale. Document officiel sur papier a en-tete du Ministerio de Seguridad Nacional. Le document est MANUSCRIT (ecrit a la main) avec des champs pre-imprimes.",
+    "language": "es",
+    "date_format": "DD/MM/YYYY",
+    "visual_zones": [
+      "En-tete: MINISTERIO DE SEGURIDAD NACIONAL / DIRECCION GENERAL DE EXTRANJERIA Y FRONTERAS",
+      "Titre: NOTA DE INGRESO (centre, gros caracteres)",
+      "Zone gauche: Code reference manuscrit (AA0516 etc.)",
+      "Zone N°: Numero de nota manuscrit en haut a droite (format X.XXX/XX)",
+      "Don/Dna: Nom complet du demandeur + type de compte entre parentheses",
+      "Concepto de Pago de: Texte manuscrit du concept (Renovacion de residencia, etc.)",
+      "Para un periodo de: Duree manuscrite (/12/meses, etc.)",
+      "La Cantidad de: Montant en lettres manuscrit",
+      "Son: #montant# F.cfas — Montant en chiffres entre caracteres #",
+      "Bas: Lieu (Malabo/Bata), Date (a DD de MES de YYYY), Signature, Tampon officiel rond bleu",
+      "Mention de caducite: 'Se caduca a los 15 dias' + date manuscrite"
+    ],
+    "common_values": {
+      "concepto_pago": [
+        "Renovacion de residencia",
+        "Primera residencia",
+        "Duplicado de residencia",
+        "Cambio de datos residencia",
+        "Reagrupacion familiar"
+      ],
+      "lieu_emission": ["Malabo", "Bata"],
+      "dias_validez": [15]
+    },
+    "ocr_challenges": [
+      "Document MANUSCRIT: tous les champs de valeur sont ecrits a la main",
+      "Montants manuscrits parfois peu lisibles — verifier coherence chiffres/lettres",
+      "Code reference manuscrit en coin superieur gauche",
+      "Tampon officiel bleu pouvant masquer du texte (date, signature)",
+      "Mention 'se caduca' parfois en petits caracteres en bas",
+      "Date manuscrite en bas peut avoir format DD/MM/YY au lieu de DD de MES de YYYY"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "numero_nota": [
+      "(?:N[°oº]?\\s*(?:de\\s*)?(?:nota|ingreso))\\s*[:#]?\\s*([0-9.,]+/[0-9]+)",
+      "([0-9]{1,2}\\.[0-9]{3}/[0-9]{1,2})"
+    ],
+    "concepto_pago": [
+      "(?:concepto|por\\s*concepto\\s*de)\\s*[:#]?\\s*(.+?)(?=periodo|monto|$)",
+      "(?:Renovaci[oó]n|Primera|Duplicado|Cambio|Reagrupaci[oó]n)\\s*(?:de\\s*)?(?:residencia|tarjeta)"
+    ],
+    "montant_chiffre": [
+      "(?:monto|importe|cantidad)\\s*[:#]?\\s*([0-9.,]+)\\s*(?:FCFA|F\\.?CFA|XAF)?",
+      "([0-9]{1,3}(?:[.,][0-9]{3})+)\\s*(?:FCFA|F\\.?CFA)",
+      "#\\s*([0-9.,]+)\\s*#"
+    ],
+    "montant_lettre": [
+      "(?:en\\s*letras?|lettre)\\s*[:#]?\\s*(.+?)(?=fecha|$)",
+      "(?:La\\s*Cantidad\\s*de)\\s*[:#]?\\s*(.+?)(?=Son|$)"
+    ],
+    "date_emission": [
+      "(?:fecha|Malabo|Bata)\\s*[,:]?\\s*(?:a\\s*)?(\\d{1,2})[/.-](\\d{1,2})[/.-](\\d{2,4})",
+      "(\\d{1,2})\\s*de\\s*(\\w+)\\s*de(?:l)?\\s*(\\d{4})"
+    ],
+    "lieu_emission": [
+      "(Malabo|Bata)\\s*[,:]"
+    ],
+    "dias_validez": [
+      "(?:caduca|valido|validez)\\s*(?:a\\s*los)?\\s*(\\d+)\\s*(?:dias|d[ií]as)"
+    ],
+    "nom_demandeur": [
+      "(?:nombre|demandeur|solicitante|Don/?D[nñ]a|a\\s*favor\\s*de)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ]
+  }
+}

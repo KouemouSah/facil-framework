@@ -1,0 +1,163 @@
+{
+  "name": "iva_destajo",
+  "category": "iva",
+  "description": "IVA Destajo - Auto-liquidación con 3 regímenes",
+  "version": "1.0",
+  "fields": [
+    {
+      "id": "nif",
+      "label": ["N.I.F.", "NIF", "identificación fiscal"],
+      "type": "text",
+      "pattern": "\\d{8}[A-Z]",
+      "required": true,
+      "position_hint": "after_label"
+    },
+    {
+      "id": "empresa",
+      "label": ["representación de la empresa", "empresa", "En nombre y representación de la empresa"],
+      "type": "text",
+      "required": true,
+      "position_hint": "after_label"
+    },
+    {
+      "id": "ejercicio",
+      "label": ["Ejercicio", "Año", "ejercicio fiscal"],
+      "type": "year",
+      "pattern": "20\\d{2}",
+      "required": true,
+      "position_hint": "after_label"
+    },
+    {
+      "id": "periodo",
+      "label": ["Periodo", "Período", "trimestre"],
+      "type": "text",
+      "pattern": "[0-9]{1,2}T?|T[1-4]",
+      "required": true,
+      "position_hint": "after_label"
+    },
+    {
+      "id": "fecha",
+      "label": ["Fecha", "fecha de presentación"],
+      "type": "date",
+      "required": false,
+      "position_hint": "after_label"
+    },
+    {
+      "id": "auto_liquidacion_num",
+      "label": ["Auto-liquidación Nº", "Autoliquidación", "Nº autoliquidación"],
+      "type": "text",
+      "required": false,
+      "position_hint": "after_label"
+    },
+    {
+      "id": "base_imponible_general",
+      "label": ["01 Base Imponible", "Base Imponible (Régimen General)", "Base Imponible General"],
+      "type": "currency",
+      "required": true,
+      "position_hint": "after_label"
+    },
+    {
+      "id": "tipo_general",
+      "label": ["02 Tipo (%)", "Tipo (%) General", "02 Tipo"],
+      "type": "percentage",
+      "required": true,
+      "position_hint": "after_label"
+    },
+    {
+      "id": "cuota_general",
+      "label": ["03 Cuota", "Cuota General", "03 Cuota General"],
+      "type": "currency",
+      "required": true,
+      "position_hint": "after_label"
+    },
+    {
+      "id": "base_imponible_reducido1",
+      "label": ["04 Base Imponible", "Base Imponible (Régimen Reducido 1)", "Base Reducido 1"],
+      "type": "currency",
+      "required": false,
+      "position_hint": "after_label"
+    },
+    {
+      "id": "tipo_reducido1",
+      "label": ["05 Tipo (%)", "Tipo (%) Reducido 1", "05 Tipo"],
+      "type": "percentage",
+      "required": false,
+      "position_hint": "after_label"
+    },
+    {
+      "id": "cuota_reducido1",
+      "label": ["06 Cuota", "Cuota Reducido 1", "06 Cuota Reducido 1"],
+      "type": "currency",
+      "required": false,
+      "position_hint": "after_label"
+    },
+    {
+      "id": "base_imponible_reducido2",
+      "label": ["07 Base Imponible", "Base Imponible (Régimen Reducido 2)", "Base Reducido 2"],
+      "type": "currency",
+      "required": false,
+      "position_hint": "after_label"
+    },
+    {
+      "id": "tipo_reducido2",
+      "label": ["08 Tipo (%)", "Tipo (%) Reducido 2", "08 Tipo"],
+      "type": "percentage",
+      "required": false,
+      "position_hint": "after_label"
+    },
+    {
+      "id": "cuota_reducido2",
+      "label": ["09 Cuota", "Cuota Reducido 2", "09 Cuota Reducido 2"],
+      "type": "currency",
+      "required": false,
+      "position_hint": "after_label"
+    },
+    {
+      "id": "total_ingresar",
+      "label": ["Total a ingresar", "cantidad ingresada", "importe total"],
+      "type": "currency",
+      "required": false,
+      "position_hint": "after_label"
+    }
+  ],
+  "validations": [
+    {
+      "type": "calculation",
+      "formula": "cuota_general = base_imponible_general * (tipo_general / 100)",
+      "tolerance": 0.01,
+      "error_message": "Cuota general no coincide con el cálculo"
+    },
+    {
+      "type": "calculation",
+      "formula": "cuota_reducido1 = base_imponible_reducido1 * (tipo_reducido1 / 100)",
+      "tolerance": 0.01,
+      "error_message": "Cuota reducido 1 no coincide con el cálculo"
+    },
+    {
+      "type": "calculation",
+      "formula": "cuota_reducido2 = base_imponible_reducido2 * (tipo_reducido2 / 100)",
+      "tolerance": 0.01,
+      "error_message": "Cuota reducido 2 no coincide con el cálculo"
+    },
+    {
+      "type": "format",
+      "field": "nif",
+      "pattern": "^\\d{8}[A-Z]$",
+      "error_message": "Formato NIF inválido (debe ser 8 dígitos + letra)"
+    },
+    {
+      "type": "range",
+      "field": "ejercicio",
+      "min": 2000,
+      "max": 2030,
+      "error_message": "Ejercicio fuera de rango válido"
+    },
+    {
+      "type": "range",
+      "field": "tipo_general",
+      "min": 0,
+      "max": 100,
+      "error_message": "Tipo debe estar entre 0 y 100%"
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "cli": {
+    "version": ">= 13.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug"
+      },
+      "ios": {
+        "simulator": true
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EAS_SKIP_AUTO_FINGERPRINT": "1",
+        "EXPO_PUBLIC_LOGROCKET_APP_ID": "$LOGROCKET_APP_ID",
+        "EXPO_PUBLIC_BUILD_VERSION": "$EAS_BUILD_GIT_COMMIT_HASH"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "ios": {
+        "autoIncrement": true
+      },
+      "env": {
+        "EXPO_PUBLIC_LOGROCKET_APP_ID": "$LOGROCKET_APP_ID",
+        "EXPO_PUBLIC_BUILD_VERSION": "$EAS_BUILD_GIT_COMMIT_HASH"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "PENDING_APPLE_DEVELOPER_ACCOUNT",
+        "appleTeamId": "PENDING_APPLE_DEVELOPER_ACCOUNT"
+      }
+    }
+  }
+}

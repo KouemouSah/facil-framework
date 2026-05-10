@@ -1,0 +1,340 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "CERTIFICADO_DEFUNCION_GQ_V1",
+  "version": "1.0",
+  "title": "Certificado de Defuncion - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour le certificat de deces de GQ. Emis par les Comunidades de Vecinos sous tutelle du Ministerio del Interior y Cooperaciones Locales. Document communautaire avec deux niveaux: certificat de communaute (le plus frequent) et certificat d'etat civil (Registro Civil). Ce schema couvre le certificat communautaire.",
+  "document_type": "CERTIFICADO_DEFUNCION",
+  "country": "GQ",
+  "faces": ["single_page"],
+  "document_nature": "certificat_officiel",
+  "issuer": "Comunidad de Vecinos / Ministerio del Interior y Cooperaciones Locales",
+  "workflows": ["denuncia", "herencia", "empresa"],
+
+  "extraction": {
+    "documento": {
+      "description": "Informations du document",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "CERTIFICADO_DEFUNCION",
+          "required": true
+        },
+        "tipo_certificado": {
+          "type": "string",
+          "enum": ["COMUNIDAD_VECINOS", "REGISTRO_CIVIL", "HOSPITAL"],
+          "required": true,
+          "description": "Origine du certificat: communautaire (le plus courant en GQ), etat civil ou hospitalier"
+        }
+      }
+    },
+
+    "organisme_emetteur": {
+      "description": "Organisme emetteur du certificat",
+      "fields": {
+        "ministerio": {
+          "type": "string",
+          "required": false,
+          "description": "Ministere de tutelle",
+          "field_label": "MINISTERIO",
+          "default": "MINISTERIO DEL INTERIOR Y COOPERACIONES LOCALES"
+        },
+        "comunidad": {
+          "type": "string",
+          "required": true,
+          "description": "Nom de la communaute de voisins (ex: COMUNIDAD DE VECINOS DE ECOBENAM 1-2)",
+          "field_label": "COMUNIDAD DE VECINOS DE"
+        },
+        "distrito": {
+          "type": "string",
+          "required": false,
+          "description": "District (Bata-Litoral, Malabo-Bioko Norte, etc.)",
+          "field_label": "Distrito"
+        },
+        "provincia": {
+          "type": "string",
+          "enum": ["BIOKO NORTE", "BIOKO SUR", "LITORAL", "CENTRO SUR", "KIE-NTEM", "WELE-NZAS", "ANNOBON", "DJIBLOHO"],
+          "required": false,
+          "description": "Province"
+        }
+      }
+    },
+
+    "fallecido": {
+      "description": "Donnees de la personne decedee",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": true,
+          "description": "Nom complet du defunt",
+          "field_label": "el fallecimiento de Doña/Don",
+          "pii": true
+        },
+        "edad_fallecimiento": {
+          "type": "integer",
+          "required": false,
+          "description": "Age au moment du deces",
+          "field_label": "a la edad de ... Años",
+          "minimum": 0,
+          "maximum": 130
+        },
+        "fecha_fallecimiento": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date du deces (YYYY-MM-DD)",
+          "field_label": "fallecio ... el dia ... del mes de ... del año",
+          "date_format": "DD de MMMM de YYYY"
+        },
+        "lugar_fallecimiento": {
+          "type": "string",
+          "required": false,
+          "description": "Lieu exact du deces (communaute, quartier)",
+          "field_label": "vecina de esta comunidad"
+        },
+        "era_vecino_comunidad": {
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Le defunt etait membre/resident de la communaute"
+        }
+      }
+    },
+
+    "solicitante": {
+      "description": "Personne qui demande le certificat",
+      "fields": {
+        "nombre_solicitante": {
+          "type": "string",
+          "required": false,
+          "description": "Nom de la personne qui sollicite le certificat",
+          "field_label": "su cuñada / su hijo/a",
+          "pii": true
+        },
+        "parentesco": {
+          "type": "string",
+          "required": false,
+          "description": "Lien de parente avec le defunt (hijo/a, cunada, esposo/a, hermano/a, padre/madre, sobrino/a)",
+          "field_label": "parentesco"
+        },
+        "numero_dip": {
+          "type": "string",
+          "required": false,
+          "description": "Numero DIP du solicitante",
+          "field_label": "D.P. numero / D.I.P.",
+          "pii": true,
+          "encrypt": true
+        },
+        "naturaleza": {
+          "type": "string",
+          "required": false,
+          "description": "Lieu d'origine/naturaleza du solicitante",
+          "field_label": "natural de"
+        },
+        "provincia_solicitante": {
+          "type": "string",
+          "required": false,
+          "description": "Province du solicitante"
+        }
+      }
+    },
+
+    "circonstances": {
+      "description": "Circonstances du deces (si mentionnees)",
+      "fields": {
+        "causa_fallecimiento": {
+          "type": "string",
+          "required": false,
+          "description": "Cause du deces si mentionnee"
+        },
+        "lugar_enterramiento": {
+          "type": "string",
+          "required": false,
+          "description": "Lieu d'enterrement si mentionne"
+        },
+        "fecha_enterramiento": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Date d'enterrement si mentionnee"
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Elements d'authentification",
+      "fields": {
+        "nombre_presidente": {
+          "type": "string",
+          "required": true,
+          "description": "Nom du/de la Presidente(a) de la Comunidad de Vecinos",
+          "field_label": "LA PRESIDENTA / EL PRESIDENTE",
+          "pii": true
+        },
+        "nombre_secretario": {
+          "type": "string",
+          "required": true,
+          "description": "Nom du Secretario Administrativo de la communaute",
+          "field_label": "EL SECRETARIO",
+          "pii": true
+        },
+        "fecha_emision": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'emission du certificat",
+          "date_format": "DD de MMMM de YYYY"
+        },
+        "lugar_emision": {
+          "type": "string",
+          "required": true,
+          "description": "Lieu d'emission (ville)"
+        },
+        "tiene_firma_presidente": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du/de la Presidente(a)"
+        },
+        "tiene_firma_secretario": {
+          "type": "boolean",
+          "required": true,
+          "description": "Signature du Secretario"
+        },
+        "tiene_sello_comunidad": {
+          "type": "boolean",
+          "required": true,
+          "description": "Sceau officiel de la communaute present"
+        },
+        "tiene_sello_republica": {
+          "type": "boolean",
+          "required": false,
+          "description": "Sceau de la Republica de Guinea Ecuatorial present"
+        },
+        "mencion_legal": {
+          "type": "string",
+          "required": false,
+          "description": "Mention legale (ex: 'POR UNA GUINEA MEJOR')"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "fecha_fallecimiento_no_futura",
+      "rule": "fecha_fallecimiento <= TODAY",
+      "error_es": "La fecha de fallecimiento no puede ser futura",
+      "error_fr": "La date de deces ne peut pas etre future",
+      "severity": "error"
+    },
+    {
+      "id": "fecha_emision_posterior_fallecimiento",
+      "rule": "fecha_emision >= fecha_fallecimiento",
+      "error_es": "La fecha de emision del certificado debe ser posterior al fallecimiento",
+      "error_fr": "La date d'emission du certificat doit etre posterieure au deces",
+      "severity": "error"
+    },
+    {
+      "id": "firmas_obligatorias",
+      "rule": "tiene_firma_presidente == true AND tiene_firma_secretario == true",
+      "error_es": "El certificado debe estar firmado por el Presidente y el Secretario de la comunidad",
+      "error_fr": "Le certificat doit etre signe par le President et le Secretaire de la communaute",
+      "severity": "error"
+    },
+    {
+      "id": "sello_comunidad_obligatorio",
+      "rule": "tiene_sello_comunidad == true",
+      "error_es": "El certificado debe tener el sello oficial de la comunidad de vecinos",
+      "error_fr": "Le certificat doit avoir le cachet officiel de la communaute de voisins",
+      "severity": "error"
+    },
+    {
+      "id": "comunidad_obligatoria",
+      "rule": "comunidad IS NOT NULL AND comunidad != ''",
+      "error_es": "Debe indicarse la comunidad de vecinos que emite el certificado",
+      "error_fr": "La communaute de voisins emettrice doit etre indiquee",
+      "severity": "error"
+    },
+    {
+      "id": "edad_coherente",
+      "rule": "IF edad_fallecimiento IS NOT NULL THEN edad_fallecimiento > 0 AND edad_fallecimiento < 130",
+      "error_es": "La edad indicada no es coherente",
+      "error_fr": "L'age indique n'est pas coherent",
+      "severity": "warning"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Certificat de deces de Guinee Equatoriale, emis par la Comunidad de Vecinos (communaute de quartier) sous tutelle du Ministerio del Interior y Cooperaciones Locales. Document communautaire tres courant en GQ, souvent dactylopgraphie sur un format standardise avec des zones manuscrites. Le certificat communautaire est la premiere attestation de deces avant l'inscription au Registro Civil.",
+    "language": "es",
+    "date_format": "DD de MMMM de YYYY",
+    "visual_zones": [
+      "En-tete gauche: Armoiries GQ + 'REPUBLICA DE GUINEA ECUATORIAL'",
+      "En-tete droite: Sceau rond de la communaute",
+      "Sous-titre: MINISTERIO DEL INTERIOR Y COOPERACIONES LOCALES",
+      "Sous-titre: COMUNIDAD DE VECINOS DE [NOM] / [DISTRICT]",
+      "Titre centre: CERTIFICADO DE DEFUNCION (gros caracteres)",
+      "Paragraphe introductif: DON [NOM SECRETARIO], SECRETARIO ADMINISTRATIVO DE LA COMUNIDAD DE VECINOS DE [NOM] DE LA QUE ES PRESIDENT(A) DOÑA/DON [NOM PRESIDENTE]",
+      "Corps: CERTIFICO: Que los miembros de esta comunidad... reconocemos y nos consta en nuestros archivos el fallecimiento de Doña/Don [NOM]...",
+      "Details manuscrits: nom defunt, date deces, age, lien solicitante, origine, DIP",
+      "Formule finale: 'LA COMUNIDAD DE VECINOS A MI CARGO LIBERAMOS, FIRMAMOS Y SELLAMOS ESTE PRESENTE CERTIFICADO DE DEFUNCION EN LA CIUDAD DE [LIEU] A ... DE [MES] DEL AÑO [YYYY]'",
+      "Mention: POR UNA GUINEA MEJOR",
+      "Signatures: LA PRESIDENTA (gauche) + EL SECRETARIO (droite)",
+      "2-3 sceaux ronds bleus (communaute + republique)"
+    ],
+    "common_values": {
+      "distritos": ["Bata-Litoral", "Malabo-Bioko Norte"],
+      "parentescos": ["hijo/a", "cunada/o", "esposa/o", "hermana/o", "padre", "madre", "sobrino/a", "nieto/a"],
+      "menciones": ["POR UNA GUINEA MEJOR"]
+    },
+    "ocr_challenges": [
+      "Nombreux champs manuscrits (nom, dates, ages, DIP)",
+      "Ecriture manuscrite parfois peu lisible, surtout pour les noms",
+      "Sceaux ronds bleus pouvant masquer du texte",
+      "Dates souvent en format textuel espagnol ('dos mil veintiuno')",
+      "Melanges de texte dactylographie et manuscrit dans le meme paragraphe",
+      "Corrections manuscrites (ratures, surcharges)"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "comunidad": [
+      "(?:COMUNIDAD\\s*DE\\s*VECINOS\\s*DE)\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ0-9\\s-]+?)(?=\\s*(?:DE\\s*LA|\\n|$))"
+    ],
+    "distrito": [
+      "(?:BATA|MALABO)\\s*[-–]\\s*(LITORAL|BIOKO\\s*NORTE|BIOKO\\s*SUR)"
+    ],
+    "nombre_fallecido": [
+      "(?:fallecimiento\\s*de\\s*(?:Do[ñn]a|Don)?)\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+?)(?=,|vecina|\\s+de\\s+esta)",
+      "(?:reconocemos.*fallecimiento\\s*de)\\s*(?:Do[ñn]a|Don)?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "edad_fallecimiento": [
+      "(?:a\\s*la\\s*edad\\s*de)\\s*([0-9]{1,3})\\s*(?:A[ñn]os|anos)"
+    ],
+    "fecha_fallecimiento": [
+      "(?:falleci[oó].*?(?:el\\s*d[ií]a))\\s*(\\d{1,2})\\s*(?:del\\s*mes\\s*de\\s*|de\\s*)(\\w+)\\s*(?:del\\s*a[ñn]o\\s*|de(?:l)?\\s*)(\\w+)",
+      "(\\d{1,2})[/.-](\\d{1,2})[/.-](\\d{4})"
+    ],
+    "nombre_solicitante": [
+      "(?:su\\s*(?:cu[ñn]ada|hijo/a|esposa|hermano/a))\\s*[,.]?\\s*(?:Do[ñn]a|Don)?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+?)(?=,|hija|natural|del)"
+    ],
+    "numero_dip": [
+      "(?:D\\.?(?:I\\.?)?P\\.?\\s*(?:n[uú]mero)?)\\s*[:#]?\\s*([0-9.,]+)"
+    ],
+    "nombre_presidente": [
+      "(?:PRESIDENT[AE])\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)",
+      "(?:ES\\s*PRESIDENT[AE])\\s*(?:Do[ñn]a|Don)?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)"
+    ],
+    "nombre_secretario": [
+      "(?:SECRETARIO)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)",
+      "(?:DON|DOÑA)\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+?)\\s*,\\s*SECRETARIO"
+    ],
+    "lugar_emision": [
+      "(?:EN\\s*LA\\s*CIUDAD\\s*DE)\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "fecha_emision": [
+      "(?:CIUDAD\\s*DE\\s*[A-Z]+\\s*A)\\s*[.…]*\\s*(\\d{1,2})?\\s*(?:\\.+)?\\s*DE\\s*(\\w+)\\s*DEL\\s*A[ÑN]O\\s*(\\w+)",
+      "(\\d{1,2})\\s*de\\s*(\\w+)\\s*(?:de(?:l)?\\s*(?:a[ñn]o)?\\s*)?(\\d{4})"
+    ]
+  }
+}

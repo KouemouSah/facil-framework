@@ -1,0 +1,552 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "CERTIFICADO_NACIMIENTO_GQ_V1",
+  "version": "1.0",
+  "title": "Certificado de Nacimiento - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour le Certificat de Naissance de Guinee Equatoriale",
+  "document_type": "CERTIFICADO_NACIMIENTO",
+  "country": "GQ",
+  "faces": ["single_page"],
+
+  "extraction": {
+    "documento": {
+      "description": "Informations du document",
+      "fields": {
+        "tipo_documento": {
+          "type": "string",
+          "const": "CERTIFICADO_NACIMIENTO",
+          "required": true,
+          "description": "Type de document"
+        },
+        "variante": {
+          "type": "string",
+          "enum": ["DECLARACION_REGISTRO_CIVIL", "DECLARACION_CONSULAR", "CERTIFICADO_LITERAL"],
+          "required": false,
+          "description": "Variante du certificat: Registro Civil national, Consulat, ou Literal"
+        },
+        "numero_acta": {
+          "type": "string",
+          "required": false,
+          "description": "Numero de acta/inscripcion",
+          "field_label": "N° DE INSCRIPCIÓN",
+          "pii": true
+        },
+        "tomo": {
+          "type": "string",
+          "required": false,
+          "description": "Tomo del registro civil",
+          "field_label": "TOMO"
+        },
+        "pagina": {
+          "type": "string",
+          "required": false,
+          "description": "Pagina del registro",
+          "field_label": "PÁGINA"
+        },
+        "folio": {
+          "type": "string",
+          "required": false,
+          "description": "Folio del registro",
+          "field_label": "FOLIO"
+        },
+        "lugar_emision": {
+          "type": "string",
+          "required": true,
+          "description": "Lugar de emision (Registro Civil, Consulado)",
+          "field_label": "REGISTRO CIVIL DE"
+        },
+        "fecha_emision": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Fecha de emision del certificado",
+          "field_label": "FECHA DE EXPEDICIÓN",
+          "date_format": "DD/MM/YYYY"
+        },
+        "funcionario_certificante": {
+          "type": "string",
+          "required": false,
+          "description": "Nombre del funcionario que certifica",
+          "field_label": "EL JUEZ/SECRETARIO"
+        }
+      }
+    },
+
+    "inscrito": {
+      "description": "Informations de la personne inscrite (le ne)",
+      "fields": {
+        "nombre_completo": {
+          "type": "string",
+          "required": true,
+          "description": "Nombre completo del inscrito",
+          "field_label": "NOMBRE",
+          "pii": true
+        },
+        "apellidos": {
+          "type": "string",
+          "required": true,
+          "description": "Apellido(s) del inscrito",
+          "field_label": "APELLIDOS",
+          "pii": true
+        },
+        "sexo": {
+          "type": "string",
+          "enum": ["M", "F", "MASCULINO", "FEMENINO", "VARÓN", "HEMBRA"],
+          "required": true,
+          "description": "Sexo del inscrito",
+          "field_label": "SEXO"
+        },
+        "fecha_nacimiento": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Fecha de nacimiento",
+          "field_label": "NACIDO EL DÍA",
+          "date_format": "DD/MM/YYYY",
+          "pii": true
+        },
+        "hora_nacimiento": {
+          "type": "string",
+          "format": "time",
+          "required": false,
+          "description": "Hora de nacimiento",
+          "field_label": "A LAS",
+          "time_format": "HH:MM"
+        },
+        "lugar_nacimiento": {
+          "type": "string",
+          "required": true,
+          "description": "Lugar de nacimiento (localidad)",
+          "field_label": "EN"
+        },
+        "distrito_nacimiento": {
+          "type": "string",
+          "required": false,
+          "description": "Distrito de nacimiento",
+          "field_label": "DISTRITO"
+        },
+        "provincia_nacimiento": {
+          "type": "string",
+          "required": false,
+          "description": "Provincia de nacimiento",
+          "field_label": "PROVINCIA"
+        }
+      }
+    },
+
+    "padre": {
+      "description": "Informations du pere",
+      "fields": {
+        "nombre": {
+          "type": "string",
+          "required": true,
+          "description": "Nombre del padre",
+          "field_label": "PADRE: NOMBRE",
+          "pii": true
+        },
+        "primer_apellido": {
+          "type": "string",
+          "required": true,
+          "description": "Primer apellido del padre",
+          "field_label": "PRIMER APELLIDO",
+          "pii": true
+        },
+        "segundo_apellido": {
+          "type": "string",
+          "required": false,
+          "description": "Segundo apellido del padre",
+          "field_label": "SEGUNDO APELLIDO"
+        },
+        "nombre_completo": {
+          "type": "string",
+          "required": false,
+          "description": "Nom complet du pere (concatenation)",
+          "computed": true,
+          "pii": true
+        },
+        "nacionalidad": {
+          "type": "string",
+          "required": false,
+          "description": "Nacionalidad del padre",
+          "field_label": "NACIONALIDAD"
+        },
+        "natural_de": {
+          "type": "string",
+          "required": false,
+          "description": "Origen/Natural de del padre",
+          "field_label": "NATURAL DE"
+        },
+        "profesion": {
+          "type": "string",
+          "required": false,
+          "description": "Profesion del padre",
+          "field_label": "PROFESIÓN"
+        },
+        "domicilio": {
+          "type": "string",
+          "required": false,
+          "description": "Domicilio del padre",
+          "field_label": "DOMICILIO",
+          "pii": true
+        },
+        "edad_en_fecha": {
+          "type": "integer",
+          "required": false,
+          "description": "Edad del padre en la fecha de inscripcion",
+          "field_label": "EDAD"
+        }
+      }
+    },
+
+    "madre": {
+      "description": "Informations de la mere",
+      "fields": {
+        "nombre": {
+          "type": "string",
+          "required": true,
+          "description": "Nombre de la madre",
+          "field_label": "MADRE: NOMBRE",
+          "pii": true
+        },
+        "primer_apellido": {
+          "type": "string",
+          "required": true,
+          "description": "Primer apellido de la madre",
+          "field_label": "PRIMER APELLIDO",
+          "pii": true
+        },
+        "segundo_apellido": {
+          "type": "string",
+          "required": false,
+          "description": "Segundo apellido de la madre",
+          "field_label": "SEGUNDO APELLIDO"
+        },
+        "nombre_completo": {
+          "type": "string",
+          "required": false,
+          "description": "Nom complet de la mere (concatenation)",
+          "computed": true,
+          "pii": true
+        },
+        "nacionalidad": {
+          "type": "string",
+          "required": false,
+          "description": "Nacionalidad de la madre",
+          "field_label": "NACIONALIDAD"
+        },
+        "natural_de": {
+          "type": "string",
+          "required": false,
+          "description": "Origen/Natural de de la madre",
+          "field_label": "NATURAL DE"
+        },
+        "profesion": {
+          "type": "string",
+          "required": false,
+          "description": "Profesion de la madre",
+          "field_label": "PROFESIÓN"
+        },
+        "domicilio": {
+          "type": "string",
+          "required": false,
+          "description": "Domicilio de la madre",
+          "field_label": "DOMICILIO",
+          "pii": true
+        },
+        "edad_en_fecha": {
+          "type": "integer",
+          "required": false,
+          "description": "Edad de la madre en la fecha de inscripcion",
+          "field_label": "EDAD"
+        }
+      }
+    },
+
+    "matrimonio_padres": {
+      "description": "Informations sur le mariage des parents (si applicable)",
+      "fields": {
+        "casados": {
+          "type": "boolean",
+          "required": false,
+          "description": "Indica si los padres estan casados"
+        },
+        "fecha_celebracion": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Fecha de matrimonio de los padres",
+          "field_label": "FECHA DE MATRIMONIO",
+          "date_format": "DD/MM/YYYY"
+        },
+        "lugar_celebracion": {
+          "type": "string",
+          "required": false,
+          "description": "Lugar de matrimonio de los padres",
+          "field_label": "LUGAR DE MATRIMONIO"
+        }
+      }
+    },
+
+    "abuelos_paternos": {
+      "description": "Informations des grands-parents paternels",
+      "fields": {
+        "abuelo_nombre": {
+          "type": "string",
+          "required": false,
+          "description": "Nombre del abuelo paterno",
+          "pii": true
+        },
+        "abuela_nombre": {
+          "type": "string",
+          "required": false,
+          "description": "Nombre de la abuela paterna",
+          "pii": true
+        }
+      }
+    },
+
+    "abuelos_maternos": {
+      "description": "Informations des grands-parents maternels",
+      "fields": {
+        "abuelo_nombre": {
+          "type": "string",
+          "required": false,
+          "description": "Nombre del abuelo materno",
+          "pii": true
+        },
+        "abuela_nombre": {
+          "type": "string",
+          "required": false,
+          "description": "Nombre de la abuela materna",
+          "pii": true
+        }
+      }
+    },
+
+    "declarante": {
+      "description": "Personne qui declare la naissance",
+      "fields": {
+        "nombre": {
+          "type": "string",
+          "required": false,
+          "description": "Nombre del declarante",
+          "pii": true
+        },
+        "relacion": {
+          "type": "string",
+          "required": false,
+          "description": "Relacion con el inscrito (padre, madre, etc.)"
+        },
+        "documento_identidad": {
+          "type": "string",
+          "required": false,
+          "description": "Numero de documento del declarante",
+          "pii": true
+        }
+      }
+    },
+
+    "notas_marginales": {
+      "description": "Notes marginales (reconnaissances, rectifications, etc.)",
+      "fields": {
+        "tiene_notas": {
+          "type": "boolean",
+          "required": false,
+          "description": "Indica si hay notas marginales"
+        },
+        "texto_notas": {
+          "type": "string",
+          "required": false,
+          "description": "Contenido de las notas marginales"
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "fecha_emision_not_future",
+      "rule": "fecha_emision <= TODAY",
+      "error_es": "Fecha de emision no puede ser futura",
+      "error_fr": "La date d'emission ne peut pas etre future",
+      "severity": "error"
+    },
+    {
+      "id": "certificado_recent",
+      "rule": "fecha_emision >= TODAY - 3 MONTHS",
+      "error_es": "Certificado de mas de 3 meses de antiguedad",
+      "error_fr": "Certificat date de plus de 3 mois",
+      "severity": "warning"
+    },
+    {
+      "id": "fecha_nacimiento_not_future",
+      "rule": "fecha_nacimiento <= TODAY",
+      "error_es": "Fecha de nacimiento no puede ser futura",
+      "error_fr": "La date de naissance ne peut pas etre future",
+      "severity": "error"
+    },
+    {
+      "id": "nombre_inscrito_required",
+      "rule": "inscrito.nombre_completo IS NOT NULL OR inscrito.apellidos IS NOT NULL",
+      "error_es": "El nombre del inscrito es obligatorio",
+      "error_fr": "Le nom de l'inscrit est obligatoire",
+      "severity": "error"
+    },
+    {
+      "id": "padre_o_madre_required",
+      "rule": "padre.nombre IS NOT NULL OR madre.nombre IS NOT NULL",
+      "error_es": "Se requiere al menos el nombre del padre o la madre",
+      "error_fr": "Au moins le nom du pere ou de la mere est requis",
+      "severity": "warning"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_description": "Certificado de Nacimiento de Guinea Ecuatorial - documento oficial del Registro Civil",
+    "language": "es",
+    "date_format": "DD/MM/YYYY ou texte (ej: 'quince de marzo de mil novecientos ochenta y cinco')",
+    "document_variants": [
+      {
+        "name": "Declaracion de Nacimiento al Registro Civil",
+        "description": "Emitido por Registro Civil Nacional (Malabo, Bata, etc.)",
+        "header": "MINISTERIO DE JUSTICIA, CULTO E INSTITUCIONES PENITENCIARIAS",
+        "subheader": "REGISTRO CIVIL DE..."
+      },
+      {
+        "name": "Declaracion de Nacimiento al Registro Consular",
+        "description": "Emitido por Consulados de GQ en el exterior",
+        "header": "MINISTERIO DE ASUNTOS EXTERIORES Y COOPERACIÓN",
+        "subheader": "CONSULADO DE GUINEA ECUATORIAL EN..."
+      },
+      {
+        "name": "Certificado Literal de Nacimiento",
+        "description": "Copia literal del acta original",
+        "header": "CERTIFICADO LITERAL DE NACIMIENTO"
+      }
+    ],
+    "visual_zones": [
+      "En-tete: REPUBLICA DE GUINEA ECUATORIAL + Ministerio + Escudo Nacional",
+      "Titulo: DECLARACIÓN DE NACIMIENTO AL REGISTRO CIVIL / CERTIFICADO LITERAL",
+      "Zone superieure: Numero de inscripcion, Tomo, Pagina, Folio",
+      "Section DATOS DEL INSCRITO: Nombre completo, fecha/hora/lugar nacimiento, sexo",
+      "Section PADRE: Nombre, apellidos, nacionalidad, profesion, domicilio",
+      "Section MADRE: Nombre, apellidos, nacionalidad, profesion, domicilio",
+      "Section ABUELOS (opcional): Nombres de abuelos paternos y maternos",
+      "Section MATRIMONIO (opcional): Datos del matrimonio de los padres",
+      "Zone inferieure: Notas marginales (rectificaciones, reconocimientos)",
+      "Firmas: Juez/Secretario del Registro Civil, Sello oficial"
+    ],
+    "special_cases": [
+      "Fechas escritas en texto: 'quince de marzo de mil novecientos...'",
+      "Inscripciones fuera de plazo: puede tener notas explicativas",
+      "Reconocimientos de paternidad: notas marginales adicionales",
+      "Rectificaciones: tachaduras legales con notas",
+      "Nacimientos en el extranjero: registros consulares"
+    ],
+    "text_patterns": {
+      "male": ["VARÓN", "MASCULINO", "M", "HOMBRE", "NIÑO"],
+      "female": ["HEMBRA", "FEMENINO", "F", "MUJER", "NIÑA"]
+    },
+    "common_nacionalidades": [
+      "ECUATOGUINEANA",
+      "ESPAÑOLA",
+      "CAMERUNESA",
+      "NIGERIANA",
+      "GABONESA"
+    ],
+    "ocr_challenges": [
+      "Documentos antiguos con tinta desvanecida",
+      "Manuscritos dificiles de leer",
+      "Sellos que cubren texto",
+      "Documentos plastificados con reflejos",
+      "Fechas en formato texto literario",
+      "Tildes y caracteres especiales en nombres africanos"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "numero_acta": [
+      "(?:N[°o]?\\s*(?:DE\\s*)?INSCRIPCI[OÓ]N|ACTA\\s*N[°o]?)\\s*[:#]?\\s*([0-9]+)",
+      "INSCRIPCI[OÓ]N\\s*[:#]?\\s*([0-9]+)"
+    ],
+    "tomo": [
+      "TOMO\\s*[:#]?\\s*([A-Z0-9]+)",
+      "T\\.?\\s*[:#]?\\s*([A-Z0-9]+)"
+    ],
+    "pagina": [
+      "P[AÁ]GINA\\s*[:#]?\\s*([0-9]+)",
+      "P[ÁA]G\\.?\\s*[:#]?\\s*([0-9]+)"
+    ],
+    "folio": [
+      "FOLIO\\s*[:#]?\\s*([0-9]+)",
+      "F\\.?\\s*[:#]?\\s*([0-9]+)"
+    ],
+    "nombre_inscrito": [
+      "(?:NOMBRE(?:\\s*DEL)?\\s*(?:INSCRITO|NACIDO)?)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)",
+      "(?:INSCRIPCI[OÓ]N\\s*DE)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)"
+    ],
+    "apellidos_inscrito": [
+      "APELLIDOS?\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\\s]+)",
+      "(?:PRIMER|1[°º]?)\\s*APELLIDO\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "fecha_nacimiento": [
+      "(?:NACIDO|NACI[OÓ])\\s*(?:EL\\s*)?(?:D[IÍ]A)?\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})",
+      "(?:NACIDO|NACI[OÓ])\\s*(?:EL)?\\s*[:#]?\\s*([a-záéíóúñ]+\\s+de\\s+[a-záéíóúñ]+\\s+de\\s+(?:mil\\s+)?[a-záéíóúñ\\s]+)"
+    ],
+    "hora_nacimiento": [
+      "(?:A\\s*LAS?|HORA)\\s*[:#]?\\s*(\\d{1,2}[:.h]\\d{2})",
+      "(?:HORAS?)\\s*[:#]?\\s*(\\d{1,2})"
+    ],
+    "lugar_nacimiento": [
+      "(?:EN|LUGAR\\s*(?:DE\\s*)?NACIMIENTO)\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:[\\s,]+[A-Za-záéíóúñ]+)*)"
+    ],
+    "sexo": [
+      "SEXO\\s*[:#]?\\s*(VAR[OÓ]N|MASCULINO|HEMBRA|FEMENINO|[MF])",
+      "\\b(VAR[OÓ]N|HEMBRA|MASCULINO|FEMENINO)\\b"
+    ],
+    "padre_nombre": [
+      "PADRE\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\\s+[A-Za-záéíóúñ]+)*)",
+      "(?:NOMBRE\\s*DEL\\s*)?PADRE\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "madre_nombre": [
+      "MADRE\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\\s+[A-Za-záéíóúñ]+)*)",
+      "(?:NOMBRE\\s*DE\\s*LA\\s*)?MADRE\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "nacionalidad": [
+      "NACIONALIDAD\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ]+)"
+    ],
+    "profesion": [
+      "PROFESI[OÓ]N\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ\\s]+)"
+    ],
+    "domicilio": [
+      "DOMICILIO\\s*[:#]?\\s*(.+?)(?=\\n|PROFESI|NATURAL|$)"
+    ],
+    "lugar_emision": [
+      "REGISTRO\\s*CIVIL\\s*(?:DE)?\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)",
+      "CONSULADO\\s*(?:DE\\s*GUINEA\\s*ECUATORIAL)?\\s*(?:EN)?\\s*[:#]?\\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)"
+    ],
+    "fecha_emision": [
+      "(?:EXPEDIDO|FECHA\\s*(?:DE\\s*)?EXPEDICI[OÓ]N|FECHA)\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})"
+    ],
+    "fecha_matrimonio": [
+      "(?:CASADOS?|MATRIMONIO)\\s*(?:EL|EN)?\\s*[:#]?\\s*(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4})"
+    ]
+  },
+
+  "date_text_conversion": {
+    "months": {
+      "enero": "01", "febrero": "02", "marzo": "03", "abril": "04",
+      "mayo": "05", "junio": "06", "julio": "07", "agosto": "08",
+      "septiembre": "09", "octubre": "10", "noviembre": "11", "diciembre": "12"
+    },
+    "ordinals": {
+      "primero": 1, "segundo": 2, "tercero": 3, "cuarto": 4, "quinto": 5,
+      "sexto": 6, "septimo": 7, "octavo": 8, "noveno": 9, "decimo": 10,
+      "once": 11, "doce": 12, "trece": 13, "catorce": 14, "quince": 15,
+      "dieciseis": 16, "diecisiete": 17, "dieciocho": 18, "diecinueve": 19,
+      "veinte": 20, "veintiuno": 21, "veintidos": 22, "veintitres": 23,
+      "veinticuatro": 24, "veinticinco": 25, "veintiseis": 26, "veintisiete": 27,
+      "veintiocho": 28, "veintinueve": 29, "treinta": 30, "treinta y uno": 31
+    }
+  }
+}

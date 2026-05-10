@@ -1,0 +1,155 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_id": "SELLO_ENTRADA_GQ_V1",
+  "version": "1.2",
+  "title": "Sello de Entrada/Salida - Guinea Ecuatorial",
+  "description": "Schema d'extraction pour la page du passeport contenant les cachets (sellos) d'entree et de sortie de Guinee Equatoriale. Emis par le Ministerio de Seguridad Nacional aux postes frontieres officiels. Le schema extrait le cachet d'ENTREE le plus recent.",
+  "document_type": "SELLO_ENTRADA",
+  "country": "GQ",
+  "faces": ["stamp_page"],
+  "document_nature": "tampon_passeport",
+  "issuer": "Ministerio de Seguridad Nacional",
+
+  "extraction": {
+    "ultimo_sello_entrada": {
+      "description": "Cachet d'ENTREE le plus recent visible sur la page.",
+      "fields": {
+        "tipo_sello": {
+          "type": "string",
+          "enum": ["ENTRADA", "SALIDA"],
+          "required": true,
+          "description": "Type du cachet identifie. Doit etre ENTRADA pour le champ principal.",
+          "usage": "Verification que le document contient bien un cachet d'entree."
+        },
+        "fecha_entrada": {
+          "type": "string",
+          "format": "date",
+          "required": true,
+          "description": "Date d'entree au pays, extraite du cachet ENTRADA le plus recent. Normaliser en YYYY-MM-DD.",
+          "usage": "CRITIQUE — determine le point de depart du calcul de sejour (CEMAC 90 jours, coherence visado)."
+        },
+        "puesto_fronterizo": {
+          "type": "string",
+          "required": true,
+          "description": "Nom du poste frontalier tel qu'il apparait sur le cachet. Extraire le texte complet tel quel, sans normaliser.",
+          "usage": "Information pour l'agent — confirme un point d'entree officiel."
+        }
+      }
+    },
+
+    "historial_sellos": {
+      "description": "Resume des cachets GQ visibles sur la page (optionnel, pour contexte agent).",
+      "fields": {
+        "total_entradas_visibles": {
+          "type": "integer",
+          "required": false,
+          "description": "Nombre total de cachets ENTRADA de GQ visibles sur la page."
+        },
+        "total_salidas_visibles": {
+          "type": "integer",
+          "required": false,
+          "description": "Nombre total de cachets SALIDA de GQ visibles sur la page."
+        },
+        "fecha_ultima_salida": {
+          "type": "string",
+          "format": "date",
+          "required": false,
+          "description": "Date du cachet SALIDA de GQ le plus recent, si visible. Normaliser en YYYY-MM-DD."
+        }
+      }
+    },
+
+    "autenticacion": {
+      "description": "Verification visuelle de l'authenticite du cachet d'entree. Questions booleennes format-agnostiques — Gemini evalue visuellement sans reference a un format physique impose.",
+      "fields": {
+        "tiene_sello_oficial": {
+          "type": "boolean",
+          "required": true,
+          "description": "Le cachet identifie comme ENTRADA semble-t-il etre un cachet officiel de la Republica de Guinea Ecuatorial? Verifier visuellement: mention de la republique, du Ministerio de Seguridad Nacional, et apparence institutionnelle (pas manuscrit, pas improvise).",
+          "usage": "CRITIQUE — un cachet non officiel invalide la date d'entree. L'agent doit verifier l'authenticite physique, mais Gemini peut detecter les anomalies evidentes (texte manuscrit, absence de mentions officielles)."
+        },
+        "texto_legible": {
+          "type": "boolean",
+          "required": true,
+          "description": "Le texte du cachet (date, poste frontalier) est-il suffisamment lisible pour une extraction fiable? Si l'encre est trop claire, le tampon trop superpose, ou le texte partiellement masque par le pli du passeport, indiquer false.",
+          "usage": "Qualite d'extraction — si false, les champs fecha_entrada et puesto_fronterizo peuvent etre peu fiables. L'agent devra verifier visuellement."
+        }
+      }
+    }
+  },
+
+  "validations": [
+    {
+      "id": "fecha_entrada_not_future",
+      "rule": "ultimo_sello_entrada.fecha_entrada <= TODAY",
+      "error_es": "La fecha del sello de entrada no puede ser futura",
+      "severity": "error"
+    },
+    {
+      "id": "tipo_sello_entrada",
+      "rule": "ultimo_sello_entrada.tipo_sello == 'ENTRADA'",
+      "error_es": "No se identificó un sello de ENTRADA. Solo se encontraron sellos de SALIDA.",
+      "severity": "error"
+    },
+    {
+      "id": "coherencia_salida_entrada",
+      "rule": "historial_sellos.fecha_ultima_salida IS NULL OR historial_sellos.fecha_ultima_salida < ultimo_sello_entrada.fecha_entrada",
+      "error_es": "La fecha de última salida es posterior a la fecha de última entrada. Posible incoherencia.",
+      "severity": "warning"
+    },
+    {
+      "id": "sello_oficial",
+      "rule": "autenticacion.tiene_sello_oficial == true",
+      "error_es": "El sello de entrada no parece ser un sello oficial de la República de Guinea Ecuatorial",
+      "severity": "error"
+    },
+    {
+      "id": "texto_legible",
+      "rule": "autenticacion.texto_legible == true",
+      "error_es": "El texto del sello de entrada no es suficientemente legible. La fecha y/o el puesto fronterizo podrían ser incorrectos.",
+      "severity": "warning"
+    }
+  ],
+
+  "cross_document_validations": [
+    {
+      "id": "entrada_dentro_validez_pasaporte",
+      "compare_with": "pasaporte",
+      "rule": "ultimo_sello_entrada.fecha_entrada <= pasaporte.documento.fecha_expiracion",
+      "error_es": "La fecha de entrada es posterior a la fecha de expiración del pasaporte",
+      "severity": "error"
+    }
+  ],
+
+  "gemini_hints": {
+    "document_type": "Page de passeport contenant des cachets d'entree/sortie de Guinee Equatoriale. Identifier les cachets GQ (mentions officielles de la republique) et extraire le plus recent de type ENTRADA.",
+    "language": "es",
+
+    "extraction_priority": [
+      "1. IDENTIFIER les cachets de Guinee Equatoriale sur la page (ignorer ceux d'autres pays).",
+      "2. DISTINGUER ENTRADA (entree) vs SALIDA (sortie).",
+      "3. TROUVER le cachet ENTRADA le plus recent (date la plus recente).",
+      "4. EXTRAIRE la DATE. Attention: les chiffres du jour peuvent etre espaces (ex: '3 0' = 30, '2 6' = 26). Mois espagnols abreges: ENE, FEB, MAR, ABR, MAY, JUN, JUL, AGO, SEP/SET, OCT, NOV, DIC. Normaliser en YYYY-MM-DD.",
+      "5. EXTRAIRE le nom du PUESTO FRONTERIZO tel quel (texte complet sans reformater).",
+      "6. AUTENTICACION: Le cachet semble-t-il officiel (mentions Republica, Ministerio, apparence institutionnelle)? Le texte est-il lisible?",
+      "7. COMPTER les cachets GQ ENTRADA et SALIDA visibles.",
+      "8. SI SALIDA visible, extraire la date la plus recente."
+    ],
+
+    "ocr_challenges": [
+      "Chiffres du jour espaces sur le tampon (3 0 = 30)",
+      "Encre variable (trop claire ou trop foncee)",
+      "Tampons superposes entre eux ou avec des visas stickers",
+      "Cachets d'autres pays sur la meme page",
+      "Pli du passeport peut masquer une partie du tampon",
+      "Format de date peut varier entre postes (avec/sans point apres le mois)"
+    ]
+  },
+
+  "tesseract_patterns": {
+    "_note": "Patterns de fallback. Gemini est l'extracteur principal.",
+    "fecha_entrada": [
+      "(\\d{1,2}\\s*\\d?\\s*(?:ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|SET|OCT|NOV|DIC)\\.?\\s*\\d{4})"
+    ]
+  }
+}

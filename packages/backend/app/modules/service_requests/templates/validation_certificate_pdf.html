@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="{{ language or 'es' }}">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1.2cm 1.5cm;
+        }
+
+        * { margin: 0; padding: 0; }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 9pt;
+            line-height: 1.3;
+            color: #1a1a1a;
+        }
+
+        .no-break { page-break-inside: avoid; }
+
+        /* ================================================================
+           HEADER — same as solicitud: logo left, reference right
+           ================================================================ */
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-bottom: 1px solid #3a7104;
+            padding-bottom: 8px;
+            margin-bottom: 0;
+        }
+
+        .header-table td {
+            vertical-align: middle;
+            padding-bottom: 8px;
+        }
+
+        .logo-cell { width: 130px; }
+        .logo-cell img { height: 45px; }
+
+        .ref-cell { text-align: right; }
+
+        .reference-number {
+            font-size: 12pt;
+            font-weight: bold;
+            color: #2d5a03;
+        }
+
+        .reference-date {
+            font-size: 8pt;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        /* ================================================================
+           CERTIFICATE TITLE — centered below header line
+           ================================================================ */
+        .certificate-title-row {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+        }
+
+        .certificate-title-row td {
+            padding-top: 6px;
+        }
+
+        .certificate-title {
+            text-align: center;
+            font-size: 11pt;
+            font-weight: bold;
+            color: #1e40af;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .badge-validated {
+            display: inline-block;
+            background: #22c55e;
+            color: white;
+            padding: 3px 14px;
+            font-size: 8pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-radius: 3px;
+        }
+
+        /* ================================================================
+           REQUEST META — tipo solicitud, solicitante, badge on same line
+           ================================================================ */
+        .request-meta-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+            font-size: 8.5pt;
+        }
+
+        .request-meta-table td {
+            padding: 2px 0;
+            vertical-align: middle;
+        }
+
+        .meta-label {
+            color: #6b7280;
+            white-space: nowrap;
+            padding-right: 6px;
+        }
+
+        .meta-value {
+            font-weight: bold;
+            color: #000;
+            padding-right: 15px;
+        }
+
+        .meta-badge-cell {
+            text-align: right;
+            vertical-align: middle;
+        }
+
+        /* ================================================================
+           SECTION HEADERS (compact, centered — same as solicitud)
+           ================================================================ */
+        .section-header {
+            background: #3a7104;
+            color: white;
+            padding: 3px 12px;
+            font-weight: bold;
+            font-size: 9pt;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .section-container { margin-bottom: 14px; }
+
+        /* ================================================================
+           DATA TABLE — dynamic widths, auto-wrap
+           ================================================================ */
+        .personal-data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .personal-data-table td {
+            vertical-align: top;
+            padding: 0;
+        }
+
+        .photo-cell {
+            width: 98px;
+            padding-right: 16px;
+        }
+
+        .photo-box {
+            width: 80px;
+            height: 100px;
+            border: 1px solid #e5e7eb;
+            text-align: center;
+        }
+
+        .photo-box img {
+            width: 80px;
+            height: 100px;
+        }
+
+        .photo-placeholder {
+            width: 80px;
+            height: 100px;
+            background: #f3f4f6;
+            font-size: 7pt;
+            color: #9ca3af;
+            line-height: 100px;
+            text-align: center;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table td {
+            padding: 2px 5px;
+            font-size: 8.5pt;
+            border: none;
+            word-wrap: break-word;
+        }
+
+        .data-label {
+            color: #6b7280;
+            font-weight: normal;
+            white-space: nowrap;
+            width: 1%;
+            padding-right: 8px;
+        }
+
+        .data-value {
+            font-weight: bold;
+            color: #000;
+        }
+
+        /* ================================================================
+           DOMICILE + FILIATION
+           ================================================================ */
+        .inline-data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 6px;
+        }
+
+        .inline-data-table td {
+            padding: 2px 5px;
+            font-size: 8.5pt;
+        }
+
+        /* ================================================================
+           DOCUMENTS
+           ================================================================ */
+        .doc-grid {
+            display: table;
+            width: 100%;
+        }
+
+        .doc-item {
+            display: table-row;
+        }
+
+        .doc-icon {
+            display: table-cell;
+            width: 16px;
+            padding: 2px 4px;
+            color: #22c55e;
+            font-size: 10pt;
+        }
+
+        .doc-name {
+            display: table-cell;
+            padding: 2px 4px;
+            font-size: 8.5pt;
+        }
+
+        /* ================================================================
+           APPOINTMENT + PAYMENT (same as solicitud)
+           ================================================================ */
+        .blocks-row-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-bottom: 10px;
+        }
+
+        .appointment-cell {
+            width: 56%;
+            border: 1px solid #3a7104;
+            border-radius: 6px;
+            padding: 10px 12px;
+            vertical-align: top;
+        }
+
+        .spacer-cell {
+            width: 23px;
+            padding: 0;
+            border: none;
+        }
+
+        .payment-cell {
+            width: 44%;
+            border: 1px solid #3a7104;
+            border-radius: 6px;
+            padding: 10px 12px;
+            vertical-align: top;
+        }
+
+        .card-block-title {
+            font-weight: bold;
+            color: #3a7104;
+            font-size: 9pt;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .payment-cell .card-block-title { text-align: center; }
+
+        .appointment-detail-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .appointment-detail-table td {
+            padding: 2px 3px;
+            border: none;
+            font-size: 9pt;
+        }
+
+        .appt-label { width: 60px; color: #6b7280; font-size: 8pt; }
+        .appt-value { font-weight: bold; color: #2d5a03; }
+
+        .payment-amount {
+            font-size: 15pt;
+            font-weight: bold;
+            color: #2d5a03;
+            text-align: center;
+            margin-top: 4px;
+        }
+
+        .payment-label {
+            font-size: 8pt;
+            color: #6b7280;
+            margin-top: 4px;
+            text-transform: uppercase;
+            text-align: center;
+        }
+
+        .payment-badge {
+            display: inline-block;
+            background: #22c55e;
+            color: white;
+            padding: 2px 10px;
+            font-size: 7pt;
+            font-weight: bold;
+            border-radius: 3px;
+            margin-top: 4px;
+        }
+
+        /* ================================================================
+           AGENT VALIDATION BOX
+           ================================================================ */
+        .agent-box {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            padding: 6px 12px;
+            margin-bottom: 10px;
+            font-size: 8pt;
+        }
+
+        .agent-label { color: #6b7280; }
+        .agent-name { font-weight: bold; color: #374151; }
+
+        /* ================================================================
+           NOTICE BOX — title centered, text in same frame
+           ================================================================ */
+        .notice-box {
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            padding: 8px 12px;
+            margin-bottom: 10px;
+            font-size: 8pt;
+            color: #92400e;
+        }
+
+        .notice-title {
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            font-size: 8.5pt;
+        }
+
+        .notice-text {
+            text-align: left;
+            font-style: italic;
+        }
+
+        /* ================================================================
+           FOOTER (same as solicitud)
+           ================================================================ */
+        .footer-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .footer-table td {
+            vertical-align: bottom;
+            padding-top: 8px;
+        }
+
+        .footer-text-cell { width: 75%; }
+        .footer-qr-cell { width: 25%; text-align: right; }
+
+        .footer-text {
+            font-size: 8pt;
+            color: #6b7280;
+            line-height: 1.5;
+        }
+
+        .footer-verify {
+            font-size: 8pt;
+            color: #3a7104;
+            font-weight: 500;
+        }
+
+        .qr-box { width: 70px; height: 70px; text-align: center; }
+        .qr-box img { width: 70px; height: 70px; }
+    </style>
+</head>
+<body>
+
+    <!-- ================================================================
+         HEADER: Logo + Reference (same as solicitud)
+         ================================================================ -->
+    <table class="header-table">
+        <tr>
+            <td class="logo-cell">
+                {% if logo_base64 %}
+                <img src="{{ logo_base64 }}" alt="Facil" />
+                {% endif %}
+            </td>
+            <td class="ref-cell">
+                <div class="reference-number">{{ request_number }}</div>
+                <div class="reference-date">{{ generated_at }}</div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- ================================================================
+         CERTIFICATE TITLE — centered, uppercase
+         ================================================================ -->
+    <table class="certificate-title-row">
+        <tr>
+            <td class="certificate-title">{{ texts.certificate_title }}</td>
+        </tr>
+    </table>
+
+    <!-- ================================================================
+         REQUEST META: tipo solicitud + tipo solicitante + badge VALIDÉ
+         ================================================================ -->
+    <table class="request-meta-table">
+        <tr>
+            <td class="meta-label">{{ texts.applicant_type }}:</td>
+            <td class="meta-value">{{ personal_data.tipo_solicitante or texts.applicant_adult }}</td>
+            <td class="meta-label">{{ texts.request_type }}:</td>
+            <td class="meta-value">{{ solicitud_type_label }}</td>
+            {% if personal_data.motivo %}
+            <td class="meta-label">{{ texts.reason }}:</td>
+            <td class="meta-value">{{ personal_data.motivo }}</td>
+            {% endif %}
+            <td class="meta-badge-cell">
+                <span class="badge-validated">{{ texts.status_validated }}</span>
+            </td>
+        </tr>
+    </table>
+
+    <!-- ================================================================
+         DATOS PERSONALES — photo + dynamic 2-column data
+         ================================================================ -->
+    <div class="no-break section-container">
+        <div class="section-header">{{ texts.personal_data }}</div>
+        <table class="personal-data-table">
+            <tr>
+                <td class="photo-cell">
+                    {% if photo_base64 %}
+                    <div class="photo-box">
+                        <img src="{{ photo_base64 }}" alt="Photo" />
+                    </div>
+                    {% else %}
+                    <div class="photo-placeholder">{{ texts.no_photo }}</div>
+                    {% endif %}
+                </td>
+                <td>
+                    <table class="data-table">
+                        <tr>
+                            <td class="data-label">{{ texts.dip_number }}</td>
+                            <td class="data-value">{{ personal_data.numero_dip or '-' }}</td>
+                            <td class="data-label">{{ texts.native_of }}</td>
+                            <td class="data-value">{{ personal_data.natural_de or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="data-label">{{ texts.last_name }}</td>
+                            <td class="data-value">{{ personal_data.apellidos or '-' }}</td>
+                            <td class="data-label">{{ texts.nationality }}</td>
+                            <td class="data-value">{{ personal_data.nacionalidad or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="data-label">{{ texts.first_name }}</td>
+                            <td class="data-value">{{ personal_data.nombres or '-' }}</td>
+                            <td class="data-label">{{ texts.marital_status }}</td>
+                            <td class="data-value">{{ personal_data.estado_civil or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="data-label">{{ texts.sex }}</td>
+                            <td class="data-value">{{ personal_data.sexo or '-' }}</td>
+                            <td class="data-label">{{ texts.profession }}</td>
+                            <td class="data-value">{{ personal_data.profesion or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="data-label">{{ texts.birth_date }}</td>
+                            <td class="data-value">{{ personal_data.fecha_nacimiento or '-' }}</td>
+                            <td class="data-label">{{ texts.blood_type }}</td>
+                            <td class="data-value">{{ personal_data.grupo_sanguineo or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="data-label">{{ texts.birth_place }}</td>
+                            <td class="data-value">{{ personal_data.lugar_nacimiento or '-' }}</td>
+                            <td></td><td></td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ================================================================
+         DOMICILIO
+         ================================================================ -->
+    {% if personal_data.domicilio or personal_data.barrio or personal_data.ciudad %}
+    <div class="no-break section-container">
+        <div class="section-header">{{ texts.address }}</div>
+        <table class="inline-data-table">
+            <tr>
+                <td class="data-label">{{ texts.neighborhood }}</td>
+                <td class="data-value">{{ personal_data.barrio or '-' }}</td>
+                <td class="data-label">{{ texts.city }}</td>
+                <td class="data-value">{{ personal_data.ciudad or '-' }}</td>
+                <td class="data-label">{{ texts.district }}</td>
+                <td class="data-value">{{ personal_data.domicilio or '-' }}</td>
+            </tr>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- ================================================================
+         FILIATION
+         ================================================================ -->
+    <div class="no-break section-container">
+        <div class="section-header">{{ texts.filiation }}</div>
+        <table class="inline-data-table">
+            <tr>
+                <td class="data-label">{{ texts.father_name }}</td>
+                <td class="data-value" style="width: 45%;">{{ personal_data.nombre_padre or '-' }}</td>
+                <td class="data-label">{{ texts.mother_name }}</td>
+                <td class="data-value" style="width: 45%;">{{ personal_data.nombre_madre or '-' }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ================================================================
+         APPOINTMENT + PAYMENT (same layout as solicitud)
+         ================================================================ -->
+    <div class="no-break">
+        <table class="blocks-row-table">
+            <tr>
+                <td class="appointment-cell">
+                    {% if appointment %}
+                    <div class="card-block-title">{{ texts.scheduled_appointment }}</div>
+                    <table class="appointment-detail-table">
+                        <tr><td class="appt-label">{{ texts.date }}:</td><td class="appt-value">{{ appointment.date }}</td></tr>
+                        <tr><td class="appt-label">{{ texts.time }}:</td><td class="appt-value">{{ appointment.time }}</td></tr>
+                        <tr><td class="appt-label">{{ texts.location }}:</td><td class="appt-value">{{ appointment.location }}</td></tr>
+                    </table>
+                    {% else %}
+                    <div class="card-block-title" style="color: #6b7280;">{{ texts.scheduled_appointment }}</div>
+                    <div style="font-size: 9pt; color: #9ca3af;">{{ texts.no_appointment }}</div>
+                    {% endif %}
+                </td>
+                <td class="spacer-cell"></td>
+                <td class="payment-cell">
+                    <div class="card-block-title">{{ texts.payment_breakdown }}</div>
+                    <div class="payment-amount">{{ tariff.total_amount }} <span style="font-size: 10pt;">XAF</span></div>
+                    <div class="payment-label">
+                        <span class="payment-badge">{{ texts.payment_confirmed }}</span>
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ================================================================
+         AGENT VALIDATION
+         ================================================================ -->
+    {% if agent_name %}
+    <div class="agent-box">
+        <span class="agent-label">{{ texts.validated_by }}:</span>
+        <span class="agent-name">{{ agent_name }}</span>
+        {% if agent_entity %}
+        <span class="agent-label"> &mdash; {{ agent_entity }}</span>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- ================================================================
+         AVIS IMPORTANT — centered title, text in same frame
+         ================================================================ -->
+    <div class="notice-box">
+        <div class="notice-title">{{ texts.important_notice }}</div>
+        <div class="notice-text">{{ texts.notice_content }}</div>
+    </div>
+
+    <!-- ================================================================
+         FOOTER: Reference + QR (same as solicitud)
+         ================================================================ -->
+    <table class="footer-table">
+        <tr>
+            <td class="footer-text-cell">
+                <div class="footer-text">
+                    <strong>{{ texts.reference }}:</strong> {{ request_number }}<br/>
+                    <strong>{{ texts.generated_on }}:</strong> {{ generated_at }}<br/>
+                    <span class="footer-verify">{{ texts.verify_at }}: {{ verify_url }}</span>
+                </div>
+            </td>
+            <td class="footer-qr-cell">
+                {% if qr_code_base64 %}
+                <div class="qr-box">
+                    <img src="{{ qr_code_base64 }}" alt="QR Code" />
+                </div>
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+
+</body>
+</html>
