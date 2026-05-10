@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/KouemouSah/facil-framework/security/advisories/new
+    about: Please report security issues via GitHub Security Advisories (private), not public issues. See SECURITY.md.
+  - name: General question / discussion
+    url: https://github.com/KouemouSah/facil-framework/discussions
+    about: Open a discussion thread for questions, ideas, or general talk.

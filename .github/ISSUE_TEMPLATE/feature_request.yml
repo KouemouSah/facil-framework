@@ -1,0 +1,61 @@
+name: Feature request
+description: Propose a new feature or enhancement
+title: '[feat] '
+labels: ['kind:feature', 'triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening a feature request, please check the [ROADMAP](../blob/main/ROADMAP.md) and existing issues — your idea may already be planned.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What problem does this solve? Who benefits?
+      placeholder: |
+        As a Studio operator, I want to ... so that ...
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe what you'd like to see. Sketches, mockups, code snippets welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other approaches did you consider? Why is this one preferred?
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Profile scope
+      description: Is this feature applicable to all profiles or specific ones?
+      options:
+        - All profiles (core framework)
+        - gov-emergent-country only
+        - private-services-company only
+        - saas-multitenant only
+        - banking only
+        - custom (please specify in solution)
+    validations:
+      required: true
+  - type: dropdown
+    id: tier
+    attributes:
+      label: License tier
+      description: Should this feature be in Open Core (AGPL), Cloud SaaS, or Enterprise?
+      options:
+        - Open Core (AGPL — public)
+        - Cloud SaaS only
+        - Enterprise license only
+        - Unsure
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I'd be willing to submit a PR for this feature
+        - label: I'd be willing to help test it

@@ -1,0 +1,28 @@
+# CODEOWNERS — Facil Framework
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
+
+# Default owner for everything
+*                                       @KouemouSah
+
+# Backend
+/packages/backend/                      @KouemouSah
+
+# Frontend
+/packages/web/                          @KouemouSah
+
+# Mobile / Inspector
+/packages/mobile/                       @KouemouSah
+/packages/inspector/                    @KouemouSah
+
+# Deployment
+/deploy/                                @KouemouSah
+/.github/workflows/                     @KouemouSah
+
+# Documentation
+/docs/                                  @KouemouSah
+/README.md                              @KouemouSah
+/CONTRIBUTING.md                        @KouemouSah
+
+# Security-sensitive
+/SECURITY.md                            @KouemouSah
+/.github/dependabot.yml                 @KouemouSah

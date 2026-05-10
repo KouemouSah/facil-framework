@@ -1,0 +1,77 @@
+name: Phase kickoff (epic)
+description: Start an internal phase from the roadmap (A.5, B, B.6, etc.)
+title: '[phase] '
+labels: ['kind:epic', 'phase:planning']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to formally start a phase from the internal roadmap. Phase plans live in `.claude/plans/phases/` (gitignored, local).
+  - type: input
+    id: phase-id
+    attributes:
+      label: Phase ID
+      description: Phase identifier from the roadmap.
+      placeholder: 'A.5 / B / B.6 / H / N / N.5'
+    validations:
+      required: true
+  - type: input
+    id: phase-name
+    attributes:
+      label: Phase name
+      placeholder: 'Module Loader Mechanism'
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal statement
+      description: One sentence, measurable. From the phase plan §2.
+    validations:
+      required: true
+  - type: input
+    id: critical-path
+    attributes:
+      label: Critical path estimate
+      placeholder: '5-7 days'
+    validations:
+      required: true
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk level
+      options:
+        - 🟢 Low
+        - 🟡 Moderate
+        - 🔴 High (R&D)
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies / blockers
+      description: Which other phases must be complete first?
+      placeholder: 'A.5, E (Studio backend)'
+  - type: textarea
+    id: validation-gates
+    attributes:
+      label: Validation gates (G1-Gn)
+      description: Copy from the phase plan §7 (Validation Checkpoints).
+      value: |
+        - [ ] G1 — ...
+        - [ ] G2 — ...
+        - [ ] G3 — ...
+  - type: textarea
+    id: agent-handoff
+    attributes:
+      label: Agent handoff plan
+      description: Which specialist agents will own which tracks?
+  - type: checkboxes
+    id: prereqs
+    attributes:
+      label: Pre-flight checklist
+      options:
+        - label: Phase plan reviewed and current
+        - label: All dependency phases marked complete
+        - label: Worktree set up if isolation needed
+        - label: User approval to start (Règle phase workflow strict)

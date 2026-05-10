@@ -1,0 +1,86 @@
+name: Bug report
+description: Report a defect in Facil Framework
+title: '[bug] '
+labels: ['kind:bug', 'triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please complete the form below — it helps us reproduce and fix faster.
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: What version or commit hash were you running?
+      placeholder: 'v0.1.0 or commit abc123'
+    validations:
+      required: true
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Profile
+      description: Which Facil Framework profile were you running?
+      options:
+        - empty
+        - private-services-company
+        - gov-emergent-country
+        - saas-multitenant
+        - banking
+        - custom / other
+        - N/A (not yet bootstrapped)
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which area of the codebase is affected?
+      options:
+        - backend (FastAPI / Python)
+        - frontend (Next.js / React)
+        - mobile (Expo / React Native)
+        - inspector (Expo / React Native)
+        - deploy (CLI wizard / Docker)
+        - studio UI
+        - workflows engine
+        - documentation
+        - other / unsure
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug clearly. What did you expect? What actually happened?
+      placeholder: |
+        When I ran `python deploy/init.py --profile=empty`, the wizard crashed at step 4 with a TypeError.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps to reproduce. Include commands, env vars, config snippets if helpful.
+      value: |
+        1. Clone repo
+        2. Run `...`
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / stack trace
+      description: Paste relevant logs (please redact secrets!).
+      render: shell
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Python version, Node version, Docker version, deployment target.
+      placeholder: |
+        - OS: Ubuntu 22.04
+        - Python: 3.11.7
+        - Node: 20.10.0
+        - Docker: 24.0.7
+        - Target: docker-local / GCP / AWS / on-prem

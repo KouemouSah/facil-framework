@@ -1,0 +1,64 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /packages/backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: 'Europe/Paris'
+    open-pull-requests-limit: 5
+    labels:
+      - 'dependencies'
+      - 'backend'
+    commit-message:
+      prefix: 'chore(deps)'
+      include: scope
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: 'Europe/Paris'
+    open-pull-requests-limit: 5
+    labels:
+      - 'dependencies'
+      - 'frontend'
+    commit-message:
+      prefix: 'chore(deps)'
+      include: scope
+    groups:
+      next-ecosystem:
+        patterns:
+          - 'next*'
+          - '@next/*'
+      react-ecosystem:
+        patterns:
+          - 'react'
+          - 'react-dom'
+          - '@types/react*'
+
+  - package-ecosystem: npm
+    directory: /packages/mobile
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels:
+      - 'dependencies'
+      - 'mobile'
+    commit-message:
+      prefix: 'chore(deps)'
+      include: scope
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels:
+      - 'dependencies'
+      - 'ci'
+    commit-message:
+      prefix: 'chore(ci)'
