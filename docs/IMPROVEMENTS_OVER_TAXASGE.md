@@ -143,16 +143,18 @@ Phase concernée : **H (Workflow Designer)** — c'est la phase R&D la plus long
 - Bulk import CSV pour grosses listes
 - Marquer traductions auto comme "draft" (revue humaine recommandée)
 
-### 11. OCR forms_templates en code
+### 11. OCR forms_templates en code → résolu par Document Schemas (Phase N)
 
 **Problème TaxasGE** :
 - 14 form_templates avec coordinates OCR fields hardcoded
 - Pas d'UI pour créer un nouveau template (PDF + drag boxes coordinates)
 
-**Solution Voie B** (futur, Phase Studio Forms — V1.5) :
-- Studio UI page "OCR Forms" : upload PDF + drag boxes pour annoter fields
-- DB stocke les coordonnées
-- Pas dans V1 (trop spécialisé), mais conceptuellement faisable
+**Solution Voie B** : **Document Schemas avec auto-extract AI (Phase N.3.5.C)** :
+- Upload PDF existant → OCR + LLM analyse → propose JSON Schema avec champs détectés
+- Studio UI : drag-drop PDF → preview schema proposé → user valide/corrige inline
+- Confidence score par champ (>80% auto-accept, <80% manual review)
+- Coordinates stockées dans le schéma JSON (extension custom)
+- Plus besoin de 14 fichiers Python séparés — 14 schémas en BD éditables via UI
 
 ### 12. Documents indexation manuelle
 
@@ -193,27 +195,58 @@ Phase concernée : **H (Workflow Designer)** — c'est la phase R&D la plus long
 
 ### 16. Documents générés hardcoded en code Python (ReportLab)
 
-**Problème** : tous les PDF (certificats, reçus, contrats, attestations) sont des classes Python dans `pdf_generators/`. Modifier la mise en page = modifier du code Python + redéploiement. Ajouter un nouveau type de document = créer un fichier Python + tests + PR.
+**Problème** : tous les PDF (certificats, reçus, contrats, attestations) sont des classes Python dans `pdf_generators/`. Modifier la mise en page = modifier du code Python + redéploiement.
 
 **Conséquences observées** :
-- Designer non-tech ne peut PAS toucher la maquette d'un certificat
+- Designer non-tech ne peut PAS toucher la maquette
 - 1 release nécessaire pour un changement de logo en en-tête de PDF
 - Templates non multilingues à la conception (fork le code par langue)
-- Pas de versioning : un changement écrase l'ancien template
+- Pas de versioning
 
 **Solution Voie B** : **Document Designer + Template Library (Phase N)** :
 - BD `document_templates` + `document_template_versions` (versioning + rollback)
-- Studio UI editor (Monaco HTML/CSS V1, GrapesJS block-based V2)
+- Studio UI editor Monaco V1 (HTML/CSS direct)
 - Variable picker depuis workflow context
 - Preview live avec test data
 - Multi-format : PDF (WeasyPrint) / DOCX (python-docx) / HTML
 - i18n par template (EN/FR/ES)
 - Library seedée par profile : 5 gov / 3 enterprise / 3 banking / 2 saas
-- RBAC sur publish/unpublish + audit log
+
+### 17. Pas de schémas formels documents — ce qui résout aussi le pain point #11 OCR
+
+**Problème** : TaxasGE n'a pas de structure formelle décrivant les champs attendus par type de document. Conséquences :
+- 14 form_templates OCR avec coordinates hardcoded en Python (`form_templates/*.py`)
+- Pas de validation avant génération (champs manquants détectés tard)
+- Templates et OCR forms vivent en silos parallèles
+- Ajouter un nouveau type de doc = créer formulaire + classe Python + tests + déploiement
+
+**Solution Voie B** : **Document Schemas (Phase N section N.3.5)** :
+- BD `document_schemas` JSON Schema Draft 2020-12 standard
+- Studio UI Schema editor (JSON raw OU form builder drag-drop)
+- **Auto-extract assistée par AI** : upload PDF existant → OCR + LLM analyse → propose schéma → user valide/corrige avec confidence score (>80% auto-accept)
+- Schema-template binding : template typé `{{ schema.fields.X }}`
+- Schema-workflow binding : workflow output validé contre schéma avant render
+- **Bonus** : remplace progressivement les form_templates OCR de TaxasGE — les coordinates extraites peuvent être stockées dans le schéma
+
+### 18. Pas de signature électronique souveraine
+
+**Problème** : TaxasGE n'a aucune signature électronique. Si demandée pour gov GE → dépendance à DocuSign / Adobe Sign coûteux ($) + lock-in + données chez le tiers.
+
+**Solution Voie B** : **Document Signature multi-provider (Phase N.5)** :
+- **`LocalCAProvider`** : CA self-signed gratuit + clé privée chiffrée AES-256-GCM at rest + passphrase Secret Manager
+- Conforme **PAdES** (PDF Advanced Electronic Signatures, ISO 32000) via `pyhanko`
+- **TSA timestamping** pour validité long-terme
+- **CRL** (Certificate Revocation List) pour révocation
+- Studio UI cert management (create root, issue user certs, revoke)
+- Audit log signataire + cert hash
+- Cloud providers (DocuSign / Adobe Sign / eIDAS qualified TSP) disponibles pour upgrade legal value
+- **Matrice "quand utiliser quel provider"** documentée par niveau eIDAS (simple / advanced / qualified)
+- Niveau LocalCA = simple eIDAS (validité prouvable mais pas qualified)
+- Schema-provider binding : un schéma "loan_contract" peut imposer `required_signature_level=qualified` → forcera eIDAS provider
 
 ---
 
-## Récap : 16 améliorations majeures
+## Récap : 18 améliorations majeures
 
 | # | Pain point TaxasGE | Solution Voie B | Phase |
 |---|---|---|---|
@@ -227,12 +260,14 @@ Phase concernée : **H (Workflow Designer)** — c'est la phase R&D la plus long
 | 8 | Taxonomies labels hardcoded | Taxonomies configurable | G |
 | 9 | Branding hardcoded | Branding Studio | F |
 | 10 | i18n via migrations | i18n Studio + auto-translate | F |
-| 11 | OCR forms en code | Studio Forms (V1.5) | Future |
+| 11 | OCR forms en code | Document Schemas + Auto-extract AI | N |
 | 12 | Indexation manuelle docs | Drop-in folder + KB Studio | B.6 + I.bis |
 | 13 | Tous modules chargés dur | Module Loader | A.5 |
 | 14 | Pas mode demo | --demo flag | D |
 | 15 | Wizard pas de profile | Wizard --profile | D |
 | 16 | Documents PDF hardcoded ReportLab | Document Designer + Template Library | N |
+| 17 | Pas de schémas formels documents (OCR forms hardcoded inclus) | Document Schemas + Auto-extract AI | N |
+| 18 | Pas de signature électronique souveraine | LocalCA + Cloud providers (DocuSign/eIDAS) | N.5 |
 
 ---
 
