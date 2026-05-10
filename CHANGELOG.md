@@ -5,6 +5,19 @@ All notable changes to Facil Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.0 (2026-05-10)
+
+
+### Features
+
+* **profiles:** scaffold gov-emergent-country profile + Keycloak decision note ([3f7b735](https://github.com/KouemouSah/facil-framework/commit/3f7b73558ccbb6c549b3f5afc35a2f6e0ad6bfbb))
+
+
+### Bug Fixes
+
+* **ci:** add sanitized root package.json + tolerant npm install ([dacbb4d](https://github.com/KouemouSah/facil-framework/commit/dacbb4d11950c3de14077be7502d54d7b8ce82a5))
+* **ci:** commitlint installs in /tmp to avoid workspace npm conflicts ([6d89e7b](https://github.com/KouemouSah/facil-framework/commit/6d89e7bec3be327397752845af398cc1fe9f956c))
+
 ## [Unreleased]
 
 ### Status
