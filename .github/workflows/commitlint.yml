@@ -24,14 +24,22 @@ jobs:
 
       - name: Install commitlint
         run: |
-          npm install --no-save \
+          # Install in a separate dir to avoid touching the workspaces tree
+          mkdir -p /tmp/commitlint && cd /tmp/commitlint
+          npm init -y >/dev/null 2>&1
+          npm install --no-save --legacy-peer-deps \
             @commitlint/cli@19 \
             @commitlint/config-conventional@19
+          # Symlink config from repo
+          ln -s "$GITHUB_WORKSPACE/commitlint.config.js" commitlint.config.js
+          # Make commitlint available
+          echo "PATH=/tmp/commitlint/node_modules/.bin:$PATH" >> $GITHUB_ENV
+          echo "COMMITLINT_DIR=/tmp/commitlint" >> $GITHUB_ENV
 
       - name: Lint commits (PR range)
         if: github.event_name == 'pull_request'
         run: |
-          npx commitlint \
+          cd "$GITHUB_WORKSPACE" && /tmp/commitlint/node_modules/.bin/commitlint --config /tmp/commitlint/commitlint.config.js \
             --from "${{ github.event.pull_request.base.sha }}" \
             --to "${{ github.event.pull_request.head.sha }}" \
             --verbose
@@ -41,11 +49,11 @@ jobs:
         run: |
           # On push, lint only the new commits in this push
           if [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
-            npx commitlint \
+            cd "$GITHUB_WORKSPACE" && /tmp/commitlint/node_modules/.bin/commitlint --config /tmp/commitlint/commitlint.config.js \
               --from "${{ github.event.before }}" \
               --to "${{ github.event.after }}" \
               --verbose
           else
             # Fallback for first push of new branch — lint last 10 commits
-            npx commitlint --from HEAD~10 --to HEAD --verbose || true
+            cd "$GITHUB_WORKSPACE" && /tmp/commitlint/node_modules/.bin/commitlint --config /tmp/commitlint/commitlint.config.js --from HEAD~10 --to HEAD --verbose || true
           fi
