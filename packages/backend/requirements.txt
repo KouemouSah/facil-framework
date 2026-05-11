@@ -7,7 +7,7 @@
 fastapi==0.115.6
 uvicorn[standard]>=0.24.0
 pydantic[email]>=2.5.0
-pydantic-settings>=2.1.0
+pydantic-settings>=2.14.1
 
 # Note: functions-framework removed - Cloud Run uses uvicorn directly
 # If Firebase Functions deployment is needed, add: functions-framework>=3.5.0
