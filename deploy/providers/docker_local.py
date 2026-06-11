@@ -61,6 +61,7 @@ SCRIPTS_DIR = DEPLOY_DIR / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import validate_config as vc  # noqa: E402
+import ensure_secrets as es  # noqa: E402
 
 REPO_ROOT = DEPLOY_DIR.parent
 DEFAULT_CONFIG = DEPLOY_DIR / "config.yaml"
@@ -140,7 +141,9 @@ def generate_compose(cfg: vc.DeployConfig) -> str:
     env_label = cfg.meta.environment
     use_external_db = cfg.docker_local.database_mode == "external"
 
-    redis_url = "redis://redis:6379/0"
+    # Password is interpolated by compose at up time from .env.secrets
+    # (passed as env_extra). The generated YAML keeps the ${...} placeholder.
+    redis_url = "redis://:${REDIS_PASSWORD}@redis:6379/0"
     public_api_url = f"http://localhost:{backend_port}"
     internal_api_url = f"http://backend:{backend_port}"
 
@@ -357,11 +360,12 @@ services:
   # ---------------------------------------------------------------------
   redis:
     image: {redis_image}
+    command: ["redis-server", "--requirepass", "${{REDIS_PASSWORD}}"]
     ports:
       - "6379:6379"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${{REDIS_PASSWORD}}", "--no-auth-warning", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -637,6 +641,12 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
         )
         return 1
 
+    # Ensure strong runtime passwords exist (Postgres/Redis/MinIO). Without this
+    # compose falls back to weak dev defaults. Generated once, then stable.
+    generated = es.ensure_secrets(SECRETS_FILE)
+    if generated:
+        print(f"[OK] generated strong runtime secrets: {', '.join(generated)}")
+
     if stack_running():
         msg = ("[WARN] Stack already running. --apply on top can hit "
                "'port already allocated' errors.")
@@ -671,7 +681,11 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
     print(f"[OK] Wrote {CADDYFILE.name} (used by the `edge` profile)")
 
     print("\n=== Building images + starting containers ===")
-    rc = run_compose(compose_cmd("up", "-d", "--build"))
+    # Pass the strong runtime secrets as compose interpolation env so
+    # ${POSTGRES_PASSWORD}/${REDIS_PASSWORD}/${MINIO_ROOT_PASSWORD} resolve to the
+    # real values (not the weak :-defaults baked in the template).
+    runtime_env = es.load_runtime_env(SECRETS_FILE)
+    rc = run_compose(compose_cmd("up", "-d", "--build"), env_extra=runtime_env)
     if rc != 0:
         print(f"ERROR: docker compose up failed (exit {rc})", file=sys.stderr)
         return 2

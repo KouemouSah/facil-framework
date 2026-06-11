@@ -709,3 +709,30 @@ class TestBootstrapIntegration:
         cfg = vc.DeployConfig.model_validate(minimal_config_dict)
         # Must NOT raise — a provisioning failure never tears the stack down.
         dl._run_bootstrap(cfg)
+
+
+# ---------------------------------------------------------------------------
+# Redis auth + runtime secrets (DATAPLANE_AUTH_HARDENING H1)
+# ---------------------------------------------------------------------------
+
+class TestRedisAuthGeneration:
+    def _cfg(self, minimal_config_dict):
+        return vc.DeployConfig.model_validate(minimal_config_dict)
+
+    def test_redis_requires_password(self, minimal_config_dict):
+        out = dl.generate_compose(self._cfg(minimal_config_dict))
+        assert '"--requirepass", "${REDIS_PASSWORD}"' in out
+
+    def test_redis_healthcheck_authenticated(self, minimal_config_dict):
+        out = dl.generate_compose(self._cfg(minimal_config_dict))
+        assert '"-a", "${REDIS_PASSWORD}", "--no-auth-warning", "ping"' in out
+
+    def test_backend_redis_url_carries_password(self, minimal_config_dict):
+        out = dl.generate_compose(self._cfg(minimal_config_dict))
+        assert "REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0" in out
+
+    def test_placeholder_not_interpolated_in_file(self, minimal_config_dict):
+        # The generated YAML keeps ${REDIS_PASSWORD} literal (compose resolves it
+        # at up via env_extra) — no real secret is ever written to the file.
+        out = dl.generate_compose(self._cfg(minimal_config_dict))
+        assert "${REDIS_PASSWORD}" in out
