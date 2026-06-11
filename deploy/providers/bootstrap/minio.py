@@ -121,6 +121,36 @@ def _ensure_service_account(ctx, sa_access, bucket, root_user, root_pwd,
     return new_secret
 
 
+def _ensure_compliance_bucket(ctx, m, root_user, root_pwd, step) -> str | None:
+    """Create the WORM (Object-Lock) compliance bucket + default retention.
+
+    Object-Lock can ONLY be enabled at bucket creation, so this is a dedicated
+    bucket separate from default_bucket. Object-Lock auto-enables versioning.
+    Idempotent: ``--ignore-existing`` on the bucket; ``retention set --default``
+    re-applied is a no-op. Returns the bucket name (or None if disabled).
+
+    GOVERNANCE: privileged users can bypass (dev-cleanable). COMPLIANCE:
+    immutable even to root until expiry (production legal hold).
+    """
+    c = m.compliance
+    if not c.enabled:
+        step.actions.append("compliance bucket disabled (config)")
+        return None
+    ctarget = f"{ALIAS}/{c.bucket}"
+    _mc(ctx, ["mb", "--with-lock", "--ignore-existing", ctarget],
+        root_user=root_user, root_pwd=root_pwd)
+    step.actions.append(f"WORM bucket '{c.bucket}' ensured (object-lock + versioning)")
+    _mc(ctx, ["anonymous", "set", "none", ctarget],
+        root_user=root_user, root_pwd=root_pwd)
+    _mc(ctx, ["retention", "set", "--default", c.retention_mode.upper(),
+              f"{c.retention_days}d", ctarget],
+        root_user=root_user, root_pwd=root_pwd)
+    step.actions.append(
+        f"default retention {c.retention_mode.upper()} {c.retention_days}d "
+        f"on '{c.bucket}'")
+    return c.bucket
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -140,8 +170,13 @@ def provision(ctx: BootstrapContext) -> ProvisionStep:
             f"mc mb --ignore-existing {target}",
             f"mc version enable {target}  (long-term retention / PAdES)",
             f"mc anonymous set none {target}  (private)",
-            f"scoped service account '{sa_access}' (rw on '{bucket}' only)",
         ]
+        if m.compliance.enabled:
+            step.actions.append(
+                f"mc mb --with-lock {ALIAS}/{m.compliance.bucket}  "
+                f"+ retention {m.compliance.retention_mode.upper()} "
+                f"{m.compliance.retention_days}d (WORM)")
+        step.actions.append(f"scoped service account '{sa_access}' (rw on '{bucket}' only)")
         return step.skip("dry-run: would provision MinIO")
 
     try:
@@ -157,6 +192,9 @@ def provision(ctx: BootstrapContext) -> ProvisionStep:
             root_user=root_user, root_pwd=root_pwd)
         step.actions.append("anonymous access = none (private)")
 
+        compliance_bucket = _ensure_compliance_bucket(
+            ctx, m, root_user, root_pwd, step)
+
         sa_secret = _ensure_service_account(
             ctx, sa_access, bucket, root_user, root_pwd, step)
     except DockerError as exc:
@@ -168,5 +206,9 @@ def provision(ctx: BootstrapContext) -> ProvisionStep:
         "minio_access_key": sa_access,
         "minio_secret_key": sa_secret,
     }
+    if compliance_bucket:
+        step.secrets["minio_compliance_bucket"] = compliance_bucket
     return step.ok(
-        f"bucket '{bucket}' (versioned, private) + scoped service account '{sa_access}'")
+        f"bucket '{bucket}' (versioned, private)"
+        + (f" + WORM '{compliance_bucket}'" if compliance_bucket else "")
+        + f" + scoped service account '{sa_access}'")

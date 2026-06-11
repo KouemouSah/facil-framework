@@ -100,11 +100,51 @@ def test_fresh_provision_creates_everything(monkeypatch, ctx):
     _patch(monkeypatch, fake)
     step = mn.provision(ctx)
     assert step.status == "ok"
-    # bucket make, version enable, anonymous set, svcacct info, svcacct add(sh -c)
-    assert fake.verbs() == ["mb", "version", "anonymous", "admin", "-c"]
+    # documents: mb, version, anonymous ; compliance: mb(--with-lock), anonymous,
+    # retention ; SA: svcacct info (admin), svcacct add (sh -c).
+    assert fake.verbs() == ["mb", "version", "anonymous",
+                            "mb", "anonymous", "retention", "admin", "-c"]
     assert step.secrets["minio_access_key"] == "facil-backend"
     assert len(step.secrets["minio_secret_key"]) == 40   # token_hex(20)
     assert step.secrets["minio_bucket"] == "facil-documents"
+    assert step.secrets["minio_compliance_bucket"] == "facil-compliance"
+
+
+def test_compliance_bucket_created_with_lock_and_retention(monkeypatch, ctx):
+    fake = FakeMC(svcacct_exists=False)
+    _patch(monkeypatch, fake)
+    mn.provision(ctx)
+    mb_calls = [c["args"] for c in fake.calls if c["args"][0] == "mb"]
+    assert any("--with-lock" in a for a in mb_calls)          # WORM at creation
+    assert any("facil-compliance" in a for a in mb_calls[-1])
+    retention = [c["args"] for c in fake.calls if c["args"][0] == "retention"][0]
+    assert retention[:3] == ["retention", "set", "--default"]
+    assert "GOVERNANCE" in retention and "365d" in retention
+
+
+def test_compliance_respects_config_overrides(monkeypatch, tmp_path):
+    (tmp_path / "deploy").mkdir()
+    cfg = make_cfg(storage={"provider": "minio", "minio": {
+        "compliance": {"retention_mode": "compliance", "retention_days": 2555}}})
+    c = BootstrapContext(cfg=cfg, network="net", repo_root=tmp_path)
+    fake = FakeMC(svcacct_exists=False)
+    _patch(monkeypatch, fake)
+    mn.provision(c)
+    retention = [x["args"] for x in fake.calls if x["args"][0] == "retention"][0]
+    assert "COMPLIANCE" in retention and "2555d" in retention
+
+
+def test_compliance_disabled_skips_worm(monkeypatch, tmp_path):
+    (tmp_path / "deploy").mkdir()
+    cfg = make_cfg(storage={"provider": "minio",
+                            "minio": {"compliance": {"enabled": False}}})
+    c = BootstrapContext(cfg=cfg, network="net", repo_root=tmp_path)
+    fake = FakeMC(svcacct_exists=False)
+    _patch(monkeypatch, fake)
+    step = mn.provision(c)
+    assert [x["args"] for x in fake.calls if x["args"][0] == "retention"] == []
+    assert "minio_compliance_bucket" not in step.secrets
+    assert any("disabled" in a for a in step.actions)
 
 
 def test_secret_passed_via_env_not_argv(monkeypatch, ctx):
