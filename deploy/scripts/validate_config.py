@@ -74,6 +74,10 @@ class DatabasePool(BaseModel):
 
 
 class DatabaseConfig(BaseModel):
+    # Managed-DB provider. local = our postgres container; the others connect via
+    # DATABASE_URL (Supabase / Cloud SQL / RDS / Neon / any external Postgres).
+    provider: Literal["local", "supabase", "cloud_sql", "rds", "neon",
+                      "external"] = "local"
     url_secret: str = ""
     host: str = ""
     port: int = Field(default=5432, ge=1, le=65535)
@@ -115,6 +119,14 @@ class AuthKeycloakConfig(BaseModel):
     realm: str = "facil-agents"   # placeholder name — realm actually created in P11
 
 
+# Pluggable auth methods. The operator chooses freely PER SURFACE and may enable
+# SEVERAL at once (e.g. agents via keycloak OR native OR ldap OR saml).
+AuthMethod = Literal[
+    "native", "keycloak_oidc", "google_oauth", "supabase_auth",
+    "generic_oidc", "ldap", "saml",
+]
+
+
 class AuthConfig(BaseModel):
     jwt_secret_name: str = Field(min_length=1)
     app_secret_name: str = Field(min_length=1)
@@ -122,13 +134,25 @@ class AuthConfig(BaseModel):
     receipt_verification_secret: str = ""
     access_token_minutes: int = Field(default=30, ge=1)
     refresh_token_days: int = Field(default=30, ge=1)
-    # Auth provider PER SURFACE (seam for P11). Defaults keep the current
-    # behaviour (native everywhere) => zero regression. Citizens stay native by
-    # design (no Keycloak-for-all: SPOF + scale cost + no citizen AD). Agents
-    # move to keycloak_oidc in P11.
-    provider_citizen: Literal["native"] = "native"
-    provider_agent: Literal["native", "keycloak_oidc", "saml"] = "native"
+    # Per-surface enabled methods (one OR several). Defaults: citizens native
+    # (scales for the public; managed IdPs also fine), agents keycloak_oidc
+    # (+ optionally native/ldap/saml). The operator is never locked to one option
+    # — but a self-hosted Keycloak for millions of citizens has SPOF/scale cost
+    # (prefer a managed IdP there); guidance, not restriction.
+    citizen_methods: list[AuthMethod] = Field(default_factory=lambda: ["native"])
+    agent_methods: list[AuthMethod] = Field(default_factory=lambda: ["keycloak_oidc"])
+    # Legacy single-provider fields (DEPRECATED — the *_methods lists win; kept
+    # so older config.yaml files still validate).
+    provider_citizen: AuthMethod = "native"
+    provider_agent: AuthMethod = "native"
     keycloak: AuthKeycloakConfig = Field(default_factory=AuthKeycloakConfig)
+
+    @model_validator(mode="after")
+    def methods_non_empty(self) -> "AuthConfig":
+        if not self.citizen_methods or not self.agent_methods:
+            raise ValueError("auth: citizen_methods and agent_methods must each "
+                             "list at least one method")
+        return self
 
 
 class FirebaseConfig(BaseModel):
@@ -153,20 +177,48 @@ class AIModelsConfig(BaseModel):
     embedding: str = Field(default="text-embedding-005")
 
 
+class AIProvider(BaseModel):
+    # A named LLM provider. `openai_compat` covers ANY OpenAI-compatible API
+    # (vLLM / OpenAI / Mistral / Together / …). Sovereign default = ollama.
+    kind: Literal["ollama", "openai_compat", "gemini", "vertex"] = "ollama"
+    endpoint: str = ""
+    model: str = ""
+    api_key_secret: str = ""
+
+
 class AIConfig(BaseModel):
     gemini_api_key_secret: str = ""
     google_cloud_project: str = ""
     google_cloud_location: str = "us-central1"
     models: AIModelsConfig = Field(default_factory=AIModelsConfig)
     generation: AIGenerationConfig = Field(default_factory=AIGenerationConfig)
+    # Multi-LLM by task/surface (ADR-0002): named providers + role routing.
+    # e.g. providers: {ollama_public:{...}, ollama_agents:{...}, cloud_x:{...}};
+    # routing: {public_chat: ollama_public, agent_backend: ollama_agents, ...}.
+    # Two sovereign models = two names on the same Ollama, or two endpoints.
+    providers: dict[str, AIProvider] = Field(default_factory=dict)
+    routing: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def must_have_credentials_path(self) -> "AIConfig":
-        if not self.gemini_api_key_secret and not self.google_cloud_project:
+        # Valid if a legacy Gemini/Vertex path is set OR at least one named
+        # provider exists (sovereign Ollama-only deploy has neither legacy field).
+        if (not self.gemini_api_key_secret and not self.google_cloud_project
+                and not self.providers):
             raise ValueError(
-                "ai: provide either 'gemini_api_key_secret' (API Studio path) "
-                "OR 'google_cloud_project' (Vertex ADC path)"
+                "ai: provide 'gemini_api_key_secret' OR 'google_cloud_project' "
+                "OR at least one entry in 'providers' (e.g. an ollama provider)"
             )
+        return self
+
+    @model_validator(mode="after")
+    def routing_references_known_providers(self) -> "AIConfig":
+        unknown = [f"{role}->{name}" for role, name in self.routing.items()
+                   if name not in self.providers]
+        if unknown:
+            raise ValueError(
+                f"ai.routing references unknown providers: {', '.join(unknown)} "
+                f"(define them in ai.providers)")
         return self
 
 

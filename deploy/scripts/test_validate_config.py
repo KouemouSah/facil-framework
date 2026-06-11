@@ -315,10 +315,26 @@ class TestAuthProviderSeam:
         cfg = vc.DeployConfig.model_validate(minimal_valid_config)
         assert cfg.auth.provider_agent == "keycloak_oidc"
 
-    def test_citizen_cannot_be_keycloak(self, minimal_valid_config: dict) -> None:
-        """Citizens are native by design (no Keycloak-for-all). The Literal
-        only allows 'native' for the citizen surface."""
-        minimal_valid_config["auth"]["provider_citizen"] = "keycloak_oidc"
+    def test_per_surface_method_defaults(self, minimal_valid_config: dict) -> None:
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.auth.citizen_methods == ["native"]
+        assert cfg.auth.agent_methods == ["keycloak_oidc"]
+
+    def test_citizen_may_use_keycloak_or_oauth(self, minimal_valid_config: dict) -> None:
+        # Flexibility: the operator is NOT locked — citizens can use keycloak,
+        # google_oauth, supabase_auth, etc. (guidance, not restriction).
+        minimal_valid_config["auth"]["citizen_methods"] = ["keycloak_oidc",
+                                                           "google_oauth"]
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert "keycloak_oidc" in cfg.auth.citizen_methods
+
+    def test_agent_multi_method(self, minimal_valid_config: dict) -> None:
+        minimal_valid_config["auth"]["agent_methods"] = ["keycloak_oidc", "ldap", "saml"]
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert set(cfg.auth.agent_methods) == {"keycloak_oidc", "ldap", "saml"}
+
+    def test_empty_methods_rejected(self, minimal_valid_config: dict) -> None:
+        minimal_valid_config["auth"]["citizen_methods"] = []
         with pytest.raises(Exception):
             vc.DeployConfig.model_validate(minimal_valid_config)
 
@@ -489,3 +505,57 @@ class TestProviderParityAndProfile:
         cfg = vc.DeployConfig.model_validate(minimal_valid_config)
         missing = vc.provider_required_fields(cfg, "aws")
         assert any("account_id" in m for m in missing)
+
+
+# ---------------------------------------------------------------------------
+# Provider catalog seam: multi-LLM routing + DB provider (DEPLOY_WIZARD_V2 W6)
+# ---------------------------------------------------------------------------
+
+class TestProviderCatalogSeam:
+    def test_db_provider_default_local(self, minimal_valid_config: dict) -> None:
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.database.provider == "local"
+
+    def test_db_provider_supabase(self, minimal_valid_config: dict) -> None:
+        minimal_valid_config["database"]["provider"] = "supabase"
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.database.provider == "supabase"
+
+    def test_db_provider_rejects_unknown(self, minimal_valid_config: dict) -> None:
+        minimal_valid_config["database"]["provider"] = "mongodb"
+        with pytest.raises(Exception):
+            vc.DeployConfig.model_validate(minimal_valid_config)
+
+    def test_sovereign_ollama_only_validates(self, minimal_valid_config: dict) -> None:
+        # No Gemini/Vertex — an Ollama-only deploy must validate via providers.
+        minimal_valid_config["ai"] = {
+            "providers": {"local": {"kind": "ollama", "model": "llama3.1:8b"}},
+            "routing": {"public_chat": "local"},
+        }
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.ai.providers["local"].kind == "ollama"
+
+    def test_multi_llm_routing(self, minimal_valid_config: dict) -> None:
+        minimal_valid_config["ai"] = {
+            "providers": {
+                "pub": {"kind": "ollama", "model": "llama3.1:8b"},
+                "agt": {"kind": "openai_compat", "endpoint": "http://x",
+                        "model": "gpt-4o", "api_key_secret": "K"},
+            },
+            "routing": {"public_chat": "pub", "agent_backend": "agt"},
+        }
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.ai.routing["agent_backend"] == "agt"
+
+    def test_routing_to_unknown_provider_rejected(self, minimal_valid_config: dict) -> None:
+        minimal_valid_config["ai"] = {
+            "providers": {"a": {"kind": "ollama", "model": "x"}},
+            "routing": {"chat": "does_not_exist"},
+        }
+        with pytest.raises(Exception):
+            vc.DeployConfig.model_validate(minimal_valid_config)
+
+    def test_legacy_gemini_still_valid(self, minimal_valid_config: dict) -> None:
+        # Back-compat: the old single-Gemini config path still validates.
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.ai.gemini_api_key_secret  # from the fixture
