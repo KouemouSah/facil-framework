@@ -151,10 +151,10 @@ def run_bootstrap(
         state.steps.append(step)
 
     if dry_run:
-        log("[bootstrap] dry-run — state not written.")
+        log("[bootstrap] dry-run - state not written.")
     else:
         state.save(ctx.state_file)
-        log(f"[bootstrap] state written → {ctx.state_file}")
+        log(f"[bootstrap] state written -> {ctx.state_file}")
     return state
 
 
@@ -168,6 +168,17 @@ def _load_config(path: Path) -> vc.DeployConfig:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Windows consoles default to cp1252; our docstrings/output carry a few
+    # non-ASCII glyphs. Reconfigure to UTF-8 (replace on failure) so printing
+    # never crashes the CLI. Library callers (docker_local) pass their own log
+    # sink and our runtime strings are kept ASCII, so this only affects the CLI.
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure:
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except (ValueError, OSError):
+                pass
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--config", type=Path,
                         default=_THIS_DIR.parent.parent / "config.yaml")
