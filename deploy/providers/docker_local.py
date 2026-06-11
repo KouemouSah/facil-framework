@@ -218,8 +218,8 @@ services:
   # ---------------------------------------------------------------------
   # db-init — one-shot bootstrap. Reuses the backend image (same build
   # context) and runs init_database.py in hybrid mode:
-  #   - empty DB + baseline.sql present → applies baseline + seeds (~30s)
-  #   - existing DB                       → applies pending migrations + seeds
+  #   - empty DB + baseline.sql present -> applies baseline + seeds (~30s)
+  #   - existing DB                       -> applies pending migrations + seeds
   # Backend container does NOT start until this exits with code 0.
   # ---------------------------------------------------------------------
   db-init:

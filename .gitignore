@@ -166,6 +166,10 @@ packages/backend/scripts/historical/
 **/.env.deploy.gen
 deploy/.secrets-manifest.json
 deploy/config.yaml
+# Local secrets (NEVER commit) + generated compose — docker-local (P1)
+.env.secrets
+**/.env.secrets
+docker-compose.local.yml
 
 # E2E Test Data (keep README only)
 test-data/*.pdf
