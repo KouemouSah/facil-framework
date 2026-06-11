@@ -8,14 +8,15 @@ schema (tables stay the property of db-init / migrations, Phase D). Running
 re-affirm the same extensions without conflict, while making the DB RAG-ready
 immediately.
 
-Only applies in ``database_mode == "local"`` (we own the container). In
-``external`` / managed-cloud mode the extension lifecycle belongs to the managed
-provider + db-init, so this provisioner skips and says so.
+Only applies in ``database_mode == "local"`` (we own the container, so we drive
+``psql`` via ``docker exec``). In ``external`` / managed-cloud mode the extension
+lifecycle belongs to the managed provider + db-init, so this provisioner skips.
 """
 
 from __future__ import annotations
 
 from .context import BootstrapContext, vc
+from .docker_helpers import DockerError, exec_in
 from .state import ProvisionStep
 
 NAME = "postgres"
@@ -29,6 +30,47 @@ def is_applicable(cfg: vc.DeployConfig) -> bool:
     return cfg.docker_local.database_mode == "local"
 
 
-def provision(ctx: BootstrapContext) -> ProvisionStep:  # pragma: no cover - B4
-    """Implemented in Phase B4. B1 ships the stub so dispatch is wired."""
-    return ProvisionStep(name=NAME, detail="postgres provisioner pending (B4)")
+def _psql(container, user, db, sql, *, check=True):
+    """Run a single SQL statement via ``docker exec ... psql`` (no shell).
+
+    ``-tAc`` = tuples-only, unaligned, single command; ``ON_ERROR_STOP=1`` makes
+    psql exit non-zero on SQL errors so ``exec_in`` surfaces them.
+    """
+    return exec_in(
+        container,
+        ["psql", "-U", user, "-d", db, "-v", "ON_ERROR_STOP=1", "-tAc", sql],
+        check=check,
+    )
+
+
+def _existing_extensions(container, user, db) -> set[str]:
+    out = _psql(container, user, db, "SELECT extname FROM pg_extension").stdout
+    return {line.strip() for line in out.splitlines() if line.strip()}
+
+
+def provision(ctx: BootstrapContext) -> ProvisionStep:
+    cfg = ctx.cfg
+    # docker_local generates the container with POSTGRES_USER/DB = project_name.
+    user = db = cfg.meta.project_name
+    step = ProvisionStep(name=NAME)
+
+    if ctx.dry_run:
+        step.actions = [f'CREATE EXTENSION IF NOT EXISTS "{e}"' for e in EXTENSIONS]
+        return step.skip("dry-run: would ensure Postgres extensions")
+
+    info = ctx.containers.get("postgres")
+    if info is None:
+        return step.fail("postgres container not resolved (is the stack up?)")
+
+    try:
+        existing = _existing_extensions(info.name, user, db)
+        for ext in EXTENSIONS:
+            if ext in existing:
+                step.actions.append(f"extension '{ext}' already present")
+                continue
+            _psql(info.name, user, db, f'CREATE EXTENSION IF NOT EXISTS "{ext}"')
+            step.actions.append(f"extension '{ext}' created")
+    except DockerError as exc:
+        return step.fail(f"psql operation failed: {exc}")
+
+    return step.ok(f"extensions ensured: {', '.join(EXTENSIONS)}")
