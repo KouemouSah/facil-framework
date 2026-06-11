@@ -51,6 +51,7 @@ SCRIPTS_DIR = DEPLOY_DIR / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import validate_config as vc  # noqa: E402
+import profiles  # noqa: E402
 
 REPO_ROOT = DEPLOY_DIR.parent
 DEFAULT_CONFIG_OUT = DEPLOY_DIR / "config.yaml"
@@ -759,6 +760,10 @@ def run_wizard(p: Prompter) -> tuple[dict[str, Any], dict[str, str]]:
         "executive_tools": False, "llm_routing": False, "penalties": False,
     }
     cfg["env_overrides"] = {}
+
+    # Profile pack: sets modules.enabled + branding + feature toggles for the
+    # chosen use case (operator can edit config.yaml afterwards).
+    profiles.apply_profile_defaults(cfg, cfg["meta"]["profile"])
 
     return cfg, secrets_out
 

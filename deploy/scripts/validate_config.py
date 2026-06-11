@@ -425,6 +425,19 @@ class DockerLocalConfig(BaseModel):
     redis_image: str = "redis:7-alpine"
 
 
+class ModulesConfig(BaseModel):
+    # The Module Loader contract (Phase A.5 reads MODULES_ENABLED from here).
+    # Populated by the deployment profile; the operator can edit. Module *code*
+    # lands with the modules phase — this is the activation list it will read.
+    enabled: list[str] = Field(default_factory=lambda: ["rbac"])
+
+
+class BrandingConfig(BaseModel):
+    app_name: str = "Facil"
+    primary_color: str = "#2563eb"
+    logo_url: str = ""
+
+
 class DeployConfig(BaseModel):
     """Top-level deploy/config.yaml schema."""
     meta: MetaConfig
@@ -440,6 +453,8 @@ class DeployConfig(BaseModel):
     legal: LegalConfig = Field(default_factory=LegalConfig)
     cron: CronConfig
     features: FeaturesConfig = Field(default_factory=FeaturesConfig)
+    modules: ModulesConfig = Field(default_factory=ModulesConfig)
+    branding: BrandingConfig = Field(default_factory=BrandingConfig)
     gcp: GcpConfig = Field(default_factory=GcpConfig)
     aws: AwsConfig = Field(default_factory=AwsConfig)
     azure: AzureConfig = Field(default_factory=AzureConfig)

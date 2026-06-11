@@ -438,3 +438,9 @@ class TestProviderAwareWizard:
                            WIZ_OBS_MODE="local")
         assert cfg["observability"]["mode"] == "local"
         assert "4317" in cfg["observability"]["otlp_endpoint"]
+
+    def test_profile_applies_modules_and_branding(self, monkeypatch):
+        cfg, _ = self._run(monkeypatch, WIZ_PROVIDER="docker-local",
+                           WIZ_PROFILE="banking")
+        assert "kyc" in cfg["modules"]["enabled"]
+        assert cfg["branding"]["app_name"] == "Facil Bank"
