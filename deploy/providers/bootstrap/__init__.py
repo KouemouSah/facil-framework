@@ -153,9 +153,31 @@ def run_bootstrap(
     if dry_run:
         log("[bootstrap] dry-run - state not written.")
     else:
+        _merge_prior_steps(state, ctx.state_file)
         state.save(ctx.state_file)
         log(f"[bootstrap] state written -> {ctx.state_file}")
     return state
+
+
+_ORDER = {p.NAME: i for i, p in enumerate(PROVISIONERS)}
+
+
+def _merge_prior_steps(state: BootstrapState, state_file) -> None:
+    """Carry forward steps from a previous run that did NOT run this time.
+
+    Critical for ``--only=X``: without this, a partial run would overwrite the
+    state file and drop the credentials persisted by the other provisioners
+    (their MinIO SA secret / OpenBao secret_id), forcing needless rotation on
+    the next full run. Current-run steps win; absent ones are preserved.
+    """
+    prior = BootstrapState.load(state_file)
+    if not prior:
+        return
+    ran = {s.name for s in state.steps}
+    for ps in prior.steps:
+        if ps.name not in ran:
+            state.steps.append(ps)
+    state.steps.sort(key=lambda s: _ORDER.get(s.name, len(_ORDER)))
 
 
 # ---------------------------------------------------------------------------

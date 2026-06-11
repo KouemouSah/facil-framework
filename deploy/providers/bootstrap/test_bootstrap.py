@@ -27,6 +27,7 @@ from bootstrap import (  # noqa: E402
     DEFAULT_NETWORK,
     run_bootstrap,
     select_provisioners,
+    _merge_prior_steps,
     _resolve_network,
 )
 from bootstrap import docker_helpers as dh  # noqa: E402
@@ -245,6 +246,43 @@ def test_run_bootstrap_writes_state(tmp_path: Path):
     assert f.exists()
     reloaded = BootstrapState.load(f)
     assert _step_names(reloaded.steps) == ["openbao", "minio", "postgres"]
+
+
+def test_merge_preserves_absent_provisioners(tmp_path: Path):
+    f = tmp_path / "state.json"
+    prior = BootstrapState(
+        project="facil", storage_provider="minio", secrets_provider="openbao",
+        database_mode="local",
+        steps=[ProvisionStep(name="openbao", status="ok",
+                             secrets={"openbao_secret_id": "SID"}),
+               ProvisionStep(name="minio", status="ok",
+                             secrets={"minio_secret_key": "MK"})],
+    )
+    prior.save(f)
+    # Simulate a `--only=postgres` run that only produced a postgres step.
+    new = BootstrapState(project="facil", storage_provider="minio",
+                         secrets_provider="openbao", database_mode="local",
+                         steps=[ProvisionStep(name="postgres", status="ok")])
+    _merge_prior_steps(new, f)
+    assert _step_names(new.steps) == ["openbao", "minio", "postgres"]  # sorted
+    assert new.step("openbao").secrets["openbao_secret_id"] == "SID"   # preserved
+    assert new.step("minio").secrets["minio_secret_key"] == "MK"       # preserved
+
+
+def test_merge_current_run_wins(tmp_path: Path):
+    f = tmp_path / "state.json"
+    BootstrapState(project="facil", storage_provider="minio",
+                   secrets_provider="openbao", database_mode="local",
+                   steps=[ProvisionStep(name="minio",
+                                        secrets={"minio_secret_key": "OLD"})]).save(f)
+    new = BootstrapState(project="facil", storage_provider="minio",
+                         secrets_provider="openbao", database_mode="local",
+                         steps=[ProvisionStep(name="minio",
+                                              secrets={"minio_secret_key": "NEW"})])
+    _merge_prior_steps(new, f)
+    minio_steps = [s for s in new.steps if s.name == "minio"]
+    assert len(minio_steps) == 1                              # no duplicate
+    assert minio_steps[0].secrets["minio_secret_key"] == "NEW"  # current wins
 
 
 def test_run_bootstrap_no_applicable(tmp_path: Path):
