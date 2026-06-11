@@ -380,3 +380,61 @@ class TestEndToEndDatabaseMode:
         assert cfg_data["docker_local"]["database_mode"] == "external"
         secrets_content = sec_path.read_text(encoding="utf-8")
         assert "DATABASE_URL=postgresql://u:p@db.example.com" in secrets_content
+
+
+# ---------------------------------------------------------------------------
+# Provider-aware wizard v2 (DEPLOY_WIZARD_V2 W2)
+# ---------------------------------------------------------------------------
+
+class TestProviderAwareWizard:
+    def _run(self, monkeypatch, **env):
+        monkeypatch.setenv("WIZ_GEMINI_API_KEY", "k")
+        for key, val in env.items():
+            monkeypatch.setenv(key, val)
+        p = wiz.Prompter(non_interactive=True)
+        cfg, secrets_out = wiz.run_wizard(p)
+        wiz.vc.DeployConfig.model_validate(cfg)   # must always validate
+        return cfg, secrets_out
+
+    def test_docker_local_sovereign_defaults(self, monkeypatch):
+        cfg, sec = self._run(monkeypatch, WIZ_PROVIDER="docker-local")
+        assert cfg["storage"]["provider"] == "minio"
+        assert cfg["secrets"]["provider"] == "openbao"
+        assert "POSTGRES_PASSWORD" in sec and "REDIS_PASSWORD" in sec
+        assert "MINIO_ROOT_PASSWORD" in sec
+
+    def test_aws_native_defaults(self, monkeypatch):
+        cfg, sec = self._run(monkeypatch, WIZ_PROVIDER="aws")
+        assert cfg["storage"]["provider"] == "s3"
+        assert cfg["secrets"]["provider"] == "aws_secrets_manager"
+        assert cfg["aws"]["runtime"] == "app_runner"
+        assert "POSTGRES_PASSWORD" not in sec     # cloud-managed, not generated
+
+    def test_azure_native_defaults(self, monkeypatch):
+        cfg, _ = self._run(monkeypatch, WIZ_PROVIDER="azure")
+        assert cfg["storage"]["provider"] == "azure_blob"
+        assert cfg["secrets"]["provider"] == "azure_key_vault"
+        assert cfg["azure"]["resource_group"] == "facil-rg"
+
+    def test_gcp_native_defaults(self, monkeypatch):
+        cfg, _ = self._run(monkeypatch, WIZ_PROVIDER="gcp",
+                           WIZ_GCP_PROJECT_ID="facil-prod")
+        assert cfg["storage"]["provider"] == "gcs"
+        assert cfg["secrets"]["provider"] == "gcp_secret_manager"
+        assert cfg["gcp"]["project_id"] == "facil-prod"
+
+    def test_profile_propagated(self, monkeypatch):
+        cfg, _ = self._run(monkeypatch, WIZ_PROVIDER="docker-local",
+                           WIZ_PROFILE="banking")
+        assert cfg["meta"]["profile"] == "banking"
+
+    def test_storage_provider_override(self, monkeypatch):
+        cfg, _ = self._run(monkeypatch, WIZ_PROVIDER="docker-local",
+                           WIZ_STORAGE_PROVIDER="s3")
+        assert cfg["storage"]["provider"] == "s3"
+
+    def test_observability_local_endpoint(self, monkeypatch):
+        cfg, _ = self._run(monkeypatch, WIZ_PROVIDER="docker-local",
+                           WIZ_OBS_MODE="local")
+        assert cfg["observability"]["mode"] == "local"
+        assert "4317" in cfg["observability"]["otlp_endpoint"]

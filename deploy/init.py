@@ -207,6 +207,7 @@ def collect_meta(p: Prompter) -> dict[str, Any]:
             default="latest",
             env="WIZ_VERSION",
         ),
+        "profile": collect_profile(p),
     }
 
 
@@ -417,7 +418,7 @@ def collect_provider(p: Prompter, env_label: str) -> str:
     p.section("9/9 — Target deployment provider")
     return p.ask_choice(
         "Provider",
-        ["docker-local", "gcp", "aws"],
+        ["docker-local", "vps", "gcp", "aws", "azure"],
         default="docker-local" if env_label == "development" else "gcp",
         env="WIZ_PROVIDER",
     )
@@ -488,6 +489,160 @@ def collect_gcp(p: Prompter) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Provider-aware defaults (storage / secrets backend follow the target)
+# ---------------------------------------------------------------------------
+
+# provider -> (default storage provider, default secrets provider). On-prem /
+# docker-local / vps stay sovereign (MinIO + OpenBao); each cloud uses its native
+# object store + secret manager.
+_STORAGE_DEFAULT = {
+    "docker-local": "minio", "vps": "minio",
+    "gcp": "gcs", "aws": "s3", "azure": "azure_blob",
+}
+_SECRETS_DEFAULT = {
+    "docker-local": "openbao", "vps": "openbao",
+    "gcp": "gcp_secret_manager", "aws": "aws_secrets_manager",
+    "azure": "azure_key_vault",
+}
+
+
+def collect_profile(p: Prompter) -> str:
+    return p.ask_choice(
+        "Deployment profile (sets coherent module/branding defaults)",
+        ["empty", "private-services-company", "gov-emergent-country",
+         "saas-multitenant", "banking"],
+        default="empty",
+        env="WIZ_PROFILE",
+    )
+
+
+def collect_storage(p: Prompter, provider: str) -> dict[str, Any]:
+    p.section("Storage (object store)")
+    sp = p.ask_choice(
+        "Storage provider",
+        ["minio", "s3", "gcs", "azure_blob", "local_fs", "disabled"],
+        default=_STORAGE_DEFAULT.get(provider, "minio"),
+        env="WIZ_STORAGE_PROVIDER",
+    )
+    cfg: dict[str, Any] = {"provider": sp}
+    if sp == "minio":
+        bucket = p.ask("Default documents bucket", default="facil-documents",
+                       env="WIZ_MINIO_BUCKET")
+        worm = p.ask_bool("Enable a WORM compliance bucket (Object-Lock)?",
+                          default=True, env="WIZ_MINIO_WORM")
+        cfg["minio"] = {
+            "default_bucket": bucket,
+            "compliance": {
+                "enabled": worm,
+                "bucket": "facil-compliance",
+                "retention_mode": p.ask_choice(
+                    "Compliance retention mode",
+                    ["governance", "compliance"], default="governance",
+                    env="WIZ_MINIO_RETENTION_MODE") if worm else "governance",
+                "retention_days": 365,
+            },
+        }
+    return cfg
+
+
+def collect_secrets_backend(p: Prompter, provider: str) -> dict[str, Any]:
+    p.section("Secrets backend")
+    prov = p.ask_choice(
+        "Secrets provider",
+        ["env_file", "openbao", "sops_age", "gcp_secret_manager",
+         "aws_secrets_manager", "azure_key_vault"],
+        default=_SECRETS_DEFAULT.get(provider, "env_file"),
+        env="WIZ_SECRETS_PROVIDER",
+    )
+    return {"provider": prov}
+
+
+def collect_observability(p: Prompter, env_label: str) -> dict[str, Any]:
+    p.section("Observability (telemetry)")
+    mode = p.ask_choice(
+        "Telemetry mode",
+        ["disabled", "local", "cloud"],
+        default="local" if env_label != "production" else "disabled",
+        env="WIZ_OBS_MODE",
+    )
+    cfg: dict[str, Any] = {"mode": mode}
+    if mode == "local":
+        cfg["otlp_endpoint"] = p.ask(
+            "OTLP endpoint (self-hosted otel-lgtm)",
+            default="http://otel-lgtm:4317", env="WIZ_OBS_OTLP")
+    elif mode == "cloud":
+        cfg["otlp_endpoint"] = p.ask(
+            "OTLP endpoint (cloud collector)", default="", env="WIZ_OBS_OTLP")
+        cfg["errors_backend"] = p.ask_choice(
+            "Error tracking", ["none", "sentry_saas", "glitchtip"],
+            default="none", env="WIZ_OBS_ERRORS")
+    return cfg
+
+
+def collect_edge(p: Prompter, env_label: str) -> dict[str, Any]:
+    p.section("Edge (reverse proxy)")
+    enable = p.ask_bool(
+        "Front the stack with a Caddy reverse-proxy (single origin, TLS)?",
+        default=env_label == "production", env="WIZ_EDGE_ENABLE")
+    if not enable:
+        return {"proxy": "none", "tls_mode": "none"}
+    return {
+        "proxy": "caddy",
+        "tls_mode": p.ask_choice(
+            "TLS mode", ["none", "internal", "acme"],
+            default="acme" if env_label == "production" else "internal",
+            env="WIZ_EDGE_TLS"),
+        "domain_frontend": p.ask("Frontend domain (for TLS)", default="",
+                                 env="WIZ_EDGE_DOMAIN_FRONTEND"),
+        "domain_backend": p.ask("Backend domain (for TLS)", default="",
+                                env="WIZ_EDGE_DOMAIN_BACKEND"),
+    }
+
+
+def collect_aws(p: Prompter) -> dict[str, Any]:
+    p.section("AWS target")
+    return {
+        "region": p.ask("AWS region", default="us-east-1", env="WIZ_AWS_REGION"),
+        "account_id": p.ask("AWS account ID (12 digits)", default="",
+                            env="WIZ_AWS_ACCOUNT"),
+        "runtime": p.ask_choice("Compute runtime", ["app_runner", "ecs_fargate"],
+                                default="app_runner", env="WIZ_AWS_RUNTIME"),
+        "ecr_repository": p.ask("ECR repository", default="facil",
+                                env="WIZ_AWS_ECR"),
+        "backend_service_name": "facil-backend",
+        "frontend_service_name": "facil-frontend",
+        "backend_cluster": "facil-backend",
+        "rds_instance": p.ask("RDS instance id (blank = external DATABASE_URL)",
+                              default="", env="WIZ_AWS_RDS"),
+        "secrets_manager_prefix": "facil/",
+        "custom_domain_backend": "", "custom_domain_frontend": "",
+    }
+
+
+def collect_azure(p: Prompter) -> dict[str, Any]:
+    p.section("Azure target")
+    return {
+        "subscription_id": p.ask("Azure subscription ID", default="",
+                                 env="WIZ_AZURE_SUB"),
+        "resource_group": p.ask("Resource group", default="facil-rg",
+                                env="WIZ_AZURE_RG"),
+        "location": p.ask("Location", default="westeurope",
+                          env="WIZ_AZURE_LOCATION"),
+        "acr_registry": p.ask("Container registry (ACR) name", default="",
+                              env="WIZ_AZURE_ACR"),
+        "containerapp_env": "facil-env",
+        "backend_app_name": "facil-backend",
+        "frontend_app_name": "facil-frontend",
+        "postgres_flexible_server": p.ask(
+            "Postgres Flexible Server name (blank = external)", default="",
+            env="WIZ_AZURE_PG"),
+        "keyvault_name": p.ask("Key Vault name", default="",
+                               env="WIZ_AZURE_KV"),
+        "custom_domain_backend": "", "custom_domain_frontend": "",
+    }
+
+
+# ---------------------------------------------------------------------------
 # YAML rendering
 # ---------------------------------------------------------------------------
 
@@ -538,6 +693,7 @@ def run_wizard(p: Prompter) -> tuple[dict[str, Any], dict[str, str]]:
     cfg: dict[str, Any] = {}
     cfg["meta"] = collect_meta(p)
     env_label = cfg["meta"]["environment"]
+    provider = collect_provider(p, env_label)   # drives storage/secrets defaults
 
     cfg["database"] = collect_database(p, secrets_out)
     cfg["redis"] = collect_redis(p)
@@ -547,8 +703,37 @@ def run_wizard(p: Prompter) -> tuple[dict[str, Any], dict[str, str]]:
     cfg["server"] = collect_server(p, env_label)
     cfg["cron"] = collect_cron(p, secrets_out)
 
-    # Sensible defaults for sections the wizard doesn't ask about (operator
-    # can edit config.yaml afterwards).
+    # Infra backends (provider-aware), telemetry, edge — asked explicitly.
+    cfg["storage"] = collect_storage(p, provider)
+    cfg["secrets"] = collect_secrets_backend(p, provider)
+    cfg["observability"] = collect_observability(p, env_label)
+    cfg["edge"] = collect_edge(p, env_label)
+
+    # Provider-specific target config — only the selected provider's block is
+    # written; the others fall back to schema defaults.
+    if provider == "gcp":
+        cfg["gcp"] = collect_gcp(p)
+    elif provider == "aws":
+        cfg["aws"] = collect_aws(p)
+    elif provider == "azure":
+        cfg["azure"] = collect_azure(p)
+
+    cfg["docker_local"] = {
+        "database_mode": collect_docker_db_mode(p, secrets_out, provider),
+        "backend_port": 8080, "frontend_port": 3000,
+        "postgres_image": "postgres:16-alpine",
+        "postgres_volume": f"{cfg['meta']['project_name']}_pgdata",
+        "redis_image": "redis:7-alpine",
+    }
+
+    # Strong runtime data-plane passwords (compose interpolation) — only when we
+    # run our own containers (local stack). Cloud-managed data uses the provider.
+    if provider in ("docker-local", "vps") and \
+            cfg["docker_local"]["database_mode"] == "local":
+        for k in ("POSTGRES_PASSWORD", "REDIS_PASSWORD", "MINIO_ROOT_PASSWORD"):
+            secrets_out.setdefault(k, gen_urlsafe(24))
+
+    # Defaults for sections the wizard doesn't deep-dive (editable in config.yaml).
     cfg["payments"] = {
         "bange": {"enabled": False, "api_url": "", "merchant_id": "",
                   "api_key_secret": "", "webhook_secret_secret": ""},
@@ -563,12 +748,6 @@ def run_wizard(p: Prompter) -> tuple[dict[str, Any], dict[str, str]]:
         "host": "", "port": 587, "username": "", "password_secret": "",
         "use_tls": True, "from_email": "", "from_name": "Facil",
     }
-    cfg["observability"] = {
-        "sentry_dsn_backend_secret": "", "sentry_dsn_web_secret": "",
-        "sentry_auth_token_secret": "", "logrocket_app_id_secret": "",
-        "grafana_otlp_endpoint": "", "grafana_token_secret": "",
-        "maxmind_license_key_secret": "", "slack_webhook_url": "",
-    }
     cfg["legal"] = {
         "privacy_version": "1.0.0", "privacy_last_updated": "2026-05-10",
         "terms_version": "1.0.0", "terms_last_updated": "2026-05-10",
@@ -578,29 +757,6 @@ def run_wizard(p: Prompter) -> tuple[dict[str, Any], dict[str, str]]:
         "scheduler_enabled": True, "rate_limit_enabled": True,
         "metrics_enabled": True, "structured_logging": True,
         "executive_tools": False, "llm_routing": False, "penalties": False,
-    }
-
-    provider = collect_provider(p, env_label)
-    if provider == "gcp":
-        cfg["gcp"] = collect_gcp(p)
-    else:
-        cfg["gcp"] = {
-            "project_id": "", "region": "us-central1",
-            "backend_service_name": "facil-backend",
-            "frontend_service_name": "facil-frontend",
-            "cloud_sql_instance": "",
-            "custom_domain_backend": "", "custom_domain_frontend": "",
-        }
-    cfg["aws"] = {
-        "region": "us-east-1", "backend_cluster": "facil-backend",
-        "rds_instance": "",
-    }
-    cfg["docker_local"] = {
-        "database_mode": collect_docker_db_mode(p, secrets_out, provider),
-        "backend_port": 8080, "frontend_port": 3000,
-        "postgres_image": "postgres:16-alpine",
-        "postgres_volume": f"{cfg['meta']['project_name']}_pgdata",
-        "redis_image": "redis:7-alpine",
     }
     cfg["env_overrides"] = {}
 
