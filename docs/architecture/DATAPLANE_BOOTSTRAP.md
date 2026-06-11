@@ -105,6 +105,32 @@ au **niveau volume** : **LUKS + clé custodiée dans OpenBao**, déverrouillage 
 boot — sujet **production VPS/k3s**, **no-op documenté** en dev Docker Desktop.
 Détails et runbook : `docs/adr/0007-encryption-at-rest-luks-openbao.md`.
 
+## 3ter. Durcissement auth data-plane (H1–H4)
+
+Le data-plane tournait sur des **défauts faibles** (`localdev`, Redis sans auth,
+`facilminio`) parce que docker compose interpole `${VAR}` depuis le shell/`.env`,
+**jamais** depuis `.env.secrets` (qui n'est qu'un `env_file` des conteneurs).
+
+| Durcissement | Détail |
+|---|---|
+| **Secrets forts** | `ensure_secrets.py` génère idempotemment `POSTGRES_PASSWORD` / `REDIS_PASSWORD` / `MINIO_ROOT_PASSWORD` forts dans `.env.secrets` (clés manquantes uniquement). `docker_local --apply` les passe en **env_extra** au `compose up` ⇒ `${VAR:-default}` résout la vraie valeur. |
+| **Redis auth** | service `--requirepass`, healthcheck authentifié, `REDIS_URL` avec mot de passe (placeholder `${REDIS_PASSWORD}` gardé littéral dans le YAML). |
+| **Rôle Postgres least-privilege** | le bootstrap crée `facil_app` **NOSUPERUSER** (CONNECT/USAGE/DML + `ALTER DEFAULT PRIVILEGES` pour les tables futures de db-init), **sans** DDL/CREATEDB/SUPERUSER. Le backend l'utilise ; le superuser reste réservé aux migrations. Password généré/réutilisé via state. |
+| **Centralisation OpenBao** | `POSTGRES/REDIS/MINIO_ROOT_PASSWORD` mirrorés dans `facil/runtime` (lisibles par l'AppRole `facil-backend`). `.env.secrets` reste la source pour compose. |
+
+**Preuves live** (recreate `down -v` + re-bootstrap) : Redis NOAUTH sans mot de
+passe / PONG avec ; Postgres réseau rejette `localdev`, accepte le fort
+(scram-sha-256) ; MinIO rejette `facilminio` ; `facil_app` connecté `superuser=off`,
+CREATE DATABASE/TABLE **refusés** ; AppRole lit `facil/runtime` (200).
+
+### Observabilité (seam — live différé Phase D)
+
+Le seam OTLP existe (`observability.mode` = `disabled`/`local`/`cloud`). En
+`mode=local`, le backend émettra vers `otel-lgtm:4317` (profil `observability`,
+souverain self-hosted). **Aucun service ne tourne à vide** : le câblage
+backend→OTLP sera activé et validé quand le backend sera porté (Phase D) — pas de
+placeholder ici.
+
 ## 4. Garanties
 
 | Propriété | Comment | Preuve |
