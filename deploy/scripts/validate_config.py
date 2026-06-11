@@ -247,6 +247,45 @@ class AwsConfig(BaseModel):
     rds_instance: str = ""
 
 
+class MinioConfig(BaseModel):
+    # On-prem souverain object storage (ADR-0005). P4 pins by digest
+    # (verified latest = sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e).
+    image: str = "minio/minio:latest"
+    api_port: int = Field(default=9000, ge=1, le=65535)
+    console_port: int = Field(default=9001, ge=1, le=65535)
+    volume: str = "facil_minio_data"
+    root_user: str = "facil"
+    root_password_secret: str = "MINIO_ROOT_PASSWORD"
+    default_bucket: str = "facil-documents"
+
+
+class StorageConfig(BaseModel):
+    # Pluggable file-storage backend (ADR-0005). On-prem souverain default = MinIO (S3-compatible).
+    provider: Literal["minio", "s3", "gcs", "azure_blob", "local_fs", "disabled"] = "minio"
+    minio: MinioConfig = Field(default_factory=MinioConfig)
+
+
+class OpenbaoConfig(BaseModel):
+    # Secrets + PKI engine (ADR-0003/0006, P7). P4 pins by digest
+    # (verified latest = sha256:436eaf9778cad75507ff70ea26ace30dcbe15606e619ac3823495663d7f7c115).
+    image: str = "openbao/openbao:latest"
+    port: int = Field(default=8200, ge=1, le=65535)
+    volume: str = "facil_openbao_data"
+    # dev_mode=True -> `bao server -dev` (in-memory, auto-unsealed, NON-PROD).
+    # Production unseal (SOPS+age bootstrap) is implemented in P7.
+    dev_mode: bool = True
+    dev_root_token_secret: str = "OPENBAO_DEV_ROOT_TOKEN"
+
+
+class SecretsConfig(BaseModel):
+    # Pluggable secrets backend (ADR-0003, P7). Default dev = env_file.
+    provider: Literal[
+        "env_file", "docker_secrets", "sops_age", "openbao",
+        "gcp_secret_manager", "aws_secrets_manager", "azure_key_vault",
+    ] = "env_file"
+    openbao: OpenbaoConfig = Field(default_factory=OpenbaoConfig)
+
+
 class DockerLocalConfig(BaseModel):
     # Where the Postgres database lives.
     #   - "local"    : compose generates a postgres container (default,
@@ -281,6 +320,8 @@ class DeployConfig(BaseModel):
     features: FeaturesConfig = Field(default_factory=FeaturesConfig)
     gcp: GcpConfig = Field(default_factory=GcpConfig)
     aws: AwsConfig = Field(default_factory=AwsConfig)
+    storage: StorageConfig = Field(default_factory=StorageConfig)
+    secrets: SecretsConfig = Field(default_factory=SecretsConfig)
     docker_local: DockerLocalConfig = Field(default_factory=DockerLocalConfig)
     env_overrides: dict[str, str | int | float | bool] = Field(default_factory=dict)
 

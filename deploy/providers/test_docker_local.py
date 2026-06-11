@@ -94,9 +94,11 @@ class TestGenerateCompose:
         parsed = yaml.safe_load(out)
         assert parsed is not None
         assert "services" in parsed
-        # 5 services: postgres + redis + db-init (one-shot) + backend + frontend
+        # Base services: postgres + redis + minio (storage default=minio, ADR-0005)
+        # + db-init (one-shot) + backend + frontend. OpenBao is absent by default
+        # (secrets default=env_file). Gating covered in TestStorageAndSecretsServices.
         assert set(parsed["services"].keys()) == {
-            "postgres", "redis", "db-init", "backend", "frontend"
+            "postgres", "redis", "minio", "db-init", "backend", "frontend"
         }
 
     def test_no_deprecated_version_field(self, cfg: vc.DeployConfig) -> None:
@@ -241,6 +243,52 @@ class TestDatabaseModeExternal:
         """The header comment must state the chosen mode for clarity."""
         assert "database_mode: external" in dl.generate_compose(cfg_external)
         assert "database_mode: local" in dl.generate_compose(cfg)
+
+
+# ---------------------------------------------------------------------------
+# Storage (MinIO) & Secrets (OpenBao) service gating — ADR-0005 / ADR-0006 / P7
+# ---------------------------------------------------------------------------
+
+class TestStorageAndSecretsServices:
+    def test_minio_emitted_by_default(self, cfg: vc.DeployConfig) -> None:
+        parsed = yaml.safe_load(dl.generate_compose(cfg))
+        assert "minio" in parsed["services"]
+        assert parsed["services"]["minio"]["image"].startswith("minio/minio")
+        assert "facil_minio_data" in (parsed.get("volumes") or {})
+
+    def test_openbao_absent_by_default(self, cfg: vc.DeployConfig) -> None:
+        parsed = yaml.safe_load(dl.generate_compose(cfg))
+        assert "openbao" not in parsed["services"]
+
+    def test_storage_local_fs_skips_minio(self, minimal_config_dict: dict) -> None:
+        minimal_config_dict["storage"] = {"provider": "local_fs"}
+        cfg = vc.DeployConfig.model_validate(minimal_config_dict)
+        parsed = yaml.safe_load(dl.generate_compose(cfg))
+        assert "minio" not in parsed["services"]
+        assert "facil_minio_data" not in (parsed.get("volumes") or {})
+
+    def test_secrets_openbao_emits_dev_mode_no_volume(
+        self, minimal_config_dict: dict
+    ) -> None:
+        minimal_config_dict["secrets"] = {"provider": "openbao"}
+        cfg = vc.DeployConfig.model_validate(minimal_config_dict)
+        parsed = yaml.safe_load(dl.generate_compose(cfg))
+        assert "openbao" in parsed["services"]
+        bao = parsed["services"]["openbao"]
+        assert bao["image"].startswith("openbao/openbao")
+        # dev mode -> `-dev` flag, in-memory (no persistent named volume).
+        assert "-dev" in " ".join(bao["command"])
+        assert "facil_openbao_data" not in (parsed.get("volumes") or {})
+
+    def test_secrets_openbao_prod_mode_adds_volume(
+        self, minimal_config_dict: dict
+    ) -> None:
+        minimal_config_dict["secrets"] = {
+            "provider": "openbao", "openbao": {"dev_mode": False}
+        }
+        cfg = vc.DeployConfig.model_validate(minimal_config_dict)
+        parsed = yaml.safe_load(dl.generate_compose(cfg))
+        assert "facil_openbao_data" in (parsed.get("volumes") or {})
 
 
 # ---------------------------------------------------------------------------

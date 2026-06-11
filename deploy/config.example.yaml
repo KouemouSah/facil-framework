@@ -214,6 +214,28 @@ aws:
   backend_cluster: facil-backend
   rds_instance: ""
 
+# 15b. Storage — pluggable object storage (ADR-0005). On-prem souverain
+# default = MinIO (S3-compatible). In docker-local, provider=minio emits a
+# MinIO service in the stack; provider=local_fs/disabled emits none.
+storage:
+  provider: minio        # minio | s3 | gcs | azure_blob | local_fs | disabled
+  minio:
+    api_port: 9000
+    console_port: 9001
+    root_user: facil
+    root_password_secret: MINIO_ROOT_PASSWORD
+    default_bucket: facil-documents
+
+# 15c. Secrets — pluggable backend (ADR-0003/0006, P7). Default dev=env_file.
+# In docker-local, provider=openbao emits an OpenBao service. dev_mode=true =
+# `bao server -dev` (in-memory, auto-unsealed, NON-PROD). Prod unseal (SOPS+age)
+# is implemented in P7.
+secrets:
+  provider: env_file     # env_file | docker_secrets | sops_age | openbao | gcp_secret_manager | aws_secrets_manager | azure_key_vault
+  openbao:
+    port: 8200
+    dev_mode: true
+
 # 16. Docker Compose local — Dev environment.
 docker_local:
   backend_port: 8080
