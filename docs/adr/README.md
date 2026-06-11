@@ -32,6 +32,7 @@ Format **MADR** (Markdown Any Decision Record) simplifié :
 | [0004](0004-strangler-incremental-rewrite.md) | Refonte incrémentale par Strangler Fig (legacy tracké + .dockerignore) | Accepted | 2026-06-11 |
 | [0005](0005-storage-provider-minio.md) | Stockage : abstraction S3 + MinIO souverain (compression + dédup) | Accepted | 2026-06-11 |
 | [0006](0006-onprem-orchestration-k3s-and-internal-pki.md) | Orchestration on-prem (k3s mono-nœud) & PKI interne (OpenBao) + CA signature séparée | Accepted | 2026-06-11 |
+| [0007](0007-encryption-at-rest-luks-openbao.md) | Chiffrement at-rest souverain : LUKS volumes + clé custodiée OpenBao (KES déprécié écarté) | Accepted | 2026-06-11 |
 
 > Plan d'exécution détaillé (working, local) : `.claude/plans/INFRA_HYBRID_DEPLOY_PLAN.md`.
 > Roadmap publique : `docs/roadmap/INFRA_ROADMAP.md`. Process : `docs/governance/PROJECT_GOVERNANCE.md`.

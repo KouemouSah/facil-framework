@@ -79,6 +79,32 @@ docker_local.py --apply
   (tables) reste la propriété de `db-init`/migrations (Phase D), qui les
   ré-affirmera sans conflit.
 
+## 3bis. Architecture de sécurité MinIO (durcissement S1–S5)
+
+Au-delà du provisioning de base, le provisioner MinIO applique un durcissement
+**config-driven** (champs `storage.minio.*`) et **idempotent** :
+
+| Capacité | Détail | Config |
+|---|---|---|
+| **Bucket WORM** | `facil-compliance` créé `mc mb --with-lock` (Object-Lock ⇒ versioning auto), pour artefacts à valeur légale (PAdES/eIDAS, reçus, pistes d'audit). Object-Lock **uniquement à la création** ⇒ bucket séparé. | `compliance.enabled/bucket` |
+| **Rétention** | rétention par défaut `GOVERNANCE` (bypass privilégié, dev-cleanable) ou `COMPLIANCE` (immuable même root). | `compliance.retention_mode/_days` |
+| **Lifecycle** | expiration des **versions non-courantes** sur le bucket documents (versioning ON ⇒ sinon stockage non borné). Pas sur le bucket WORM (conflit rétention). Multipart incomplets : déjà auto-purgés par le serveur (`api.stale_uploads_expiry` 24h). | `lifecycle.expire_noncurrent_versions_days` |
+| **Quotas** | quota dur par bucket (anti-runaway) ; `0` = non géré. | `quota_documents_gb`, `quota_compliance_gb` |
+| **SA bucket-set** | le service account `facil-backend` couvre documents (rw complet) **+** compliance (read + write + set-retention, **sans DeleteObject** — write-once, défense en profondeur sur Object-Lock). Aucun accès aux autres buckets. Policy ré-appliquée à chaque run via `svcacct edit` (sans rotation du secret). | — |
+| **Privé** | `anonymous set none` sur tous les buckets gérés. | — |
+
+**Preuves live** : `mc rm --version-id` sur une version retenue ⇒ *« WORM protected
+and cannot be overwritten »* ; avec les creds du SA : write compliance **OK**,
+delete compliance **Access Denied**, créer un autre bucket **Access Denied**.
+
+### Chiffrement at-rest — voir **ADR-0007**
+
+Le chiffrement at-rest **n'utilise pas** le SSE-S3/KES de MinIO (`minio/kes`
+**déprécié**, remplaçant **Enterprise** ⇒ incompatible AGPL souverain). Il se fait
+au **niveau volume** : **LUKS + clé custodiée dans OpenBao**, déverrouillage au
+boot — sujet **production VPS/k3s**, **no-op documenté** en dev Docker Desktop.
+Détails et runbook : `docs/adr/0007-encryption-at-rest-luks-openbao.md`.
+
 ## 4. Garanties
 
 | Propriété | Comment | Preuve |
