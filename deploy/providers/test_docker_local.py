@@ -647,3 +647,65 @@ class TestBuildKit:
 
         assert captured_env.get("DOCKER_BUILDKIT") == "1"
         assert captured_env.get("COMPOSE_DOCKER_CLI_BUILD") == "1"
+
+
+# ---------------------------------------------------------------------------
+# Data-plane bootstrap integration (auto-run post-up, opt-out, non-fatal)
+# ---------------------------------------------------------------------------
+
+class TestBootstrapIntegration:
+    def _apply_mocks(self, tmp_path, minimal_config_dict, monkeypatch):
+        cfg_file = tmp_path / "config.yaml"
+        cfg_file.write_text(yaml.safe_dump(minimal_config_dict))
+        secrets = tmp_path / ".env.secrets"
+        secrets.write_text("X=1")
+        monkeypatch.setattr(dl, "SECRETS_FILE", secrets)
+        monkeypatch.setattr(dl, "COMPOSE_FILE", tmp_path / "docker-compose.local.yml")
+        monkeypatch.setattr(dl, "CADDYFILE", tmp_path / "Caddyfile")
+        return cfg_file
+
+    def test_apply_runs_bootstrap_by_default(
+        self, tmp_path, minimal_config_dict, monkeypatch
+    ):
+        cfg_file = self._apply_mocks(tmp_path, minimal_config_dict, monkeypatch)
+        called = []
+        monkeypatch.setattr(dl, "_run_bootstrap", lambda cfg: called.append(cfg))
+        with patch("docker_local.find_docker", return_value="/usr/bin/docker"), \
+             patch("docker_local.docker_compose_available", return_value=True), \
+             patch("docker_local.stack_running", return_value=False), \
+             patch("docker_local.subprocess.run", return_value=MagicMock(returncode=0)), \
+             patch("docker_local.run_compose", return_value=0):
+            rc = dl.main(["--config", str(cfg_file), "--apply", "--yes"])
+        assert rc == 0
+        assert len(called) == 1            # bootstrap ran once
+
+    def test_apply_no_bootstrap_flag_skips(
+        self, tmp_path, minimal_config_dict, monkeypatch
+    ):
+        cfg_file = self._apply_mocks(tmp_path, minimal_config_dict, monkeypatch)
+        called = []
+        monkeypatch.setattr(dl, "_run_bootstrap", lambda cfg: called.append(cfg))
+        with patch("docker_local.find_docker", return_value="/usr/bin/docker"), \
+             patch("docker_local.docker_compose_available", return_value=True), \
+             patch("docker_local.stack_running", return_value=False), \
+             patch("docker_local.subprocess.run", return_value=MagicMock(returncode=0)), \
+             patch("docker_local.run_compose", return_value=0):
+            rc = dl.main(["--config", str(cfg_file), "--apply", "--yes",
+                          "--no-bootstrap"])
+        assert rc == 0
+        assert called == []                # bootstrap skipped
+
+    def test_run_bootstrap_is_non_fatal_on_failure(
+        self, minimal_config_dict, monkeypatch
+    ):
+        import types
+        fake = types.ModuleType("bootstrap")
+
+        def boom(cfg):
+            raise RuntimeError("kaboom")
+
+        fake.run_bootstrap = boom
+        monkeypatch.setitem(sys.modules, "bootstrap", fake)
+        cfg = vc.DeployConfig.model_validate(minimal_config_dict)
+        # Must NOT raise — a provisioning failure never tears the stack down.
+        dl._run_bootstrap(cfg)

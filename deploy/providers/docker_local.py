@@ -525,6 +525,11 @@ def main(argv: list[str] | None = None) -> int:
                              "(WIPES the local DB).")
     parser.add_argument("--yes", action="store_true",
                         help="Skip interactive confirmations.")
+    parser.add_argument("--no-bootstrap", action="store_true",
+                        help="With --apply: skip the data-plane provisioning "
+                             "(MinIO bucket/SA, OpenBao kv/policy/AppRole, "
+                             "Postgres extensions) that normally runs once the "
+                             "stack is healthy.")
     args = parser.parse_args(argv)
 
     # Config is required for plan/apply (template generation depends on it).
@@ -551,7 +556,7 @@ def main(argv: list[str] | None = None) -> int:
         return _do_plan(cfg)
 
     if args.apply:
-        return _do_apply(cfg, yes=args.yes)
+        return _do_apply(cfg, yes=args.yes, no_bootstrap=args.no_bootstrap)
 
     if args.down:
         return _do_down(remove_volumes=args.volumes)
@@ -598,7 +603,31 @@ def _do_plan(cfg: vc.DeployConfig) -> int:
     return 0
 
 
-def _do_apply(cfg: vc.DeployConfig, *, yes: bool) -> int:
+def _run_bootstrap(cfg: vc.DeployConfig) -> None:
+    """Run the data-plane bootstrap after the stack is up (non-fatal).
+
+    Lazy-imported so compose-only commands never pay its import cost, and so a
+    bootstrap import error can never block bringing the stack up. A provisioner
+    failure is surfaced loudly but does NOT tear the stack down — the operator
+    re-runs ``run_bootstrap.py --apply`` once the cause is fixed.
+    """
+    print("\n=== Data-plane bootstrap (provisioning) ===")
+    sys.path.insert(0, str(PROVIDERS_DIR))
+    try:
+        import bootstrap  # noqa: E402  (lazy)
+        state = bootstrap.run_bootstrap(cfg)
+    except Exception as e:  # never fatal to the up
+        print(f"[WARN] bootstrap could not run: {e}\n"
+              f"       Re-run: python deploy/providers/run_bootstrap.py --apply",
+              file=sys.stderr)
+        return
+    print(state.redacted_summary())
+    if not state.succeeded:
+        print("[WARN] some provisioners failed (see above). Re-run: "
+              "python deploy/providers/run_bootstrap.py --apply", file=sys.stderr)
+
+
+def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) -> int:
     if not SECRETS_FILE.exists():
         print(
             f"ERROR: missing secrets file: {SECRETS_FILE}\n"
@@ -646,6 +675,17 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool) -> int:
     if rc != 0:
         print(f"ERROR: docker compose up failed (exit {rc})", file=sys.stderr)
         return 2
+
+    # ---- Data-plane bootstrap (provisioning) ----
+    # Turns "containers up" into "data-plane usable": MinIO bucket + scoped SA,
+    # OpenBao kv/policy/AppRole, Postgres extensions. Idempotent + mode-aware
+    # (consumes storage.provider / secrets.provider). Non-fatal on failure: the
+    # stack stays up and the operator can re-run run_bootstrap.py --apply.
+    if not no_bootstrap:
+        _run_bootstrap(cfg)
+    else:
+        print("\n[INFO] --no-bootstrap: skipped data-plane provisioning. "
+              "Run later with: python deploy/providers/run_bootstrap.py --apply")
 
     print("\n[OK] Stack up. Inspect:")
     print(f"  docker compose -f {COMPOSE_FILE.name} ps")
