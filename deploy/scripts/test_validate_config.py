@@ -559,3 +559,31 @@ class TestProviderCatalogSeam:
         # Back-compat: the old single-Gemini config path still validates.
         cfg = vc.DeployConfig.model_validate(minimal_valid_config)
         assert cfg.ai.gemini_api_key_secret  # from the fixture
+
+
+class TestEmailPaymentSeam:
+    def test_email_default_disabled(self, minimal_valid_config: dict) -> None:
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.email.provider == "disabled"
+
+    def test_email_sendgrid(self, minimal_valid_config: dict) -> None:
+        minimal_valid_config["email"] = {"provider": "sendgrid",
+                                         "api_key_secret": "EMAIL_API_KEY"}
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.email.provider == "sendgrid"
+
+    def test_email_rejects_unknown(self, minimal_valid_config: dict) -> None:
+        minimal_valid_config["email"] = {"provider": "carrier_pigeon"}
+        with pytest.raises(Exception):
+            vc.DeployConfig.model_validate(minimal_valid_config)
+
+    def test_payment_provider_stripe(self, minimal_valid_config: dict) -> None:
+        minimal_valid_config["payments"] = {"provider": "stripe",
+                                            "stripe": {"enabled": True}}
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.payments.provider == "stripe"
+        assert cfg.payments.stripe.enabled is True
+
+    def test_payment_default_disabled(self, minimal_valid_config: dict) -> None:
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.payments.provider == "disabled"

@@ -444,3 +444,33 @@ class TestProviderAwareWizard:
                            WIZ_PROFILE="banking")
         assert "kyc" in cfg["modules"]["enabled"]
         assert cfg["branding"]["app_name"] == "Facil Bank"
+
+    def test_sovereign_ollama_multi_llm(self, monkeypatch):
+        cfg, _ = self._run(monkeypatch, WIZ_PROVIDER="docker-local",
+                           WIZ_LLM_KIND="ollama")
+        assert set(cfg["ai"]["providers"]) == {"public", "agents", "embed"}
+        assert cfg["ai"]["routing"]["agent_backend"] == "agents"
+
+    def test_email_smtp_surfaced(self, monkeypatch):
+        cfg, _ = self._run(monkeypatch, WIZ_PROVIDER="docker-local",
+                           WIZ_EMAIL_PROVIDER="smtp")
+        assert cfg["email"]["provider"] == "smtp"
+        assert "smtp_password_secret" in cfg["email"]
+
+    def test_payment_stripe_surfaced(self, monkeypatch):
+        cfg, _ = self._run(monkeypatch, WIZ_PROVIDER="docker-local",
+                           WIZ_PAYMENT_PROVIDER="stripe")
+        assert cfg["payments"]["provider"] == "stripe"
+        assert cfg["payments"]["stripe"]["enabled"] is True
+
+    def test_auth_methods_surfaced(self, monkeypatch):
+        cfg, _ = self._run(monkeypatch, WIZ_PROVIDER="docker-local",
+                           WIZ_AUTH_CITIZEN="native,google_oauth",
+                           WIZ_AUTH_AGENT="keycloak_oidc,ldap")
+        assert set(cfg["auth"]["citizen_methods"]) == {"native", "google_oauth"}
+        assert set(cfg["auth"]["agent_methods"]) == {"keycloak_oidc", "ldap"}
+
+    def test_db_provider_surfaced(self, monkeypatch):
+        cfg, _ = self._run(monkeypatch, WIZ_PROVIDER="docker-local",
+                           WIZ_DB_PROVIDER="supabase")
+        assert cfg["database"]["provider"] == "supabase"

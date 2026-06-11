@@ -249,13 +249,39 @@ class PaymentMpgsConfig(BaseModel):
     primary_methods: str = "card"
 
 
+class PaymentStripeConfig(BaseModel):
+    enabled: bool = False
+    publishable_key_secret: str = ""
+    secret_key_secret: str = ""
+    webhook_secret_secret: str = ""
+
+
 class PaymentsConfig(BaseModel):
+    # Generic gateway selector. The legacy bange/ecobank/mpgs (TaxasGE-specific)
+    # stay for back-compat; stripe is the generic default for new deployments.
+    provider: Literal["disabled", "stripe", "bange", "ecobank", "mpgs"] = "disabled"
+    stripe: PaymentStripeConfig = Field(default_factory=PaymentStripeConfig)
     bange: PaymentBangeConfig = Field(default_factory=PaymentBangeConfig)
     ecobank: PaymentEcobankConfig = Field(default_factory=PaymentEcobankConfig)
     mpgs: PaymentMpgsConfig = Field(default_factory=PaymentMpgsConfig)
 
 
+class EmailConfig(BaseModel):
+    # Pluggable email/transactional provider. smtp uses the smtp_* fields; the
+    # API providers use api_key_secret. disabled = no outbound email.
+    provider: Literal["disabled", "smtp", "sendgrid", "ses", "resend"] = "disabled"
+    from_email: str = ""
+    from_name: str = "Facil"
+    api_key_secret: str = ""          # sendgrid / ses / resend
+    smtp_host: str = ""
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_username: str = ""
+    smtp_password_secret: str = ""
+    smtp_use_tls: bool = True
+
+
 class SmtpConfig(BaseModel):
+    # DEPRECATED in favour of EmailConfig (kept so older config.yaml validates).
     host: str = ""
     port: int = Field(default=587, ge=1, le=65535)
     username: str = ""
@@ -500,6 +526,7 @@ class DeployConfig(BaseModel):
     ai: AIConfig
     payments: PaymentsConfig = Field(default_factory=PaymentsConfig)
     smtp: SmtpConfig = Field(default_factory=SmtpConfig)
+    email: EmailConfig = Field(default_factory=EmailConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
     server: ServerConfig
     legal: LegalConfig = Field(default_factory=LegalConfig)

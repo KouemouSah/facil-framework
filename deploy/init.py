@@ -212,14 +212,29 @@ def collect_meta(p: Prompter) -> dict[str, Any]:
     }
 
 
-def collect_database(p: Prompter, secrets_out: dict) -> dict[str, Any]:
-    p.section("2/9 — Database (Postgres)")
+# Managed-DB default per deployment target.
+_DB_DEFAULT = {
+    "docker-local": "local", "vps": "local",
+    "gcp": "cloud_sql", "aws": "rds", "azure": "external",
+}
+
+
+def collect_database(p: Prompter, secrets_out: dict, provider: str = "docker-local") -> dict[str, Any]:
+    p.section("Database (Postgres)")
+    db_provider = p.ask_choice(
+        "Database provider",
+        ["local", "supabase", "cloud_sql", "rds", "neon", "external"],
+        default=_DB_DEFAULT.get(provider, "local"),
+        env="WIZ_DB_PROVIDER",
+    )
+    # Managed providers connect through a DATABASE_URL by default.
     use_url = p.ask_bool(
         "Use a single DATABASE_URL secret (vs discrete fields)?",
-        default=True,
+        default=db_provider != "local",
         env="WIZ_DB_USE_URL",
     )
     cfg: dict[str, Any] = {
+        "provider": db_provider,
         "url_secret": "",
         "host": "",
         "port": 5432,
@@ -643,6 +658,110 @@ def collect_azure(p: Prompter) -> dict[str, Any]:
     }
 
 
+_AUTH_METHODS = ["native", "keycloak_oidc", "google_oauth", "supabase_auth",
+                 "generic_oidc", "ldap", "saml"]
+
+
+def _parse_methods(raw: str, fallback: list[str]) -> list[str]:
+    vals = [m.strip() for m in raw.split(",") if m.strip() in _AUTH_METHODS]
+    return vals or fallback
+
+
+def collect_auth_methods(p: Prompter) -> dict[str, Any]:
+    p.section("Auth methods (per surface — several allowed)")
+    cat = "/".join(_AUTH_METHODS)
+    citizen = _parse_methods(p.ask(
+        f"Citizen auth methods (comma-sep from {cat})",
+        default="native", env="WIZ_AUTH_CITIZEN"), ["native"])
+    agent = _parse_methods(p.ask(
+        "Agent auth methods (comma-sep)",
+        default="keycloak_oidc", env="WIZ_AUTH_AGENT"), ["keycloak_oidc"])
+    return {"citizen_methods": citizen, "agent_methods": agent}
+
+
+def collect_llm(p: Prompter, secrets_out: dict, provider: str) -> dict[str, Any]:
+    p.section("LLM / inference")
+    gen = {"max_output_tokens": 2048, "temperature": 0.5, "top_p": 0.9, "top_k": 40}
+    kind = p.ask_choice(
+        "Primary LLM provider kind",
+        ["ollama", "openai_compat", "gemini", "vertex"],
+        default="ollama" if provider in ("docker-local", "vps") else "gemini",
+        env="WIZ_LLM_KIND",
+    )
+    if kind == "gemini":
+        key = p.ask_secret("Gemini API key (blank = fill later)", env="WIZ_GEMINI_API_KEY")
+        if key:
+            secrets_out["GEMINI_API_KEY"] = key
+        return {"gemini_api_key_secret": "GEMINI_API_KEY", "generation": gen}
+    if kind == "vertex":
+        return {"google_cloud_project": p.ask(
+            "GCP project (Vertex AI)", default="facil-dev", env="WIZ_GCP_PROJECT"),
+            "generation": gen}
+    # ollama / openai_compat -> named providers + per-task routing.
+    if kind == "ollama":
+        ep = p.ask("Ollama endpoint", default="http://ollama:11434", env="WIZ_OLLAMA_ENDPOINT")
+        pub = p.ask("Public-chat model", default="llama3.1:8b", env="WIZ_OLLAMA_MODEL")
+        agt = p.ask("Backend/agents model", default=pub, env="WIZ_OLLAMA_AGENT_MODEL")
+        providers = {
+            "public": {"kind": "ollama", "endpoint": ep, "model": pub},
+            "agents": {"kind": "ollama", "endpoint": ep, "model": agt},
+            "embed": {"kind": "ollama", "endpoint": ep, "model": "nomic-embed-text"},
+        }
+        routing = {"public_chat": "public", "agent_backend": "agents", "embedding": "embed"}
+    else:  # openai_compat
+        ep = p.ask("OpenAI-compatible endpoint", default="", env="WIZ_OPENAI_ENDPOINT")
+        model = p.ask("Model", default="gpt-4o", env="WIZ_OPENAI_MODEL")
+        providers = {"default": {"kind": "openai_compat", "endpoint": ep,
+                                 "model": model, "api_key_secret": "LLM_API_KEY"}}
+        routing = {"public_chat": "default", "agent_backend": "default"}
+    return {"providers": providers, "routing": routing, "generation": gen}
+
+
+def collect_email(p: Prompter) -> dict[str, Any]:
+    p.section("Email / transactional")
+    prov = p.ask_choice("Email provider",
+                        ["disabled", "smtp", "sendgrid", "ses", "resend"],
+                        default="disabled", env="WIZ_EMAIL_PROVIDER")
+    cfg: dict[str, Any] = {"provider": prov}
+    if prov == "disabled":
+        return cfg
+    cfg["from_email"] = p.ask("From email", default="", env="WIZ_EMAIL_FROM")
+    cfg["from_name"] = p.ask("From name", default="Facil", env="WIZ_EMAIL_FROM_NAME")
+    if prov == "smtp":
+        cfg["smtp_host"] = p.ask("SMTP host", default="", env="WIZ_SMTP_HOST")
+        cfg["smtp_username"] = p.ask("SMTP username", default="", env="WIZ_SMTP_USER")
+        cfg["smtp_password_secret"] = p.ask(
+            "Secret name for SMTP password", default="SMTP_PASSWORD",
+            env="WIZ_SMTP_PASS_SECRET")
+    else:
+        cfg["api_key_secret"] = p.ask(
+            "Secret name for the email API key", default="EMAIL_API_KEY",
+            env="WIZ_EMAIL_API_SECRET")
+    return cfg
+
+
+def collect_payment(p: Prompter) -> dict[str, Any]:
+    p.section("Payment")
+    prov = p.ask_choice("Payment provider",
+                        ["disabled", "stripe", "bange", "ecobank", "mpgs"],
+                        default="disabled", env="WIZ_PAYMENT_PROVIDER")
+    cfg: dict[str, Any] = {"provider": prov}
+    if prov == "stripe":
+        cfg["stripe"] = {
+            "enabled": True,
+            "publishable_key_secret": p.ask(
+                "Secret name: Stripe publishable key",
+                default="STRIPE_PUBLISHABLE_KEY", env="WIZ_STRIPE_PK"),
+            "secret_key_secret": p.ask(
+                "Secret name: Stripe secret key",
+                default="STRIPE_SECRET_KEY", env="WIZ_STRIPE_SK"),
+            "webhook_secret_secret": p.ask(
+                "Secret name: Stripe webhook secret",
+                default="STRIPE_WEBHOOK_SECRET", env="WIZ_STRIPE_WH"),
+        }
+    return cfg
+
+
 # ---------------------------------------------------------------------------
 # YAML rendering
 # ---------------------------------------------------------------------------
@@ -696,11 +815,11 @@ def run_wizard(p: Prompter) -> tuple[dict[str, Any], dict[str, str]]:
     env_label = cfg["meta"]["environment"]
     provider = collect_provider(p, env_label)   # drives storage/secrets defaults
 
-    cfg["database"] = collect_database(p, secrets_out)
+    cfg["database"] = collect_database(p, secrets_out, provider)
     cfg["redis"] = collect_redis(p)
-    cfg["auth"] = collect_auth(p, secrets_out)
+    cfg["auth"] = {**collect_auth(p, secrets_out), **collect_auth_methods(p)}
     cfg["firebase"] = collect_firebase(p, secrets_out)
-    cfg["ai"] = collect_ai(p, secrets_out)
+    cfg["ai"] = collect_llm(p, secrets_out, provider)
     cfg["server"] = collect_server(p, env_label)
     cfg["cron"] = collect_cron(p, secrets_out)
 
@@ -734,21 +853,11 @@ def run_wizard(p: Prompter) -> tuple[dict[str, Any], dict[str, str]]:
         for k in ("POSTGRES_PASSWORD", "REDIS_PASSWORD", "MINIO_ROOT_PASSWORD"):
             secrets_out.setdefault(k, gen_urlsafe(24))
 
+    # Email + payment provider (asked; default disabled).
+    cfg["email"] = collect_email(p)
+    cfg["payments"] = collect_payment(p)
+
     # Defaults for sections the wizard doesn't deep-dive (editable in config.yaml).
-    cfg["payments"] = {
-        "bange": {"enabled": False, "api_url": "", "merchant_id": "",
-                  "api_key_secret": "", "webhook_secret_secret": ""},
-        "ecobank": {"enabled": False, "api_url": "", "client_id": "",
-                    "client_secret_secret": "", "webhook_secret_secret": "",
-                    "primary_methods": ""},
-        "mpgs": {"enabled": False, "api_url": "", "merchant_id": "",
-                 "api_password_secret": "", "webhook_secret_secret": "",
-                 "api_version": "85", "primary_methods": "card"},
-    }
-    cfg["smtp"] = {
-        "host": "", "port": 587, "username": "", "password_secret": "",
-        "use_tls": True, "from_email": "", "from_name": "Facil",
-    }
     cfg["legal"] = {
         "privacy_version": "1.0.0", "privacy_last_updated": "2026-05-10",
         "terms_version": "1.0.0", "terms_last_updated": "2026-05-10",
