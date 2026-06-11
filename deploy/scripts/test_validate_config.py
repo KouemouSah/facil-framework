@@ -237,6 +237,100 @@ class TestProviderRequiredFields:
 
 
 # ---------------------------------------------------------------------------
+# New seams: observability (P14) / edge (Caddy) / auth provider (P11)
+# ---------------------------------------------------------------------------
+
+class TestObservabilitySeam:
+    def test_defaults_are_disabled_and_sovereign_ready(
+        self, minimal_valid_config: dict
+    ) -> None:
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        o = cfg.observability
+        # Default OFF => zero behaviour change for existing cloud configs.
+        assert o.mode == "disabled"
+        assert o.errors_backend == "none"
+        assert o.session_replay == "none"
+        # Dev-local tier defaults (P14 palier A).
+        assert o.grafana_port == 3001          # 3000 reserved for frontend
+        assert o.otlp_grpc_port == 4317
+        assert o.otel_lgtm_image.startswith("grafana/otel-lgtm")
+
+    def test_existing_saas_fields_preserved(
+        self, minimal_valid_config: dict
+    ) -> None:
+        minimal_valid_config["observability"] = {
+            "sentry_dsn_backend_secret": "facil-sentry-be",
+            "mode": "local",
+            "errors_backend": "glitchtip",
+            "errors_dsn_secret": "facil-glitchtip-dsn",
+        }
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.observability.sentry_dsn_backend_secret == "facil-sentry-be"
+        assert cfg.observability.mode == "local"
+        secrets = vc.collect_secret_references(cfg)
+        # Both the legacy Sentry secret and the new errors DSN are collected.
+        assert "facil-sentry-be" in secrets
+        assert "facil-glitchtip-dsn" in secrets
+
+    @pytest.mark.parametrize("bad_mode", ["on", "prod", "saas"])
+    def test_invalid_mode_rejected(
+        self, minimal_valid_config: dict, bad_mode: str
+    ) -> None:
+        minimal_valid_config["observability"] = {"mode": bad_mode}
+        with pytest.raises(Exception):
+            vc.DeployConfig.model_validate(minimal_valid_config)
+
+
+class TestEdgeSeam:
+    def test_defaults(self, minimal_valid_config: dict) -> None:
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.edge.proxy == "caddy"
+        assert cfg.edge.tls_mode == "none"     # dev default = plain HTTP
+        assert cfg.edge.http_port == 8090      # avoids backend 8080 / frontend 3000
+
+    @pytest.mark.parametrize("tls_mode", ["internal", "acme", "custom"])
+    def test_valid_tls_modes_accepted(
+        self, minimal_valid_config: dict, tls_mode: str
+    ) -> None:
+        minimal_valid_config["edge"] = {"tls_mode": tls_mode}
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.edge.tls_mode == tls_mode
+
+    def test_invalid_tls_mode_rejected(self, minimal_valid_config: dict) -> None:
+        minimal_valid_config["edge"] = {"tls_mode": "letsencrypt"}
+        with pytest.raises(Exception):
+            vc.DeployConfig.model_validate(minimal_valid_config)
+
+
+class TestAuthProviderSeam:
+    def test_defaults_native_everywhere(self, minimal_valid_config: dict) -> None:
+        """Zero regression: both surfaces stay native until P11 flips agents."""
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.auth.provider_citizen == "native"
+        assert cfg.auth.provider_agent == "native"
+        assert cfg.auth.keycloak.image.startswith("quay.io/keycloak/keycloak")
+
+    def test_agent_can_move_to_keycloak(self, minimal_valid_config: dict) -> None:
+        minimal_valid_config["auth"]["provider_agent"] = "keycloak_oidc"
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.auth.provider_agent == "keycloak_oidc"
+
+    def test_citizen_cannot_be_keycloak(self, minimal_valid_config: dict) -> None:
+        """Citizens are native by design (no Keycloak-for-all). The Literal
+        only allows 'native' for the citizen surface."""
+        minimal_valid_config["auth"]["provider_citizen"] = "keycloak_oidc"
+        with pytest.raises(Exception):
+            vc.DeployConfig.model_validate(minimal_valid_config)
+
+    def test_keycloak_admin_password_secret_collected(
+        self, minimal_valid_config: dict
+    ) -> None:
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        # Default secret name mirrors the MinIO/OpenBao pattern.
+        assert "KEYCLOAK_ADMIN_PASSWORD" in vc.collect_secret_references(cfg)
+
+
+# ---------------------------------------------------------------------------
 # CLI smoke
 # ---------------------------------------------------------------------------
 

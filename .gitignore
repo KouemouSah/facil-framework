@@ -170,6 +170,7 @@ deploy/config.yaml
 .env.secrets
 **/.env.secrets
 docker-compose.local.yml
+Caddyfile
 
 # E2E Test Data (keep README only)
 test-data/*.pdf

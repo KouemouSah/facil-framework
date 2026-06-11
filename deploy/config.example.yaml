@@ -64,6 +64,18 @@ auth:
   receipt_verification_secret: receipt-verification-secret  # HMAC key for QR receipt tokens.
   access_token_minutes: 30
   refresh_token_days: 30
+  # Auth provider PER SURFACE (seam for P11). Defaults = native everywhere
+  # (zero regression). Citizens stay native by design (no Keycloak-for-all);
+  # agents move to keycloak_oidc in P11. Keycloak is scaffolded in the dev
+  # stack behind the `auth` Compose profile (OFF by default).
+  provider_citizen: native             # native (only — citizens never use Keycloak)
+  provider_agent: native               # native | keycloak_oidc | saml  (→ keycloak_oidc in P11)
+  keycloak:                            # PLACEHOLDER — realm/AD/client config done in P11
+    image: quay.io/keycloak/keycloak:26.0
+    http_port: 8088
+    admin_user: admin
+    admin_password_secret: KEYCLOAK_ADMIN_PASSWORD
+    realm: facil-agents
 
 # ----------------------------------------------------------------------------
 # 5. Firebase — Push notifications + Storage.
@@ -152,6 +164,23 @@ observability:
   # MaxMind GeoLite2 license key (auto-downloads the DB at boot).
   maxmind_license_key_secret: maxmind-license-key
   slack_webhook_url: ""                # For internal alerts.
+  # --- OTLP-first pluggable seam (P14) — sovereign-capable -----------------
+  # mode switches the telemetry target by config (same pluggable idea as the
+  # inference engine, ADR-002). 'disabled' = no telemetry (default).
+  #   local : self-hosted stack (otel-lgtm dev / Alloy+LGTM+GlitchTip on-prem),
+  #           nothing leaves the network — point otlp_endpoint at the local Alloy.
+  #   cloud : Grafana Cloud + Sentry SaaS (the fields above).
+  mode: disabled                       # disabled | local | cloud
+  otlp_endpoint: ""                    # local Alloy (e.g. http://otel-lgtm:4317) OR Grafana Cloud
+  otlp_protocol: grpc                  # grpc | http
+  errors_backend: none                 # none | sentry_saas | glitchtip (self-hosted, sovereign)
+  errors_dsn_secret: ""                # GlitchTip OR Sentry DSN — same sentry-sdk, only the DSN changes
+  session_replay: none                 # none | logrocket (SaaS) | openreplay (sovereign, heavy, opt-in)
+  # Dev-local tier (P14 palier A): single all-in-one container, profile `observability`.
+  otel_lgtm_image: grafana/otel-lgtm:latest
+  grafana_port: 3001                   # Grafana UI (3000 is the frontend)
+  otlp_grpc_port: 4317
+  otlp_http_port: 4318
 
 # ----------------------------------------------------------------------------
 # 10. Server — API host/port + URLs surfaced in emails, mobile deep links, etc.
@@ -236,7 +265,22 @@ secrets:
     port: 8200
     dev_mode: true
 
+# 15d. Edge — reverse-proxy (Caddy). Scaffolded in docker-local behind the
+# `edge` Compose profile (OFF by default). Single origin in dev (no CORS);
+# production TLS/PKI + per-surface routing land in P8/P12.
+#   docker compose -f docker-compose.local.yml --profile edge up
+edge:
+  proxy: caddy           # caddy | traefik | none
+  tls_mode: none         # none | internal | acme | custom  (dev=none/internal, prod=acme/custom)
+  http_port: 8090        # single-origin → http://localhost:8090 (frontend + /api→backend)
+  https_port: 8443       # only published when tls_mode != none
+  domain_backend: ""
+  domain_frontend: ""
+
 # 16. Docker Compose local — Dev environment.
+# Scaffolded profile-gated services (OFF by default): see `edge` (Caddy),
+# `auth.keycloak` (Keycloak), and `observability` (otel-lgtm). Activate each
+# with `docker compose -f docker-compose.local.yml --profile <edge|auth|observability> up`.
 docker_local:
   backend_port: 8080
   frontend_port: 3000

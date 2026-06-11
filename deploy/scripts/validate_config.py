@@ -89,6 +89,19 @@ class RedisConfig(BaseModel):
     cache_ttl_seconds: int = Field(default=3600, ge=1)
 
 
+class AuthKeycloakConfig(BaseModel):
+    # Keycloak is SCAFFOLDED in the dev stack behind the `auth` Compose profile
+    # (OFF by default). Realm creation, AD/LDAP federation, client config and
+    # production Postgres wiring are LATE-BINDING and done in P11 — these fields
+    # are only a placeholder so the service skeleton (image, port, admin
+    # bootstrap) exists and future activation is a profile switch, not a build.
+    image: str = "quay.io/keycloak/keycloak:26.0"
+    http_port: int = Field(default=8088, ge=1, le=65535)
+    admin_user: str = "admin"
+    admin_password_secret: str = "KEYCLOAK_ADMIN_PASSWORD"
+    realm: str = "facil-agents"   # placeholder name — realm actually created in P11
+
+
 class AuthConfig(BaseModel):
     jwt_secret_name: str = Field(min_length=1)
     app_secret_name: str = Field(min_length=1)
@@ -96,6 +109,13 @@ class AuthConfig(BaseModel):
     receipt_verification_secret: str = ""
     access_token_minutes: int = Field(default=30, ge=1)
     refresh_token_days: int = Field(default=30, ge=1)
+    # Auth provider PER SURFACE (seam for P11). Defaults keep the current
+    # behaviour (native everywhere) => zero regression. Citizens stay native by
+    # design (no Keycloak-for-all: SPOF + scale cost + no citizen AD). Agents
+    # move to keycloak_oidc in P11.
+    provider_citizen: Literal["native"] = "native"
+    provider_agent: Literal["native", "keycloak_oidc", "saml"] = "native"
+    keycloak: AuthKeycloakConfig = Field(default_factory=AuthKeycloakConfig)
 
 
 class FirebaseConfig(BaseModel):
@@ -181,6 +201,7 @@ class SmtpConfig(BaseModel):
 
 
 class ObservabilityConfig(BaseModel):
+    # --- Existing SaaS-cloud fields (CONSERVED; empty default = disabled) ---
     # Backend Sentry DSN (different from web Sentry DSN — separate projects).
     sentry_dsn_backend_secret: str = ""
     sentry_dsn_web_secret: str = ""        # Public, but kept in Secret Manager for parity.
@@ -190,6 +211,23 @@ class ObservabilityConfig(BaseModel):
     grafana_token_secret: str = ""
     maxmind_license_key_secret: str = ""   # GeoIP DB auto-download at boot.
     slack_webhook_url: str = ""
+    # --- NEW (P14): OTLP-first pluggable seam — sovereign-capable -----------
+    # `mode` switches the whole telemetry target local<->cloud BY CONFIG, the
+    # same pluggable philosophy as ADR-002 for inference. The current SaaS
+    # fields above stay for the cloud profile; `mode=local` points at the
+    # self-hosted stack instead (nothing leaves the network).
+    mode: Literal["disabled", "local", "cloud"] = "disabled"
+    otlp_endpoint: str = ""                                     # Alloy (local) OR Grafana Cloud
+    otlp_protocol: Literal["grpc", "http"] = "grpc"
+    errors_backend: Literal["none", "sentry_saas", "glitchtip"] = "none"
+    errors_dsn_secret: str = ""            # GlitchTip OR Sentry DSN — same `sentry-sdk`, only the DSN changes.
+    session_replay: Literal["none", "logrocket", "openreplay"] = "none"  # OpenReplay = sovereign (heavy, opt-in)
+    # Dev-local tier (P14 palier A): single all-in-one grafana/otel-lgtm
+    # container, gated by the `observability` Compose profile (OFF by default).
+    otel_lgtm_image: str = "grafana/otel-lgtm:latest"
+    grafana_port: int = Field(default=3001, ge=1, le=65535)    # 3000 is taken by the frontend
+    otlp_grpc_port: int = Field(default=4317, ge=1, le=65535)
+    otlp_http_port: int = Field(default=4318, ge=1, le=65535)
 
 
 class ServerConfig(BaseModel):
@@ -286,6 +324,21 @@ class SecretsConfig(BaseModel):
     openbao: OpenbaoConfig = Field(default_factory=OpenbaoConfig)
 
 
+class EdgeConfig(BaseModel):
+    # Reverse-proxy (Caddy) SCAFFOLDED in the dev stack behind the `edge`
+    # Compose profile (OFF by default). Real dev benefit: single origin
+    # (frontend + /api on one host => no CORS) and early TLS testing. Production
+    # TLS/PKI (ACME or OpenBao internal CA) and per-surface routing land in
+    # P8/P12 — only `tls_mode`/domains there change, the seam stays the same.
+    proxy: Literal["caddy", "traefik", "none"] = "caddy"
+    image: str = "caddy:2-alpine"
+    tls_mode: Literal["none", "internal", "acme", "custom"] = "none"
+    http_port: int = Field(default=8090, ge=1, le=65535)
+    https_port: int = Field(default=8443, ge=1, le=65535)
+    domain_backend: str = ""
+    domain_frontend: str = ""
+
+
 class DockerLocalConfig(BaseModel):
     # Where the Postgres database lives.
     #   - "local"    : compose generates a postgres container (default,
@@ -322,6 +375,7 @@ class DeployConfig(BaseModel):
     aws: AwsConfig = Field(default_factory=AwsConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)
     secrets: SecretsConfig = Field(default_factory=SecretsConfig)
+    edge: EdgeConfig = Field(default_factory=EdgeConfig)
     docker_local: DockerLocalConfig = Field(default_factory=DockerLocalConfig)
     env_overrides: dict[str, str | int | float | bool] = Field(default_factory=dict)
 

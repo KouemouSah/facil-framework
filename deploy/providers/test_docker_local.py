@@ -97,8 +97,11 @@ class TestGenerateCompose:
         # Base services: postgres + redis + minio (storage default=minio, ADR-0005)
         # + db-init (one-shot) + backend + frontend. OpenBao is absent by default
         # (secrets default=env_file). Gating covered in TestStorageAndSecretsServices.
+        # Scaffolded profile-gated services (caddy/keycloak/otel-lgtm) are ALWAYS
+        # present in the file but OFF by default (see TestScaffoldedProfileServices).
         assert set(parsed["services"].keys()) == {
-            "postgres", "redis", "minio", "db-init", "backend", "frontend"
+            "postgres", "redis", "minio", "db-init", "backend", "frontend",
+            "caddy", "keycloak", "otel-lgtm",
         }
 
     def test_no_deprecated_version_field(self, cfg: vc.DeployConfig) -> None:
@@ -289,6 +292,112 @@ class TestStorageAndSecretsServices:
         cfg = vc.DeployConfig.model_validate(minimal_config_dict)
         parsed = yaml.safe_load(dl.generate_compose(cfg))
         assert "facil_openbao_data" in (parsed.get("volumes") or {})
+
+
+# ---------------------------------------------------------------------------
+# Scaffolded profile-gated services (Caddy / Keycloak / otel-lgtm) — P14 + P11
+# ---------------------------------------------------------------------------
+
+class TestScaffoldedProfileServices:
+    def test_three_services_present(self, cfg: vc.DeployConfig) -> None:
+        svcs = yaml.safe_load(dl.generate_compose(cfg))["services"]
+        for name in ("caddy", "keycloak", "otel-lgtm"):
+            assert name in svcs, f"{name} must be scaffolded in the compose file"
+
+    def test_all_three_are_profile_gated_off_by_default(
+        self, cfg: vc.DeployConfig
+    ) -> None:
+        """The whole point: present in the file but they DON'T start unless
+        their profile is selected. A service without `profiles:` starts on a
+        plain `docker compose up` — these must NOT."""
+        svcs = yaml.safe_load(dl.generate_compose(cfg))["services"]
+        assert svcs["caddy"]["profiles"] == ["edge"]
+        assert svcs["keycloak"]["profiles"] == ["auth"]
+        assert svcs["otel-lgtm"]["profiles"] == ["observability"]
+
+    def test_base_services_have_no_profile(self, cfg: vc.DeployConfig) -> None:
+        """Core services must remain un-gated (start on plain `up`)."""
+        svcs = yaml.safe_load(dl.generate_compose(cfg))["services"]
+        for name in ("postgres", "redis", "backend", "frontend", "db-init"):
+            assert "profiles" not in svcs[name], \
+                f"{name} must NOT be profile-gated (it's a core service)"
+
+    def test_caddy_mounts_generated_caddyfile(self, cfg: vc.DeployConfig) -> None:
+        svcs = yaml.safe_load(dl.generate_compose(cfg))["services"]
+        mounts = svcs["caddy"]["volumes"]
+        assert any("/etc/caddy/Caddyfile" in m for m in mounts)
+
+    def test_keycloak_dev_mode_no_named_volume(self, cfg: vc.DeployConfig) -> None:
+        """Dev Keycloak uses in-memory H2 → no persistent volume (prod DB = P11)."""
+        parsed = yaml.safe_load(dl.generate_compose(cfg))
+        kc = parsed["services"]["keycloak"]
+        assert "start-dev" in " ".join(kc["command"])
+        assert "volumes" not in kc
+
+    def test_scaffold_volumes_declared(self, cfg: vc.DeployConfig) -> None:
+        volumes = yaml.safe_load(dl.generate_compose(cfg)).get("volumes") or {}
+        for v in ("facil_caddy_data", "facil_caddy_config", "facil_otel_lgtm"):
+            assert v in volumes, f"{v} must be declared for the scaffolded service"
+
+    def test_otel_lgtm_exposes_otlp_and_grafana_ports(
+        self, cfg: vc.DeployConfig
+    ) -> None:
+        svcs = yaml.safe_load(dl.generate_compose(cfg))["services"]
+        published = " ".join(svcs["otel-lgtm"]["ports"])
+        # Defaults: grafana 3001, OTLP grpc 4317, OTLP http 4318.
+        assert "3001:3000" in published          # Grafana (3000 taken by frontend)
+        assert "4317:4317" in published          # OTLP gRPC
+        assert "4318:4318" in published          # OTLP HTTP
+
+    def test_grafana_port_does_not_clash_with_frontend(
+        self, cfg: vc.DeployConfig
+    ) -> None:
+        svcs = yaml.safe_load(dl.generate_compose(cfg))["services"]
+        front = " ".join(svcs["frontend"]["ports"])
+        grafana = " ".join(svcs["otel-lgtm"]["ports"])
+        assert "3000:3000" in front
+        assert "3000:3000" not in grafana
+
+
+class TestGenerateCaddyfile:
+    def test_tls_none_is_plain_http(self, cfg: vc.DeployConfig) -> None:
+        out = dl.generate_caddyfile(cfg)  # default tls_mode=none
+        assert "auto_https off" in out
+        assert ":80 {" in out
+
+    def test_routes_api_to_backend_rest_to_frontend(
+        self, cfg: vc.DeployConfig
+    ) -> None:
+        out = dl.generate_caddyfile(cfg)
+        assert "handle /api/* {" in out
+        assert "reverse_proxy backend:8080" in out
+        assert "reverse_proxy frontend:3000" in out
+
+    def test_tls_internal_emits_tls_internal_directive(
+        self, minimal_config_dict: dict
+    ) -> None:
+        minimal_config_dict["edge"] = {"tls_mode": "internal",
+                                       "domain_frontend": "facil.local"}
+        cfg = vc.DeployConfig.model_validate(minimal_config_dict)
+        out = dl.generate_caddyfile(cfg)
+        assert "tls internal" in out
+        assert "facil.local {" in out
+
+    def test_tls_internal_publishes_https_port(
+        self, minimal_config_dict: dict
+    ) -> None:
+        minimal_config_dict["edge"] = {"tls_mode": "internal"}
+        cfg = vc.DeployConfig.model_validate(minimal_config_dict)
+        svcs = yaml.safe_load(dl.generate_compose(cfg))["services"]
+        published = " ".join(svcs["caddy"]["ports"])
+        assert "8443:443" in published
+
+    def test_tls_none_does_not_publish_https_port(
+        self, cfg: vc.DeployConfig
+    ) -> None:
+        svcs = yaml.safe_load(dl.generate_compose(cfg))["services"]
+        published = " ".join(svcs["caddy"]["ports"])
+        assert ":443" not in published
 
 
 # ---------------------------------------------------------------------------
