@@ -19,7 +19,7 @@ Gov · Enterprise · SaaS · Banking · Telco · HR · Real estate · E-commerce
 
 ---
 
-> <img src=".github/assets/icons/alert-triangle.svg" width="14" alt="warning"/> &nbsp;**Statut : pré-bootstrap.** L'environnement est préparé, le développement actif n'a pas encore démarré. Le lancement est conditionné au go-live de TaxasGE (le déploiement de référence) + recrutement équipe + vérification trademark `Facil`.
+> <img src=".github/assets/icons/alert-triangle.svg" width="14" alt="warning"/> &nbsp;**Statut (2026-06-11) : socle infra & configuration EN COURS.** Le **data-plane souverain** est provisionné et durci (Postgres least-privilege · Redis auth · MinIO WORM + SA scopé · OpenBao kv/AppRole), via une **couche bootstrap idempotente mode-aware** et un **wizard de déploiement** multi-cibles (docker-local/vps/gcp/aws/azure) avec catalogue de providers pluggables (auth multi-méthodes par surface · multi-LLM par tâche · BD managée). **Tier applicatif** (backend/frontend, config-store admin, Module Loader) = **Phase D, à venir**. Lancement produit conditionné au go-live TaxasGE + équipe + trademark.
 
 **Facil Framework** est un framework générique de plateformes de services digitaux, déployable sur n'importe quel cloud ou en local, **customisable sans code** par des utilisateurs non-techniques via un Customization Studio dédié.
 
@@ -107,7 +107,54 @@ Cloné en snapshot du déploiement concret **TaxasGE** (Guinée Équatoriale gov
    └────────────────────────────────────────────────────┘
 ```
 
-Voir [docs/BPMN.md](docs/BPMN.md) pour les diagrammes de processus détaillés (déploiement, customization, workflow execution, module activation, migration, designer).
+### Diagramme — état réel (2026-06-11)
+
+> ✅ implémenté & testé · ◐ partiel (validate/plan) · ○ Phase D / planifié
+
+```mermaid
+flowchart TB
+  subgraph install["Installation & Configuration — ✅ socle"]
+    wiz["Wizard CLI · deploy/init.py<br/>provider + profile + catalogue providers"]
+    cfg["config.yaml + .env.secrets<br/>(validés Pydantic)"]
+    orch["deploy.py (validate · plan · apply)"]
+    prov["Providers : docker-local ✅ · gcp ✅<br/>aws ◐ · azure ◐ (App Runner / Container Apps)"]
+    boot["Bootstrap data-plane ✅<br/>idempotent · mode-aware"]
+    wiz --> cfg --> orch --> prov --> boot
+  end
+
+  subgraph data["Data-plane souverain — ✅ provisionné & durci"]
+    pg["Postgres · scram<br/>rôle facil_app least-priv"]
+    rd["Redis · requirepass"]
+    mi["MinIO · WORM/Object-Lock<br/>lifecycle · SA scopé"]
+    ob["OpenBao · kv-v2 · AppRole<br/>secrets runtime centralisés"]
+  end
+  boot --> data
+
+  subgraph catalog["Catalogue providers pluggables (seam ✅ · intégrations ○)"]
+    au["Auth par surface, multi-méthodes<br/>native·keycloak·oauth·oidc·ldap·saml"]
+    ai["LLM multi-provider par tâche<br/>ollama·openai_compat·gemini·vertex"]
+    db["BD : local·supabase·cloud_sql·rds·neon"]
+    stg["Storage · Secrets · Email · Payment"]
+  end
+  cfg --> catalog
+
+  subgraph app["Tier applicatif — ○ Phase D"]
+    be["Backend FastAPI"]
+    fe["Frontend Next.js + panneau admin / installeur web"]
+    cs["Config-store BD (settings éditables admin)<br/>+ registre providers runtime"]
+    ml["Module Loader (A.5) → MODULES_ENABLED"]
+  end
+  data -.-> app
+  catalog -.-> app
+  ob -. AppRole / secrets .-> be
+
+  subgraph studio["Customization Studio — ○ planifié"]
+    st["Branding · RBAC · Workflows · Documents · KB"]
+  end
+  app -.-> studio
+```
+
+Voir [docs/architecture/DATAPLANE_BOOTSTRAP.md](docs/architecture/DATAPLANE_BOOTSTRAP.md) et [docs/architecture/DEPLOYMENT_WIZARD.md](docs/architecture/DEPLOYMENT_WIZARD.md) pour le socle fait, et [docs/BPMN.md](docs/BPMN.md) pour les processus détaillés.
 
 ## Profiles
 
