@@ -56,7 +56,7 @@ class TestPreflight:
         with pytest.raises(SystemExit):
             deploy_mod.main([
                 "--config", str(fake_config),
-                "--provider=azure",  # not in SUPPORTED_PROVIDERS
+                "--provider=heroku",  # not in SUPPORTED_PROVIDERS
                 "--action=validate",
             ])
 
