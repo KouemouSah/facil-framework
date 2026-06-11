@@ -29,7 +29,7 @@ tous les providers possibles, mais tous ceux choisis.*
 | Inférence LLM | Ollama / vLLM / TGI / Vertex / Bedrock | Ollama → vLLM | Vertex | conditionnel (si IA) |
 | Secrets | OpenBao + SOPS / GCP SM / AWS SM / Azure KV | OpenBao(+SOPS) | GCP SM | **toujours** |
 | Auth / IdP | natif / Keycloak+AD | natif + Keycloak(agents) | natif | natif **toujours**, Keycloak conditionnel |
-| Reverse-proxy / TLS | Caddy / externe (LB) | Caddy + step-ca/OpenBao PKI | LB cloud | conditionnel |
+| Reverse-proxy / TLS | Caddy / externe (LB) | Caddy + **OpenBao PKI** (step-ca écarté, ADR-0006) | LB cloud | conditionnel |
 | Paiement | natif / BANGE / Ecobank / MPGS / Stripe | selon profil | selon profil | conditionnel |
 | Observabilité | Sentry / Grafana(OTLP) / LogRocket | optionnel | optionnel | conditionnel |
 | Workers | OCR / async / échelle | selon profil | selon profil | conditionnel |
