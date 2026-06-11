@@ -393,7 +393,6 @@ class TestMinioSecurityFields:
         assert m.compliance.bucket == "facil-compliance"
         assert m.compliance.retention_mode == "governance"
         assert m.compliance.retention_days == 365
-        assert m.lifecycle.expire_incomplete_multipart_days == 7
         assert m.lifecycle.expire_noncurrent_versions_days == 90
         assert m.quota_documents_gb == 0 and m.quota_compliance_gb == 0
 

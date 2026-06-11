@@ -9,6 +9,7 @@ drives service-account existence, so we assert the exact idempotent behaviour
 from __future__ import annotations
 
 import copy
+import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -48,10 +49,13 @@ def make_cfg(**overrides) -> vc.DeployConfig:
 class FakeMC:
     """Stand-in for run_oneshot: records calls, controls svcacct existence."""
 
-    def __init__(self, svcacct_exists=False, fail_on=None):
+    def __init__(self, svcacct_exists=False, fail_on=None,
+                 existing_noncurrent_days=(), existing_quota_bytes=0):
         self.calls: list[dict] = []
         self.svcacct_exists = svcacct_exists
         self.fail_on = fail_on  # substring of args that should raise DockerError
+        self.existing_noncurrent_days = list(existing_noncurrent_days)
+        self.existing_quota_bytes = existing_quota_bytes
 
     def __call__(self, image, args, *, network, env, entrypoint=None,
                  check=True, timeout=120):
@@ -62,6 +66,16 @@ class FakeMC:
         if args[:4] == ["admin", "user", "svcacct", "info"]:
             return SimpleNamespace(returncode=0 if self.svcacct_exists else 1,
                                    stdout="", stderr="")
+        if args[:3] == ["ilm", "rule", "ls"]:
+            rules = [{"NoncurrentVersionExpiration": {"NoncurrentDays": d}}
+                     for d in self.existing_noncurrent_days]
+            return SimpleNamespace(
+                returncode=0, stderr="",
+                stdout=json.dumps({"config": {"Rules": rules}}))
+        if args[:2] == ["quota", "info"]:
+            return SimpleNamespace(
+                returncode=0, stderr="",
+                stdout=json.dumps({"quota": self.existing_quota_bytes}))
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     def verbs(self) -> list:
@@ -101,9 +115,11 @@ def test_fresh_provision_creates_everything(monkeypatch, ctx):
     step = mn.provision(ctx)
     assert step.status == "ok"
     # documents: mb, version, anonymous ; compliance: mb(--with-lock), anonymous,
-    # retention ; SA: svcacct info (admin), svcacct add (sh -c).
+    # retention ; lifecycle: ilm ls + ilm add ; SA: svcacct info (admin),
+    # svcacct add (sh -c). Quotas skipped (gb=0 default).
     assert fake.verbs() == ["mb", "version", "anonymous",
-                            "mb", "anonymous", "retention", "admin", "-c"]
+                            "mb", "anonymous", "retention",
+                            "ilm", "ilm", "admin", "-c"]
     assert step.secrets["minio_access_key"] == "facil-backend"
     assert len(step.secrets["minio_secret_key"]) == 40   # token_hex(20)
     assert step.secrets["minio_bucket"] == "facil-documents"
@@ -202,3 +218,62 @@ def test_docker_error_becomes_failed_step(monkeypatch, ctx):
     step = mn.provision(ctx)
     assert step.status == "failed"
     assert "mc operation failed" in step.detail
+
+
+# --- S3: lifecycle + quotas ---
+
+def _cfg_ctx(tmp_path, **minio_over):
+    (tmp_path / "deploy").mkdir()
+    cfg = make_cfg(storage={"provider": "minio", "minio": minio_over})
+    return BootstrapContext(cfg=cfg, network="net", repo_root=tmp_path)
+
+
+def test_lifecycle_added_when_absent(monkeypatch, ctx):
+    fake = FakeMC(existing_noncurrent_days=())
+    _patch(monkeypatch, fake)
+    mn.provision(ctx)
+    adds = [c["args"] for c in fake.calls if c["args"][:3] == ["ilm", "rule", "add"]]
+    assert adds and "--noncurrent-expire-days" in adds[0] and "90" in adds[0]
+    # lifecycle applies to documents, never the WORM bucket
+    assert all("facil-compliance" not in a for a in adds[0])
+
+
+def test_lifecycle_idempotent_when_present(monkeypatch, ctx):
+    fake = FakeMC(existing_noncurrent_days=(90,))   # rule already there
+    _patch(monkeypatch, fake)
+    step = mn.provision(ctx)
+    assert [c for c in fake.calls if c["args"][:3] == ["ilm", "rule", "add"]] == []
+    assert any("already set" in a for a in step.actions)
+
+
+def test_lifecycle_skipped_when_zero(monkeypatch, tmp_path):
+    c = _cfg_ctx(tmp_path, lifecycle={"expire_noncurrent_versions_days": 0})
+    fake = FakeMC()
+    _patch(monkeypatch, fake)
+    mn.provision(c)
+    assert [x for x in fake.calls if x["args"][0] == "ilm"] == []
+
+
+def test_quota_set_when_configured(monkeypatch, tmp_path):
+    c = _cfg_ctx(tmp_path, quota_documents_gb=10)
+    fake = FakeMC(existing_quota_bytes=0)
+    _patch(monkeypatch, fake)
+    step = mn.provision(c)
+    sets = [x["args"] for x in fake.calls if x["args"][:2] == ["quota", "set"]]
+    assert sets and "10gi" in sets[0] and "facil/facil-documents" in sets[0]
+
+
+def test_quota_idempotent_when_matches(monkeypatch, tmp_path):
+    c = _cfg_ctx(tmp_path, quota_documents_gb=10)
+    fake = FakeMC(existing_quota_bytes=10 * 1024 ** 3)
+    _patch(monkeypatch, fake)
+    step = mn.provision(c)
+    assert [x for x in fake.calls if x["args"][:2] == ["quota", "set"]] == []
+    assert any("already set" in a for a in step.actions)
+
+
+def test_quota_skipped_when_zero(monkeypatch, ctx):
+    fake = FakeMC()
+    _patch(monkeypatch, fake)
+    mn.provision(ctx)            # defaults: quotas 0
+    assert [x for x in fake.calls if x["args"][0] == "quota"] == []

@@ -151,6 +151,66 @@ def _ensure_compliance_bucket(ctx, m, root_user, root_pwd, step) -> str | None:
     return c.bucket
 
 
+def _existing_noncurrent_days(ctx, bucket, root_user, root_pwd) -> set[int]:
+    """NoncurrentDays values of existing lifecycle rules (for idempotency).
+
+    ``mc ilm rule add`` is NOT idempotent (it mints a new rule each call), so we
+    must check before adding to avoid duplicate rules.
+    """
+    res = _mc(ctx, ["ilm", "rule", "ls", "--json", f"{ALIAS}/{bucket}"],
+              root_user=root_user, root_pwd=root_pwd, check=False)
+    days: set[int] = set()
+    try:
+        rules = (json.loads(res.stdout).get("config") or {}).get("Rules") or []
+        for r in rules:
+            nv = (r or {}).get("NoncurrentVersionExpiration") or {}
+            if "NoncurrentDays" in nv:
+                days.add(int(nv["NoncurrentDays"]))
+    except (ValueError, TypeError, json.JSONDecodeError):
+        pass  # no config / unparseable -> treat as no rules
+    return days
+
+
+def _ensure_lifecycle(ctx, bucket, days, root_user, root_pwd, step) -> None:
+    """Expire non-current object versions after N days (versioned buckets only).
+
+    NOT applied to the WORM bucket: expiring versions there conflicts with the
+    Object-Lock retention by design.
+    """
+    if days <= 0:
+        return
+    if days in _existing_noncurrent_days(ctx, bucket, root_user, root_pwd):
+        step.actions.append(
+            f"lifecycle: non-current expire {days}d on '{bucket}' already set")
+        return
+    _mc(ctx, ["ilm", "rule", "add", "--noncurrent-expire-days", str(days),
+              f"{ALIAS}/{bucket}"], root_user=root_user, root_pwd=root_pwd)
+    step.actions.append(
+        f"lifecycle: non-current versions expire after {days}d on '{bucket}'")
+
+
+def _current_quota_bytes(ctx, bucket, root_user, root_pwd) -> int:
+    res = _mc(ctx, ["quota", "info", "--json", f"{ALIAS}/{bucket}"],
+              root_user=root_user, root_pwd=root_pwd, check=False)
+    try:
+        return int(json.loads(res.stdout).get("quota", 0))
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return 0
+
+
+def _ensure_quota(ctx, bucket, gb, root_user, root_pwd, step) -> None:
+    """Set a hard per-bucket quota. ``gb == 0`` => unmanaged (no quota enforced)."""
+    if gb <= 0:
+        return
+    desired = gb * 1024 ** 3
+    if _current_quota_bytes(ctx, bucket, root_user, root_pwd) == desired:
+        step.actions.append(f"quota {gb}GiB on '{bucket}' already set")
+        return
+    _mc(ctx, ["quota", "set", f"{ALIAS}/{bucket}", "--size", f"{gb}gi"],
+        root_user=root_user, root_pwd=root_pwd)
+    step.actions.append(f"quota set to {gb}GiB on '{bucket}'")
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -176,6 +236,14 @@ def provision(ctx: BootstrapContext) -> ProvisionStep:
                 f"mc mb --with-lock {ALIAS}/{m.compliance.bucket}  "
                 f"+ retention {m.compliance.retention_mode.upper()} "
                 f"{m.compliance.retention_days}d (WORM)")
+        if m.lifecycle.expire_noncurrent_versions_days > 0:
+            step.actions.append(
+                f"lifecycle: non-current expire "
+                f"{m.lifecycle.expire_noncurrent_versions_days}d on '{bucket}'")
+        for b, gb in (("documents", m.quota_documents_gb),
+                      ("compliance", m.quota_compliance_gb)):
+            if gb > 0:
+                step.actions.append(f"quota {gb}GiB on {b} bucket")
         step.actions.append(f"scoped service account '{sa_access}' (rw on '{bucket}' only)")
         return step.skip("dry-run: would provision MinIO")
 
@@ -194,6 +262,13 @@ def provision(ctx: BootstrapContext) -> ProvisionStep:
 
         compliance_bucket = _ensure_compliance_bucket(
             ctx, m, root_user, root_pwd, step)
+
+        _ensure_lifecycle(ctx, bucket, m.lifecycle.expire_noncurrent_versions_days,
+                          root_user, root_pwd, step)
+        _ensure_quota(ctx, bucket, m.quota_documents_gb, root_user, root_pwd, step)
+        if compliance_bucket:
+            _ensure_quota(ctx, compliance_bucket, m.quota_compliance_gb,
+                          root_user, root_pwd, step)
 
         sa_secret = _ensure_service_account(
             ctx, sa_access, bucket, root_user, root_pwd, step)

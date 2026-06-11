@@ -299,10 +299,11 @@ class MinioComplianceConfig(BaseModel):
 
 
 class MinioLifecycleConfig(BaseModel):
-    # 0 = rule disabled. Incomplete multipart uploads waste space silently;
-    # non-current versions accumulate forever once versioning is ON (they MUST
-    # be pruned or storage grows unbounded).
-    expire_incomplete_multipart_days: int = Field(default=7, ge=0, le=3650)
+    # Non-current versions accumulate forever once versioning is ON (they MUST
+    # be pruned or storage grows unbounded). 0 = rule disabled.
+    # NB: incomplete multipart uploads are already auto-cleaned by the MinIO
+    # server (api.stale_uploads_expiry, default 24h) — not a per-bucket rule, so
+    # no config knob here (it would only let you make cleanup *worse*).
     expire_noncurrent_versions_days: int = Field(default=90, ge=0, le=3650)
 
 
