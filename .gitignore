@@ -171,6 +171,8 @@ deploy/config.yaml
 **/.env.secrets
 docker-compose.local.yml
 Caddyfile
+# Bootstrap state — provisioning output + generated credentials (data-plane bootstrap)
+deploy/.bootstrap-state.json
 
 # E2E Test Data (keep README only)
 test-data/*.pdf
