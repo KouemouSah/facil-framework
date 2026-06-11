@@ -172,6 +172,26 @@ python deploy/providers/run_bootstrap.py --config=deploy/config.yaml --apply --o
 Codes de sortie : `0` succès / `1` config invalide / `2` provisioner en échec ou
 timeout health.
 
+## 6bis. Accès & méthodes de connexion (dev)
+
+> Les **valeurs** vivent dans `.env.secrets` (mots de passe runtime) et
+> `deploy/.bootstrap-state.json` (credentials générés) — **gitignored**, jamais
+> committés. Ci-dessous : *où* les lire et *quelle méthode* utiliser.
+
+| Service | Console/URL | Méthode & identifiant |
+|---|---|---|
+| **MinIO** | console `:9001` / API `:9000` | admin : user `facil` + `MINIO_ROOT_PASSWORD` (`.env.secrets`). Backend : **service account scopé** `facil-backend` + secret (`state.minio_secret_key`) — jamais le root |
+| **OpenBao** | `:8200` | **admin/dev** : token racine `root` (dev in-memory). **Backend** : **AppRole** `facil-backend` (`role_id`+`secret_id` dans le state) → token court → lecture `facil/data/*` |
+| **Postgres** | `:5432` | migrations/db-init : superuser `facil` + `POSTGRES_PASSWORD`. Backend : **rôle least-privilege** `facil_app` + `pg_app_password` (state) |
+| **Redis** | `:6379` | auth obligatoire : `REDIS_PASSWORD` (`.env.secrets`) — `redis-cli -a $REDIS_PASSWORD` |
+
+**Recommandation méthode OpenBao** : le **backend se connecte en AppRole**
+(role_id + secret_id, token à TTL court, politique read-only `facil/data/*`) —
+c'est la méthode retenue, pas le token racine. Le token `root` est réservé à
+l'**admin/dev** (et n'existe qu'en dev in-memory ; en prod = unseal SOPS+age, P7,
+token réel/OIDC). Les mots de passe runtime sont aussi lisibles centralement dans
+OpenBao `facil/runtime` via cet AppRole.
+
 ## 7. Scope actuel & limitations (honnête)
 
 - **Docker-local uniquement** pour l'instant : `mc` sur le réseau de la stack,
