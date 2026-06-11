@@ -109,6 +109,22 @@ def test_scoped_policy_single_bucket():
     assert all("*/*" not in r and r != "arn:aws:s3:::*" for r in resources)
 
 
+def test_scoped_policy_compliance_has_no_delete():
+    pol = mn.scoped_policy("facil-documents", "facil-compliance")
+    # Object-level statements keyed by bucket.
+    doc_actions = next(s["Action"] for s in pol["Statement"]
+                       if s["Resource"] == ["arn:aws:s3:::facil-documents/*"])
+    comp_actions = next(s["Action"] for s in pol["Statement"]
+                        if s["Resource"] == ["arn:aws:s3:::facil-compliance/*"])
+    assert "s3:DeleteObject" in doc_actions            # documents: full rw
+    assert "s3:DeleteObject" not in comp_actions        # compliance: write-once
+    assert "s3:PutObject" in comp_actions               # but can write
+    assert "s3:PutObjectRetention" in comp_actions      # and set retention
+    # still no access to any other bucket
+    all_res = [r for s in pol["Statement"] for r in s["Resource"]]
+    assert all("facil-documents" in r or "facil-compliance" in r for r in all_res)
+
+
 def test_fresh_provision_creates_everything(monkeypatch, ctx):
     fake = FakeMC(svcacct_exists=False)
     _patch(monkeypatch, fake)
@@ -185,7 +201,10 @@ def test_idempotent_reuse_when_secret_known(monkeypatch, ctx):
     step = mn.provision(ctx)
     assert step.status == "ok"
     assert step.secrets["minio_secret_key"] == "KNOWN" * 8       # reused, stable
-    assert "-c" not in fake.verbs()                              # no svcacct add
+    # On reuse the secret is NOT recreated, but the policy is ensured via edit.
+    sh_scripts = [c["args"][1] for c in fake.calls if c["args"][0] == "-c"]
+    assert all("svcacct add" not in s for s in sh_scripts)       # never re-added
+    assert any("svcacct edit" in s for s in sh_scripts)          # policy ensured
     assert any("reused" in a for a in step.actions)
 
 

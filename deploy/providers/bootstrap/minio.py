@@ -47,26 +47,50 @@ def is_applicable(cfg: vc.DeployConfig) -> bool:
 # Least-privilege policy (decision D3)
 # ---------------------------------------------------------------------------
 
-def scoped_policy(bucket: str) -> dict:
-    """S3 policy granting object rw + bucket listing on ONE bucket, nothing else."""
-    return {
-        "Version": "2012-10-17",
-        "Statement": [
+def scoped_policy(documents_bucket: str, compliance_bucket: str | None = None) -> dict:
+    """Least-privilege S3 policy for the backend service account (D3).
+
+    documents: full object rw + listing.
+    compliance (WORM): read + write + set-retention, but **NO DeleteObject** —
+    defense in depth on top of Object-Lock so the backend cannot even attempt a
+    delete. Nothing else, no access to any other bucket.
+    """
+    statements = [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObject", "s3:PutObject", "s3:DeleteObject",
+                "s3:ListMultipartUploadParts", "s3:AbortMultipartUpload",
+            ],
+            "Resource": [f"arn:aws:s3:::{documents_bucket}/*"],
+        },
+        {
+            "Effect": "Allow",
+            "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
+            "Resource": [f"arn:aws:s3:::{documents_bucket}"],
+        },
+    ]
+    if compliance_bucket:
+        statements += [
             {
                 "Effect": "Allow",
                 "Action": [
-                    "s3:GetObject", "s3:PutObject", "s3:DeleteObject",
-                    "s3:ListMultipartUploadParts", "s3:AbortMultipartUpload",
+                    "s3:GetObject", "s3:PutObject", "s3:PutObjectRetention",
+                    "s3:GetObjectRetention", "s3:ListMultipartUploadParts",
+                    "s3:AbortMultipartUpload",
                 ],
-                "Resource": [f"arn:aws:s3:::{bucket}/*"],
+                "Resource": [f"arn:aws:s3:::{compliance_bucket}/*"],
             },
             {
                 "Effect": "Allow",
-                "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
-                "Resource": [f"arn:aws:s3:::{bucket}"],
+                "Action": [
+                    "s3:ListBucket", "s3:GetBucketLocation",
+                    "s3:GetBucketObjectLockConfiguration",
+                ],
+                "Resource": [f"arn:aws:s3:::{compliance_bucket}"],
             },
-        ],
-    }
+        ]
+    return {"Version": "2012-10-17", "Statement": statements}
 
 
 # ---------------------------------------------------------------------------
@@ -85,9 +109,24 @@ def _mc(ctx, args, *, root_user, root_pwd, entrypoint=None, check=True):
                        entrypoint=entrypoint, check=check)
 
 
-def _ensure_service_account(ctx, sa_access, bucket, root_user, root_pwd,
-                            step: ProvisionStep) -> str:
-    """Create / reuse / rotate the scoped service account. Returns its secret."""
+def _svcacct_policy_script(policy: str, mc_cmd: str) -> str:
+    """sh -c body: write the inline policy file in-container, then run mc_cmd."""
+    return (
+        "set -e\n"
+        f"cat > /tmp/sa-policy.json <<'JSON'\n{policy}\nJSON\n"
+        f"{mc_cmd}\n"
+    )
+
+
+def _ensure_service_account(ctx, sa_access, documents_bucket, compliance_bucket,
+                            root_user, root_pwd, step: ProvisionStep) -> str:
+    """Create / reuse / rotate the scoped service account. Returns its secret.
+
+    The inline policy is (re)applied on every run — on reuse via ``svcacct edit``
+    — so a policy change (e.g. adding the compliance bucket) is picked up without
+    rotating the secret.
+    """
+    policy = json.dumps(scoped_policy(documents_bucket, compliance_bucket))
     info = _mc(ctx, ["admin", "user", "svcacct", "info", ALIAS, sa_access],
                root_user=root_user, root_pwd=root_pwd, check=False)
     exists = info.returncode == 0
@@ -98,7 +137,13 @@ def _ensure_service_account(ctx, sa_access, bucket, root_user, root_pwd,
         prior_secret = ps.secrets.get("minio_secret_key", "")
 
     if exists and prior_secret:
-        step.actions.append(f"service account '{sa_access}' present — secret reused")
+        # Reuse the secret but ensure the policy is current (idempotent edit).
+        _mc(ctx, ["-c", _svcacct_policy_script(
+            policy, f"mc admin user svcacct edit {ALIAS} '{sa_access}' "
+                    f"--policy /tmp/sa-policy.json")],
+            root_user=root_user, root_pwd=root_pwd, entrypoint="sh")
+        step.actions.append(
+            f"service account '{sa_access}' present — secret reused, policy ensured")
         return prior_secret
     if exists and not prior_secret:
         _mc(ctx, ["admin", "user", "svcacct", "rm", ALIAS, sa_access],
@@ -107,17 +152,14 @@ def _ensure_service_account(ctx, sa_access, bucket, root_user, root_pwd,
             f"service account '{sa_access}' existed without a known secret — rotated")
 
     new_secret = _secrets.token_hex(20)
-    policy = json.dumps(scoped_policy(bucket))
-    # Write the inline policy inside the container then attach it to the svcacct.
-    script = (
-        "set -e\n"
-        f"cat > /tmp/sa-policy.json <<'JSON'\n{policy}\nJSON\n"
-        f"mc admin user svcacct add --access-key '{sa_access}' "
-        f"--secret-key '{new_secret}' --policy /tmp/sa-policy.json "
-        f"{ALIAS} {root_user}\n"
-    )
-    _mc(ctx, ["-c", script], root_user=root_user, root_pwd=root_pwd, entrypoint="sh")
-    step.actions.append(f"service account '{sa_access}' created (scoped rw on '{bucket}')")
+    _mc(ctx, ["-c", _svcacct_policy_script(
+        policy, f"mc admin user svcacct add --access-key '{sa_access}' "
+                f"--secret-key '{new_secret}' --policy /tmp/sa-policy.json "
+                f"{ALIAS} {root_user}")],
+        root_user=root_user, root_pwd=root_pwd, entrypoint="sh")
+    step.actions.append(
+        f"service account '{sa_access}' created (rw '{documents_bucket}'"
+        + (f", write-only '{compliance_bucket}'" if compliance_bucket else "") + ")")
     return new_secret
 
 
@@ -271,7 +313,7 @@ def provision(ctx: BootstrapContext) -> ProvisionStep:
                           root_user, root_pwd, step)
 
         sa_secret = _ensure_service_account(
-            ctx, sa_access, bucket, root_user, root_pwd, step)
+            ctx, sa_access, bucket, compliance_bucket, root_user, root_pwd, step)
     except DockerError as exc:
         return step.fail(f"mc operation failed: {exc}")
 
