@@ -272,14 +272,24 @@ def collect_database(p: Prompter, secrets_out: dict, provider: str = "docker-loc
     return cfg
 
 
-def collect_redis(p: Prompter) -> dict[str, Any]:
-    p.section("3/9 — Redis (cache + rate limit)")
+_REDIS_DEFAULT = {"docker-local": "local", "vps": "local",
+                  "gcp": "memorystore", "aws": "elasticache", "azure": "external"}
+
+
+def collect_redis(p: Prompter, provider: str = "docker-local") -> dict[str, Any]:
+    p.section("Redis (cache + rate limit)")
+    rp = p.ask_choice(
+        "Redis provider",
+        ["local", "upstash", "elasticache", "memorystore", "redis_cloud", "external"],
+        default=_REDIS_DEFAULT.get(provider, "local"),
+        env="WIZ_REDIS_PROVIDER",
+    )
     return {
+        "provider": rp,
         "url_secret": p.ask(
-            "Secret name holding REDIS_URL",
-            default="REDIS_URL",
-            env="WIZ_REDIS_URL_SECRET",
-        ),
+            "Secret name holding REDIS_URL"
+            + (" (rediss:// for managed)" if rp != "local" else ""),
+            default="REDIS_URL", env="WIZ_REDIS_URL_SECRET"),
         "cache_ttl_seconds": 3600,
     }
 
@@ -587,8 +597,15 @@ def collect_observability(p: Prompter, env_label: str) -> dict[str, Any]:
             "OTLP endpoint (self-hosted otel-lgtm)",
             default="http://otel-lgtm:4317", env="WIZ_OBS_OTLP")
     elif mode == "cloud":
+        cfg["cloud_provider"] = p.ask_choice(
+            "Cloud observability backend",
+            ["grafana_cloud", "datadog", "honeycomb", "new_relic", "otlp_generic"],
+            default="grafana_cloud", env="WIZ_OBS_CLOUD")
         cfg["otlp_endpoint"] = p.ask(
             "OTLP endpoint (cloud collector)", default="", env="WIZ_OBS_OTLP")
+        cfg["otlp_token_secret"] = p.ask(
+            "Secret name for the OTLP token/API key", default="OTLP_TOKEN",
+            env="WIZ_OBS_TOKEN")
         cfg["errors_backend"] = p.ask_choice(
             "Error tracking", ["none", "sentry_saas", "glitchtip"],
             default="none", env="WIZ_OBS_ERRORS")
@@ -741,23 +758,43 @@ def collect_email(p: Prompter) -> dict[str, Any]:
 
 
 def collect_payment(p: Prompter) -> dict[str, Any]:
-    p.section("Payment")
-    prov = p.ask_choice("Payment provider",
-                        ["disabled", "stripe", "bange", "ecobank", "mpgs"],
-                        default="disabled", env="WIZ_PAYMENT_PROVIDER")
+    p.section("Payment (cards + mobile money)")
+    prov = p.ask_choice(
+        "Primary payment provider",
+        ["disabled", "stripe", "mtn_momo", "orange_money", "bange", "ecobank", "mpgs"],
+        default="disabled", env="WIZ_PAYMENT_PROVIDER")
     cfg: dict[str, Any] = {"provider": prov}
     if prov == "stripe":
         cfg["stripe"] = {
             "enabled": True,
-            "publishable_key_secret": p.ask(
-                "Secret name: Stripe publishable key",
+            "publishable_key_secret": p.ask("Secret: Stripe publishable key",
                 default="STRIPE_PUBLISHABLE_KEY", env="WIZ_STRIPE_PK"),
-            "secret_key_secret": p.ask(
-                "Secret name: Stripe secret key",
+            "secret_key_secret": p.ask("Secret: Stripe secret key",
                 default="STRIPE_SECRET_KEY", env="WIZ_STRIPE_SK"),
-            "webhook_secret_secret": p.ask(
-                "Secret name: Stripe webhook secret",
+            "webhook_secret_secret": p.ask("Secret: Stripe webhook secret",
                 default="STRIPE_WEBHOOK_SECRET", env="WIZ_STRIPE_WH"),
+        }
+    elif prov == "mtn_momo":
+        cfg["mtn_momo"] = {
+            "enabled": True,
+            "environment": p.ask_choice("MTN MoMo environment",
+                ["sandbox", "production"], default="sandbox", env="WIZ_MOMO_ENV"),
+            "subscription_key_secret": p.ask("Secret: MTN subscription key",
+                default="MTN_SUBSCRIPTION_KEY", env="WIZ_MOMO_SUB"),
+            "api_key_secret": p.ask("Secret: MTN API key",
+                default="MTN_API_KEY", env="WIZ_MOMO_KEY"),
+            "currency": p.ask("Currency", default="XAF", env="WIZ_MOMO_CCY"),
+            "callback_url": p.ask("Callback URL", default="", env="WIZ_MOMO_CB"),
+        }
+    elif prov == "orange_money":
+        cfg["orange_money"] = {
+            "enabled": True,
+            "api_url": p.ask("Orange Money API URL", default="", env="WIZ_OM_URL"),
+            "client_id": p.ask("Client ID", default="", env="WIZ_OM_CID"),
+            "client_secret_secret": p.ask("Secret: Orange client secret",
+                default="ORANGE_CLIENT_SECRET", env="WIZ_OM_SECRET"),
+            "currency": p.ask("Currency", default="XAF", env="WIZ_OM_CCY"),
+            "callback_url": p.ask("Callback URL", default="", env="WIZ_OM_CB"),
         }
     return cfg
 
@@ -816,7 +853,7 @@ def run_wizard(p: Prompter) -> tuple[dict[str, Any], dict[str, str]]:
     provider = collect_provider(p, env_label)   # drives storage/secrets defaults
 
     cfg["database"] = collect_database(p, secrets_out, provider)
-    cfg["redis"] = collect_redis(p)
+    cfg["redis"] = collect_redis(p, provider)
     cfg["auth"] = {**collect_auth(p, secrets_out), **collect_auth_methods(p)}
     cfg["firebase"] = collect_firebase(p, secrets_out)
     cfg["ai"] = collect_llm(p, secrets_out, provider)

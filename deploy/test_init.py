@@ -474,3 +474,26 @@ class TestProviderAwareWizard:
         cfg, _ = self._run(monkeypatch, WIZ_PROVIDER="docker-local",
                            WIZ_DB_PROVIDER="supabase")
         assert cfg["database"]["provider"] == "supabase"
+
+    def test_redis_provider_surfaced(self, monkeypatch):
+        cfg, _ = self._run(monkeypatch, WIZ_PROVIDER="docker-local",
+                           WIZ_REDIS_PROVIDER="upstash")
+        assert cfg["redis"]["provider"] == "upstash"
+
+    def test_mtn_momo_surfaced(self, monkeypatch):
+        cfg, _ = self._run(monkeypatch, WIZ_PROVIDER="docker-local",
+                           WIZ_PAYMENT_PROVIDER="mtn_momo")
+        assert cfg["payments"]["provider"] == "mtn_momo"
+        assert cfg["payments"]["mtn_momo"]["enabled"] is True
+        assert cfg["payments"]["mtn_momo"]["currency"] == "XAF"
+
+    def test_orange_money_surfaced(self, monkeypatch):
+        cfg, _ = self._run(monkeypatch, WIZ_PROVIDER="docker-local",
+                           WIZ_PAYMENT_PROVIDER="orange_money")
+        assert cfg["payments"]["orange_money"]["enabled"] is True
+
+    def test_observability_cloud_surfaced(self, monkeypatch):
+        cfg, _ = self._run(monkeypatch, WIZ_PROVIDER="aws", WIZ_OBS_MODE="cloud",
+                           WIZ_OBS_CLOUD="datadog")
+        assert cfg["observability"]["cloud_provider"] == "datadog"
+        assert "otlp_token_secret" in cfg["observability"]

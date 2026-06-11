@@ -587,3 +587,46 @@ class TestEmailPaymentSeam:
     def test_payment_default_disabled(self, minimal_valid_config: dict) -> None:
         cfg = vc.DeployConfig.model_validate(minimal_valid_config)
         assert cfg.payments.provider == "disabled"
+
+
+class TestRedisObsPaymentProviders:
+    def test_redis_provider_default_local(self, minimal_valid_config: dict) -> None:
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.redis.provider == "local"
+
+    def test_redis_upstash(self, minimal_valid_config: dict) -> None:
+        minimal_valid_config["redis"]["provider"] = "upstash"
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.redis.provider == "upstash"
+
+    def test_observability_cloud_provider(self, minimal_valid_config: dict) -> None:
+        minimal_valid_config["observability"] = {
+            "mode": "cloud", "cloud_provider": "grafana_cloud",
+            "otlp_token_secret": "OTLP_TOKEN"}
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.observability.cloud_provider == "grafana_cloud"
+
+    def test_mtn_momo(self, minimal_valid_config: dict) -> None:
+        minimal_valid_config["payments"] = {
+            "provider": "mtn_momo",
+            "mtn_momo": {"enabled": True, "currency": "XAF"}}
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.payments.mtn_momo.enabled is True
+        assert cfg.payments.mtn_momo.currency == "XAF"
+
+    def test_orange_money(self, minimal_valid_config: dict) -> None:
+        minimal_valid_config["payments"] = {
+            "provider": "orange_money", "orange_money": {"enabled": True}}
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.payments.orange_money.enabled is True
+
+    def test_multiple_gateways_enabled(self, minimal_valid_config: dict) -> None:
+        # cards + mobile money simultaneously.
+        minimal_valid_config["payments"] = {
+            "provider": "mtn_momo",
+            "stripe": {"enabled": True},
+            "mtn_momo": {"enabled": True},
+            "orange_money": {"enabled": True}}
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.payments.stripe.enabled and cfg.payments.mtn_momo.enabled \
+            and cfg.payments.orange_money.enabled

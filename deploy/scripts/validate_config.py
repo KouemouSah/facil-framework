@@ -102,6 +102,10 @@ class DatabaseConfig(BaseModel):
 
 
 class RedisConfig(BaseModel):
+    # local = our redis container; the managed ones connect via url_secret
+    # (rediss:// with TLS — Upstash / ElastiCache / Memorystore / Redis Cloud).
+    provider: Literal["local", "upstash", "elasticache", "memorystore",
+                      "redis_cloud", "external"] = "local"
     url_secret: str = Field(min_length=1)
     cache_ttl_seconds: int = Field(default=3600, ge=1)
 
@@ -256,11 +260,37 @@ class PaymentStripeConfig(BaseModel):
     webhook_secret_secret: str = ""
 
 
+class PaymentMtnMomoConfig(BaseModel):
+    # MTN Mobile Money (Collections API) — central in the Africa zone.
+    enabled: bool = False
+    environment: Literal["sandbox", "production"] = "sandbox"
+    subscription_key_secret: str = ""
+    api_user: str = ""
+    api_key_secret: str = ""
+    callback_url: str = ""
+    currency: str = "XAF"
+
+
+class PaymentOrangeMoneyConfig(BaseModel):
+    # Orange Money Web Payment API.
+    enabled: bool = False
+    api_url: str = ""
+    merchant_key_secret: str = ""
+    client_id: str = ""
+    client_secret_secret: str = ""
+    callback_url: str = ""
+    currency: str = "XAF"
+
+
 class PaymentsConfig(BaseModel):
-    # Generic gateway selector. The legacy bange/ecobank/mpgs (TaxasGE-specific)
-    # stay for back-compat; stripe is the generic default for new deployments.
-    provider: Literal["disabled", "stripe", "bange", "ecobank", "mpgs"] = "disabled"
+    # Multiple gateways may be enabled at once (each `*.enabled`); `provider` is
+    # the primary/default shown to users. Mobile money (MTN/Orange) is first-class
+    # for the Africa zone alongside cards (stripe) and bank gateways.
+    provider: Literal["disabled", "stripe", "mtn_momo", "orange_money",
+                      "bange", "ecobank", "mpgs"] = "disabled"
     stripe: PaymentStripeConfig = Field(default_factory=PaymentStripeConfig)
+    mtn_momo: PaymentMtnMomoConfig = Field(default_factory=PaymentMtnMomoConfig)
+    orange_money: PaymentOrangeMoneyConfig = Field(default_factory=PaymentOrangeMoneyConfig)
     bange: PaymentBangeConfig = Field(default_factory=PaymentBangeConfig)
     ecobank: PaymentEcobankConfig = Field(default_factory=PaymentEcobankConfig)
     mpgs: PaymentMpgsConfig = Field(default_factory=PaymentMpgsConfig)
@@ -308,8 +338,13 @@ class ObservabilityConfig(BaseModel):
     # fields above stay for the cloud profile; `mode=local` points at the
     # self-hosted stack instead (nothing leaves the network).
     mode: Literal["disabled", "local", "cloud"] = "disabled"
-    otlp_endpoint: str = ""                                     # Alloy (local) OR Grafana Cloud
+    otlp_endpoint: str = ""                                     # Alloy (local) OR cloud collector
     otlp_protocol: Literal["grpc", "http"] = "grpc"
+    # When mode=cloud: which managed backend. All speak OTLP — only the endpoint
+    # + auth token differ (otlp_token_secret carries the API key / header).
+    cloud_provider: Literal["none", "grafana_cloud", "datadog", "honeycomb",
+                            "new_relic", "otlp_generic"] = "none"
+    otlp_token_secret: str = ""
     errors_backend: Literal["none", "sentry_saas", "glitchtip"] = "none"
     errors_dsn_secret: str = ""            # GlitchTip OR Sentry DSN — same `sentry-sdk`, only the DSN changes.
     session_replay: Literal["none", "logrocket", "openreplay"] = "none"  # OpenReplay = sovereign (heavy, opt-in)
