@@ -43,8 +43,14 @@ BOOT_SECRET_KEYS = (
     "CRON_SECRET", "RECEIPT_VERIFICATION_SECRET",
 )
 
+# Runtime data-plane passwords (compose interpolation) — mirrored into OpenBao
+# so the backend reads them centrally via the AppRole. .env.secrets stays the
+# authoritative source for compose; OpenBao is the read store.
+RUNTIME_SECRET_KEYS = ("POSTGRES_PASSWORD", "REDIS_PASSWORD", "MINIO_ROOT_PASSWORD")
+
 KV_PATH = "facil"          # kv-v2 mount path
 BOOT_PATH = "boot"         # secret name under the mount
+RUNTIME_PATH = "runtime"   # runtime data-plane passwords under the mount
 POLICY_NAME = "facil-backend"
 ROLE_NAME = "facil-backend"
 
@@ -113,6 +119,27 @@ def _ensure_boot_secrets(base, token, secrets_env, step):
     return len(desired)
 
 
+def _ensure_runtime_secrets(base, token, secrets_env, step):
+    """Mirror the data-plane runtime passwords into ``facil/runtime`` (write-if-
+    changed). Covered by the existing read-only ``facil-backend`` policy."""
+    desired = {k: secrets_env[k] for k in RUNTIME_SECRET_KEYS
+               if secrets_env.get(k)}
+    if not desired:
+        step.actions.append("no runtime secrets in .env.secrets to mirror")
+        return 0
+    cur = _request("GET", f"{base}/{KV_PATH}/data/{RUNTIME_PATH}", token,
+                   allow=(404,))
+    current = cur.json().get("data", {}).get("data", {}) if cur.status_code == 200 else {}
+    if current == desired:
+        step.actions.append(f"runtime secrets up to date ({len(desired)} keys)")
+        return len(desired)
+    _request("POST", f"{base}/{KV_PATH}/data/{RUNTIME_PATH}", token,
+             json={"data": desired})
+    step.actions.append(f"runtime secrets mirrored to '{KV_PATH}/{RUNTIME_PATH}' "
+                        f"({len(desired)} keys)")
+    return len(desired)
+
+
 def _ensure_policy(base, token, step):
     # PUT is an upsert — idempotent by construction.
     _request("PUT", f"{base}/sys/policies/acl/{POLICY_NAME}", token,
@@ -167,6 +194,7 @@ def provision(ctx: BootstrapContext) -> ProvisionStep:
         step.actions = [
             f"enable kv-v2 at '{KV_PATH}/'",
             f"write {len(BOOT_SECRET_KEYS)} boot secrets to '{KV_PATH}/{BOOT_PATH}'",
+            f"mirror runtime passwords to '{KV_PATH}/{RUNTIME_PATH}'",
             f"upsert read-only policy '{POLICY_NAME}'",
             f"enable approle + role '{ROLE_NAME}' (role_id + secret_id)",
         ]
@@ -179,6 +207,7 @@ def provision(ctx: BootstrapContext) -> ProvisionStep:
     try:
         _ensure_kv_mount(base, token, step)
         n = _ensure_boot_secrets(base, token, secrets_env, step)
+        _ensure_runtime_secrets(base, token, secrets_env, step)
         _ensure_policy(base, token, step)
         _ensure_approle(base, token, step)
         role_id = _role_id(base, token)

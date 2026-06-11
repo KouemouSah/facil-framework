@@ -191,3 +191,38 @@ def test_api_error_becomes_failed_step(monkeypatch, ctx):
     step = ob.provision(ctx)
     assert step.status == "failed"
     assert "OpenBao API error" in step.detail
+
+
+# --- H3: runtime secrets mirror ---
+
+def test_runtime_secrets_mirrored(monkeypatch, tmp_path):
+    (tmp_path / "deploy").mkdir()
+    (tmp_path / ".env.secrets").write_text(
+        "JWT_SECRET_KEY=j\nSECRET_KEY=s\nTOTP_ENCRYPTION_KEY=t\n"
+        "CRON_SECRET=c\nRECEIPT_VERIFICATION_SECRET=r\n"
+        "POSTGRES_PASSWORD=pgpw\nREDIS_PASSWORD=rdpw\nMINIO_ROOT_PASSWORD=miopw\n",
+        encoding="utf-8",
+    )
+    ctx = BootstrapContext(cfg=make_cfg(), network="net", repo_root=tmp_path)
+    captured = {}
+
+    def fake(method, url, token, *, json=None, allow=()):
+        if url.endswith("/facil/data/runtime") and method == "POST":
+            captured["data"] = json["data"]
+        return FakeBao(kv_mounted=True, boot_current=None)(
+            method, url, token, json=json, allow=allow)
+
+    monkeypatch.setattr(ob, "_request", fake)
+    step = ob.provision(ctx)
+    assert step.status == "ok"
+    assert set(captured["data"]) == set(ob.RUNTIME_SECRET_KEYS)
+    assert captured["data"]["REDIS_PASSWORD"] == "rdpw"
+
+
+def test_runtime_mirror_skipped_when_absent(monkeypatch, ctx):
+    # ctx fixture .env.secrets has no runtime passwords -> nothing mirrored.
+    fake = FakeBao(kv_mounted=True, boot_current=None)
+    monkeypatch.setattr(ob, "_request", fake)
+    step = ob.provision(ctx)
+    assert ("POST", "/facil/data/runtime") not in fake.calls
+    assert any("no runtime secrets" in a for a in step.actions)
