@@ -285,6 +285,27 @@ class AwsConfig(BaseModel):
     rds_instance: str = ""
 
 
+class MinioComplianceConfig(BaseModel):
+    # WORM (Object-Lock) bucket for legally-retained artefacts: signed PDFs
+    # (PAdES/eIDAS), receipts, audit trails. Object-Lock can only be enabled at
+    # bucket creation, so this is a SEPARATE bucket from default_bucket.
+    enabled: bool = True
+    bucket: str = "facil-compliance"
+    # GOVERNANCE: privileged users (s3:BypassGovernanceRetention) can still
+    # delete/shorten — safe default, dev-cleanable. COMPLIANCE: immutable even
+    # to root until expiry — opt-in for production legal requirements.
+    retention_mode: Literal["governance", "compliance"] = "governance"
+    retention_days: int = Field(default=365, ge=1, le=36500)
+
+
+class MinioLifecycleConfig(BaseModel):
+    # 0 = rule disabled. Incomplete multipart uploads waste space silently;
+    # non-current versions accumulate forever once versioning is ON (they MUST
+    # be pruned or storage grows unbounded).
+    expire_incomplete_multipart_days: int = Field(default=7, ge=0, le=3650)
+    expire_noncurrent_versions_days: int = Field(default=90, ge=0, le=3650)
+
+
 class MinioConfig(BaseModel):
     # On-prem souverain object storage (ADR-0005). P4 pins by digest
     # (verified latest = sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e).
@@ -295,6 +316,13 @@ class MinioConfig(BaseModel):
     root_user: str = "facil"
     root_password_secret: str = "MINIO_ROOT_PASSWORD"
     default_bucket: str = "facil-documents"
+    # --- Security / governance hardening (MINIO_SECURITY_ARCH, S1) ---
+    # All defaulted -> existing configs stay valid (zero-regression).
+    compliance: MinioComplianceConfig = Field(default_factory=MinioComplianceConfig)
+    lifecycle: MinioLifecycleConfig = Field(default_factory=MinioLifecycleConfig)
+    # Per-bucket quota in GiB; 0 = unlimited.
+    quota_documents_gb: int = Field(default=0, ge=0, le=1_048_576)
+    quota_compliance_gb: int = Field(default=0, ge=0, le=1_048_576)
 
 
 class StorageConfig(BaseModel):

@@ -379,3 +379,59 @@ class TestCli:
         captured = capsys.readouterr()
         assert rc == 0
         assert captured.out == ""
+
+
+# ---------------------------------------------------------------------------
+# MinIO security/governance fields (MINIO_SECURITY_ARCH S1)
+# ---------------------------------------------------------------------------
+
+class TestMinioSecurityFields:
+    def test_defaults_applied(self, minimal_valid_config: dict) -> None:
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        m = cfg.storage.minio
+        assert m.compliance.enabled is True
+        assert m.compliance.bucket == "facil-compliance"
+        assert m.compliance.retention_mode == "governance"
+        assert m.compliance.retention_days == 365
+        assert m.lifecycle.expire_incomplete_multipart_days == 7
+        assert m.lifecycle.expire_noncurrent_versions_days == 90
+        assert m.quota_documents_gb == 0 and m.quota_compliance_gb == 0
+
+    def test_backward_compatible_without_storage_block(
+        self, minimal_valid_config: dict
+    ) -> None:
+        # No `storage:` key at all -> still valid, security defaults present.
+        minimal_valid_config.pop("storage", None)
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.storage.minio.compliance.bucket == "facil-compliance"
+
+    def test_retention_mode_literal_enforced(
+        self, minimal_valid_config: dict
+    ) -> None:
+        minimal_valid_config["storage"] = {
+            "provider": "minio",
+            "minio": {"compliance": {"retention_mode": "permanent"}},
+        }
+        with pytest.raises(Exception):
+            vc.DeployConfig.model_validate(minimal_valid_config)
+
+    def test_overrides_round_trip(self, minimal_valid_config: dict) -> None:
+        minimal_valid_config["storage"] = {
+            "provider": "minio",
+            "minio": {
+                "compliance": {"retention_mode": "compliance", "retention_days": 2555},
+                "lifecycle": {"expire_noncurrent_versions_days": 30},
+                "quota_documents_gb": 500,
+            },
+        }
+        m = vc.DeployConfig.model_validate(minimal_valid_config).storage.minio
+        assert m.compliance.retention_mode == "compliance"
+        assert m.compliance.retention_days == 2555
+        assert m.lifecycle.expire_noncurrent_versions_days == 30
+        assert m.quota_documents_gb == 500
+
+    def test_negative_quota_rejected(self, minimal_valid_config: dict) -> None:
+        minimal_valid_config["storage"] = {
+            "provider": "minio", "minio": {"quota_documents_gb": -1}}
+        with pytest.raises(Exception):
+            vc.DeployConfig.model_validate(minimal_valid_config)
