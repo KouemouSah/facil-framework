@@ -434,3 +434,58 @@ class TestMinioSecurityFields:
             "provider": "minio", "minio": {"quota_documents_gb": -1}}
         with pytest.raises(Exception):
             vc.DeployConfig.model_validate(minimal_valid_config)
+
+
+# ---------------------------------------------------------------------------
+# Provider parity (Azure/AWS) + deployment profile (DEPLOY_WIZARD_V2 W1)
+# ---------------------------------------------------------------------------
+
+class TestProviderParityAndProfile:
+    def test_profile_default_empty(self, minimal_valid_config: dict) -> None:
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.meta.profile == "empty"
+
+    def test_profile_accepts_known(self, minimal_valid_config: dict) -> None:
+        minimal_valid_config["meta"]["profile"] = "gov-emergent-country"
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.meta.profile == "gov-emergent-country"
+
+    def test_profile_rejects_unknown(self, minimal_valid_config: dict) -> None:
+        minimal_valid_config["meta"]["profile"] = "martian-colony"
+        with pytest.raises(Exception):
+            vc.DeployConfig.model_validate(minimal_valid_config)
+
+    def test_azure_defaults(self, minimal_valid_config: dict) -> None:
+        az = vc.DeployConfig.model_validate(minimal_valid_config).azure
+        assert az.resource_group == "facil-rg"
+        assert az.location == "westeurope"
+        assert az.containerapp_env == "facil-env"
+
+    def test_aws_serverless_default(self, minimal_valid_config: dict) -> None:
+        aws = vc.DeployConfig.model_validate(minimal_valid_config).aws
+        assert aws.runtime == "app_runner"        # Cloud Run analog
+        assert aws.ecr_repository == "facil"
+
+    def test_aws_runtime_literal_enforced(self, minimal_valid_config: dict) -> None:
+        minimal_valid_config["aws"] = {"runtime": "lambda"}
+        with pytest.raises(Exception):
+            vc.DeployConfig.model_validate(minimal_valid_config)
+
+    def test_backward_compatible_without_azure_or_profile(
+        self, minimal_valid_config: dict
+    ) -> None:
+        # A pre-existing config (no azure section, no profile) still validates.
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert cfg.azure.resource_group == "facil-rg"
+        assert cfg.meta.profile == "empty"
+
+    def test_required_fields_azure(self, minimal_valid_config: dict) -> None:
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        missing = vc.provider_required_fields(cfg, "azure")
+        assert any("subscription_id" in m for m in missing)
+        assert any("acr_registry" in m for m in missing)
+
+    def test_required_fields_aws_account(self, minimal_valid_config: dict) -> None:
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        missing = vc.provider_required_fields(cfg, "aws")
+        assert any("account_id" in m for m in missing)

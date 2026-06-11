@@ -47,11 +47,24 @@ except ImportError:  # pragma: no cover
 # Schema models — mirror config.example.yaml structure.
 # ---------------------------------------------------------------------------
 
+# Deployment profile = pack of coherent app defaults (modules, branding, payment,
+# storage layout). Selected at install; the detailed seeds land with the modules
+# phase. "empty" = generic baseline (zero domain assumptions).
+ProfileName = Literal[
+    "empty",
+    "private-services-company",
+    "gov-emergent-country",
+    "saas-multitenant",
+    "banking",
+]
+
+
 class MetaConfig(BaseModel):
     config_version: int = Field(ge=1, le=1)
     project_name: str = Field(min_length=1)
     environment: Literal["production", "staging", "development"]
     version: str = "latest"
+    profile: ProfileName = "empty"
 
 
 class DatabasePool(BaseModel):
@@ -280,9 +293,36 @@ class GcpConfig(BaseModel):
 
 
 class AwsConfig(BaseModel):
+    # Serverless-container deployment, App Runner = the Cloud Run analog
+    # (ecs_fargate kept as the heavier alternative). Images in ECR, secrets in
+    # AWS Secrets Manager, Postgres on RDS.
     region: str = "us-east-1"
-    backend_cluster: str = "facil-backend"
+    account_id: str = ""
+    runtime: Literal["app_runner", "ecs_fargate"] = "app_runner"
+    ecr_repository: str = "facil"
+    backend_service_name: str = "facil-backend"
+    frontend_service_name: str = "facil-frontend"
+    backend_cluster: str = "facil-backend"          # ecs_fargate cluster
     rds_instance: str = ""
+    secrets_manager_prefix: str = "facil/"
+    custom_domain_backend: str = ""
+    custom_domain_frontend: str = ""
+
+
+class AzureConfig(BaseModel):
+    # Azure Container Apps = the Cloud Run analog. Images in ACR, secrets in
+    # Key Vault, Postgres on Flexible Server.
+    subscription_id: str = ""
+    resource_group: str = "facil-rg"
+    location: str = "westeurope"
+    acr_registry: str = ""                          # Azure Container Registry name
+    containerapp_env: str = "facil-env"             # Container Apps environment
+    backend_app_name: str = "facil-backend"
+    frontend_app_name: str = "facil-frontend"
+    postgres_flexible_server: str = ""
+    keyvault_name: str = ""
+    custom_domain_backend: str = ""
+    custom_domain_frontend: str = ""
 
 
 class MinioComplianceConfig(BaseModel):
@@ -402,6 +442,7 @@ class DeployConfig(BaseModel):
     features: FeaturesConfig = Field(default_factory=FeaturesConfig)
     gcp: GcpConfig = Field(default_factory=GcpConfig)
     aws: AwsConfig = Field(default_factory=AwsConfig)
+    azure: AzureConfig = Field(default_factory=AzureConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)
     secrets: SecretsConfig = Field(default_factory=SecretsConfig)
     edge: EdgeConfig = Field(default_factory=EdgeConfig)
@@ -455,8 +496,15 @@ def provider_required_fields(cfg: DeployConfig, provider: str) -> list[str]:
         if not cfg.gcp.project_id:
             missing.append("gcp.project_id")
     elif provider == "aws":
+        if not cfg.aws.account_id:
+            missing.append("aws.account_id")
         if not cfg.aws.rds_instance:
             missing.append("aws.rds_instance (or DATABASE_URL externally configured)")
+    elif provider == "azure":
+        if not cfg.azure.subscription_id:
+            missing.append("azure.subscription_id")
+        if not cfg.azure.acr_registry:
+            missing.append("azure.acr_registry")
     elif provider == "docker-local":
         # Self-contained, nothing extra required at this stage.
         pass
@@ -484,7 +532,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("config", type=Path, help="Path to config.yaml")
     parser.add_argument(
         "--provider",
-        choices=["gcp", "aws", "docker-local"],
+        choices=["gcp", "aws", "azure", "docker-local"],
         default=None,
         help="Validate provider-specific required fields too.",
     )
