@@ -117,7 +117,6 @@ jobs:
   markdown-lint:
     name: Markdown lint
     runs-on: ubuntu-latest
-    continue-on-error: true  # non-blocking V0
     steps:
       - uses: actions/checkout@v4
       - name: Lint markdown
@@ -173,7 +172,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Backend & frontend test jobs will be enabled at Phase A.5 (Module Loader)." >> $GITHUB_STEP_SUMMARY
 
-          if [ "${{ needs.repo-structure.result }}" != "success" ] || [ "${{ needs.yaml-lint.result }}" != "success" ]; then
+          if [ "${{ needs.repo-structure.result }}" != "success" ] || [ "${{ needs.yaml-lint.result }}" != "success" ] || [ "${{ needs.markdown-lint.result }}" != "success" ]; then
             echo "::error::Critical V0 checks failed"
             exit 1
           fi
