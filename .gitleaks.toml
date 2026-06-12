@@ -1,0 +1,46 @@
+# Gitleaks configuration — Facil Framework
+# Referenced by .github/workflows/ci.yml (job: Secrets scan, GITLEAKS_CONFIG).
+#
+# Strategy: keep the FULL default ruleset, then allowlist only the known,
+# reviewed false-positives so the scan can be BLOCKING on active framework code
+# without tripping on the parked legacy snapshot.
+#
+# Scope note: gitleaks-action@v2 scans only the pushed commit range on `push`
+# / `pull_request` (this workflow has no `schedule`/`workflow_dispatch`), so it
+# protects NEW commits in active code (deploy/, packages/backend, docs/...).
+# Historical taxasge fixtures in git history are not re-scanned on push.
+
+title = "Facil Framework gitleaks config"
+
+[extend]
+# Inherit all of gitleaks' built-in rules (generic-api-key, gcp-api-key, etc.).
+useDefault = true
+
+[allowlist]
+description = "Reviewed false-positives: parked legacy snapshot, client-side Firebase config, dummy test markers"
+
+# --- Path allowlist -------------------------------------------------------
+# NOTE: deliberately NOT allowlisting `packages/` — the NEW framework backend
+# lives at packages/backend/ and MUST stay scanned. Only the parked snapshot
+# under legacy/ is excluded.
+paths = [
+  # Parked legacy snapshot (imported from taxasge, reworked on port — not active code).
+  # Covers the 25 historical fixtures + the 2 dev-only AES/HMAC keys in
+  # legacy/packages/backend/database/migrations/040_secrets_to_configure.md.
+  '''(^|/)legacy/''',
+
+  # Firebase google-services.json = client-side app config, not a server secret
+  # (Google: these API keys identify the project; security is via key
+  # restrictions + Firebase Security Rules + App Check, not secrecy).
+  # Regenerated per-deployment when mobile/inspector are ported.
+  '''google-services\.json$''',
+]
+
+# --- Value allowlist ------------------------------------------------------
+# Obvious non-secret markers that may appear in active code/docs/tests.
+regexes = [
+  '''REUSEME''',              # dummy fixture value (deploy bootstrap tests)
+  '''YOUR_[A-Z0-9_]*''',      # doc placeholders (YOUR_TOKEN, YOUR_ACCESS_TOKEN…)
+  '''EXAMPLE''',              # example markers
+  '''CHANGE[_-]?ME''',        # template placeholders
+]

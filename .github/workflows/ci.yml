@@ -140,7 +140,7 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true  # non-blocking V0
+          GITLEAKS_CONFIG: ${{ github.workspace }}/.gitleaks.toml
 
   # ---------------------------------------------------------------------------
   # Backend / Frontend tests are deferred until Phase A.5 lands
@@ -172,7 +172,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Backend & frontend test jobs will be enabled at Phase A.5 (Module Loader)." >> $GITHUB_STEP_SUMMARY
 
-          if [ "${{ needs.repo-structure.result }}" != "success" ] || [ "${{ needs.yaml-lint.result }}" != "success" ] || [ "${{ needs.markdown-lint.result }}" != "success" ]; then
+          if [ "${{ needs.repo-structure.result }}" != "success" ] || [ "${{ needs.yaml-lint.result }}" != "success" ] || [ "${{ needs.markdown-lint.result }}" != "success" ] || [ "${{ needs.no-secrets.result }}" != "success" ]; then
             echo "::error::Critical V0 checks failed"
             exit 1
           fi
