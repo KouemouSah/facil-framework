@@ -160,6 +160,7 @@ def generate_compose(cfg: vc.DeployConfig) -> str:
         # We do NOT set DATABASE_URL in the `environment:` block so .env.secrets'
         # value wins.
         db_url_line = "      # DATABASE_URL: provided by .env.secrets (external mode)"
+        backend_db_url_line = db_url_line
         db_init_depends = "    # No postgres dependency in external mode."
         backend_depends_postgres = "      # No postgres dependency in external mode."
     else:
@@ -188,6 +189,11 @@ def generate_compose(cfg: vc.DeployConfig) -> str:
       retries: 10"""
         volumes_block = f"  {pg_volume}:"
         db_url_line = f"      DATABASE_URL: {db_url}"
+        # The backend connects as the least-privilege facil_app role; that URL is
+        # rendered post-bootstrap into packages/backend/.env.deploy.gen.
+        backend_db_url_line = (
+            "      # DATABASE_URL: from packages/backend/.env.deploy.gen "
+            "(facil_app, least-privilege)")
         db_init_depends = (
             "    depends_on:\n"
             "      postgres:\n"
@@ -386,7 +392,7 @@ services:
 {db_url_line}
       ENVIRONMENT: {env_label}
       APPLIED_BY: docker-local-init
-    command: ["python", "scripts/deploy/init_database.py", "--mode=hybrid"]
+    command: ["alembic", "upgrade", "head"]
 {db_init_depends}
     restart: "no"
 
@@ -401,7 +407,7 @@ services:
       - ./.env.secrets
       - ./packages/backend/.env.deploy.gen
     environment:
-{db_url_line}
+{backend_db_url_line}
       REDIS_URL: {redis_url}
       ENVIRONMENT: {env_label}
       PORT: "{backend_port}"
@@ -428,8 +434,11 @@ services:
   # container hits http://backend:<port> via INTERNAL_API_URL.
   # The Next.js code should branch on typeof window === 'undefined'
   # to pick the right URL (see DEPLOYMENT.md "SSR vs CSR API URLs").
+  # Profile-gated (`web`, OFF by default) until packages/web is built (D5):
+  #   docker compose --profile web up
   # ---------------------------------------------------------------------
   frontend:
+    profiles: ["web"]
     build:
       context: ./packages/web
       args:
@@ -680,39 +689,63 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
     CADDYFILE.write_text(generate_caddyfile(cfg), encoding="utf-8")
     print(f"[OK] Wrote {CADDYFILE.name} (used by the `edge` profile)")
 
-    print("\n=== Building images + starting containers ===")
-    # Pass the strong runtime secrets as compose interpolation env so
-    # ${POSTGRES_PASSWORD}/${REDIS_PASSWORD}/${MINIO_ROOT_PASSWORD} resolve to the
-    # real values (not the weak :-defaults baked in the template).
+    # Strong runtime secrets passed as compose interpolation env so
+    # ${POSTGRES_PASSWORD}/… resolve to the real values (not the weak defaults).
     runtime_env = es.load_runtime_env(SECRETS_FILE)
-    rc = run_compose(compose_cmd("up", "-d", "--build"), env_extra=runtime_env)
+
+    # ---- Staged bring-up (the app tier needs creds the bootstrap mints) ----
+    # 1) data-plane only  2) bootstrap (mints facil_app/SA/AppRole -> state)
+    # 3) render the backend env from that state  4) app tier (db-init + backend).
+    data_plane = ["redis"]
+    if cfg.docker_local.database_mode == "local":
+        data_plane.append("postgres")
+    if cfg.storage.provider == "minio":
+        data_plane.append("minio")
+    if cfg.secrets.provider == "openbao":
+        data_plane.append("openbao")
+
+    print("\n=== Starting data-plane ===")
+    rc = run_compose(compose_cmd("up", "-d", "--build", *data_plane),
+                     env_extra=runtime_env)
     if rc != 0:
-        print(f"ERROR: docker compose up failed (exit {rc})", file=sys.stderr)
+        print(f"ERROR: data-plane up failed (exit {rc})", file=sys.stderr)
         return 2
 
-    # ---- Data-plane bootstrap (provisioning) ----
-    # Turns "containers up" into "data-plane usable": MinIO bucket + scoped SA,
-    # OpenBao kv/policy/AppRole, Postgres extensions. Idempotent + mode-aware
-    # (consumes storage.provider / secrets.provider). Non-fatal on failure: the
-    # stack stays up and the operator can re-run run_bootstrap.py --apply.
     if not no_bootstrap:
         _run_bootstrap(cfg)
     else:
-        print("\n[INFO] --no-bootstrap: skipped data-plane provisioning. "
-              "Run later with: python deploy/providers/run_bootstrap.py --apply")
+        print("\n[INFO] --no-bootstrap: skipped data-plane provisioning.")
+
+    # Render packages/backend/.env.deploy.gen (DATABASE_URL = facil_app) from the
+    # bootstrap state, then bring up the app tier — only if it's present.
+    backend_ctx = REPO_ROOT / "packages" / "backend"
+    if backend_ctx.exists():
+        print("\n=== Rendering backend env + starting app tier ===")
+        subprocess.run(
+            [sys.executable, str(SCRIPTS_DIR / "render_backend_env.py")],
+            cwd=REPO_ROOT, check=False)
+        rc = run_compose(compose_cmd("up", "-d", "--build", "db-init", "backend"),
+                         env_extra=runtime_env)
+        if rc != 0:
+            print(f"[WARN] app tier up failed (exit {rc}) — data-plane is up; "
+                  f"fix and re-run.", file=sys.stderr)
+    else:
+        print("\n[INFO] packages/backend absent — app tier skipped (data-plane only).")
 
     print("\n[OK] Stack up. Inspect:")
     print(f"  docker compose -f {COMPOSE_FILE.name} ps")
     print(f"  docker compose -f {COMPOSE_FILE.name} logs -f")
     print(f"  Backend:  http://localhost:{cfg.docker_local.backend_port}")
     print(f"  Frontend: http://localhost:{cfg.docker_local.frontend_port}")
-    print("\n[INFO] Optional scaffolded services (OFF by default — opt-in per profile):")
+    print("\n[INFO] Optional profile-gated services (OFF by default, opt-in per profile):")
+    print(f"  docker compose -f {COMPOSE_FILE.name} --profile web up -d            "
+          f"# Frontend (Next.js) -> http://localhost:{cfg.docker_local.frontend_port}")
     print(f"  docker compose -f {COMPOSE_FILE.name} --profile edge up -d           "
-          f"# Caddy single-origin → http://localhost:{cfg.edge.http_port}")
+          f"# Caddy single-origin -> http://localhost:{cfg.edge.http_port}")
     print(f"  docker compose -f {COMPOSE_FILE.name} --profile auth up -d            "
-          f"# Keycloak → http://localhost:{cfg.auth.keycloak.http_port}")
+          f"# Keycloak -> http://localhost:{cfg.auth.keycloak.http_port}")
     print(f"  docker compose -f {COMPOSE_FILE.name} --profile observability up -d   "
-          f"# Grafana → http://localhost:{cfg.observability.grafana_port}")
+          f"# Grafana -> http://localhost:{cfg.observability.grafana_port}")
     return 0
 
 

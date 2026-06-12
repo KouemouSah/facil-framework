@@ -110,12 +110,13 @@ class TestGenerateCompose:
         parsed = yaml.safe_load(out)
         assert "version" not in parsed
 
-    def test_db_init_runs_init_database_script(self, cfg: vc.DeployConfig) -> None:
+    def test_db_init_runs_alembic_migrations(self, cfg: vc.DeployConfig) -> None:
         out = dl.generate_compose(cfg)
         parsed = yaml.safe_load(out)
         db_init = parsed["services"]["db-init"]
-        # Must run init_database.py (not just any python command).
-        assert "init_database.py" in " ".join(db_init["command"])
+        # Migrations run via Alembic (as the superuser; DATABASE_URL inline).
+        assert " ".join(db_init["command"]) == "alembic upgrade head"
+        assert "DATABASE_URL" in db_init["environment"]
         # Must NOT auto-restart (it's a one-shot bootstrap).
         assert db_init["restart"] == "no"
         # Must wait for postgres healthcheck.
@@ -224,13 +225,18 @@ class TestDatabaseModeExternal:
     def test_local_mode_inlines_database_url(
         self, cfg: vc.DeployConfig
     ) -> None:
-        """In local mode, DATABASE_URL must be inlined pointing at the in-stack
-        postgres service hostname."""
+        """In local mode, db-init (migrations) gets DATABASE_URL inlined at the
+        in-stack postgres (as the superuser). The BACKEND instead receives its
+        facil_app DATABASE_URL from packages/backend/.env.deploy.gen (so it is
+        NOT inlined in the backend environment)."""
         out = dl.generate_compose(cfg)
         parsed = yaml.safe_load(out)
-        backend_env = parsed["services"]["backend"]["environment"]
-        assert "DATABASE_URL" in backend_env
-        assert "@postgres:5432" in backend_env["DATABASE_URL"]
+        db_init_env = parsed["services"]["db-init"]["environment"]
+        assert "DATABASE_URL" in db_init_env
+        assert "@postgres:5432" in db_init_env["DATABASE_URL"]
+        # Backend connects as least-privilege facil_app via the rendered env_file.
+        backend_env = parsed["services"]["backend"].get("environment", {}) or {}
+        assert "DATABASE_URL" not in backend_env
 
     def test_local_mode_keeps_postgres_service(
         self, cfg: vc.DeployConfig
@@ -318,9 +324,11 @@ class TestScaffoldedProfileServices:
     def test_base_services_have_no_profile(self, cfg: vc.DeployConfig) -> None:
         """Core services must remain un-gated (start on plain `up`)."""
         svcs = yaml.safe_load(dl.generate_compose(cfg))["services"]
-        for name in ("postgres", "redis", "backend", "frontend", "db-init"):
+        # frontend is profile-gated (`web`, OFF until D5); the rest are core.
+        for name in ("postgres", "redis", "backend", "db-init"):
             assert "profiles" not in svcs[name], \
                 f"{name} must NOT be profile-gated (it's a core service)"
+        assert svcs["frontend"]["profiles"] == ["web"]
 
     def test_caddy_mounts_generated_caddyfile(self, cfg: vc.DeployConfig) -> None:
         svcs = yaml.safe_load(dl.generate_compose(cfg))["services"]
