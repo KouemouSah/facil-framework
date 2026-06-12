@@ -312,7 +312,7 @@ Ces BPMN servent **3 audiences** :
 2. **Agents IA marketing** : générer du content explicatif (vidéos, blog posts)
 3. **Operators / clients potentiels** : comprendre comment Facil fonctionne sans creuser le code
 
-Si vous éditez un diagramme : tester le rendu Mermaid sur https://mermaid.live avant commit.
+Si vous éditez un diagramme : tester le rendu Mermaid sur <https://mermaid.live> avant commit.
 
 Format BPMN 2.0 strict (XML) **non utilisé** ici car :
 - Mermaid est lisible et versionnable

@@ -72,7 +72,7 @@ Cloné en snapshot du déploiement concret **TaxasGE** (Guinée Équatoriale gov
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                    Customization Studio (UI)                │
 │   Branding · Langues · RBAC · Taxonomies · Catalog ·        │
@@ -260,7 +260,7 @@ Voir [CONTRIBUTING.md](CONTRIBUTING.md) pour le guide complet (branching, conven
 
 Tout SaaS hébergeur de modifications doit publier son code source sous AGPL également.
 
-Pour un usage commercial sans contrainte AGPL, voir le tier **Facil Enterprise** (futur, contact : kouemou.sah@gmail.com).
+Pour un usage commercial sans contrainte AGPL, voir le tier **Facil Enterprise** (futur, contact : <kouemou.sah@gmail.com>).
 
 ---
 

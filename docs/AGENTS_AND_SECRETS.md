@@ -36,7 +36,7 @@ This document describes the AI agent workflows configured for Facil Framework. *
 
 ## Available models
 
-Browse all: https://github.com/marketplace?type=models
+Browse all: <https://github.com/marketplace?type=models>
 
 | Model ID | Provider | Best for |
 |----------|----------|----------|
@@ -146,7 +146,7 @@ No new secrets needed — `GITHUB_TOKEN` + `models: read` permission covers all 
 
 The `/agents` tab on the repo is a separate paid feature.
 
-- URL: https://github.com/KouemouSah/facil-framework/agents
+- URL: <https://github.com/KouemouSah/facil-framework/agents>
 - Requires: **Copilot Pro subscription ($10/month)** or higher
 - How it works: assign an issue to "Copilot" → it creates a draft PR with proposed changes
 - **Trade-offs vs the custom GitHub Models workflows above:**
@@ -187,7 +187,7 @@ A fine-grained PAT would be needed only if:
 - API rate limit issues (rare for solo dev)
 - Acting as a different identity than `github-actions[bot]`
 
-Create a fine-grained PAT at https://github.com/settings/tokens?type=beta with minimal scopes if needed later.
+Create a fine-grained PAT at <https://github.com/settings/tokens?type=beta> with minimal scopes if needed later.
 
 ## Variables (non-secret config)
 

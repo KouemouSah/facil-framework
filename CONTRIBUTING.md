@@ -6,7 +6,7 @@ Thank you for your interest in contributing to Facil Framework. This document ex
 
 ## Code of Conduct
 
-This project adheres to the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Report unacceptable behavior to kouemou.sah@gmail.com.
+This project adheres to the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Report unacceptable behavior to <kouemou.sah@gmail.com>.
 
 ## License
 
@@ -49,7 +49,7 @@ Use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.yml). 
 
 Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
-```
+```text
 <type>(<scope>): <subject>
 
 <body>
@@ -60,7 +60,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`.
 
 Example:
-```
+```text
 feat(workflows): add JSON import endpoint
 
 Adds /api/v1/customize/workflows/import for Studio Designer round-trip.

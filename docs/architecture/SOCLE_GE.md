@@ -180,7 +180,7 @@ Appliquer dans l'ordre — du moins cher au plus structurant. **Mesurer avant d'
 
 ## 6. Chaîne build → déploiement (souveraine)
 
-```
+```text
 Dev (Docker Desktop, Bash docker buildx) ──► test local k3s/compose
                                               │
 Push branche ──► GitHub Actions (docker-publish.yml)

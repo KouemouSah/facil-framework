@@ -126,14 +126,7 @@ jobs:
           globs: |
             *.md
             docs/**/*.md
-          config: |
-            {
-              "default": true,
-              "MD013": false,
-              "MD033": false,
-              "MD041": false,
-              "MD024": false
-            }
+          config: .markdownlint-cli2.jsonc
 
   # ---------------------------------------------------------------------------
   # No secrets check : scan for accidentally committed secrets

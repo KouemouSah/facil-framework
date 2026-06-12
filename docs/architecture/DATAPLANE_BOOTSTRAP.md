@@ -24,7 +24,7 @@ de configuration déjà présent (`storage.provider`, `secrets.provider`,
 `docker_local.database_mode`) : le même code sert on-prem / cloud / SaaS, c'est
 la **config** qui décide ce qui s'exécute.
 
-```
+```text
 deploy/providers/bootstrap/
   __init__.py        dispatcher mode-aware + orchestrateur + CLI (--plan/--apply/--only)
   context.py         BootstrapContext (cfg, réseau, dry_run) injecté à chaque provisioner
@@ -38,7 +38,7 @@ deploy/providers/bootstrap/
 
 ### Flux
 
-```
+```text
 docker_local.py --apply
    ├─ render_env + génère docker-compose.local.yml
    ├─ docker compose up -d --build

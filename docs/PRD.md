@@ -167,7 +167,7 @@ Indicateurs cibles fin année 2 :
 
 ### 4.2 Module loader (clé de voûte)
 
-```
+```text
 app/main.py boot:
   enabled = settings.MODULES_ENABLED
   for module in enabled:

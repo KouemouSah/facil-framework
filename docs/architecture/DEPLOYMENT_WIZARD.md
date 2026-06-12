@@ -6,7 +6,7 @@
 
 ## 1. Flux
 
-```
+```bash
 python deploy/init.py                 # wizard interactif (ou --non-interactive via WIZ_*)
    └─> deploy/config.yaml + .env.secrets   (validés Pydantic)
 

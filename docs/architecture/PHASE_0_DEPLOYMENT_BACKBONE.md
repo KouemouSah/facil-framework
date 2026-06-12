@@ -36,7 +36,7 @@ tous les providers possibles, mais tous ceux choisis.*
 
 ## 3. Ordre d'installation (bootstrap orchestré)
 
-```
+```text
 [1] Infra services        Postgres, Redis, [Storage], [Inférence], [Secrets], [Proxy]   → health-gated
 [2] Résolution secrets    via SecretsProvider sélectionné                                → env / Docker secrets
 [3] Bootstrap BD          schéma + migrations (db-init, idempotent)                       → exit 0 requis
@@ -96,7 +96,7 @@ Module-loader (active/désactive les modules au boot selon le profil) + **sélec
 
 ## 9. Reséquencement du plan
 
-```
+```text
 Phase 0   Backbone déploiement/install/activation (+ providers auto, storage MinIO)   [CE SPEC]
 Phase 0.5 Config dynamique (Studio minimal : rendre la config opérationnelle/admin)
 Phase 1+  Migration des modules métier depuis legacy/ (auth, users, … un par un)

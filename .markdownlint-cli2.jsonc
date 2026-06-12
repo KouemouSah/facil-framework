@@ -1,0 +1,29 @@
+{
+  // markdownlint-cli2 config (referenced by .github/workflows/ci.yml).
+  // V0 lint intent: catch broken links and obvious errors, not cosmetics.
+  // Rule reference: https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+  "config": {
+    "default": true,
+
+    // --- Substantive checks kept ON ---
+    // MD034 no-bare-urls, MD040 fenced-code-language stay enabled.
+
+    // --- Disabled: line/inline/heading conventions (doc-heavy repo) ---
+    "MD013": false, // line-length: long lines tolerated (tables, URLs)
+    "MD033": false, // inline HTML: allowed (Mermaid blocks, <br/>)
+    "MD041": false, // first-line-heading: not required (front-matter docs)
+    "MD024": false, // duplicate headings: allowed across sections
+    "MD036": false, // emphasis-as-heading: bold lead-ins are intentional
+
+    // --- Disabled: purely cosmetic whitespace / table-alignment rules ---
+    "MD060": false, // table-column-style: pipe alignment is cosmetic
+    "MD032": false, // blanks-around-lists: GitHub renders fine without
+    "MD022": false, // blanks-around-headings: cosmetic
+    "MD031": false, // blanks-around-fences: cosmetic
+    "MD028": false, // no-blanks-blockquote: cosmetic
+    "MD004": false, // ul-style: mixed bullet markers tolerated
+    "MD049": false, // emphasis-style: _ vs * tolerated
+    "MD035": false, // hr-style: horizontal-rule style tolerated
+    "MD029": false  // ol-prefix: ordered-list numbering tolerated
+  }
+}

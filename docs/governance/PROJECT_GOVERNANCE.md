@@ -26,7 +26,7 @@ critères de qualité, traçabilité. Source de vérité pour « comment on trav
 
 **Cycle d'une phase** (gate obligatoire avant la suivante) :
 
-```
+```text
 Plan de phase -> Implémentation -> Tests -> Checklist de validation
    -> Rapport critique honnête -> Auto-correction -> Validation -> Phase suivante
 ```
@@ -52,7 +52,7 @@ critères d'acceptation définis, données/schéma BD vérifiés.
 
 ## 4. Traçabilité
 
-```
+```text
 Décision  -> docs/adr/NNNN
 Roadmap   -> docs/roadmap/INFRA_ROADMAP.md (phases/epics, statut)
 Exécution -> .claude/plans/INFRA_HYBRID_DEPLOY_PLAN.md (checklists working)
