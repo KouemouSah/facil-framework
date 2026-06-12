@@ -30,7 +30,7 @@ def test_build_returns_instance():
 def test_build_unknown_raises():
     r = default_registry()
     with pytest.raises(KeyError):
-        r.build("storage", "minio")
+        r.build("storage", "ftp")   # not registered
 
 
 @pytest.mark.asyncio
@@ -45,3 +45,16 @@ def test_register_custom_factory():
     r = ProviderRegistry()
     r.register("email", "null", lambda config: object())
     assert r.is_registered("email", "null")
+
+
+def test_default_registry_has_sovereign_providers():
+    r = default_registry()
+    assert r.is_registered("secrets", "openbao")
+    assert r.is_registered("storage", "minio")
+
+
+def test_build_sovereign_providers_is_lazy():
+    # Building must NOT connect (no service needed) — just instantiate.
+    r = default_registry()
+    assert r.build("secrets", "openbao", {"addr": "http://x"}).code == "openbao"
+    assert r.build("storage", "minio", {"bucket": "b"}).code == "minio"

@@ -70,6 +70,20 @@ async def put_provider(capability: str, code: str, body: ProviderIn,
     return obj.as_dict()
 
 
+@router.post("/{capability}/{code}/check")
+async def check_provider(capability: str, code: str, request: Request,
+                         session: AsyncSession = Depends(get_session)) -> dict:
+    """Instantiate the provider (with its DB config if any) and run its
+    connectivity healthcheck — real, no mutation."""
+    registry = request.app.state.registry
+    if not registry.is_registered(capability, code):
+        raise HTTPException(404, f"provider {capability}/{code} is not registered")
+    row = await repo.get_provider(session, capability, code)
+    provider = registry.build(capability, code, row.config if row else {})
+    result = await provider.healthcheck()
+    return {"capability": capability, "provider_code": code, **result}
+
+
 @router.post("/{capability}/{code}/default")
 async def set_default(capability: str, code: str,
                       session: AsyncSession = Depends(get_session)) -> dict:

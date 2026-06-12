@@ -48,9 +48,14 @@ class ProviderRegistry:
 
 
 def default_registry() -> ProviderRegistry:
-    """Registry pre-loaded with the built-in (dependency-free) providers."""
+    """Registry pre-loaded with the built-in providers (factories are lazy —
+    nothing connects until a provider is built + used)."""
     from app.core.providers.secrets_env import EnvSecretsProvider
+    from app.core.providers.secrets_openbao import OpenBaoSecretsProvider
+    from app.core.providers.storage_minio import MinIOStorageProvider
 
     r = ProviderRegistry()
     r.register("secrets", "env", lambda config: EnvSecretsProvider(config))
+    r.register("secrets", "openbao", lambda config: OpenBaoSecretsProvider(config))
+    r.register("storage", "minio", lambda config: MinIOStorageProvider(config))
     return r

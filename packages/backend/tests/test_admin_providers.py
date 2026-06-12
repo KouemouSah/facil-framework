@@ -59,3 +59,17 @@ async def test_set_default_missing_404(client):
     ac, _ = client
     assert (await ac.post("/api/v1/admin/providers/llm/ghost/default",
                           headers=AUTH)).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_check_builtin_provider(client):
+    ac, _ = client
+    r = await ac.post("/api/v1/admin/providers/secrets/env/check", headers=AUTH)
+    assert r.status_code == 200 and r.json()["ok"] is True
+
+
+@pytest.mark.asyncio
+async def test_check_unregistered_404(client):
+    ac, _ = client
+    r = await ac.post("/api/v1/admin/providers/storage/ftp/check", headers=AUTH)
+    assert r.status_code == 404

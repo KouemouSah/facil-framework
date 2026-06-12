@@ -19,6 +19,10 @@ class Provider(ABC):
     def __init__(self, config: Mapping[str, Any] | None = None) -> None:
         self.config = dict(config or {})
 
+    async def healthcheck(self) -> dict[str, Any]:
+        """Lightweight connectivity probe. Override per provider."""
+        return {"ok": True, "detail": "no check implemented"}
+
 
 class SecretsProvider(Provider):
     capability = "secrets"
