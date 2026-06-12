@@ -21,6 +21,7 @@ async def client(tmp_path, monkeypatch):
 
     from app.config_store import repository as repo
     from app.config_store.resolver import ConfigResolver
+    from app.core.providers.registry import default_registry
     from app.db.base import Base
     from app.db.engine import Database
     from app.main import app
@@ -33,6 +34,7 @@ async def client(tmp_path, monkeypatch):
     async with db.session_factory() as s:
         resolver.set_db(await repo.active_map(s))
     app.state.resolver = resolver
+    app.state.registry = default_registry()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:

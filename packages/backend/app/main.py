@@ -13,10 +13,11 @@ import os
 from fastapi import FastAPI, Response, status
 from sqlalchemy import text
 
-from app.api import admin_settings
+from app.api import admin_providers, admin_settings
 from app.config import get_settings
 from app.config_store import repository as repo
 from app.config_store.resolver import ConfigResolver
+from app.core.providers.registry import default_registry
 from app.db.engine import Database
 
 # Code defaults — the lowest layer of the resolver (overridden by file/DB/env).
@@ -37,6 +38,7 @@ async def lifespan(app: FastAPI):
         async with db.session_factory() as session:
             resolver.set_db(await repo.active_map(session))
     app.state.resolver = resolver
+    app.state.registry = default_registry()
 
     yield
     await db.dispose()
@@ -44,6 +46,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Facil Backend", version="0.1.0", lifespan=lifespan)
 app.include_router(admin_settings.router)
+app.include_router(admin_providers.router)
 
 
 @app.get("/health")

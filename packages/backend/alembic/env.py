@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.config import get_settings  # noqa: E402
 from app.db.base import Base  # noqa: E402
 import app.models.setting  # noqa: E402,F401  (register the Setting model)
+import app.models.provider  # noqa: E402,F401  (register the ProviderSetting model)
 
 config = context.config
 if config.config_file_name is not None:
