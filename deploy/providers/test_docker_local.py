@@ -101,7 +101,7 @@ class TestGenerateCompose:
         # present in the file but OFF by default (see TestScaffoldedProfileServices).
         assert set(parsed["services"].keys()) == {
             "postgres", "redis", "minio", "db-init", "backend", "frontend",
-            "caddy", "keycloak", "otel-lgtm", "ollama",
+            "caddy", "keycloak", "otel-lgtm", "ollama", "smtp4dev",
         }
 
     def test_no_deprecated_version_field(self, cfg: vc.DeployConfig) -> None:
@@ -321,6 +321,7 @@ class TestScaffoldedProfileServices:
         assert svcs["keycloak"]["profiles"] == ["auth"]
         assert svcs["otel-lgtm"]["profiles"] == ["observability"]
         assert svcs["ollama"]["profiles"] == ["ai"]
+        assert svcs["smtp4dev"]["profiles"] == ["mail"]
 
     def test_base_services_have_no_profile(self, cfg: vc.DeployConfig) -> None:
         """Core services must remain un-gated (start on plain `up`)."""
@@ -339,6 +340,13 @@ class TestScaffoldedProfileServices:
         assert ollama["profiles"] == ["ai"]
         assert any("facil_ollama:" in v for v in ollama["volumes"])
         assert svcs["backend"]["environment"]["OLLAMA_ENDPOINT"] == "http://ollama:11434"
+
+    def test_smtp4dev_scaffold_and_backend_wiring(self, cfg: vc.DeployConfig) -> None:
+        """smtp4dev is profile-gated `mail`; backend is wired to reach it."""
+        svcs = yaml.safe_load(dl.generate_compose(cfg))["services"]
+        assert svcs["smtp4dev"]["profiles"] == ["mail"]
+        env = svcs["backend"]["environment"]
+        assert env["SMTP_HOST"] == "smtp4dev" and env["SMTP_PORT"] == "25"
 
     def test_caddy_mounts_generated_caddyfile(self, cfg: vc.DeployConfig) -> None:
         svcs = yaml.safe_load(dl.generate_compose(cfg))["services"]

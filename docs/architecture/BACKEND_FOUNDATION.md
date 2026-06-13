@@ -91,6 +91,11 @@ flowchart TB
   jamais dans l'image (ADR-0002).
 - **`llm/openai_compat`** : tout endpoint OpenAI-compatible (vLLM, Docker Model
   Runner, API managée) ; clé Bearer injectée par le routeur (jamais en config jsonb).
+- **`email/smtp`** : `smtplib` (stdlib) enveloppé `asyncio.to_thread` (patron MinIO,
+  zéro dépendance ajoutée) ; STARTTLS optionnel ; mot de passe injecté (jamais en jsonb).
+  Validé live contre `smtp4dev` (profil `mail`).
+- **`email/sendgrid`** : API v3 (`/mail/send` + `/scopes` healthcheck) httpx pur ;
+  clé API injectée (fallback env).
 
 ### Routing LLM par rôle (W6)
 
@@ -150,8 +155,9 @@ curl -X POST -H "X-Admin-Token: $TOKEN" \
 
 - ✅ **Fait + live** : config-store, résolveur, registre, providers OpenBao secrets
   & MinIO storage, **LLM Ollama + openai_compat + routing par rôle** (validé live
-  contre un vrai Ollama), jonction `docker_local --apply`, Alembic.
-- ⏳ **À venir** : providers email (SMTP/Sendgrid, profil `mail`), auth — réels mais
-  non live-testables sans leur backing ; **D3** Module Loader · **D4** auth complète
-  (remplace la garde token) · **D5** frontend (panneau admin + installeur web).
+  contre un vrai Ollama), **email SMTP + Sendgrid** (SMTP validé live contre smtp4dev),
+  jonction `docker_local --apply`, Alembic.
+- ⏳ **À venir** : provider auth — réel mais lié à **D4** (remplace la garde token) ;
+  **D3** Module Loader · **D5** frontend (panneau admin + installeur web) ; payment au
+  portage du module (brancher `GatewayServiceBase` legacy BANGE/MTN/Orange).
 - Le legacy (150 tables, 32 modules) reste parqué — portage incrémental.
