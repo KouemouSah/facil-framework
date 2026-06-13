@@ -21,12 +21,14 @@ async def client(tmp_path, monkeypatch):
 
     from app.config_store import repository as repo
     from app.config_store.resolver import ConfigResolver
+    from app.core.module_registry import import_module_models
     from app.core.providers.llm_router import LLMRouter
     from app.core.providers.registry import default_registry
     from app.db.base import Base
     from app.db.engine import Database
     from app.main import app
 
+    import_module_models()  # register module tables before create_all
     db = Database(f"sqlite+aiosqlite:///{tmp_path/'test.db'}")
     async with db.engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

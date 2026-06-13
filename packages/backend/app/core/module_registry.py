@@ -50,6 +50,25 @@ def discover(package: str = DEFAULT_PACKAGE) -> list[str]:
     return sorted(m.name for m in pkgutil.iter_modules(paths) if m.ispkg)
 
 
+def import_module_models(package: str = DEFAULT_PACKAGE) -> list[str]:
+    """Import every module's `models` submodule so its tables register on the
+    shared Base — REGARDLESS of MODULES_ENABLED. Module *tables* always exist in
+    the DB (Alembic / create_all); only the *router* is conditional (R1). Called
+    by alembic/env.py and the test setup. Returns the modules whose models loaded.
+    """
+    imported: list[str] = []
+    for name in discover(package):
+        models_mod = f"{package}.{name}.models"
+        try:
+            importlib.import_module(models_mod)
+            imported.append(name)
+        except ModuleNotFoundError as e:
+            if e.name == models_mod:
+                continue  # module simply has no models (e.g. system) — fine
+            raise  # a real import error inside the module's models
+    return imported
+
+
 def _is_present(name: str, package: str) -> bool:
     try:
         return importlib.util.find_spec(f"{package}.{name}") is not None

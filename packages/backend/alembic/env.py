@@ -13,9 +13,14 @@ from sqlalchemy.ext.asyncio import create_async_engine
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.config import get_settings  # noqa: E402
+from app.core.module_registry import import_module_models  # noqa: E402
 from app.db.base import Base  # noqa: E402
 import app.models.setting  # noqa: E402,F401  (register the Setting model)
 import app.models.provider  # noqa: E402,F401  (register the ProviderSetting model)
+
+# Register every business module's tables (regardless of MODULES_ENABLED) so
+# autogenerate sees them — tables always exist; only routers are conditional.
+import_module_models()
 
 config = context.config
 if config.config_file_name is not None:
