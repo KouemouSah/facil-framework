@@ -17,6 +17,7 @@ from app.api import admin_providers, admin_settings
 from app.config import get_settings
 from app.config_store import repository as repo
 from app.config_store.resolver import ConfigResolver
+from app.core.module_registry import enabled_from_env, load_modules
 from app.core.providers.llm_router import LLMRouter
 from app.core.providers.registry import default_registry
 from app.db.engine import Database
@@ -47,8 +48,12 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Facil Backend", version="0.1.0", lifespan=lifespan)
+# Core (always-on) routers — config-store + provider registry admin.
 app.include_router(admin_settings.router)
 app.include_router(admin_providers.router)
+# Business modules — included only if listed in MODULES_ENABLED (Phase A.5).
+# Not-yet-ported modules are skipped (warned); present-but-broken ones fail closed.
+load_modules(app, enabled=enabled_from_env())
 
 
 @app.get("/health")

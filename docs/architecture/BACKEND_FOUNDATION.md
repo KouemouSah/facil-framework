@@ -48,6 +48,7 @@ flowchart TB
 | `models/provider.py` | table `provider_settings` (généralise `communication_provider_settings`) |
 | `config_store/{resolver,repository}.py` | résolveur en couches + CRUD settings |
 | `core/providers/{base,registry,repository}.py` | ABCs + `ProviderRegistry` + CRUD provider_settings |
+| `core/module_registry.py` | Module Loader (A.5) : `MODULES_ENABLED` → include conditionnel `app.modules.<name>.api:router` |
 | `core/providers/{secrets_env,secrets_openbao,storage_minio}.py` | providers concrets |
 | `security/admin_token.py` | garde token bootstrap (`X-Admin-Token`, fail-closed) |
 | `api/{admin_settings,admin_providers,deps}.py` | routes admin |
@@ -108,6 +109,25 @@ via le `SecretsProvider` (`resolve_secret`, fallback env). Défauts **split souv
 un knob (prod = services séparés ; dev contraint = un seul service Ollama).
 Admin : `GET /api/v1/admin/providers/llm/routing` + `POST .../llm/routing/check`.
 
+### Module Loader (D3, Phase A.5)
+
+`core/module_registry.py` — `load_modules(app, enabled, package="app.modules")`
+inclut **uniquement** les routers des modules listés dans `MODULES_ENABLED`
+(rendu depuis `modules.enabled` W6). Convention : un module = package
+`app.modules.<name>` exposant `api:router` (`APIRouter`) ; layout cible
+`api/ models/ services/ handlers/`. Deux modes d'échec distincts (réalité du
+portage incrémental) : un module **absent** (profil le liste mais pas encore
+porté) → **WARN + skip** (le backend démarre quand même) ; un module **présent
+mais cassé** (pas d'`api` / pas de `router`) → **`ModuleLoadError`** au boot (vrai
+bug). Les routers **cœur** (`admin_settings`, `admin_providers`) restent inclus
+explicitement (ce ne sont pas des modules métier).
+
+Premier vrai module livré : **`system`** (`/api/v1/modules/system/info` —
+branding + version + modules enabled/available ; consommé par l'installeur D5),
+**OFF par défaut**, sert aussi de **template de référence**. Le chemin de prod est
+testé en réel (chargement du vrai `app.modules.system`) ; les cas d'échec via des
+packages-fixtures (`tests/sample_modules/`).
+
 ## 5. Jonction deploy↔app (D1.5)
 
 `docker_local --apply` est **staged** :
@@ -157,7 +177,9 @@ curl -X POST -H "X-Admin-Token: $TOKEN" \
   & MinIO storage, **LLM Ollama + openai_compat + routing par rôle** (validé live
   contre un vrai Ollama), **email SMTP + Sendgrid** (SMTP validé live contre smtp4dev),
   jonction `docker_local --apply`, Alembic.
+- ✅ **D3 Module Loader** : `MODULES_ENABLED` → include conditionnel (fail-closed),
+  prouvé par fixtures ; `app/modules/` vide jusqu'au portage.
 - ⏳ **À venir** : provider auth — réel mais lié à **D4** (remplace la garde token) ;
-  **D3** Module Loader · **D5** frontend (panneau admin + installeur web) ; payment au
-  portage du module (brancher `GatewayServiceBase` legacy BANGE/MTN/Orange).
+  **D5** frontend (panneau admin + installeur web) ; payment au portage du module
+  (brancher `GatewayServiceBase` legacy BANGE/MTN/Orange).
 - Le legacy (150 tables, 32 modules) reste parqué — portage incrémental.
