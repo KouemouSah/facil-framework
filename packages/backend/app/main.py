@@ -17,6 +17,7 @@ from app.api import admin_providers, admin_settings
 from app.config import get_settings
 from app.config_store import repository as repo
 from app.config_store.resolver import ConfigResolver
+from app.core.providers.llm_router import LLMRouter
 from app.core.providers.registry import default_registry
 from app.db.engine import Database
 
@@ -39,6 +40,7 @@ async def lifespan(app: FastAPI):
             resolver.set_db(await repo.active_map(session))
     app.state.resolver = resolver
     app.state.registry = default_registry()
+    app.state.llm_router = LLMRouter(resolver, app.state.registry)
 
     yield
     await db.dispose()

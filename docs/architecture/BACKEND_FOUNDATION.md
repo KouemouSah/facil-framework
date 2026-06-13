@@ -86,6 +86,22 @@ flowchart TB
 - **`storage/minio`** : S3 **put/get/delete** via le **SA scopé** (boto3 path-style,
   `asyncio.to_thread`).
 - **`secrets/env`** : lit l'environnement (défaut dev).
+- **`llm/ollama`** : inférence souveraine locale (`/api/chat` + `/api/embed` +
+  `/api/tags` healthcheck). Modèle = service séparé profil `ai`, poids en volume,
+  jamais dans l'image (ADR-0002).
+- **`llm/openai_compat`** : tout endpoint OpenAI-compatible (vLLM, Docker Model
+  Runner, API managée) ; clé Bearer injectée par le routeur (jamais en config jsonb).
+
+### Routing LLM par rôle (W6)
+
+`LLMRouter` (exposé `app.state.llm_router`) lit `ai.routing` (rôle → nom) et
+`ai.providers` (nom → `{kind, endpoint, model, api_key_secret}`) du config-store ;
+`get_for_role(role, session)` construit le provider et résout `api_key_secret`
+via le `SecretsProvider` (`resolve_secret`, fallback env). Défauts **split souverain**
+(cf. mémoire stack IA) : `public_chat → gemma4:e4b` · `agent_backend → gemma4:12b`
+(+ fallback API managée) · `embedding → embeddinggemma`. La topologie physique est
+un knob (prod = services séparés ; dev contraint = un seul service Ollama).
+Admin : `GET /api/v1/admin/providers/llm/routing` + `POST .../llm/routing/check`.
 
 ## 5. Jonction deploy↔app (D1.5)
 
@@ -133,8 +149,9 @@ curl -X POST -H "X-Admin-Token: $TOKEN" \
 ## 7. Statut & limites (honnête)
 
 - ✅ **Fait + live** : config-store, résolveur, registre, providers OpenBao secrets
-  & MinIO storage, jonction `docker_local --apply`, Alembic.
-- ⏳ **À venir** : providers LLM (Ollama/openai), email (SMTP), auth — réels mais
+  & MinIO storage, **LLM Ollama + openai_compat + routing par rôle** (validé live
+  contre un vrai Ollama), jonction `docker_local --apply`, Alembic.
+- ⏳ **À venir** : providers email (SMTP/Sendgrid, profil `mail`), auth — réels mais
   non live-testables sans leur backing ; **D3** Module Loader · **D4** auth complète
   (remplace la garde token) · **D5** frontend (panneau admin + installeur web).
 - Le legacy (150 tables, 32 modules) reste parqué — portage incrémental.

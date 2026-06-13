@@ -50,6 +50,8 @@ class ProviderRegistry:
 def default_registry() -> ProviderRegistry:
     """Registry pre-loaded with the built-in providers (factories are lazy —
     nothing connects until a provider is built + used)."""
+    from app.core.providers.llm_ollama import OllamaLLMProvider
+    from app.core.providers.llm_openai_compat import OpenAICompatLLMProvider
     from app.core.providers.secrets_env import EnvSecretsProvider
     from app.core.providers.secrets_openbao import OpenBaoSecretsProvider
     from app.core.providers.storage_minio import MinIOStorageProvider
@@ -58,4 +60,6 @@ def default_registry() -> ProviderRegistry:
     r.register("secrets", "env", lambda config: EnvSecretsProvider(config))
     r.register("secrets", "openbao", lambda config: OpenBaoSecretsProvider(config))
     r.register("storage", "minio", lambda config: MinIOStorageProvider(config))
+    r.register("llm", "ollama", lambda config: OllamaLLMProvider(config))
+    r.register("llm", "openai_compat", lambda config: OpenAICompatLLMProvider(config))
     return r

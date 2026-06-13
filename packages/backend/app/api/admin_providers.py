@@ -42,6 +42,22 @@ async def list_registered(request: Request) -> list[dict]:
             for c, k in request.app.state.registry.registered]
 
 
+@router.get("/llm/routing")
+async def get_llm_routing(request: Request) -> dict:
+    """Resolved role->provider routing + named providers (W6 ai.routing /
+    ai.providers, with the sovereign split defaults when unset)."""
+    router_ = request.app.state.llm_router
+    return {"routing": router_.routing(), "providers": router_.providers()}
+
+
+@router.post("/llm/routing/check")
+async def check_llm_routing(request: Request,
+                            session: AsyncSession = Depends(get_session)) -> dict:
+    """Resolve every routed role to its concrete provider and probe it (real
+    healthcheck, no mutation) — live validation of the routing layer."""
+    return await request.app.state.llm_router.healthcheck(session)
+
+
 @router.get("/")
 async def list_providers(capability: str | None = None,
                          session: AsyncSession = Depends(get_session)) -> list[dict]:

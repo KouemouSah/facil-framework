@@ -50,6 +50,13 @@ class LLMProvider(Provider):
     @abstractmethod
     async def chat(self, messages: list[dict], **kw: Any) -> str: ...
 
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        """Return one embedding vector per input text. Override in providers
+        that serve an embedding model (ollama, openai_compat). Chat-only
+        providers (e.g. a managed chat API) may leave this unimplemented."""
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement embeddings")
+
 
 class EmailProvider(Provider):
     capability = "email"

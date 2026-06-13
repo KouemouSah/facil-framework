@@ -101,7 +101,7 @@ class TestGenerateCompose:
         # present in the file but OFF by default (see TestScaffoldedProfileServices).
         assert set(parsed["services"].keys()) == {
             "postgres", "redis", "minio", "db-init", "backend", "frontend",
-            "caddy", "keycloak", "otel-lgtm",
+            "caddy", "keycloak", "otel-lgtm", "ollama",
         }
 
     def test_no_deprecated_version_field(self, cfg: vc.DeployConfig) -> None:
@@ -320,6 +320,7 @@ class TestScaffoldedProfileServices:
         assert svcs["caddy"]["profiles"] == ["edge"]
         assert svcs["keycloak"]["profiles"] == ["auth"]
         assert svcs["otel-lgtm"]["profiles"] == ["observability"]
+        assert svcs["ollama"]["profiles"] == ["ai"]
 
     def test_base_services_have_no_profile(self, cfg: vc.DeployConfig) -> None:
         """Core services must remain un-gated (start on plain `up`)."""
@@ -329,6 +330,15 @@ class TestScaffoldedProfileServices:
             assert "profiles" not in svcs[name], \
                 f"{name} must NOT be profile-gated (it's a core service)"
         assert svcs["frontend"]["profiles"] == ["web"]
+
+    def test_ollama_scaffold_and_backend_wiring(self, cfg: vc.DeployConfig) -> None:
+        """Ollama is profile-gated `ai`, persists weights in facil_ollama, and
+        the backend is wired to reach it (degrades cleanly when profile is OFF)."""
+        svcs = yaml.safe_load(dl.generate_compose(cfg))["services"]
+        ollama = svcs["ollama"]
+        assert ollama["profiles"] == ["ai"]
+        assert any("facil_ollama:" in v for v in ollama["volumes"])
+        assert svcs["backend"]["environment"]["OLLAMA_ENDPOINT"] == "http://ollama:11434"
 
     def test_caddy_mounts_generated_caddyfile(self, cfg: vc.DeployConfig) -> None:
         svcs = yaml.safe_load(dl.generate_compose(cfg))["services"]
@@ -344,7 +354,8 @@ class TestScaffoldedProfileServices:
 
     def test_scaffold_volumes_declared(self, cfg: vc.DeployConfig) -> None:
         volumes = yaml.safe_load(dl.generate_compose(cfg)).get("volumes") or {}
-        for v in ("facil_caddy_data", "facil_caddy_config", "facil_otel_lgtm"):
+        for v in ("facil_caddy_data", "facil_caddy_config", "facil_otel_lgtm",
+                  "facil_ollama"):
             assert v in volumes, f"{v} must be declared for the scaffolded service"
 
     def test_otel_lgtm_exposes_otlp_and_grafana_ports(

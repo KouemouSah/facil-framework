@@ -21,6 +21,7 @@ async def client(tmp_path, monkeypatch):
 
     from app.config_store import repository as repo
     from app.config_store.resolver import ConfigResolver
+    from app.core.providers.llm_router import LLMRouter
     from app.core.providers.registry import default_registry
     from app.db.base import Base
     from app.db.engine import Database
@@ -35,6 +36,7 @@ async def client(tmp_path, monkeypatch):
         resolver.set_db(await repo.active_map(s))
     app.state.resolver = resolver
     app.state.registry = default_registry()
+    app.state.llm_router = LLMRouter(resolver, app.state.registry)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
