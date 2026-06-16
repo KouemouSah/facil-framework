@@ -4,3 +4,6 @@
 pytest>=8.0
 pytest-asyncio>=0.23
 aiosqlite>=0.20
+# Deploy bootstrap (OpenBao/PKI provisioning) talks to APIs via `requests`;
+# its tests exercise the real path, so the dep must be present for the suite.
+requests>=2.31

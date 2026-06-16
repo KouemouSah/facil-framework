@@ -13,7 +13,9 @@ PKG = "tests.sample_modules"
 
 
 def _paths(app: FastAPI) -> list[str]:
-    return [r.path for r in app.routes]
+    # Robust across Starlette versions: some route entries (mounts / included
+    # routers) don't expose `.path` — skip them.
+    return [p for r in app.routes if (p := getattr(r, "path", None)) is not None]
 
 
 def test_discover_lists_subpackages():
