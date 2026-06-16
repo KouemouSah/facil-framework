@@ -5,9 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  LayoutDashboard, Building2, MapPin, Users, ShieldCheck, Settings, Search, LogOut,
-} from "lucide-react";
+import { LayoutDashboard, Building2, Search, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/lib/use-session";
@@ -45,13 +43,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     session?.account?.display_name || session?.account?.email ||
     (session?.break_glass ? "Admin" : "");
 
+  // Only routes that exist are shown (no dead nav). locations/agents/roles/
+  // settings are added here as their D5.2 pages land (same table pattern).
   const nav = [
     { href: "/", label: t("dashboard"), icon: LayoutDashboard },
     { href: "/organizations", label: t("organizations"), icon: Building2 },
-    { href: "/locations", label: t("locations"), icon: MapPin },
-    { href: "/agents", label: t("agents"), icon: Users },
-    { href: "/roles", label: t("roles"), icon: ShieldCheck },
-    { href: "/settings", label: t("settings"), icon: Settings },
   ];
 
   return (
