@@ -29,8 +29,12 @@ import sys
 from pathlib import Path
 
 # Runtime secrets that docker compose interpolates into the data-plane services.
+# JWT_SECRET_KEY is the CANONICAL JWT signing-key name across the framework
+# (init.py / secrets manifest / .env.secrets / the backend provider). It used to
+# read JWT_SECRET here, generating a *second*, unrelated secret — fixed so the
+# backend signs with the same key the deploy provisions.
 RUNTIME_SECRETS = ("POSTGRES_PASSWORD", "REDIS_PASSWORD", "MINIO_ROOT_PASSWORD",
-                   "ADMIN_TOKEN", "JWT_SECRET")
+                   "ADMIN_TOKEN", "JWT_SECRET_KEY")
 
 
 def _parse(path: Path) -> dict[str, str]:
