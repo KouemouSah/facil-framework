@@ -1,0 +1,12 @@
+# Next.js / Node
+/node_modules
+/.next
+/out
+/build
+*.tsbuildinfo
+next-env.d.ts
+.env*.local
+.env.deploy.gen
+/coverage
+/playwright-report
+/test-results

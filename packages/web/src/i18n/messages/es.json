@@ -1,0 +1,13 @@
+{
+  "app": { "name": "Facil", "tagline": "Plataforma de servicios digitales" },
+  "nav": {
+    "dashboard": "Panel",
+    "organizations": "Organizaciones",
+    "locations": "Sedes",
+    "agents": "Agentes",
+    "roles": "Roles y acceso",
+    "settings": "Ajustes"
+  },
+  "auth": { "login": "Iniciar sesión", "logout": "Cerrar sesión" },
+  "common": { "search": "Buscar", "loading": "Cargando…", "density": "Densidad" }
+}

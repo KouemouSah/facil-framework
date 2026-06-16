@@ -39,15 +39,16 @@ flowchart TB
 |---|---|---|
 | **Fondation backend** | [`BACKEND_FOUNDATION.md`](BACKEND_FOUNDATION.md) | config-store, résolveur en couches, registre de providers, Module Loader, jonction deploy↔app |
 | **Modules métier** | [`MODULES_ORG_LOCATION.md`](MODULES_ORG_LOCATION.md) | `organization` (entité + unités hiérarchiques) + `location` (sites/branches), scope-site, schéma BD |
-| **Auth & Identité** | [`AUTH_IDENTITY.md`](AUTH_IDENTITY.md) | Account + NIU générique, Credential, JWT/2FA, flux auth |
+| **Auth & Identité** | [`AUTH_IDENTITY.md`](AUTH_IDENTITY.md) | Account + NIU, Credential, JWT/2FA, sessions+rotation, reset/vérif email, idle/single-session, OIDC verify/discovery, fédération, SCIM, cache Redis |
 | **RBAC (autorisation)** | [`AUTH_RBAC.md`](AUTH_RBAC.md) | rôles/permissions, scope org/unit/site, couverture, seeds par profil, enforcement |
 | **Déploiement on-prem** | [`PHASE_0_DEPLOYMENT_BACKBONE.md`](PHASE_0_DEPLOYMENT_BACKBONE.md) · [`DATAPLANE_BOOTSTRAP.md`](DATAPLANE_BOOTSTRAP.md) · [`DEPLOYMENT_WIZARD.md`](DEPLOYMENT_WIZARD.md) | backbone, provisioning data-plane, wizard de config |
 | **Socle / contexte** | [`SOCLE_GE.md`](SOCLE_GE.md) | socle de référence (origine TaxasGE) |
 
 ## ADR (décisions)
 
-`docs/adr/0001…0006` : monolithe modulaire · inférence pluggable (Ollama→vLLM) ·
-secrets (OpenBao+SOPS) · strangler · storage (MinIO) · k3s+PKI.
+`docs/adr/0001…0008` : monolithe modulaire · inférence pluggable (Ollama→vLLM) ·
+secrets (OpenBao+SOPS) · strangler · storage (MinIO) · k3s+PKI · chiffrement at-rest
+(LUKS+OpenBao) · **edge WAF + microsegmentation réseau**.
 
 ## Conventions
 
