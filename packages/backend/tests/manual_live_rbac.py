@@ -64,7 +64,9 @@ def main() -> int:
         rw = c.put(f"{ORG}/{org_a}", headers=bearer, json={"legal_name": "A2"})
         _ok(rw.status_code == 403, f"member (read-only) cannot write A -> {rw.status_code}")
         rl = c.get(f"{ORG}/", headers=bearer)
-        _ok(rl.status_code == 403, f"org-scoped denied GLOBAL list -> {rl.status_code}")
+        ids = {o["id"] for o in rl.json()} if rl.status_code == 200 else set()
+        _ok(rl.status_code == 200 and org_a in ids and org_b not in ids,
+            f"global list scope-filtered (A yes / B no) -> {rl.status_code} {sorted(ids)}")
 
     failed = getattr(_ok, "failed", False)
     print("\nRESULT:", "FAILED" if failed else "ALL PASS")

@@ -74,7 +74,7 @@ async def test_org_scoped_member_is_tenant_isolated(client):
             s, acc.id, "organization.read", Scope(organization_id=org_b.id))
         # member is read-only
         assert not await service.has_permission(
-            s, acc.id, "organization.write", Scope(organization_id=org_a.id))
+            s, acc.id, "organization.update", Scope(organization_id=org_a.id))
 
 
 @pytest.mark.asyncio
@@ -118,17 +118,18 @@ async def test_unit_grant_covers_subtree_only(client):
                          unit_path=child.path)
         in_sib = Scope(organization_id=org.id, org_unit_id=sibling.id,
                        unit_path=sibling.path)
-        assert await service.has_permission(s, acc.id, "organization.write", in_child)
-        assert not await service.has_permission(s, acc.id, "organization.write", in_sib)
+        assert await service.has_permission(s, acc.id, "organization.update", in_child)
+        assert not await service.has_permission(s, acc.id, "organization.update", in_sib)
         # org-level request is broader than a unit grant -> denied
         assert not await service.has_permission(
-            s, acc.id, "organization.write", Scope(organization_id=org.id))
+            s, acc.id, "organization.update", Scope(organization_id=org.id))
 
 
 @pytest.mark.asyncio
 async def test_role_inheritance(client):
     _, db = client
     async with db.session_factory() as s:
+        await seed.sync_permissions(s)  # populate catalog (grant validation)
         parent = await service.create_role(s, code="base", name="Base",
                                             grants=["location.read"])
         childr = await service.create_role(s, code="ext", name="Ext",

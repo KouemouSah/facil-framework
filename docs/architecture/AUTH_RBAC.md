@@ -80,6 +80,32 @@ le joker global `*`, ou le joker ressource `organization.*`. Les grants effectif
 d'un rôle = ses propres codes **+** ceux de ses ancêtres (`parent_id`, garde
 anti-cycle).
 
+## Taxonomie de verbes (`app/rbac/verbs.py`)
+
+Vocabulaire canonique imposé par convention pour que chaque module déclare ses
+permissions `<ressource>.<verbe>` de façon cohérente :
+
+`read · create · update · delete · manage · approve · export · print · assign`
+
+`manage` est le super-verbe (accordé via le joker `<ressource>.*`). Un module ne
+déclare que les verbes qu'il utilise (org/location : read/create/update/delete/export).
+Les grants sont **validés contre le catalogue** (un code inconnu hors `*`/`resource.*`
+est rejeté — fini les fautes de frappe silencieuses).
+
+## Listes scopées (pas de 403 global)
+
+Les `GET` de liste (`/organization/`, `/location/sites`) sont **filtrés par scope** :
+ils renvoient ce que le principal peut lire (liste vide si rien), au lieu de
+`403`-er un utilisateur scopé-org sur la liste globale. Granularité **org** (un
+filtrage unit/site plus fin viendra avec les besoins).
+
+## Protections & audit
+
+- Les rôles **`is_system`** (seedés par profil) sont **protégés** : suppression /
+  ré-attribution de permissions via l'API → `409` (ils appartiennent au seeder).
+- L'API ne crée **jamais** de rôle `is_system` (réservé au seeder).
+- Les attributions enregistrent **`created_by`** (qui a attribué) — piste d'audit.
+
 ## Flux d'enforcement
 
 ```mermaid
@@ -139,8 +165,8 @@ poste métier n'est figé dans le code (corrige les 47 rôles gov hardcodés du 
 | `POST` | `/api/v1/rbac/admin/reseed` | `rbac.manage` |
 
 Les modules `organization` et `location` sont **enforced** : chaque route exige
-`organization.{read,write,delete}` ou `location.{read,write,delete}`, le scope
-étant résolu depuis la requête.
+`organization.{read,create,update,delete}` ou `location.{read,create,update,delete}`,
+le scope étant résolu depuis la requête.
 
 ## Montée en charge
 

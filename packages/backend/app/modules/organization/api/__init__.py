@@ -17,10 +17,12 @@ from app.modules.organization import service
 from app.modules.organization.schemas import (OrganizationCreate,
                                                OrganizationUpdate, OrgUnitCreate,
                                                OrgUnitUpdate)
-from app.security.permission_dep import require_permission
+from app.security.auth_dep import require_auth
+from app.security.permission_dep import require_permission, visible_orgs
 
 _READ = Depends(require_permission("organization.read"))
-_WRITE = Depends(require_permission("organization.write"))
+_CREATE = Depends(require_permission("organization.create"))
+_UPDATE = Depends(require_permission("organization.update"))
 _DELETE = Depends(require_permission("organization.delete"))
 
 router = APIRouter(
@@ -37,12 +39,19 @@ def _http(e: service.OrgError) -> HTTPException:
 
 # --- Organizations -------------------------------------------------------
 
-@router.get("/", dependencies=[_READ])
-async def list_organizations(session: AsyncSession = Depends(get_session)) -> list[dict]:
-    return [o.as_dict() for o in await repo.list_organizations(session)]
+@router.get("/")
+async def list_organizations(principal: dict = Depends(require_auth),
+                             session: AsyncSession = Depends(get_session)) -> list[dict]:
+    # Scope-filtered: returns only the orgs the caller may read (empty if none),
+    # rather than 403-ing an org-scoped user on the global list.
+    visible = await visible_orgs(session, principal, "organization.read")
+    orgs = await repo.list_organizations(session)
+    if visible is None:
+        return [o.as_dict() for o in orgs]
+    return [o.as_dict() for o in orgs if o.id in visible]
 
 
-@router.post("/", status_code=201, dependencies=[_WRITE])
+@router.post("/", status_code=201, dependencies=[_CREATE])
 async def create_organization(body: OrganizationCreate,
                               session: AsyncSession = Depends(get_session)) -> dict:
     try:
@@ -63,7 +72,7 @@ async def get_unit(unit_id: str, session: AsyncSession = Depends(get_session)) -
     return unit.as_dict()
 
 
-@router.put("/units/{unit_id}", dependencies=[_WRITE])
+@router.put("/units/{unit_id}", dependencies=[_UPDATE])
 async def update_unit(unit_id: str, body: OrgUnitUpdate,
                       session: AsyncSession = Depends(get_session)) -> dict:
     try:
@@ -94,7 +103,7 @@ async def get_organization(org_id: str,
     return org.as_dict()
 
 
-@router.put("/{org_id}", dependencies=[_WRITE])
+@router.put("/{org_id}", dependencies=[_UPDATE])
 async def update_organization(org_id: str, body: OrganizationUpdate,
                               session: AsyncSession = Depends(get_session)) -> dict:
     try:
@@ -122,7 +131,7 @@ async def list_units(org_id: str,
     return [u.as_dict() for u in await repo.list_units(session, org_id)]
 
 
-@router.post("/{org_id}/units", status_code=201, dependencies=[_WRITE])
+@router.post("/{org_id}/units", status_code=201, dependencies=[_CREATE])
 async def create_unit(org_id: str, body: OrgUnitCreate,
                       session: AsyncSession = Depends(get_session)) -> dict:
     try:

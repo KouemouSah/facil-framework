@@ -17,7 +17,7 @@ from app.modules.location import service
 from app.modules.location.schemas import SiteCreate, SiteUpdate
 from app.rbac import repository as rbac_repo
 from app.security.auth_dep import require_auth
-from app.security.permission_dep import enforce, require_permission
+from app.security.permission_dep import enforce, require_permission, visible_orgs
 
 _READ = Depends(require_permission("location.read"))
 _DELETE = Depends(require_permission("location.delete"))
@@ -34,14 +34,19 @@ def _http(e: service.LocError) -> HTTPException:
     return HTTPException(_STATUS.get(type(e), 400), str(e))
 
 
-@router.get("/sites", dependencies=[_READ])
+@router.get("/sites")
 async def list_sites(organization_id: str | None = None,
                      org_unit_id: str | None = None,
                      parent_site_id: str | None = None,
+                     principal: dict = Depends(require_auth),
                      session: AsyncSession = Depends(get_session)) -> list[dict]:
+    # Scope-filtered to the orgs the caller may read (org-level granularity).
+    visible = await visible_orgs(session, principal, "location.read")
     sites = await repo.list_sites(session, organization_id=organization_id,
                                   org_unit_id=org_unit_id, parent_site_id=parent_site_id)
-    return [s.as_dict() for s in sites]
+    if visible is None:
+        return [s.as_dict() for s in sites]
+    return [s.as_dict() for s in sites if s.organization_id in visible]
 
 
 @router.post("/sites", status_code=201)
@@ -52,7 +57,7 @@ async def create_site(body: SiteCreate, request: Request,
     scope = await rbac_repo.resolve_scope(
         session, {"organization_id": body.organization_id,
                   "org_unit_id": body.org_unit_id, "site_id": None})
-    await enforce(session, principal, "location.write", scope)
+    await enforce(session, principal, "location.create", scope)
     try:
         site = await service.create_site(session, body)
     except service.LocError as e:
@@ -69,7 +74,7 @@ async def get_site(site_id: str, session: AsyncSession = Depends(get_session)) -
     return site.as_dict()
 
 
-@router.put("/sites/{site_id}", dependencies=[Depends(require_permission("location.write"))])
+@router.put("/sites/{site_id}", dependencies=[Depends(require_permission("location.update"))])
 async def update_site(site_id: str, body: SiteUpdate,
                       session: AsyncSession = Depends(get_session)) -> dict:
     try:

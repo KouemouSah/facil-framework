@@ -34,10 +34,12 @@ async def test_reseed_then_list(client):
 @pytest.mark.asyncio
 async def test_create_set_grants_delete_role(client):
     ac, _ = client
+    await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)  # catalog
     created = await ac.post("/api/v1/rbac/roles", headers=AUTH,
                             json={"code": "auditor", "name": "Auditor",
                                   "grants": ["organization.read"]})
     assert created.status_code == 201
+    assert created.json()["is_system"] is False  # API never mints system roles
     role_id = created.json()["id"]
     # duplicate code in same (global) scope -> 409
     dup = await ac.post("/api/v1/rbac/roles", headers=AUTH,
@@ -48,6 +50,46 @@ async def test_create_set_grants_delete_role(client):
     assert upd.status_code == 200
     assert (await ac.delete(f"/api/v1/rbac/roles/{role_id}", headers=AUTH)
             ).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_unknown_grant_rejected(client):
+    ac, _ = client
+    await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)
+    r = await ac.post("/api/v1/rbac/roles", headers=AUTH,
+                      json={"code": "typo", "name": "Typo",
+                            "grants": ["organisation.raed"]})  # typo'd code
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_system_role_is_protected(client):
+    ac, _ = client
+    await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)
+    roles = (await ac.get("/api/v1/rbac/roles", headers=AUTH)).json()
+    admin_id = next(r["id"] for r in roles if r["code"] == "admin")
+    # cannot delete or re-grant a seeded system role
+    assert (await ac.delete(f"/api/v1/rbac/roles/{admin_id}", headers=AUTH)
+            ).status_code == 409
+    assert (await ac.put(f"/api/v1/rbac/roles/{admin_id}/permissions", headers=AUTH,
+                         json={"codes": ["organization.read"]})).status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_assignment_records_who_assigned(client):
+    ac, db = client
+    await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)
+    roles = (await ac.get("/api/v1/rbac/roles", headers=AUTH)).json()
+    member = next(r["id"] for r in roles if r["code"] == "member")
+    acc = (await ac.post("/api/v1/auth/register",
+                         json={"password": "Sup3rStr0ng!pw", "email": "w@x.com"})).json()
+    assigned = (await ac.post(f"/api/v1/rbac/accounts/{acc['id']}/roles", headers=AUTH,
+                              json={"role_id": member, "organization_id": "org-1"})).json()
+    # created_by is audited (break-glass principal = bootstrap-admin)
+    from app.rbac.models import AccountRole
+    async with db.session_factory() as s:
+        row = await s.get(AccountRole, assigned["id"])
+        assert row.created_by == "bootstrap-admin"
 
 
 @pytest.mark.asyncio

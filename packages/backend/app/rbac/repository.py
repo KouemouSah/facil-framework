@@ -113,6 +113,10 @@ async def list_permissions(session: AsyncSession) -> list[Permission]:
         select(Permission).order_by(Permission.module, Permission.code))).all())
 
 
+async def permission_codes(session: AsyncSession) -> set[str]:
+    return set((await session.scalars(select(Permission.code))).all())
+
+
 # --- Account roles (assignments) -----------------------------------------
 
 async def active_account_roles(session: AsyncSession,

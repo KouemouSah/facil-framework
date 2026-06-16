@@ -63,16 +63,20 @@ async def list_roles(organization_id: str | None = None,
     return [r.as_dict() for r in roles]
 
 
-@router.post("/roles", status_code=201, dependencies=[_MANAGE])
-async def create_role(body: RoleIn,
+@router.post("/roles", status_code=201)
+async def create_role(body: RoleIn, principal: dict = _MANAGE,
                       session: AsyncSession = Depends(get_session)) -> dict:
     try:
         role = await service.create_role(
             session, code=body.code, name=body.name, description=body.description,
-            organization_id=body.organization_id, is_system=body.is_system,
-            parent_id=body.parent_id, grants=body.grants)
+            organization_id=body.organization_id,
+            is_system=False,  # only the profile seeder mints system roles
+            parent_id=body.parent_id, grants=body.grants,
+            created_by=principal.get("sub"))
     except service.RoleExists as e:
         raise HTTPException(409, str(e)) from e
+    except service.InvalidGrant as e:
+        raise HTTPException(422, str(e)) from e
     await session.commit()
     return role.as_dict()
 
@@ -84,6 +88,10 @@ async def set_role_permissions(role_id: str, body: GrantsIn,
         role = await service.set_grants(session, role_id, body.codes)
     except service.RoleNotFound as e:
         raise HTTPException(404, str(e)) from e
+    except service.SystemRoleProtected as e:
+        raise HTTPException(409, str(e)) from e
+    except service.InvalidGrant as e:
+        raise HTTPException(422, str(e)) from e
     await session.commit()
     return {"role_id": role.id, "codes": body.codes}
 
@@ -91,7 +99,11 @@ async def set_role_permissions(role_id: str, body: GrantsIn,
 @router.delete("/roles/{role_id}", dependencies=[_MANAGE])
 async def delete_role(role_id: str,
                       session: AsyncSession = Depends(get_session)) -> dict:
-    if not await repo.delete_role(session, role_id):
+    try:
+        deleted = await service.delete_role(session, role_id)
+    except service.SystemRoleProtected as e:
+        raise HTTPException(409, str(e)) from e
+    if not deleted:
         raise HTTPException(404, f"role '{role_id}' not found")
     await session.commit()
     return {"deleted": role_id}
@@ -105,14 +117,15 @@ async def list_assignments(account_id: str,
     return [a.as_dict() for a in await repo.list_account_roles(session, account_id)]
 
 
-@router.post("/accounts/{account_id}/roles", status_code=201, dependencies=[_MANAGE])
-async def assign_role(account_id: str, body: AssignIn,
+@router.post("/accounts/{account_id}/roles", status_code=201)
+async def assign_role(account_id: str, body: AssignIn, principal: dict = _MANAGE,
                       session: AsyncSession = Depends(get_session)) -> dict:
     try:
         assignment = await service.assign_role(
             session, account_id=account_id, role_id=body.role_id,
             organization_id=body.organization_id, org_unit_id=body.org_unit_id,
-            site_id=body.site_id, expires_at=body.expires_at)
+            site_id=body.site_id, expires_at=body.expires_at,
+            created_by=principal.get("sub"))
     except service.RoleNotFound as e:
         raise HTTPException(404, str(e)) from e
     await session.commit()

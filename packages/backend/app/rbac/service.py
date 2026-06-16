@@ -34,6 +34,14 @@ class RoleExists(RBACError):
     pass
 
 
+class SystemRoleProtected(RBACError):
+    """is_system roles are owned by the profile seeds — not editable/deletable via API."""
+
+
+class InvalidGrant(RBACError):
+    """A grant references a permission code that is not in the catalog."""
+
+
 def _now() -> _dt.datetime:
     return _dt.datetime.now(tz=_dt.timezone.utc)
 
@@ -97,18 +105,53 @@ async def has_permission(session: AsyncSession, account_id: str, perm: str,
     return False
 
 
+async def visible_org_ids(session: AsyncSession, account_id: str,
+                          perm: str) -> set[str] | None:
+    """Org ids the account can exercise `perm` on, for scope-filtered listings.
+
+    Returns None when a global grant applies (sees everything). A unit/site-scoped
+    grant makes its parent organization visible (org-level granularity — finer
+    unit/site list filtering is a later refinement)."""
+    orgs: set[str] = set()
+    for ar in await repo.active_account_roles(session, account_id):
+        if _expired(ar):
+            continue
+        role = await repo.get_role(session, ar.role_id)
+        if role is None or not role.is_active:
+            continue
+        codes = await repo.role_codes(session, await _ancestor_ids(session, role))
+        if not match_permission(perm, codes):
+            continue
+        if ar.organization_id is None:
+            return None  # global grant -> sees all
+        orgs.add(ar.organization_id)
+    return orgs
+
+
 # --- Management ----------------------------------------------------------
+
+async def validate_grants(session: AsyncSession, codes: list[str]) -> None:
+    """Reject grants referencing unknown permission codes. Wildcards (`*`,
+    `<resource>.*`) are always allowed (they are not catalog rows)."""
+    known = await repo.permission_codes(session)
+    unknown = [c for c in codes
+               if c != "*" and not c.endswith(".*") and c not in known]
+    if unknown:
+        raise InvalidGrant(f"unknown permission code(s): {sorted(set(unknown))}")
 
 async def create_role(session: AsyncSession, *, code: str, name: str,
                       description: str | None = None,
                       organization_id: str | None = None, is_system: bool = False,
                       parent_id: str | None = None,
-                      grants: list[str] | None = None) -> Role:
+                      grants: list[str] | None = None,
+                      created_by: str | None = None) -> Role:
     if await repo.get_role_by_code(session, code, organization_id) is not None:
         raise RoleExists(f"role '{code}' already exists in this scope")
+    if grants:
+        await validate_grants(session, grants)
     role = Role(code=code, name=name, description=description,
                 organization_id=organization_id, is_system=is_system,
-                parent_id=parent_id)
+                parent_id=parent_id, created_by=created_by, updated_by=created_by)
     session.add(role)
     await session.flush()
     if grants:
@@ -120,19 +163,35 @@ async def set_grants(session: AsyncSession, role_id: str, codes: list[str]) -> R
     role = await repo.get_role(session, role_id)
     if role is None:
         raise RoleNotFound(f"role '{role_id}' not found")
+    if role.is_system:
+        raise SystemRoleProtected(
+            f"role '{role.code}' is a system role (managed by profile seeds)")
+    await validate_grants(session, codes)
     await repo.set_role_codes(session, role_id, codes)
     return role
+
+
+async def delete_role(session: AsyncSession, role_id: str) -> bool:
+    role = await repo.get_role(session, role_id)
+    if role is None:
+        return False
+    if role.is_system:
+        raise SystemRoleProtected(
+            f"role '{role.code}' is a system role (managed by profile seeds)")
+    return await repo.delete_role(session, role_id)
 
 
 async def assign_role(session: AsyncSession, *, account_id: str, role_id: str,
                       organization_id: str | None = None,
                       org_unit_id: str | None = None, site_id: str | None = None,
-                      expires_at: _dt.datetime | None = None) -> AccountRole:
+                      expires_at: _dt.datetime | None = None,
+                      created_by: str | None = None) -> AccountRole:
     if await repo.get_role(session, role_id) is None:
         raise RoleNotFound(f"role '{role_id}' not found")
     assignment = AccountRole(
         account_id=account_id, role_id=role_id, organization_id=organization_id,
-        org_unit_id=org_unit_id, site_id=site_id, expires_at=expires_at)
+        org_unit_id=org_unit_id, site_id=site_id, expires_at=expires_at,
+        created_by=created_by, updated_by=created_by)
     session.add(assignment)
     await session.flush()
     return assignment

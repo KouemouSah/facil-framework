@@ -2,8 +2,27 @@
 
 from __future__ import annotations
 
+import pytest
+
+from app.rbac import verbs as v
 from app.rbac.scope import Scope, covers, raw_scope_ids
 from app.rbac.service import match_permission
+
+
+# --- verb taxonomy -------------------------------------------------------
+
+def test_verb_perm_composition():
+    assert v.perm("organization", v.UPDATE) == "organization.update"
+    assert v.perm("document", v.PRINT) == "document.print"
+
+
+def test_verb_perm_rejects_unknown():
+    with pytest.raises(ValueError):
+        v.perm("organization", "frobnicate")
+
+
+def test_verbs_include_update_and_print():
+    assert {"update", "print", "export", "approve", "assign"} <= set(v.VERBS)
 
 
 # --- permission matching -------------------------------------------------

@@ -42,3 +42,12 @@ async def enforce(session: AsyncSession, principal: dict, perm: str,
         return
     if not await service.has_permission(session, principal["sub"], perm, scope):
         raise HTTPException(status.HTTP_403_FORBIDDEN, f"permission denied: {perm}")
+
+
+async def visible_orgs(session: AsyncSession, principal: dict,
+                       perm: str) -> set[str] | None:
+    """Org ids the principal may list for `perm` — None means all (break-glass or
+    a global grant). Used to scope-filter list endpoints instead of 403-ing."""
+    if principal.get("break_glass"):
+        return None
+    return await service.visible_org_ids(session, principal["sub"], perm)

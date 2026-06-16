@@ -102,7 +102,7 @@ async def test_member_is_tenant_isolated(seeded):
 
 @pytest.mark.asyncio
 async def test_member_cannot_write_or_act_globally(seeded):
-    ac, org_a, _ = seeded
+    ac, org_a, org_b = seeded
     member = await _role_id(ac, "member")
     hdr, acc_id = await _bearer(ac, "bob@x.com")
     await ac.post(f"/api/v1/rbac/accounts/{acc_id}/roles", headers=ADMIN,
@@ -111,8 +111,11 @@ async def test_member_cannot_write_or_act_globally(seeded):
     # read-only -> cannot update its own org
     assert (await ac.put(f"{ORG}/{org_a}", headers=hdr,
                          json={"legal_name": "x"})).status_code == 403
-    # org-scoped -> cannot list all orgs (a global action)
-    assert (await ac.get(f"{ORG}/", headers=hdr)).status_code == 403
+    # org-scoped -> the global list is SCOPE-FILTERED (sees only org A, not B)
+    listed = await ac.get(f"{ORG}/", headers=hdr)
+    assert listed.status_code == 200
+    ids = {o["id"] for o in listed.json()}
+    assert org_a in ids and org_b not in ids
     # org-scoped -> cannot create an org (global write)
     assert (await ac.post(f"{ORG}/", headers=hdr,
                           json={"code": "z", "legal_name": "z"})).status_code == 403
@@ -156,3 +159,22 @@ async def test_site_create_is_body_scoped(seeded):
     ko = await ac.post(f"{LOC}/sites", headers=hdr,
                        json={"organization_id": org_b, "code": "s2", "name": "Site 2"})
     assert ko.status_code == 403, ko.text
+
+
+@pytest.mark.asyncio
+async def test_site_list_is_scope_filtered(seeded):
+    ac, org_a, org_b = seeded
+    admin = await _role_id(ac, "admin")
+    # seed a site in each org via break-glass
+    await ac.post(f"{LOC}/sites", headers=ADMIN,
+                  json={"organization_id": org_a, "code": "sa", "name": "SA"})
+    await ac.post(f"{LOC}/sites", headers=ADMIN,
+                  json={"organization_id": org_b, "code": "sb", "name": "SB"})
+    # a user scoped admin on org A sees only org A's sites in the global list
+    hdr, acc_id = await _bearer(ac, "erin@x.com")
+    await ac.post(f"/api/v1/rbac/accounts/{acc_id}/roles", headers=ADMIN,
+                  json={"role_id": admin, "organization_id": org_a})
+    listed = await ac.get(f"{LOC}/sites", headers=hdr)
+    assert listed.status_code == 200
+    orgs = {s["organization_id"] for s in listed.json()}
+    assert orgs == {org_a}
