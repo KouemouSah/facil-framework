@@ -28,6 +28,7 @@ async def client(tmp_path, monkeypatch):
     from app.db.engine import Database
     from app.main import app
 
+    from app.identity import models as _account_models  # noqa: F401 (register Account)
     import_module_models()  # register module tables before create_all
     db = Database(f"sqlite+aiosqlite:///{tmp_path/'test.db'}")
     async with db.engine.begin() as conn:
