@@ -90,6 +90,23 @@ async def test_refresh_token_reuse_is_detected(client):
 
 
 @pytest.mark.asyncio
+async def test_me_whoami(client):
+    ac, _ = client
+    # no auth -> 401
+    assert (await ac.get(f"{A}/me")).status_code == 401
+    # break-glass admin token -> flagged
+    from tests.conftest import AUTH
+    bg = await ac.get(f"{A}/me", headers=AUTH)
+    assert bg.status_code == 200 and bg.json()["break_glass"] is True
+    # JWT principal -> account echoed
+    await _register(ac, email="me@x.io")
+    t = (await ac.post(f"{A}/login", json={"identifier": "me@x.io", "password": PW})).json()
+    me = await ac.get(f"{A}/me", headers={"Authorization": f"Bearer {t['access']}"})
+    assert me.status_code == 200
+    assert me.json()["account"]["email"] == "me@x.io" and me.json()["break_glass"] is False
+
+
+@pytest.mark.asyncio
 async def test_idle_timeout_disconnects(client):
     import datetime as dt
     from sqlalchemy import select

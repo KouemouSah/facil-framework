@@ -1,13 +1,16 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { useQueryClient } from "@tanstack/react-query";
 import {
-  LayoutDashboard, Building2, MapPin, Users, ShieldCheck, Settings, Search,
+  LayoutDashboard, Building2, MapPin, Users, ShieldCheck, Settings, Search, LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useSession } from "@/lib/use-session";
 
 /**
  * Fixed application shell (ergonomics doctrine, D5): the sidebar + topbar NEVER
@@ -18,7 +21,29 @@ import { Button } from "@/components/ui/button";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const t = useTranslations("nav");
   const tc = useTranslations("common");
+  const ta = useTranslations("auth");
   const pathname = usePathname();
+  const router = useRouter();
+  const qc = useQueryClient();
+  const { data: session, isLoading } = useSession();
+
+  // Client guard: if the session check resolves unauthenticated (e.g. refresh
+  // failed server-side), leave the protected area.
+  useEffect(() => {
+    if (!isLoading && session && session.authenticated === false) {
+      router.replace("/login");
+    }
+  }, [isLoading, session, router]);
+
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+    qc.clear();
+    router.replace("/login");
+  }
+
+  const who =
+    session?.account?.display_name || session?.account?.email ||
+    (session?.break_glass ? "Admin" : "");
 
   const nav = [
     { href: "/", label: t("dashboard"), icon: LayoutDashboard },
@@ -72,8 +97,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
-          <div className="ml-auto" />
-          <Button variant="ghost" size="sm">Admin</Button>
+          <div className="ml-auto flex items-center gap-2">
+            {who && <span className="text-sm text-muted-foreground">{who}</span>}
+            <Button variant="ghost" size="icon" onClick={logout} title={ta("logout")} aria-label="logout">
+              <LogOut className="size-4" />
+            </Button>
+          </div>
         </header>
         <main className="overflow-auto p-6">{children}</main>
       </div>

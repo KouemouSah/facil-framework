@@ -12,7 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_session
 from app.auth import audit
 from app.auth import service
+from app.identity import repository as identity_repo
 from app.identity import service as identity_service
+from app.rbac import repository as rbac_repo
 from app.security.auth_dep import require_auth
 from app.security.rate_limit import rate_limited
 
@@ -112,6 +114,24 @@ async def login(body: LoginIn, request: Request,
     await audit.record(session, audit.LOGIN, account_id=account.id, ip=ip, ua=ua)
     await session.commit()
     return {**tokens, "account": account.as_dict()}
+
+
+@router.get("/me")
+async def me(principal: dict = Depends(require_auth),
+             session: AsyncSession = Depends(get_session)) -> dict:
+    """Whoami — the current principal + account + scoped role assignments, so the
+    UI can REFLECT permissions (show/hide). The backend stays the authority."""
+    if principal.get("break_glass"):
+        return {"break_glass": True,
+                "account": {"id": "bootstrap-admin", "display_name": "Bootstrap Admin"},
+                "roles": []}
+    account = await identity_repo.get_account(session, principal["sub"])
+    if account is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "account not found")
+    assignments = await rbac_repo.list_account_roles(session, account.id)
+    return {"break_glass": False, "account": account.as_dict(),
+            "idp": principal.get("idp"),
+            "roles": [a.as_dict() for a in assignments]}
 
 
 @router.post("/refresh")
