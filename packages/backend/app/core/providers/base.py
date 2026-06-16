@@ -63,3 +63,19 @@ class EmailProvider(Provider):
 
     @abstractmethod
     async def send(self, to: str, subject: str, body: str) -> bool: ...
+
+
+class AuthProvider(Provider):
+    capability = "auth"
+
+    @abstractmethod
+    async def issue(self, subject: str, claims: dict | None = None) -> dict:
+        """Return {'access': <jwt>, 'refresh': <jwt>} for an authenticated subject."""
+
+    @abstractmethod
+    async def verify(self, token: str) -> dict | None:
+        """Return the token claims if valid (access token), else None."""
+
+    @abstractmethod
+    async def refresh(self, refresh_token: str) -> dict | None:
+        """Return a fresh token pair from a valid refresh token, else None."""
