@@ -50,6 +50,7 @@ class ProviderRegistry:
 def default_registry() -> ProviderRegistry:
     """Registry pre-loaded with the built-in providers (factories are lazy —
     nothing connects until a provider is built + used)."""
+    from app.core.providers.auth_keycloak_oidc import KeycloakOIDCProvider
     from app.core.providers.auth_native import NativeAuthProvider
     from app.core.providers.email_resend import ResendProvider
     from app.core.providers.email_sendgrid import SendgridProvider
@@ -70,4 +71,5 @@ def default_registry() -> ProviderRegistry:
     r.register("email", "sendgrid", lambda config: SendgridProvider(config))
     r.register("email", "resend", lambda config: ResendProvider(config))
     r.register("auth", "native", lambda config: NativeAuthProvider(config))
+    r.register("auth", "keycloak_oidc", lambda config: KeycloakOIDCProvider(config))
     return r

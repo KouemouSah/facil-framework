@@ -8,6 +8,7 @@ provider registry land in later D-phases.
 from __future__ import annotations
 
 import contextlib
+import logging
 import os
 
 from fastapi import FastAPI, Response, status
@@ -39,7 +40,36 @@ _DEFAULTS: dict[str, object] = {
     "branding.supported_locales": ["en", "fr", "es"],
     "branding.support_email": "",
     "branding.support_url": "",
+    # Auth methods the backend will VERIFY (CSV). Native is always present for
+    # self-service issuance; add `keycloak_oidc` (with auth.oidc.* set) to also
+    # accept IdP-issued tokens. Issuance for OIDC happens at the IdP (auth-code).
+    "auth.methods": "native",
+    "auth.oidc.issuer": "",
+    "auth.oidc.jwks_uri": "",
+    "auth.oidc.audience": "",
 }
+
+logger = logging.getLogger(__name__)
+
+
+def _build_verifiers(app: FastAPI, resolver) -> list:
+    """The token-verifier chain: native + any configured OIDC verifiers."""
+    verifiers = [app.state.auth]
+    methods = resolver.resolve("auth.methods", "native")
+    if isinstance(methods, str):
+        methods = [m.strip() for m in methods.split(",") if m.strip()]
+    if "keycloak_oidc" in (methods or []):
+        jwks_uri = resolver.resolve("auth.oidc.jwks_uri", "")
+        if jwks_uri:
+            verifiers.append(app.state.registry.build("auth", "keycloak_oidc", {
+                "issuer": resolver.resolve("auth.oidc.issuer", ""),
+                "jwks_uri": jwks_uri,
+                "audience": resolver.resolve("auth.oidc.audience", "") or None,
+            }))
+        else:
+            logger.warning("auth.methods includes keycloak_oidc but "
+                           "auth.oidc.jwks_uri is unset — OIDC verify disabled.")
+    return verifiers
 
 
 @contextlib.asynccontextmanager
@@ -60,6 +90,8 @@ async def lifespan(app: FastAPI):
     app.state.auth = app.state.registry.build(
         "auth", "native",
         {"issuer": resolver.resolve("branding.app_name", "Facil")})
+    # Token-verifier chain (native + optional OIDC IdPs) consumed by require_auth.
+    app.state.auth_verifiers = _build_verifiers(app, resolver)
 
     # RBAC seeding — sync the permission catalog + the active profile's global
     # roles (idempotent). Suppressed pre-migration (schema may be absent on first

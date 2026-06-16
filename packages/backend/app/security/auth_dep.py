@@ -17,7 +17,14 @@ async def require_auth(request: Request,
     if x_admin_token and admin and x_admin_token == admin:
         return {"sub": "bootstrap-admin", "break_glass": True}
     if authorization and authorization.lower().startswith("bearer "):
-        claims = await request.app.state.auth.verify(authorization.split(" ", 1)[1])
-        if claims is not None:
-            return claims
+        token = authorization.split(" ", 1)[1]
+        # Try each configured verifier (native, and optionally keycloak_oidc /
+        # other OIDC IdPs) — the first to validate the token wins. Falls back to
+        # the single native provider when no verifier list is configured.
+        verifiers = getattr(request.app.state, "auth_verifiers", None) \
+            or [request.app.state.auth]
+        for verifier in verifiers:
+            claims = await verifier.verify(token)
+            if claims is not None:
+                return claims
     raise HTTPException(status.HTTP_401_UNAUTHORIZED, "authentication required")

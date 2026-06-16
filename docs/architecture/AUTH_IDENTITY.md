@@ -109,8 +109,23 @@ Secret JWT = `JWT_SECRET` (généré par `ensure_secrets`, rendu dans l'env back
 - **Lockout** : 5 échecs → verrou 15 min (`failed_attempts` / `locked_until`).
 - **2FA** : TOTP (pyotp), issuer = `branding.app_name` (configurable, dé-couplé du legacy).
 - **Passwords** : bcrypt (72 octets safe), policy min 8 + maj/min/chiffre.
-- ⚠️ `totp_secret` stocké en clair pour l'instant → **à chiffrer at-rest** avec le helper
-  AES-GCM/blind-index introduit en D4.1b.
+
+## 5b. Durcissement auth (D4.5/D4.6 — livré)
+
+- **Sessions + refresh rotation** (`session`) : chaque refresh **révoque** l'ancien jeton
+  et en émet un neuf ; réutilisation d'un refresh déjà tourné = **vol détecté** → révocation
+  de **toutes** les sessions du compte. `/logout` (single + all-devices) révoque réellement.
+- **TOTP chiffré at-rest** (AES-256-GCM, `app/security/crypto.py`, clé `TOTP_ENCRYPTION_KEY`
+  → fallback `JWT_SECRET_KEY`) + **backup codes** à usage unique (hachés SHA-256).
+- **Reset mot de passe** + **vérification email** : token opaque haute entropie, **haché**
+  en base, **TTL** + **usage unique** (`auth_token`) ; reset révoque les sessions ;
+  réponses **uniformes** (anti-énumération) ; envoi best-effort via le provider email.
+- **Audit** (`auth_audit`) : login / login_failed / logout / password_reset /
+  email_verified / two_factor_enabled (+ ip / user-agent / détail), jamais bloquant.
+- **OIDC (D4.6)** : `KeycloakOIDCProvider.verify()` valide les jetons IdP (JWKS **RS256**,
+  issuer + audience) ; `require_auth` essaie une **chaîne de vérificateurs** (native +
+  OIDC selon `auth.methods`). L'**émission** OIDC appartient à l'IdP (flux auth-code,
+  arrive avec le frontend D5 + le realm Keycloak P11) — `issue/refresh` y lèvent NotImplemented.
 
 ## 6. D4.1b — identité vérifiée (PRÉPARÉ, DIFFÉRÉ)
 
@@ -121,9 +136,9 @@ et les **liaisons BD externes** de vérification ne sont pas prêts (éviter le 
 HMAC UNIQUE** = 1 pièce/1 compte, port `verified_identifiers` legacy) → extraction +
 score de confiance + gate → `issue_number(category)`.
 
-## 7. À venir (D4.3 RBAC)
+## 7. RBAC (D4.3 — livré)
 
-`role` / `permission` / `account_role` avec **scope `{organization_id, org_unit_id, site_id}`**
-(sous-arbre via `org_unit.path`) ; `require_permission(perm)` **scope par défaut** ; rôles
-seedés **par profil YAML** ; permissions **déclarées par module**. Remplace `require_auth`
-sur les routes métier/admin (D4.4).
+Voir [`AUTH_RBAC.md`](AUTH_RBAC.md) : `role` / `permission` / `account_role` avec **scope
+`{organization_id, org_unit_id, site_id}`** (sous-arbre via `org_unit.path`),
+`require_permission(perm)` **scope par défaut**, rôles seedés **par profil YAML**,
+permissions **déclarées par module**. Enforce sur organization/location.
