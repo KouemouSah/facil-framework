@@ -1,8 +1,7 @@
 name: CI
 
-# V0 pre-bootstrap CI : validates repo structure, license, docs.
-# Backend/frontend test matrices are intentionally disabled until
-# Phase A.5 (Module Loader) lands actual sanitized code.
+# CI: repo structure/license/docs + secrets, plus the real test gates —
+# backend pytest (SQLite) and the Next.js frontend build (lint/type-check/build).
 
 on:
   push:
@@ -143,21 +142,42 @@ jobs:
           GITLEAKS_CONFIG: ${{ github.workspace }}/.gitleaks.toml
 
   # ---------------------------------------------------------------------------
-  # Backend / Frontend tests are deferred until Phase A.5 lands
-  # Uncomment when actual sanitized code is in place
+  # Backend tests (Python, SQLite — no external services needed)
   # ---------------------------------------------------------------------------
-  # backend-tests:
-  #   name: Backend (Python)
-  #   ... (see git history of this file for previous implementation)
+  backend-tests:
+    name: Backend (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install deps
+        run: pip install -r packages/backend/requirements-dev.txt
+      - name: pytest (backend + deploy, SQLite)
+        run: python -m pytest packages/backend deploy -q
 
-  # frontend-tests:
-  #   name: Frontend (Next.js)
-  #   ...
+  # ---------------------------------------------------------------------------
+  # Frontend build (Next.js — lint + type-check + production build)
+  # ---------------------------------------------------------------------------
+  frontend-build:
+    name: Frontend (Next.js build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - run: npm run type-check --workspace=web
+      - run: npm run build --workspace=web
 
   summary:
     name: CI Summary
     runs-on: ubuntu-latest
-    needs: [repo-structure, yaml-lint, markdown-lint, no-secrets]
+    needs: [repo-structure, yaml-lint, markdown-lint, no-secrets, backend-tests, frontend-build]
     if: always()
     steps:
       - run: |
@@ -169,10 +189,10 @@ jobs:
           echo "| YAML lint | ${{ needs.yaml-lint.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Markdown lint | ${{ needs.markdown-lint.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Secrets scan | ${{ needs.no-secrets.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Backend & frontend test jobs will be enabled at Phase A.5 (Module Loader)." >> $GITHUB_STEP_SUMMARY
+          echo "| Backend (pytest) | ${{ needs.backend-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend (build) | ${{ needs.frontend-build.result }} |" >> $GITHUB_STEP_SUMMARY
 
-          if [ "${{ needs.repo-structure.result }}" != "success" ] || [ "${{ needs.yaml-lint.result }}" != "success" ] || [ "${{ needs.markdown-lint.result }}" != "success" ] || [ "${{ needs.no-secrets.result }}" != "success" ]; then
-            echo "::error::Critical V0 checks failed"
+          if [ "${{ needs.repo-structure.result }}" != "success" ] || [ "${{ needs.yaml-lint.result }}" != "success" ] || [ "${{ needs.markdown-lint.result }}" != "success" ] || [ "${{ needs.no-secrets.result }}" != "success" ] || [ "${{ needs.backend-tests.result }}" != "success" ] || [ "${{ needs.frontend-build.result }}" != "success" ]; then
+            echo "::error::Critical CI checks failed"
             exit 1
           fi
