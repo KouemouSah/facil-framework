@@ -168,6 +168,7 @@ async def fed_app(tmp_path, monkeypatch):
                                     "email_verified": True, "groups": ["agents"],
                                     "org": "orga"}})
     application.state.auth_verifiers = [application.state.auth, fake]
+    application.state.federation_cache = {}
     application.include_router(auth_api.router)
     application.include_router(rbac_api.router)
     load_modules(application, enabled=["organization", "location"])
@@ -177,6 +178,45 @@ async def fed_app(tmp_path, monkeypatch):
         yield ac, db
     await db.dispose()
     cfg._settings = None
+
+
+@pytest.mark.asyncio
+async def test_groups_claim_absent_does_not_touch_idp_roles(client):
+    _, db = client
+    async with db.session_factory() as s:
+        await seed.seed_roles(s, "empty")
+        member = await rbac_repo.get_role_by_code(s, "member", None)
+        acc = Account(status="active", subject_type="agent")
+        s.add(acc)
+        await s.flush()
+        # pre-existing idp role
+        s.add(AccountRole(account_id=acc.id, role_id=member.id, source="idp"))
+        await s.flush()
+        # a token WITHOUT a groups claim must NOT wipe the idp role
+        await federation.sync_mapped_roles(s, acc.id, {"org": "x"},
+                                           role_map={"agents": "member"})
+        rows = list(await s.scalars(
+            select(AccountRole).where(AccountRole.account_id == acc.id)))
+        assert len(rows) == 1  # untouched
+        await s.commit()
+
+
+@pytest.mark.asyncio
+async def test_resolve_cached_skips_db_on_hit(client):
+    _, db = client
+    cache: dict = {}
+    claims = {"sub": "kc-cache", "email": "z@x.io", "email_verified": True,
+              "jti": "jti-1"}
+    async with db.session_factory() as s:
+        p1, wrote1 = await federation.resolve_cached(
+            cache, s, "keycloak", claims, "tok", role_map={})
+        await s.commit()
+    assert wrote1 is True and p1["sub"] != "kc-cache"  # resolved to local id
+    # second call (same jti) -> cache hit, no DB write, same local sub
+    async with db.session_factory() as s:
+        p2, wrote2 = await federation.resolve_cached(
+            cache, s, "keycloak", claims, "tok", role_map={})
+    assert wrote2 is False and p2["sub"] == p1["sub"]
 
 
 @pytest.mark.asyncio

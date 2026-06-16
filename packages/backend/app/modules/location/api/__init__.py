@@ -38,15 +38,17 @@ def _http(e: service.LocError) -> HTTPException:
 async def list_sites(organization_id: str | None = None,
                      org_unit_id: str | None = None,
                      parent_site_id: str | None = None,
+                     limit: int = 50, offset: int = 0,
                      principal: dict = Depends(require_auth),
                      session: AsyncSession = Depends(get_session)) -> list[dict]:
-    # Scope-filtered to the orgs the caller may read (org-level granularity).
+    # Scope + pagination IN SQL (org-level granularity for the visible set).
     visible = await visible_orgs(session, principal, "location.read")
+    limit = min(max(limit, 1), 200)
+    offset = max(offset, 0)
     sites = await repo.list_sites(session, organization_id=organization_id,
-                                  org_unit_id=org_unit_id, parent_site_id=parent_site_id)
-    if visible is None:
-        return [s.as_dict() for s in sites]
-    return [s.as_dict() for s in sites if s.organization_id in visible]
+                                  org_unit_id=org_unit_id, parent_site_id=parent_site_id,
+                                  org_ids=visible, limit=limit, offset=offset)
+    return [s.as_dict() for s in sites]
 
 
 @router.post("/sites", status_code=201)

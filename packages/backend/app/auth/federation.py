@@ -17,9 +17,17 @@ token asserts email_verified; suspended/inactive accounts are denied (offboardin
 
 from __future__ import annotations
 
+import hashlib
+import time
+
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+
+# Resolution cache TTL (s): how long a verified OIDC token's local-account
+# resolution is reused before re-running link/JIT + role re-sync. Short, so a
+# local suspension / role change propagates within the window.
+RESOLVE_TTL = 60.0
 
 from app.auth.models import FederatedIdentity
 from app.identity import repository as identity_repo
@@ -85,7 +93,12 @@ async def sync_mapped_roles(session: AsyncSession, account_id: str, claims: dict
                             org_claim: str = "org", unit_claim: str = "unit") -> None:
     """Re-derive the IdP-mapped (source='idp') roles from the token's groups +
     org/unit claims. Admin-assigned (source='local') roles are left untouched.
-    Unknown role codes or org/unit codes are skipped (no silent auto-create)."""
+    Unknown role codes or org/unit codes are skipped (no silent auto-create).
+    If the token carries NO group claim at all, we DON'T touch the idp roles
+    (absence != "removed from every group" — avoids wiping scope on a token that
+    simply lacks the mapper)."""
+    if group_claim not in claims:
+        return
     groups = claims.get(group_claim) or []
     if isinstance(groups, str):
         groups = [groups]
@@ -137,3 +150,30 @@ async def resolve_principal(session: AsyncSession, provider: str, claims: dict, 
                             group_claim=claim_groups, org_claim=claim_org,
                             unit_claim=claim_unit)
     return {**claims, "sub": account_id, "idp": provider, "idp_subject": subject}
+
+
+def _cache_key(provider: str, claims: dict, token: str) -> str:
+    jti = claims.get("jti")
+    return f"{provider}:{jti}" if jti else \
+        f"{provider}:{hashlib.sha256(token.encode()).hexdigest()}"
+
+
+async def resolve_cached(cache: dict | None, session: AsyncSession, provider: str,
+                         claims: dict, token: str, *, ttl: float = RESOLVE_TTL,
+                         **opts) -> tuple[dict | None, bool]:
+    """Resolve a federated principal, reusing a per-token cached resolution for
+    `ttl` seconds. Returns (principal, did_db_write). On a cache hit no DB work is
+    done (did_db_write=False) — this is what stops the per-request write storm."""
+    now = time.monotonic()
+    key = _cache_key(provider, claims, token)
+    if cache is not None:
+        hit = cache.get(key)
+        if hit is not None and hit[1] > now:
+            return ({**claims, "sub": hit[0], "idp": provider,
+                     "idp_subject": claims.get("sub")}, False)
+    principal = await resolve_principal(session, provider, claims, **opts)
+    if principal is None:
+        return None, False
+    if cache is not None:
+        cache[key] = (principal["sub"], now + ttl)
+    return principal, True

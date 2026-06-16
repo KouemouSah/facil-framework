@@ -13,8 +13,14 @@ from app.auth import audit
 from app.auth import service
 from app.identity import service as identity_service
 from app.security.auth_dep import require_auth
+from app.security.rate_limit import rate_limited
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+
+# Ingress limits on abuse-prone public endpoints (per client IP).
+_RL_LOGIN = Depends(rate_limited("login", 30, 60))
+_RL_REGISTER = Depends(rate_limited("register", 10, 60))
+_RL_RESET = Depends(rate_limited("pwreset", 10, 60))
 
 
 async def _send_email(request: Request, to: str, subject: str, body: str) -> None:
@@ -65,7 +71,7 @@ class TokenIn(BaseModel):
     token: str
 
 
-@router.post("/register", status_code=201)
+@router.post("/register", status_code=201, dependencies=[_RL_REGISTER])
 async def register(body: RegisterIn,
                    session: AsyncSession = Depends(get_session)) -> dict:
     try:
@@ -80,7 +86,7 @@ async def register(body: RegisterIn,
     return account.as_dict()
 
 
-@router.post("/login")
+@router.post("/login", dependencies=[_RL_LOGIN])
 async def login(body: LoginIn, request: Request,
                 session: AsyncSession = Depends(get_session)) -> dict:
     ip = request.client.host if request.client else None
@@ -134,7 +140,7 @@ async def logout(body: LogoutIn, request: Request,
     return {"status": "ok"}
 
 
-@router.post("/password-reset/request")
+@router.post("/password-reset/request", dependencies=[_RL_RESET])
 async def password_reset_request(body: EmailIn, request: Request,
                                  session: AsyncSession = Depends(get_session)) -> dict:
     raw = await service.request_password_reset(session, body.email)

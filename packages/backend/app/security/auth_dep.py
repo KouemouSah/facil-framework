@@ -47,16 +47,20 @@ async def require_auth(request: Request,
             code = getattr(verifier, "code", "native")
             if code == "native":
                 return claims
-            # Federated (OIDC) token: resolve to a local account + sync roles.
+            # Federated (OIDC) token: resolve to a local account + sync roles,
+            # reusing a per-token cached resolution (TTL) to avoid a DB write on
+            # every request (D4.8 #3). Commit only when a real write happened.
             from app.auth import federation
             resolver = request.app.state.resolver
-            principal = await federation.resolve_principal(
-                session, code, claims, role_map=_role_map(resolver),
+            cache = getattr(request.app.state, "federation_cache", None)
+            principal, wrote = await federation.resolve_cached(
+                cache, session, code, claims, token, role_map=_role_map(resolver),
                 claim_groups=resolver.resolve("auth.oidc.claim_groups", "groups"),
                 claim_org=resolver.resolve("auth.oidc.claim_org", "org"),
                 claim_unit=resolver.resolve("auth.oidc.claim_unit", "unit"))
             if principal is None:
                 continue  # disabled/unresolvable account -> try next / 401
-            await session.commit()
+            if wrote:
+                await session.commit()
             return principal
     raise HTTPException(status.HTTP_401_UNAUTHORIZED, "authentication required")

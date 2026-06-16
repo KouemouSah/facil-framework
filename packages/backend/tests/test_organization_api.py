@@ -63,6 +63,18 @@ async def test_create_get_list_org(org_client):
 
 
 @pytest.mark.asyncio
+async def test_list_pagination(org_client):
+    for i in range(3):
+        await _mk_org(org_client, f"pg{i}")
+    page1 = await org_client.get(f"{BASE}/?limit=2&offset=0", headers=AUTH)
+    assert page1.status_code == 200 and len(page1.json()) == 2
+    page2 = await org_client.get(f"{BASE}/?limit=2&offset=2", headers=AUTH)
+    assert len(page2.json()) >= 1
+    # limit is clamped (max 200) — a huge limit doesn't error
+    assert (await org_client.get(f"{BASE}/?limit=9999", headers=AUTH)).status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_duplicate_org_code_409(org_client):
     await _mk_org(org_client, "dup")
     r = await org_client.post(f"{BASE}/", headers=AUTH,

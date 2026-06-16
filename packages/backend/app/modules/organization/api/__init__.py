@@ -39,16 +39,21 @@ def _http(e: service.OrgError) -> HTTPException:
 
 # --- Organizations -------------------------------------------------------
 
+def _page(limit: int, offset: int) -> tuple[int, int]:
+    return min(max(limit, 1), 200), max(offset, 0)
+
+
 @router.get("/")
-async def list_organizations(principal: dict = Depends(require_auth),
+async def list_organizations(limit: int = 50, offset: int = 0,
+                             principal: dict = Depends(require_auth),
                              session: AsyncSession = Depends(get_session)) -> list[dict]:
-    # Scope-filtered: returns only the orgs the caller may read (empty if none),
-    # rather than 403-ing an org-scoped user on the global list.
+    # Scope + pagination applied IN SQL: only the orgs the caller may read,
+    # paginated. (Global reader -> org_ids=None -> all.)
     visible = await visible_orgs(session, principal, "organization.read")
-    orgs = await repo.list_organizations(session)
-    if visible is None:
-        return [o.as_dict() for o in orgs]
-    return [o.as_dict() for o in orgs if o.id in visible]
+    limit, offset = _page(limit, offset)
+    orgs = await repo.list_organizations(session, org_ids=visible,
+                                         limit=limit, offset=offset)
+    return [o.as_dict() for o in orgs]
 
 
 @router.post("/", status_code=201, dependencies=[_CREATE])
@@ -124,11 +129,13 @@ async def delete_organization(org_id: str,
 
 
 @router.get("/{org_id}/units", dependencies=[_READ])
-async def list_units(org_id: str,
+async def list_units(org_id: str, limit: int = 50, offset: int = 0,
                      session: AsyncSession = Depends(get_session)) -> list[dict]:
     if await repo.get_organization(session, org_id) is None:
         raise HTTPException(404, f"organization '{org_id}' not found")
-    return [u.as_dict() for u in await repo.list_units(session, org_id)]
+    limit, offset = _page(limit, offset)
+    units = await repo.list_units(session, org_id, limit=limit, offset=offset)
+    return [u.as_dict() for u in units]
 
 
 @router.post("/{org_id}/units", status_code=201, dependencies=[_CREATE])

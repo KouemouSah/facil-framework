@@ -10,9 +10,16 @@ from app.modules.organization.models import OrgUnit, Organization
 
 # --- Organization --------------------------------------------------------
 
-async def list_organizations(session: AsyncSession) -> list[Organization]:
-    return list((await session.scalars(
-        select(Organization).order_by(Organization.code))).all())
+async def list_organizations(session: AsyncSession, *,
+                             org_ids: set[str] | None = None,
+                             limit: int = 50, offset: int = 0) -> list[Organization]:
+    stmt = select(Organization).order_by(Organization.code)
+    if org_ids is not None:  # scope filter in SQL (None = all / global reader)
+        if not org_ids:
+            return []
+        stmt = stmt.where(Organization.id.in_(org_ids))
+    stmt = stmt.limit(limit).offset(offset)
+    return list((await session.scalars(stmt)).all())
 
 
 async def get_organization(session: AsyncSession, org_id: str) -> Organization | None:
@@ -30,10 +37,11 @@ async def delete_organization(session: AsyncSession, org_id: str) -> bool:
 
 # --- OrgUnit -------------------------------------------------------------
 
-async def list_units(session: AsyncSession, org_id: str) -> list[OrgUnit]:
+async def list_units(session: AsyncSession, org_id: str, *,
+                     limit: int = 50, offset: int = 0) -> list[OrgUnit]:
     return list((await session.scalars(
         select(OrgUnit).where(OrgUnit.organization_id == org_id)
-        .order_by(OrgUnit.path, OrgUnit.code))).all())
+        .order_by(OrgUnit.path, OrgUnit.code).limit(limit).offset(offset))).all())
 
 
 async def get_unit(session: AsyncSession, unit_id: str) -> OrgUnit | None:

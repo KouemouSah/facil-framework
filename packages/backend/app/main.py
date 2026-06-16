@@ -92,6 +92,10 @@ async def lifespan(app: FastAPI):
         {"issuer": resolver.resolve("branding.app_name", "Facil")})
     # Token-verifier chain (native + optional OIDC IdPs) consumed by require_auth.
     app.state.auth_verifiers = _build_verifiers(app, resolver)
+    # Per-token federation resolution cache (avoids a DB write per OIDC request).
+    app.state.federation_cache = {}
+    # Ingress rate-limiter store (in-process; per-IP fixed window).
+    app.state.rate_limiter = {}
 
     # RBAC seeding — sync the permission catalog + the active profile's global
     # roles (idempotent). Suppressed pre-migration (schema may be absent on first
@@ -108,6 +112,22 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Facil Backend", version="0.1.0", lifespan=lifespan)
+
+# Reject oversized request bodies early (DoS / resource consumption — API4).
+_MAX_BODY_BYTES = int(os.environ.get("MAX_REQUEST_BYTES", str(1024 * 1024)))
+
+
+@app.middleware("http")
+async def _limit_body_size(request, call_next):
+    cl = request.headers.get("content-length")
+    if cl is not None:
+        try:
+            if int(cl) > _MAX_BODY_BYTES:
+                return Response(status_code=413)  # Content Too Large
+        except ValueError:
+            pass
+    return await call_next(request)
+
 # Core (always-on) routers — config-store + provider registry admin.
 app.include_router(admin_settings.router)
 app.include_router(admin_providers.router)

@@ -155,6 +155,28 @@ async def test_email_verification_flow(client):
 
 
 @pytest.mark.asyncio
+async def test_oversized_payload_rejected(client):
+    ac, _ = client
+    big = "x" * (1024 * 1024 + 64)  # > 1 MB
+    r = await ac.post(f"{A}/register",
+                      json={"email": "big@x.io", "password": PW, "display_name": big})
+    assert r.status_code == 413
+
+
+@pytest.mark.asyncio
+async def test_register_is_rate_limited(client):
+    ac, _ = client
+    # register limit = 10/min per IP; the 11th in the window -> 429
+    codes = []
+    for i in range(12):
+        r = await ac.post(f"{A}/register",
+                          json={"email": f"rl{i}@x.io", "password": PW})
+        codes.append(r.status_code)
+    assert 429 in codes
+    assert codes[:10] == [201] * 10  # first 10 allowed
+
+
+@pytest.mark.asyncio
 async def test_login_writes_audit(client):
     ac, db = client
     await _register(ac, email="au@x.io")
