@@ -12,7 +12,7 @@ import datetime as _dt
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import UUIDAuditBase
+from app.db.base import JSONType, UUIDAuditBase
 
 
 class Session(UUIDAuditBase):
@@ -55,8 +55,11 @@ class Credential(UUIDAuditBase):
     password_hash: Mapped[str] = mapped_column(String(255))
     # NOTE: TOTP secret should be encrypted at rest (D4.1b brings the AES-GCM
     # helper / verified_identifiers pattern); stored as-is for now.
-    totp_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Encrypted at rest (AES-256-GCM, app.security.crypto) — base64, so wider.
+    totp_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
     totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # One-time backup codes, stored as SHA-256 hashes (consumed on use).
+    totp_backup_codes: Mapped[list] = mapped_column(JSONType, default=list)
     failed_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     locked_until: Mapped[_dt.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True)

@@ -123,6 +123,27 @@ async def test_2fa_setup_enable_and_login(client):
 
 
 @pytest.mark.asyncio
+async def test_2fa_backup_code_login_is_single_use(client):
+    ac, _ = client
+    await _register(ac, email="bk@x.io")
+    tokens = (await ac.post(f"{A}/login", json={"identifier": "bk@x.io", "password": PW})).json()
+    hdr = {"Authorization": f"Bearer {tokens['access']}"}
+    secret = (await ac.post(f"{A}/2fa/setup", headers=hdr)).json()["secret"]
+    enabled = await ac.post(f"{A}/2fa/enable", headers=hdr,
+                            json={"code": pyotp.TOTP(secret).now()})
+    backup = enabled.json()["backup_codes"]
+    assert len(backup) == 10
+    # log in with a backup code (as the 2fa code)
+    ok = await ac.post(f"{A}/login", json={"identifier": "bk@x.io", "password": PW,
+                                           "totp_code": backup[0]})
+    assert ok.status_code == 200
+    # the same backup code cannot be reused
+    again = await ac.post(f"{A}/login", json={"identifier": "bk@x.io", "password": PW,
+                                              "totp_code": backup[0]})
+    assert again.status_code == 401
+
+
+@pytest.mark.asyncio
 async def test_2fa_requires_auth(client):
     ac, _ = client
     assert (await ac.post(f"{A}/2fa/setup")).status_code == 401  # no token

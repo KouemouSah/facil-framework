@@ -12,6 +12,27 @@ from app.core.providers.registry import default_registry
 
 # --- password ------------------------------------------------------------
 
+def test_crypto_roundtrip_and_tamper(monkeypatch):
+    monkeypatch.setenv("TOTP_ENCRYPTION_KEY", "unit-test-key-0123456789abcdef")
+    from app.security import crypto
+    token = crypto.encrypt("JBSWY3DPEHPK3PXP")
+    assert token != "JBSWY3DPEHPK3PXP"               # not plaintext
+    assert crypto.decrypt(token) == "JBSWY3DPEHPK3PXP"
+    with pytest.raises(crypto.DecryptionError):
+        crypto.decrypt(token[:-4] + "AAAA")          # tampered ciphertext
+
+
+def test_backup_codes_generate_and_consume():
+    from app.auth import backup_codes as bc
+    plain, hashes = bc.generate()
+    assert len(plain) == len(hashes) == 10
+    assert all(h not in plain for h in hashes)        # stored as hashes, not raw
+    ok, remaining = bc.verify_and_consume(hashes, plain[0])
+    assert ok and len(remaining) == 9
+    again, _ = bc.verify_and_consume(remaining, plain[0])
+    assert not again                                  # single-use
+
+
 def test_password_hash_and_verify():
     h = password.hash_password("Str0ngPass")
     assert h != "Str0ngPass"

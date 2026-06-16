@@ -13,11 +13,13 @@ import inspect
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import backup_codes as backup_mod
 from app.auth import password as password_mod
 from app.auth import repository as repo
 from app.auth import sessions as sessions_mod
 from app.auth import totp as totp_mod
 from app.auth.models import Credential
+from app.security import crypto
 from app.identity import repository as identity_repo
 from app.identity import service as identity_service
 from app.identity.number import NumberStrategy
@@ -55,6 +57,21 @@ def _aware(dt: _dt.datetime | None) -> _dt.datetime | None:
     if dt is not None and dt.tzinfo is None:
         return dt.replace(tzinfo=_dt.timezone.utc)
     return dt
+
+
+def _verify_second_factor(cred: Credential, code: str) -> bool:
+    """TOTP code (decrypting the stored secret) OR a one-time backup code.
+    A consumed backup code is removed from the credential in place."""
+    try:
+        secret = crypto.decrypt(cred.totp_secret) if cred.totp_secret else ""
+    except crypto.DecryptionError:
+        secret = ""
+    if secret and totp_mod.verify_code(secret, code):
+        return True
+    ok, remaining = backup_mod.verify_and_consume(cred.totp_backup_codes or [], code)
+    if ok:
+        cred.totp_backup_codes = remaining
+    return ok
 
 
 def _register_failure(cred: Credential) -> None:
@@ -98,7 +115,7 @@ async def authenticate(session: AsyncSession, identifier: str, password: str, *,
     if cred.totp_enabled:
         if not totp_code:
             raise TotpRequired("2fa code required")
-        if not totp_mod.verify_code(cred.totp_secret or "", totp_code):
+        if not _verify_second_factor(cred, totp_code):
             _register_failure(cred)
             await session.flush()
             return None
@@ -152,7 +169,7 @@ async def setup_totp(session: AsyncSession, account_id: str, *, issuer: str = "F
     if cred is None:
         raise InvalidCredentials("no credential for this account")
     secret = totp_mod.generate_secret()
-    cred.totp_secret = secret
+    cred.totp_secret = crypto.encrypt(secret)  # encrypted at rest
     cred.totp_enabled = False
     await session.flush()
     account = await identity_repo.get_account(session, account_id)
@@ -160,12 +177,20 @@ async def setup_totp(session: AsyncSession, account_id: str, *, issuer: str = "F
     return secret, totp_mod.provisioning_uri(secret, name, issuer=issuer)
 
 
-async def enable_totp(session: AsyncSession, account_id: str, code: str) -> bool:
+async def enable_totp(session: AsyncSession, account_id: str, code: str) -> list[str]:
+    """Confirm the TOTP code, enable 2FA, and return one-time backup codes
+    (shown ONCE — only their hashes are stored)."""
     cred = await repo.get_credential(session, account_id)
     if cred is None or not cred.totp_secret:
         raise InvalidCredentials("2fa not set up")
-    if not totp_mod.verify_code(cred.totp_secret, code):
+    try:
+        secret = crypto.decrypt(cred.totp_secret)
+    except crypto.DecryptionError as e:
+        raise InvalidCredentials("2fa secret unreadable") from e
+    if not totp_mod.verify_code(secret, code):
         raise InvalidCredentials("invalid 2fa code")
     cred.totp_enabled = True
+    plaintext, hashes = backup_mod.generate()
+    cred.totp_backup_codes = hashes
     await session.flush()
-    return True
+    return plaintext

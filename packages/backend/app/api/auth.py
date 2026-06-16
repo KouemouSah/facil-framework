@@ -117,8 +117,9 @@ async def twofa_setup(request: Request, principal: dict = Depends(require_auth),
 async def twofa_enable(body: CodeIn, principal: dict = Depends(require_auth),
                        session: AsyncSession = Depends(get_session)) -> dict:
     try:
-        await service.enable_totp(session, principal["sub"], body.code)
+        backup = await service.enable_totp(session, principal["sub"], body.code)
     except service.InvalidCredentials as e:
         raise HTTPException(400, str(e)) from e
     await session.commit()
-    return {"totp_enabled": True}
+    # Backup codes are shown ONCE here; only their hashes are stored.
+    return {"totp_enabled": True, "backup_codes": backup}
