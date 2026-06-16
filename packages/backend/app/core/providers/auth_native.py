@@ -24,7 +24,13 @@ class NativeAuthProvider(AuthProvider):
 
     def __init__(self, config=None) -> None:
         super().__init__(config)
-        self._secret = self.config.get("secret") or os.environ.get("JWT_SECRET", "")
+        # Injected config wins; else env JWT_SECRET, with a fallback to the
+        # canonical framework secret name JWT_SECRET_KEY (init.py/manifest/
+        # .env.secrets use that name, while ensure_secrets/compose use JWT_SECRET
+        # — accept either so a deployment never boots with an empty HMAC key).
+        self._secret = (self.config.get("secret")
+                        or os.environ.get("JWT_SECRET")
+                        or os.environ.get("JWT_SECRET_KEY", ""))
         self._alg = "HS256"
         self._issuer = self.config.get("issuer", "facil")
         self._access_ttl = int(self.config.get("access_ttl_seconds", 3600))

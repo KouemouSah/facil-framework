@@ -69,6 +69,17 @@ async def test_issue_and_verify():
 
 
 @pytest.mark.asyncio
+async def test_secret_falls_back_to_jwt_secret_key(monkeypatch):
+    # No injected secret, no JWT_SECRET -> must fall back to JWT_SECRET_KEY
+    # (the canonical framework / .env.secrets name) and NOT boot with "".
+    monkeypatch.delenv("JWT_SECRET", raising=False)
+    monkeypatch.setenv("JWT_SECRET_KEY", _SECRET)
+    p = NativeAuthProvider({"issuer": "facil"})
+    tokens = await p.issue("acc-1")          # would raise if HMAC key were empty
+    assert (await p.verify(tokens["access"]))["sub"] == "acc-1"
+
+
+@pytest.mark.asyncio
 async def test_access_token_not_accepted_as_refresh():
     p = _provider()
     tokens = await p.issue("acc-1")
