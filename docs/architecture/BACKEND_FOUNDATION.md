@@ -177,8 +177,11 @@ curl -X POST -H "X-Admin-Token: $TOKEN" \
   & MinIO storage, **LLM Ollama + openai_compat + routing par rôle** (validé live
   contre un vrai Ollama), **email SMTP + Sendgrid** (SMTP validé live contre smtp4dev),
   jonction `docker_local --apply`, Alembic.
-- ✅ **D3 Module Loader** : `MODULES_ENABLED` → include conditionnel (fail-closed),
-  prouvé par fixtures ; `app/modules/` vide jusqu'au portage.
+- ✅ **D3 Module Loader** : `MODULES_ENABLED` → include conditionnel (skip-si-absent
+  / fail-si-cassé) ; rendu depuis `cfg.modules.enabled` (W6) dans l'env backend.
+- ✅ **Modules de base `organization` + `location`** (CRUD + hiérarchie + scope-site,
+  Alembic `0003`) — **validés LIVE** end-to-end (org → unité → site → branche via l'API
+  admin sur la stack réelle). Détail : `MODULES_ORG_LOCATION.md`.
 - ⏳ **À venir** : provider auth — réel mais lié à **D4** (remplace la garde token) ;
   **D5** frontend (panneau admin + installeur web) ; payment au portage du module
   (brancher `GatewayServiceBase` legacy BANGE/MTN/Orange).

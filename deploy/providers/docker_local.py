@@ -133,6 +133,9 @@ def generate_compose(cfg: vc.DeployConfig) -> str:
     No `version:` field — Compose v2 ignores it (and warns when present).
     """
     backend_port = cfg.docker_local.backend_port
+    # Module Loader contract (Phase A.5): the enabled list -> MODULES_ENABLED env
+    # read by the backend at boot. Not-yet-ported modules are skipped (warned).
+    modules_csv = ",".join(cfg.modules.enabled)
     frontend_port = cfg.docker_local.frontend_port
     pg_image = cfg.docker_local.postgres_image
     pg_volume = cfg.docker_local.postgres_volume
@@ -457,6 +460,7 @@ services:
       OLLAMA_ENDPOINT: http://ollama:11434
       SMTP_HOST: smtp4dev
       SMTP_PORT: "25"
+      MODULES_ENABLED: "{modules_csv}"
     ports:
       - "{backend_port}:{backend_port}"
     restart: unless-stopped

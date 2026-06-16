@@ -348,6 +348,13 @@ class TestScaffoldedProfileServices:
         env = svcs["backend"]["environment"]
         assert env["SMTP_HOST"] == "smtp4dev" and env["SMTP_PORT"] == "25"
 
+    def test_modules_enabled_wired_to_backend(self, cfg: vc.DeployConfig) -> None:
+        """The W6 modules.enabled list reaches the backend as MODULES_ENABLED
+        (the Module Loader contract, Phase A.5)."""
+        svcs = yaml.safe_load(dl.generate_compose(cfg))["services"]
+        expected = ",".join(cfg.modules.enabled)
+        assert svcs["backend"]["environment"]["MODULES_ENABLED"] == expected
+
     def test_caddy_mounts_generated_caddyfile(self, cfg: vc.DeployConfig) -> None:
         svcs = yaml.safe_load(dl.generate_compose(cfg))["services"]
         mounts = svcs["caddy"]["volumes"]
