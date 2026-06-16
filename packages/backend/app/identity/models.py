@@ -11,7 +11,7 @@ issuance and is immutable). Credentials (password, TOTP) land with D4.2.
 
 from __future__ import annotations
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import Boolean, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import UUIDAuditBase
@@ -34,11 +34,14 @@ class Account(UUIDAuditBase):
     # Authoritative category (national/foreigner/entity); configurable values.
     subject_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="pending_identity")
+    email_verified: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False)
 
     def as_dict(self) -> dict:
         return {
             "id": self.id, "account_number": self.account_number,
             "email": self.email, "organization_id": self.organization_id,
             "display_name": self.display_name, "subject_type": self.subject_type,
-            "status": self.status, "is_active": self.is_active,
+            "status": self.status, "email_verified": self.email_verified,
+            "is_active": self.is_active,
         }

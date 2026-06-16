@@ -2,16 +2,28 @@
 
 from __future__ import annotations
 
+import contextlib
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
+from app.auth import audit
 from app.auth import service
 from app.identity import service as identity_service
 from app.security.auth_dep import require_auth
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+
+
+async def _send_email(request: Request, to: str, subject: str, body: str) -> None:
+    """Best-effort send via the configured email provider. Never blocks the flow
+    (no provider configured in dev/test -> silently skipped; token still issued)."""
+    with contextlib.suppress(Exception):
+        async with request.app.state.db.session_factory() as s:
+            provider = await request.app.state.registry.get_default("email", s)
+        await provider.send(to, subject, body)
 
 
 class RegisterIn(BaseModel):
@@ -38,6 +50,19 @@ class LogoutIn(BaseModel):
 
 class CodeIn(BaseModel):
     code: str
+
+
+class EmailIn(BaseModel):
+    email: str
+
+
+class ResetConfirmIn(BaseModel):
+    token: str
+    new_password: str
+
+
+class TokenIn(BaseModel):
+    token: str
 
 
 @router.post("/register", status_code=201)
@@ -68,10 +93,16 @@ async def login(body: LoginIn, request: Request,
     except service.TotpRequired:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "totp_required")
     except service.AccountLocked:
+        await audit.record(session, audit.LOGIN_FAILED, ip=ip, ua=ua,
+                           detail={"reason": "locked"})
+        await session.commit()
         raise HTTPException(status.HTTP_423_LOCKED, "account locked")
     except service.InvalidCredentials:
+        await audit.record(session, audit.LOGIN_FAILED, ip=ip, ua=ua,
+                           detail={"reason": "invalid"})
         await session.commit()  # persist the failed-attempt increment (lockout)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid credentials")
+    await audit.record(session, audit.LOGIN, account_id=account.id, ip=ip, ua=ua)
     await session.commit()
     return {**tokens, "account": account.as_dict()}
 
@@ -97,8 +128,67 @@ async def logout(body: LogoutIn, request: Request,
     await service.logout(session, body.refresh_token,
                          auth_provider=request.app.state.auth,
                          all_devices=body.all_devices, account_id=principal.get("sub"))
+    await audit.record(session, audit.LOGOUT, account_id=principal.get("sub"),
+                       detail={"all_devices": body.all_devices})
     await session.commit()
     return {"status": "ok"}
+
+
+@router.post("/password-reset/request")
+async def password_reset_request(body: EmailIn, request: Request,
+                                 session: AsyncSession = Depends(get_session)) -> dict:
+    raw = await service.request_password_reset(session, body.email)
+    await session.commit()
+    if raw:
+        app_name = request.app.state.resolver.resolve("branding.app_name", "Facil")
+        await _send_email(request, body.email, f"{app_name} — password reset",
+                          f"Use this token to reset your password: {raw}")
+    # Uniform response whether or not the email exists (anti-enumeration).
+    return {"status": "ok"}
+
+
+@router.post("/password-reset/confirm")
+async def password_reset_confirm(body: ResetConfirmIn,
+                                 session: AsyncSession = Depends(get_session)) -> dict:
+    try:
+        done = await service.confirm_password_reset(session, body.token, body.new_password)
+    except service.WeakPassword as e:
+        raise HTTPException(422, str(e)) from e
+    if done:
+        await audit.record(session, audit.PASSWORD_RESET)
+    await session.commit()
+    if not done:
+        raise HTTPException(400, "invalid or expired token")
+    return {"status": "ok"}
+
+
+@router.post("/email-verification/request")
+async def email_verification_request(request: Request,
+                                     principal: dict = Depends(require_auth),
+                                     session: AsyncSession = Depends(get_session)) -> dict:
+    raw = await service.request_email_verification(session, principal["sub"])
+    await session.commit()
+    if raw:
+        from app.identity import repository as identity_repo
+        async with request.app.state.db.session_factory() as s:
+            acc = await identity_repo.get_account(s, principal["sub"])
+        app_name = request.app.state.resolver.resolve("branding.app_name", "Facil")
+        if acc and acc.email:
+            await _send_email(request, acc.email, f"{app_name} — verify your email",
+                              f"Use this token to verify your email: {raw}")
+    return {"status": "ok"}
+
+
+@router.post("/email-verification/confirm")
+async def email_verification_confirm(body: TokenIn,
+                                     session: AsyncSession = Depends(get_session)) -> dict:
+    done = await service.confirm_email_verification(session, body.token)
+    if done:
+        await audit.record(session, audit.EMAIL_VERIFIED)
+    await session.commit()
+    if not done:
+        raise HTTPException(400, "invalid or expired token")
+    return {"email_verified": True}
 
 
 @router.post("/2fa/setup")
@@ -120,6 +210,7 @@ async def twofa_enable(body: CodeIn, principal: dict = Depends(require_auth),
         backup = await service.enable_totp(session, principal["sub"], body.code)
     except service.InvalidCredentials as e:
         raise HTTPException(400, str(e)) from e
+    await audit.record(session, audit.TWO_FACTOR_ENABLED, account_id=principal["sub"])
     await session.commit()
     # Backup codes are shown ONCE here; only their hashes are stored.
     return {"totp_enabled": True, "backup_codes": backup}

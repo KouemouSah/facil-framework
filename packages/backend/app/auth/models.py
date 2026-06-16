@@ -46,6 +46,36 @@ class Session(UUIDAuditBase):
         }
 
 
+class AuthToken(UUIDAuditBase):
+    """Single-use, hashed, expiring token for password reset / email verification
+    (D4.5/B3). Only the SHA-256 of the token is stored; the raw token is mailed to
+    the user. `used_at` enforces single use; `expires_at` enforces the TTL."""
+
+    __tablename__ = "auth_token"
+
+    account_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("account.id", ondelete="CASCADE"), index=True)
+    purpose: Mapped[str] = mapped_column(String(40), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), index=True)
+    expires_at: Mapped[_dt.datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[_dt.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+
+
+class AuthAudit(UUIDAuditBase):
+    """Append-only audit of auth events (D4.5/B4): login (success/failure),
+    logout, password reset, email verification, 2FA changes. `account_id` is
+    nullable (a failed login by unknown identifier has none — anti-enumeration)."""
+
+    __tablename__ = "auth_audit"
+
+    account_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    action: Mapped[str] = mapped_column(String(60), index=True)
+    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    detail: Mapped[dict] = mapped_column(JSONType, default=dict)
+
+
 class Credential(UUIDAuditBase):
     __tablename__ = "credential"
 

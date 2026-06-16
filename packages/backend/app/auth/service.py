@@ -17,6 +17,7 @@ from app.auth import backup_codes as backup_mod
 from app.auth import password as password_mod
 from app.auth import repository as repo
 from app.auth import sessions as sessions_mod
+from app.auth import tokens as tokens_mod
 from app.auth import totp as totp_mod
 from app.auth.models import Credential
 from app.security import crypto
@@ -162,6 +163,55 @@ async def logout(session: AsyncSession, refresh_token: str | None, *, auth_provi
         return await sessions_mod.revoke(session, refresh_token,
                                          auth_provider=auth_provider)
     return False
+
+
+async def request_password_reset(session: AsyncSession, email: str) -> str | None:
+    """Mint a reset token if the email maps to an account. Returns the RAW token
+    (the API mails it). None if no such account — the API answers uniformly anyway."""
+    account = await identity_repo.get_by_email(session, email.strip().lower())
+    if account is None:
+        return None
+    return await tokens_mod.issue(session, account.id, tokens_mod.PASSWORD_RESET)
+
+
+async def confirm_password_reset(session: AsyncSession, raw_token: str,
+                                 new_password: str) -> bool:
+    ok, reason = password_mod.check_strength(new_password)
+    if not ok:
+        raise WeakPassword(reason)
+    account_id = await tokens_mod.consume(session, tokens_mod.PASSWORD_RESET, raw_token)
+    if account_id is None:
+        return False
+    cred = await repo.get_credential(session, account_id)
+    if cred is None:
+        return False
+    cred.password_hash = password_mod.hash_password(new_password)
+    cred.failed_attempts = 0
+    cred.locked_until = None
+    await sessions_mod.revoke_all(session, account_id)  # log out everywhere on reset
+    await session.flush()
+    return True
+
+
+async def request_email_verification(session: AsyncSession,
+                                     account_id: str) -> str | None:
+    account = await identity_repo.get_account(session, account_id)
+    if account is None or not account.email:
+        return None
+    return await tokens_mod.issue(session, account_id, tokens_mod.EMAIL_VERIFICATION)
+
+
+async def confirm_email_verification(session: AsyncSession, raw_token: str) -> bool:
+    account_id = await tokens_mod.consume(
+        session, tokens_mod.EMAIL_VERIFICATION, raw_token)
+    if account_id is None:
+        return False
+    account = await identity_repo.get_account(session, account_id)
+    if account is None:
+        return False
+    account.email_verified = True
+    await session.flush()
+    return True
 
 
 async def setup_totp(session: AsyncSession, account_id: str, *, issuer: str = "Facil"):

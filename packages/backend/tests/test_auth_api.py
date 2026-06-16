@@ -104,6 +104,71 @@ async def test_logout_revokes_refresh(client):
 
 
 @pytest.mark.asyncio
+async def test_password_reset_flow(client):
+    ac, db = client
+    await _register(ac, email="pr@x.io")
+    # mint a real reset token at the service layer (the raw token is mailed IRL)
+    from app.auth import service as auth_service
+    async with db.session_factory() as s:
+        raw = await auth_service.request_password_reset(s, "pr@x.io")
+        await s.commit()
+    new_pw = "N3wStr0ng!pass"
+    done = await ac.post(f"{A}/password-reset/confirm",
+                         json={"token": raw, "new_password": new_pw})
+    assert done.status_code == 200
+    # new password works, old one does not
+    assert (await ac.post(f"{A}/login",
+                          json={"identifier": "pr@x.io", "password": new_pw})).status_code == 200
+    assert (await ac.post(f"{A}/login",
+                          json={"identifier": "pr@x.io", "password": PW})).status_code == 401
+    # the reset token is single-use
+    assert (await ac.post(f"{A}/password-reset/confirm",
+                          json={"token": raw, "new_password": new_pw})).status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_password_reset_is_anti_enumeration(client):
+    ac, _ = client
+    # unknown email -> still 200 (no oracle); bad token -> 400
+    assert (await ac.post(f"{A}/password-reset/request",
+                          json={"email": "nobody@x.io"})).status_code == 200
+    assert (await ac.post(f"{A}/password-reset/confirm",
+                          json={"token": "bogus", "new_password": "N3wStr0ng!pass"})
+            ).status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_email_verification_flow(client):
+    ac, db = client
+    acc = (await _register(ac, email="ev@x.io")).json()
+    from app.auth import service as auth_service
+    async with db.session_factory() as s:
+        raw = await auth_service.request_email_verification(s, acc["id"])
+        await s.commit()
+    r = await ac.post(f"{A}/email-verification/confirm", json={"token": raw})
+    assert r.status_code == 200 and r.json()["email_verified"] is True
+    # account now flagged verified
+    from app.identity import repository as identity_repo
+    async with db.session_factory() as s:
+        a = await identity_repo.get_account(s, acc["id"])
+        assert a.email_verified is True
+
+
+@pytest.mark.asyncio
+async def test_login_writes_audit(client):
+    ac, db = client
+    await _register(ac, email="au@x.io")
+    await ac.post(f"{A}/login", json={"identifier": "au@x.io", "password": PW})
+    await ac.post(f"{A}/login", json={"identifier": "au@x.io", "password": "wrong"})
+    from sqlalchemy import select
+    from app.auth.models import AuthAudit
+    async with db.session_factory() as s:
+        rows = (await s.scalars(select(AuthAudit))).all()
+    actions = {r.action for r in rows}
+    assert "login" in actions and "login_failed" in actions
+
+
+@pytest.mark.asyncio
 async def test_2fa_setup_enable_and_login(client):
     ac, _ = client
     await _register(ac, email="2fa@x.io")
