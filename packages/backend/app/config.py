@@ -32,6 +32,22 @@ class Settings(BaseSettings):
     admin_token_expires_at: str = ""
     admin_token_allowed_ips: str = ""
 
+    # Session policy (D4.11). Sliding idle timeout (no refresh within the window
+    # => the session is disconnected; the client gets a 401 and re-authenticates).
+    # Agents are stricter (30 min) than ordinary users (1 h); 0 disables.
+    session_idle_seconds: int = 3600          # ordinary users — 1 h
+    session_idle_seconds_agent: int = 1800    # agents — 30 min
+    # One active device per account (new login revokes the rest). Agents are
+    # ALWAYS single-session; this flag also forces it for everyone else.
+    auth_single_session: bool = False
+
+    def idle_seconds_for(self, subject_type: str | None) -> int:
+        return self.session_idle_seconds_agent if subject_type == "agent" \
+            else self.session_idle_seconds
+
+    def single_session_for(self, subject_type: str | None) -> bool:
+        return self.auth_single_session or subject_type == "agent"
+
     @property
     def async_database_url(self) -> str:
         url = self.database_url

@@ -20,6 +20,7 @@ from app.auth import sessions as sessions_mod
 from app.auth import tokens as tokens_mod
 from app.auth import totp as totp_mod
 from app.auth.models import Credential
+from app.config import get_settings
 from app.security import crypto
 from app.identity import repository as identity_repo
 from app.identity import service as identity_service
@@ -138,20 +139,35 @@ async def login(session: AsyncSession, identifier: str, password: str, *,
                                  totp_code=totp_code, strategy=strategy)
     if account is None:
         raise InvalidCredentials("invalid credentials")
+    settings = get_settings()
     tokens = await sessions_mod.open_session(
-        session, account.id, auth_provider=auth_provider,
-        claims=_claims(account), ip=ip, ua=ua)
+        session, account.id, auth_provider=auth_provider, claims=_claims(account),
+        ip=ip, ua=ua,
+        single_session=settings.single_session_for(account.subject_type))
     return account, tokens
 
 
 async def refresh(session: AsyncSession, refresh_token: str, *, auth_provider):
-    """Rotate a refresh token (revoke old, mint new). None if invalid/reused."""
+    """Rotate a refresh token (revoke old, mint new). None if invalid/reused, or
+    if the sliding idle timeout elapsed (agent 30 min / user 1 h). Policy is per
+    account type (subject_type)."""
+    settings = get_settings()
+    # Peek the subject (no DB) to pick the per-type idle / single-session policy.
+    peek = await auth_provider.verify(refresh_token, expect="refresh")
+    idle = single = None
+    if peek and peek.get("sub"):
+        acc = await identity_repo.get_account(session, peek["sub"])
+        st = acc.subject_type if acc else None
+        idle = settings.idle_seconds_for(st) or None
+        single = settings.single_session_for(st)
+
     async def claims_for(account_id: str) -> dict | None:
         acc = await identity_repo.get_account(session, account_id)
         return _claims(acc) if acc else None
     return await sessions_mod.rotate(session, refresh_token,
                                      auth_provider=auth_provider,
-                                     claims_for=claims_for)
+                                     claims_for=claims_for, idle_seconds=idle,
+                                     single_session=bool(single))
 
 
 async def logout(session: AsyncSession, refresh_token: str | None, *, auth_provider,

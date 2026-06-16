@@ -68,6 +68,7 @@ async def require_auth(request: Request,
             cache = getattr(request.app.state, "federation_cache", None)
             principal, wrote = await federation.resolve_cached(
                 cache, session, code, claims, token, role_map=_role_map(resolver),
+                introspect=getattr(verifier, "introspect", None),
                 claim_groups=resolver.resolve("auth.oidc.claim_groups", "groups"),
                 claim_org=resolver.resolve("auth.oidc.claim_org", "org"),
                 claim_unit=resolver.resolve("auth.oidc.claim_unit", "unit"))

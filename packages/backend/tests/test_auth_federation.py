@@ -223,6 +223,21 @@ async def test_resolve_cached_skips_db_on_hit(client):
 
 
 @pytest.mark.asyncio
+async def test_introspection_inactive_denies_resolution(client):
+    _, db = client
+    cache: dict = {}
+
+    async def introspect_inactive(token):
+        return False  # token revoked at the IdP
+
+    async with db.session_factory() as s:
+        principal, wrote = await federation.resolve_cached(
+            cache, s, "keycloak", {"sub": "kc-z", "jti": "j-z"}, "tok",
+            role_map={}, introspect=introspect_inactive)
+    assert principal is None and wrote is False
+
+
+@pytest.mark.asyncio
 async def test_keycloak_agent_is_scoped_via_local_rbac(fed_app):
     ac, _ = fed_app
     admin = {"X-Admin-Token": "test-token"}

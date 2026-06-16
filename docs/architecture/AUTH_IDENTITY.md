@@ -112,9 +112,18 @@ Secret JWT = `JWT_SECRET` (généré par `ensure_secrets`, rendu dans l'env back
 
 ## 5b. Durcissement auth (D4.5/D4.6 — livré)
 
-- **Sessions + refresh rotation** (`session`) : chaque refresh **révoque** l'ancien jeton
-  et en émet un neuf ; réutilisation d'un refresh déjà tourné = **vol détecté** → révocation
-  de **toutes** les sessions du compte. `/logout` (single + all-devices) révoque réellement.
+- **Sessions + refresh rotation** (`session`) : chaque refresh **supersede** l'ancien jeton
+  (statut `rotated`) et en émet un neuf ; réutilisation d'un jeton **`rotated`** = **vol
+  détecté** → révocation de **toutes** les sessions ; un jeton `revoked`/`expired` (logout,
+  kick single-session, idle) est juste refusé (ne nuke pas la session active). `/logout`
+  (single + all-devices) révoque réellement.
+- **Timeouts (D4.11)** : **idle glissant** (pas de refresh dans la fenêtre → session
+  déconnectée) — **agents 30 min**, utilisateurs natifs **1 h** (par `subject_type`,
+  configurable, 0=off) + deadline **absolue** (`expires_at`). À l'expiration le `/refresh`
+  renvoie **401** (« session expired — re-authenticate ») → le frontend (D5) **redirige vers
+  le login** (pas d'erreur opaque).
+- **Single-session (D4.11)** : un compte **agent** = **un seul device** (un nouveau login
+  révoque les autres) ; flag global `auth_single_session` pour forcer aussi les autres.
 - **TOTP chiffré at-rest** (AES-256-GCM, `app/security/crypto.py`, clé `TOTP_ENCRYPTION_KEY`
   → fallback `JWT_SECRET_KEY`) + **backup codes** à usage unique (hachés SHA-256).
 - **Reset mot de passe** + **vérification email** : token opaque haute entropie, **haché**
@@ -143,6 +152,9 @@ Secret JWT = `JWT_SECRET` (généré par `ensure_secrets`, rendu dans l'env back
   idempotent** : `deploy/scripts/provision_keycloak.py` (realm + client + **client-scope
   partagé** `facil-contract` portant les mappers `groups`/`org` + taxonomie de groupes) —
   l'opérateur ajoute users/LDAP/IdP upstream. **Break-glass durci** (expiry/IP-allowlist/disable/log).
+  **Introspection RFC 7662 (D4.11)** : opt-in (`auth.oidc.introspection` + client confidentiel) —
+  sur cache-miss, vérifie que le jeton est encore **actif** à l'IdP (offboarding quasi-instantané,
+  ≤ TTL cache) ; fail-open sur erreur transitoire (back-channel logout + statut local = autres filets).
 
 ## 6. D4.1b — identité vérifiée (PRÉPARÉ, DIFFÉRÉ)
 

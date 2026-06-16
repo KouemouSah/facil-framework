@@ -104,6 +104,31 @@ class KeycloakOIDCProvider(AuthProvider):
         except jwt.PyJWTError:
             return None
 
+    async def introspect(self, token: str) -> bool:
+        """RFC 7662 token introspection — returns whether the token is still
+        ACTIVE at the IdP (catches Keycloak-side disable/logout near-instantly).
+        Disabled or unconfigured -> returns True (skip). Fail-OPEN on transient
+        endpoint errors (availability) — back-channel logout + local status remain
+        the other safety nets. Requires a confidential client (client_id/secret)."""
+        if not self.config.get("introspection"):
+            return True
+        cid = self.config.get("client_id")
+        secret = self.config.get("client_secret")
+        if not (cid and secret):
+            return True
+        try:
+            meta = await self._discover()
+            endpoint = meta.get("introspection_endpoint")
+            if not endpoint:
+                return True
+            async with self._client() as c:
+                r = await c.post(endpoint, data={"token": token}, auth=(cid, secret))
+                if r.status_code != 200:
+                    return True
+                return bool(r.json().get("active"))
+        except (httpx.HTTPError, ValueError):
+            return True
+
     async def issue(self, subject: str, claims: dict | None = None) -> dict:
         raise NotImplementedError(
             "OIDC tokens are issued by the IdP (Keycloak) via the auth-code flow, "

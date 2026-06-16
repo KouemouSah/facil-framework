@@ -42,8 +42,12 @@ def hash_token(token: str) -> str:
 
 async def open_session(db: AsyncSession, account_id: str, *, auth_provider,
                        claims: dict | None = None, ip: str | None = None,
-                       ua: str | None = None) -> dict:
-    """Mint access+refresh for a NEW session and persist it. Returns tokens."""
+                       ua: str | None = None, single_session: bool = False) -> dict:
+    """Mint access+refresh for a NEW session and persist it. Returns tokens.
+    With `single_session`, all other active sessions for the account are revoked
+    first (one device at a time — kicks out other logins)."""
+    if single_session:
+        await revoke_all(db, account_id)
     sid = uuid_str()
     tokens = await auth_provider.issue(account_id, claims, jti=sid)
     ttl = getattr(auth_provider, "_refresh_ttl", 7 * 24 * 3600)
@@ -51,17 +55,19 @@ async def open_session(db: AsyncSession, account_id: str, *, auth_provider,
         id=sid, account_id=account_id,
         refresh_token_hash=hash_token(tokens["refresh"]),
         status="active", expires_at=_now() + _dt.timedelta(seconds=int(ttl)),
-        ip_address=ip, user_agent=ua))
+        last_used_at=_now(), ip_address=ip, user_agent=ua))
     await db.flush()
     return tokens
 
 
 async def rotate(db: AsyncSession, refresh_token: str, *, auth_provider,
-                 claims_for=None) -> dict | None:
+                 claims_for=None, idle_seconds: int | None = None,
+                 single_session: bool = False) -> dict | None:
     """Validate + rotate a refresh token. Returns new tokens, or None if invalid.
 
-    `claims_for(account_id) -> dict` optionally rebuilds the access-token claims
-    (e.g. account_number/org) for the new token."""
+    Enforces both the ABSOLUTE deadline (session.expires_at) and the optional
+    sliding IDLE timeout (`idle_seconds` since last_used_at). `claims_for` rebuilds
+    the access-token claims for the new token."""
     payload = await auth_provider.verify(refresh_token, expect="refresh")
     if payload is None:
         return None
@@ -73,8 +79,11 @@ async def rotate(db: AsyncSession, refresh_token: str, *, auth_provider,
     if sess is None:
         return None
     if sess.status != "active":
-        # Reuse of a rotated/revoked refresh token -> treat as theft: kill all.
-        await revoke_all(db, account_id)
+        # Reuse of a ROTATED token is a theft signal -> kill the whole chain.
+        # A 'revoked'/'expired' token (logout, single-session kick, idle) is just
+        # denied — it must NOT nuke the legitimately-active session.
+        if sess.status == "rotated":
+            await revoke_all(db, account_id)
         return None
     if hash_token(refresh_token) != sess.refresh_token_hash:
         return None
@@ -82,8 +91,16 @@ async def rotate(db: AsyncSession, refresh_token: str, *, auth_provider,
         sess.status = "expired"
         await db.flush()
         return None
-    # Rotate: revoke the current session, open a fresh one.
-    sess.status = "revoked"
+    # Sliding idle timeout: no refresh within the idle window -> session dies.
+    if idle_seconds:
+        last = _aware(sess.last_used_at) or _aware(sess.created_at)
+        if last and (_now() - last).total_seconds() > idle_seconds:
+            sess.status = "expired"
+            await db.flush()
+            return None
+    # Rotate: supersede the current session ('rotated' so a later reuse of THIS
+    # token is detected as theft), open a fresh one.
+    sess.status = "rotated"
     sess.revoked_at = _now()
     sess.last_used_at = _now()
     await db.flush()
@@ -93,7 +110,8 @@ async def rotate(db: AsyncSession, refresh_token: str, *, auth_provider,
         if inspect.isawaitable(claims):
             claims = await claims
     return await open_session(db, account_id, auth_provider=auth_provider,
-                              claims=claims, ip=sess.ip_address, ua=sess.user_agent)
+                              claims=claims, ip=sess.ip_address, ua=sess.user_agent,
+                              single_session=single_session)
 
 
 async def revoke(db: AsyncSession, refresh_token: str, *, auth_provider) -> bool:

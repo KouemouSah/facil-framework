@@ -69,6 +69,11 @@ def _build_verifiers(app: FastAPI, resolver) -> list:
                 "jwks_uri": jwks_uri,
                 "discovery_url": resolver.resolve("auth.oidc.discovery_url", "") or None,
                 "audience": resolver.resolve("auth.oidc.audience", "") or None,
+                # RFC 7662 introspection (near-instant IdP offboarding) — opt-in,
+                # needs a confidential client (id + secret from secrets store).
+                "introspection": bool(resolver.resolve("auth.oidc.introspection", False)),
+                "client_id": resolver.resolve("auth.oidc.client_id", "") or None,
+                "client_secret": resolver.resolve("auth.oidc.client_secret", "") or None,
             }))
         else:
             logger.warning("auth.methods includes keycloak_oidc but neither "

@@ -101,6 +101,28 @@ async def test_verify_via_oidc_discovery():
 
 
 @pytest.mark.asyncio
+async def test_introspection_active_and_inactive():
+    def handler(req):
+        if req.url.path.endswith("/.well-known/openid-configuration"):
+            return httpx.Response(200, json={
+                "issuer": ISS, "jwks_uri": f"{ISS}/certs",
+                "introspection_endpoint": f"{ISS}/introspect"})
+        if req.url.path.endswith("/introspect"):
+            # echo active based on the posted token
+            body = req.content.decode()
+            return httpx.Response(200, json={"active": "good" in body})
+        return httpx.Response(200, json=_jwks())
+    cfg = {"issuer": ISS, "introspection": True, "client_id": "facil-backend",
+           "client_secret": "s3cr3t", "transport": httpx.MockTransport(handler)}
+    p = KeycloakOIDCProvider(cfg)
+    assert await p.introspect("token=good") is True
+    assert await p.introspect("token=revoked") is False
+    # disabled -> always True (skip)
+    p2 = KeycloakOIDCProvider({"issuer": ISS, "transport": httpx.MockTransport(handler)})
+    assert await p2.introspect("anything") is True
+
+
+@pytest.mark.asyncio
 async def test_issue_and_refresh_not_implemented():
     p = _provider()
     with pytest.raises(NotImplementedError):

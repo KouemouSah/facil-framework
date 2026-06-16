@@ -90,6 +90,41 @@ async def test_refresh_token_reuse_is_detected(client):
 
 
 @pytest.mark.asyncio
+async def test_idle_timeout_disconnects(client):
+    import datetime as dt
+    from sqlalchemy import select
+    from app.auth.models import Session
+    ac, db = client
+    await _register(ac, email="idle@x.io")
+    t = (await ac.post(f"{A}/login", json={"identifier": "idle@x.io", "password": PW})).json()
+    # backdate last activity beyond the 1 h user idle window
+    async with db.session_factory() as s:
+        sess = (await s.scalars(select(Session))).first()
+        sess.last_used_at = dt.datetime.now(tz=dt.timezone.utc) - dt.timedelta(hours=2)
+        await s.commit()
+    r = await ac.post(f"{A}/refresh", json={"refresh_token": t["refresh"]})
+    assert r.status_code == 401  # idle-expired -> client re-authenticates
+
+
+@pytest.mark.asyncio
+async def test_agent_is_single_session(client):
+    from sqlalchemy import select
+    from app.identity.models import Account
+    ac, db = client
+    acc = (await _register(ac, email="agent@x.io")).json()
+    # mark the account as an agent -> single-session enforced
+    async with db.session_factory() as s:
+        a = await s.get(Account, acc["id"])
+        a.subject_type = "agent"
+        await s.commit()
+    t1 = (await ac.post(f"{A}/login", json={"identifier": "agent@x.io", "password": PW})).json()
+    t2 = (await ac.post(f"{A}/login", json={"identifier": "agent@x.io", "password": PW})).json()
+    # the second login revoked the first device's session
+    assert (await ac.post(f"{A}/refresh", json={"refresh_token": t1["refresh"]})).status_code == 401
+    assert (await ac.post(f"{A}/refresh", json={"refresh_token": t2["refresh"]})).status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_logout_revokes_refresh(client):
     ac, _ = client
     await _register(ac, email="lo@x.io")

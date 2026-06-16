@@ -160,10 +160,12 @@ def _cache_key(provider: str, claims: dict, token: str) -> str:
 
 async def resolve_cached(cache: dict | None, session: AsyncSession, provider: str,
                          claims: dict, token: str, *, ttl: float = RESOLVE_TTL,
-                         **opts) -> tuple[dict | None, bool]:
+                         introspect=None, **opts) -> tuple[dict | None, bool]:
     """Resolve a federated principal, reusing a per-token cached resolution for
     `ttl` seconds. Returns (principal, did_db_write). On a cache hit no DB work is
-    done (did_db_write=False) — this is what stops the per-request write storm."""
+    done (did_db_write=False) — this is what stops the per-request write storm.
+    On a cache MISS, optional `introspect(token)->bool` checks the token is still
+    active at the IdP (RFC 7662) before provisioning — None/inactive => denied."""
     now = time.monotonic()
     key = _cache_key(provider, claims, token)
     if cache is not None:
@@ -171,6 +173,8 @@ async def resolve_cached(cache: dict | None, session: AsyncSession, provider: st
         if hit is not None and hit[1] > now:
             return ({**claims, "sub": hit[0], "idp": provider,
                      "idp_subject": claims.get("sub")}, False)
+    if introspect is not None and not await introspect(token):
+        return None, False
     principal = await resolve_principal(session, provider, claims, **opts)
     if principal is None:
         return None, False

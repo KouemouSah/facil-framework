@@ -118,12 +118,15 @@ async def login(body: LoginIn, request: Request,
 @router.post("/refresh")
 async def refresh(body: RefreshIn, request: Request,
                   session: AsyncSession = Depends(get_session)) -> dict:
-    # Rotation with reuse detection (revokes the old session, mints a new one).
+    # Rotation with reuse detection + idle/single-session policy (per account type).
     tokens = await service.refresh(session, body.refresh_token,
                                    auth_provider=request.app.state.auth)
     if tokens is None:
-        await session.commit()  # persist any reuse-triggered mass revocation
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid refresh token")
+        await session.commit()  # persist any reuse/idle-triggered revocation
+        # Uniform 401 — the client (D5 frontend) redirects to the login page on
+        # this; session expired (idle/absolute), revoked, reused or invalid.
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED,
+                            "session expired or invalid — re-authenticate")
     await session.commit()
     return tokens
 
