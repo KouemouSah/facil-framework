@@ -6,6 +6,8 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Lean container image (only traced deps) for the `web` Compose profile / k8s.
+  output: "standalone",
   // SSR -> backend over the internal network; browser -> public origin.
   // `/api` is proxied to the backend so the SPA is single-origin (no CORS) and
   // the BFF route handlers can set httpOnly cookies on the same site.

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -22,6 +22,14 @@ function LoginForm() {
   const [needTotp, setNeedTotp] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Send first-run operators to the installer instead of a dead login.
+  useEffect(() => {
+    fetch("/api/bff/api/v1/system/install-status")
+      .then((r) => r.json())
+      .then((s) => { if (!s.installed) router.replace("/install"); })
+      .catch(() => undefined);
+  }, [router]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
