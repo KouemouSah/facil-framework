@@ -50,6 +50,7 @@ class ProviderRegistry:
 def default_registry() -> ProviderRegistry:
     """Registry pre-loaded with the built-in providers (factories are lazy —
     nothing connects until a provider is built + used)."""
+    from app.core.providers.email_resend import ResendProvider
     from app.core.providers.email_sendgrid import SendgridProvider
     from app.core.providers.email_smtp import SMTPEmailProvider
     from app.core.providers.llm_ollama import OllamaLLMProvider
@@ -66,4 +67,5 @@ def default_registry() -> ProviderRegistry:
     r.register("llm", "openai_compat", lambda config: OpenAICompatLLMProvider(config))
     r.register("email", "smtp", lambda config: SMTPEmailProvider(config))
     r.register("email", "sendgrid", lambda config: SendgridProvider(config))
+    r.register("email", "resend", lambda config: ResendProvider(config))
     return r

@@ -127,3 +127,53 @@ def test_email_providers_registered():
     reg = default_registry()
     assert reg.is_registered("email", "smtp")
     assert reg.is_registered("email", "sendgrid")
+    assert reg.is_registered("email", "resend")
+
+
+# --- Resend --------------------------------------------------------------
+
+from app.core.providers.email_resend import ResendProvider
+
+
+def _rs_handler(captured: dict, send_status: int = 200, domains_status: int = 200):
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["auth"] = request.headers.get("authorization")
+        if request.url.path == "/emails":
+            import json
+            captured["payload"] = json.loads(request.content)
+            return httpx.Response(send_status, json={"id": "re_123"})
+        if request.url.path == "/domains":
+            return httpx.Response(domains_status, json={"data": []})
+        return httpx.Response(404)
+    return handler
+
+
+@pytest.mark.asyncio
+async def test_resend_send():
+    cap: dict = {}
+    p = ResendProvider({"api_key": "re_test", "from_email": "onboarding@resend.dev",
+                        "transport": httpx.MockTransport(_rs_handler(cap))})
+    assert await p.send("dest@example.com", "Subj", "Hello") is True
+    assert cap["auth"] == "Bearer re_test"
+    assert cap["payload"]["to"] == ["dest@example.com"]
+    assert cap["payload"]["subject"] == "Subj" and cap["payload"]["text"] == "Hello"
+
+
+@pytest.mark.asyncio
+async def test_resend_healthcheck_full_and_scoped():
+    cap: dict = {}
+    # 200 (full access) and 403 (sending-only scope) both mean the key authenticates.
+    for status in (200, 403):
+        p = ResendProvider({"api_key": "re_test",
+                            "transport": httpx.MockTransport(
+                                _rs_handler(cap, domains_status=status))})
+        assert (await p.healthcheck())["ok"] is True
+
+
+@pytest.mark.asyncio
+async def test_resend_healthcheck_bad_key():
+    cap: dict = {}
+    p = ResendProvider({"api_key": "bad",
+                        "transport": httpx.MockTransport(
+                            _rs_handler(cap, domains_status=401))})
+    assert (await p.healthcheck())["ok"] is False
