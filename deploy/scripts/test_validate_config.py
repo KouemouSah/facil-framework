@@ -630,3 +630,31 @@ class TestRedisObsPaymentProviders:
         cfg = vc.DeployConfig.model_validate(minimal_valid_config)
         assert cfg.payments.stripe.enabled and cfg.payments.mtn_momo.enabled \
             and cfg.payments.orange_money.enabled
+
+
+class TestBrandingConfig:
+    """App-shell theming (P4) — completed set, backwards-compatible."""
+
+    def test_defaults(self) -> None:
+        b = vc.BrandingConfig()
+        assert b.app_name == "Facil" and b.theme_mode == "light"
+        assert b.default_locale == "en" and b.supported_locales == ["en", "fr", "es"]
+        assert b.secondary_color and b.primary_color
+
+    def test_accepts_full_branding(self) -> None:
+        b = vc.BrandingConfig(
+            app_name="Gov", tagline="t", logo_dark_url="d", favicon_url="f",
+            login_background_url="l", secondary_color="#000000", theme_mode="dark",
+            default_locale="es", supported_locales=["es"], support_email="a@b.c",
+            support_url="https://help")
+        assert b.theme_mode == "dark" and b.default_locale == "es"
+
+    def test_invalid_theme_mode_rejected(self) -> None:
+        import pydantic
+        with pytest.raises(pydantic.ValidationError):
+            vc.BrandingConfig(theme_mode="neon")
+
+    def test_backwards_compatible_old_branding(self) -> None:
+        # An old config with only the original 3 fields still validates.
+        b = vc.BrandingConfig(app_name="X", primary_color="#fff", logo_url="l")
+        assert b.tagline == "" and b.supported_locales == ["en", "fr", "es"]

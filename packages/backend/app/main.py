@@ -23,8 +23,22 @@ from app.core.providers.registry import default_registry
 from app.db.engine import Database
 
 # Code defaults — the lowest layer of the resolver (overridden by file/DB/env).
+# Branding = app-shell theming/identity (distinct from the organization module's
+# business identity); admin-editable at runtime via /admin/settings.
 _DEFAULTS: dict[str, object] = {
     "branding.app_name": "Facil",
+    "branding.tagline": "",
+    "branding.logo_url": "",
+    "branding.logo_dark_url": "",
+    "branding.favicon_url": "",
+    "branding.login_background_url": "",
+    "branding.primary_color": "#2563eb",
+    "branding.secondary_color": "#7c3aed",
+    "branding.theme_mode": "light",
+    "branding.default_locale": "en",
+    "branding.supported_locales": ["en", "fr", "es"],
+    "branding.support_email": "",
+    "branding.support_url": "",
 }
 
 

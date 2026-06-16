@@ -247,9 +247,12 @@ jamais identité métier (qui va dans `organization`). Set cible config-store :
 | `branding.support_url` | lien aide/support |
 
 **Hors config-store** (→ `organization`) : raison sociale, IDs fiscaux, adresse
-postale, logo/letterhead documents, contacts de l'entité, sites. Implémentation =
-étendre `_DEFAULTS` (main.py) + `BrandingConfig` (deploy) + surfacer dans l'installeur
-D5. Pas de table : ça reste clé-valeur dans `settings`.
+postale, logo/letterhead documents, contacts de l'entité, sites. Pas de table : ça
+reste clé-valeur dans `settings`.
+
+✅ **Implémenté (P4)** : `_DEFAULTS` (main.py) + `BrandingConfig` (deploy) étendus avec
+le set ci-dessus (rétro-compatible). Surfaçage dans l'installeur/panneau = **D5**.
+Seeding deploy→config-store DB = follow-up (les défauts couvrent en attendant).
 
 ## 8. Génériques retirés du legacy (ne pas réintroduire)
 

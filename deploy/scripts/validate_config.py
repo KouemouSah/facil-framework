@@ -546,9 +546,21 @@ class ModulesConfig(BaseModel):
 
 
 class BrandingConfig(BaseModel):
+    # App-shell theming/identity (distinct from the organization module's
+    # business identity). All optional → backwards-compatible with older configs.
     app_name: str = "Facil"
-    primary_color: str = "#2563eb"
+    tagline: str = ""
     logo_url: str = ""
+    logo_dark_url: str = ""
+    favicon_url: str = ""
+    login_background_url: str = ""
+    primary_color: str = "#2563eb"
+    secondary_color: str = "#7c3aed"
+    theme_mode: Literal["light", "dark", "auto"] = "light"
+    default_locale: str = "en"
+    supported_locales: list[str] = Field(default_factory=lambda: ["en", "fr", "es"])
+    support_email: str = ""
+    support_url: str = ""
 
 
 class DeployConfig(BaseModel):
