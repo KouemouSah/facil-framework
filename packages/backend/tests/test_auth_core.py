@@ -12,6 +12,30 @@ from app.core.providers.registry import default_registry
 
 # --- password ------------------------------------------------------------
 
+def test_break_glass_policy(monkeypatch):
+    import app.config as cfg
+    from app.security import admin_token as at
+    monkeypatch.setenv("ADMIN_TOKEN", "tok")
+    # wrong token never allowed
+    cfg._settings = None
+    assert at.break_glass_allowed("wrong", "1.2.3.4") is False
+    # expired -> denied
+    monkeypatch.setenv("ADMIN_TOKEN_EXPIRES_AT", "2000-01-01T00:00:00+00:00")
+    cfg._settings = None
+    assert at.break_glass_allowed("tok", "1.2.3.4") is False
+    monkeypatch.delenv("ADMIN_TOKEN_EXPIRES_AT")
+    # IP allowlist enforced
+    monkeypatch.setenv("ADMIN_TOKEN_ALLOWED_IPS", "10.0.0.1, 10.0.0.2")
+    cfg._settings = None
+    assert at.break_glass_allowed("tok", "1.2.3.4") is False
+    assert at.break_glass_allowed("tok", "10.0.0.2") is True
+    # no policy -> allowed
+    monkeypatch.delenv("ADMIN_TOKEN_ALLOWED_IPS")
+    cfg._settings = None
+    assert at.break_glass_allowed("tok", "anything") is True
+    cfg._settings = None
+
+
 def test_crypto_roundtrip_and_tamper(monkeypatch):
     monkeypatch.setenv("TOTP_ENCRYPTION_KEY", "unit-test-key-0123456789abcdef")
     from app.security import crypto

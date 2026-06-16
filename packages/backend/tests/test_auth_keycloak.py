@@ -106,9 +106,9 @@ async def test_require_auth_tries_each_verifier(monkeypatch):
 
     app = types.SimpleNamespace(state=types.SimpleNamespace(
         auth=_V(None), auth_verifiers=[_V(None), _V({"sub": "kc-user"})]))
-    request = types.SimpleNamespace(app=app)
-    monkeypatch.setattr(auth_dep, "get_settings",
-                        lambda: types.SimpleNamespace(admin_token="x"))
+    request = types.SimpleNamespace(app=app, client=None)
+    # x_admin_token=None -> break-glass denied -> falls through to the verifier
+    # chain; the first verifier returns None, the second (native by default) wins.
     claims = await auth_dep.require_auth(request, authorization="Bearer abc",
                                          x_admin_token=None)
     assert claims == {"sub": "kc-user"}

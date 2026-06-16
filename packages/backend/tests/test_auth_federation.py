@@ -163,12 +163,15 @@ async def fed_app(tmp_path, monkeypatch):
     application.state.registry = default_registry()
     application.state.auth = application.state.registry.build("auth", "native",
                                                               {"issuer": "facil"})
-    # token "agent-tok" is an org-A agent in group 'agents'
+    # token "agent-tok" is an org-A agent in group 'agents' (session sess-1);
+    # "logout-tok" is a back-channel logout token for that session.
     fake = _FakeOIDC({"agent-tok": {"sub": "kc-agent-1", "email": "agent@x.io",
                                     "email_verified": True, "groups": ["agents"],
-                                    "org": "orga"}})
+                                    "org": "orga", "sid": "sess-1"},
+                      "logout-tok": {"sub": "kc-agent-1", "sid": "sess-1"}})
     application.state.auth_verifiers = [application.state.auth, fake]
     application.state.federation_cache = {}
+    application.state.oidc_revoked = {}
     application.include_router(auth_api.router)
     application.include_router(rbac_api.router)
     load_modules(application, enabled=["organization", "location"])
@@ -234,3 +237,21 @@ async def test_keycloak_agent_is_scoped_via_local_rbac(fed_app):
     hdr = {"Authorization": "Bearer agent-tok"}
     assert (await ac.get(f"{ORG}/{org_a}", headers=hdr)).status_code == 200
     assert (await ac.get(f"{ORG}/{org_b}", headers=hdr)).status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_backchannel_logout_revokes_session(fed_app):
+    ac, _ = fed_app
+    admin = {"X-Admin-Token": "test-token"}
+    ORG = "/api/v1/modules/organization"
+    await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=admin)
+    org_a = (await ac.post(f"{ORG}/", headers=admin,
+                           json={"code": "orga", "legal_name": "A"})).json()["id"]
+    hdr = {"Authorization": "Bearer agent-tok"}
+    assert (await ac.get(f"{ORG}/{org_a}", headers=hdr)).status_code == 200
+    # IdP back-channel logout for session sess-1
+    r = await ac.post("/api/v1/auth/oidc/backchannel-logout",
+                      data={"logout_token": "logout-tok"})
+    assert r.status_code == 200 and r.json()["sid"] == "sess-1"
+    # the agent's token (session sess-1) is now rejected
+    assert (await ac.get(f"{ORG}/{org_a}", headers=hdr)).status_code == 401

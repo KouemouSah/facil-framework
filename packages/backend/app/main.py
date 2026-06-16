@@ -96,6 +96,8 @@ async def lifespan(app: FastAPI):
     app.state.federation_cache = {}
     # Ingress rate-limiter store (in-process; per-IP fixed window).
     app.state.rate_limiter = {}
+    # OIDC revocation set (sid -> expiry); populated by back-channel logout.
+    app.state.oidc_revoked = {}
 
     # RBAC seeding — sync the permission catalog + the active profile's global
     # roles (idempotent). Suppressed pre-migration (schema may be absent on first

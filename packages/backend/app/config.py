@@ -24,8 +24,13 @@ class Settings(BaseSettings):
         "postgresql+asyncpg://facil_app:changeme@localhost:5432/facil"
     )
 
-    # Bootstrap admin token gating /admin/* (D1). Replaced by real auth in D4.
+    # Bootstrap admin token gating /admin/* (D1). Break-glass — bypasses RBAC.
+    # Hardened (D4.9): optional expiry (ISO8601, empty = none) + IP allowlist
+    # (CSV, empty = any). Use is always audited. Disable by leaving admin_token
+    # empty once real RBAC admins exist.
     admin_token: str = ""
+    admin_token_expires_at: str = ""
+    admin_token_allowed_ips: str = ""
 
     @property
     def async_database_url(self) -> str:

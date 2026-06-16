@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import contextlib
+import time
+from urllib.parse import parse_qs
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -195,6 +197,38 @@ async def email_verification_confirm(body: TokenIn,
     if not done:
         raise HTTPException(400, "invalid or expired token")
     return {"email_verified": True}
+
+
+@router.post("/oidc/backchannel-logout")
+async def oidc_backchannel_logout(request: Request) -> dict:
+    """OIDC back-channel logout (D4.9 #5): the IdP posts a signed logout_token
+    (application/x-www-form-urlencoded per spec; JSON also accepted). We verify it
+    and revoke the session id so matching access tokens are rejected by
+    require_auth until they expire. Form parsed manually (no python-multipart dep)."""
+    raw = (await request.body()).decode("utf-8", "ignore")
+    logout_token = (parse_qs(raw).get("logout_token") or [None])[0]
+    if not logout_token:
+        with contextlib.suppress(Exception):
+            import json as _json
+            logout_token = _json.loads(raw).get("logout_token")
+    if not logout_token:
+        raise HTTPException(400, "missing logout_token")
+    revoked = getattr(request.app.state, "oidc_revoked", None)
+    if revoked is None:
+        raise HTTPException(503, "oidc revocation not enabled")
+    for verifier in getattr(request.app.state, "auth_verifiers", []):
+        if getattr(verifier, "code", "native") == "native":
+            continue
+        claims = await verifier.verify(logout_token)
+        if claims is None:
+            continue
+        sid = claims.get("sid") or claims.get("jti")
+        if not sid:
+            continue
+        ttl = int(request.app.state.resolver.resolve("auth.oidc.revocation_ttl", 3600))
+        revoked[sid] = time.monotonic() + ttl
+        return {"revoked": True, "sid": sid}
+    raise HTTPException(400, "invalid logout_token")
 
 
 @router.post("/2fa/setup")
