@@ -34,6 +34,11 @@ paths = [
   # restrictions + Firebase Security Rules + App Check, not secrecy).
   # Regenerated per-deployment when mobile/inspector are ported.
   '''google-services\.json$''',
+
+  # Backend TEST fixtures legitimately contain fake credentials (test JWT
+  # secrets, dummy passwords/tokens). The app code (packages/backend/app/) stays
+  # scanned — only the test tree is exempt.
+  '''(^|/)packages/backend/tests/''',
 ]
 
 # --- Value allowlist ------------------------------------------------------
