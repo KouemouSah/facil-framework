@@ -174,11 +174,14 @@ Caddyfile
 # Bootstrap state — provisioning output + generated credentials (data-plane bootstrap)
 deploy/.bootstrap-state.json
 
-# API keys / tokens dropped into the repo (NEVER commit) — e.g. Resend key CSV
+# API keys / tokens dropped into the repo (NEVER commit) — e.g. Resend key
 .github/api-keys.csv
 **/api-keys.csv
 **/*api-key*.csv
 **/*apikey*.csv
+**/api_key_*.md
+**/*api_key*
+**/*resend*key*
 
 # E2E Test Data (keep README only)
 test-data/*.pdf
