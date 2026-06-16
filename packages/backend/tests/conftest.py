@@ -16,6 +16,7 @@ sys.path.insert(0, str(BACKEND_DIR))
 async def client(tmp_path, monkeypatch):
     """Yield (AsyncClient, Database) with a fresh SQLite schema + admin token."""
     monkeypatch.setenv("ADMIN_TOKEN", "test-token")
+    monkeypatch.setenv("JWT_SECRET", "test-jwt-secret-0123456789abcdef0123456789")
     import app.config as cfg
     cfg._settings = None  # reset cached settings so ADMIN_TOKEN is read
 
@@ -29,6 +30,7 @@ async def client(tmp_path, monkeypatch):
     from app.main import app
 
     from app.identity import models as _account_models  # noqa: F401 (register Account)
+    from app.auth import models as _cred_models  # noqa: F401 (register Credential)
     import_module_models()  # register module tables before create_all
     db = Database(f"sqlite+aiosqlite:///{tmp_path/'test.db'}")
     async with db.engine.begin() as conn:
@@ -40,6 +42,7 @@ async def client(tmp_path, monkeypatch):
     app.state.resolver = resolver
     app.state.registry = default_registry()
     app.state.llm_router = LLMRouter(resolver, app.state.registry)
+    app.state.auth = app.state.registry.build("auth", "native", {"issuer": "facil"})
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:

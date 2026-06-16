@@ -1,0 +1,142 @@
+"""Auth service — register, authenticate (lockout + TOTP), login, 2FA setup.
+
+Branches identity (Account/NIU, D4.1) and credentials (Credential). Login by
+email OR NIU. Anti-enumeration: a wrong identifier or password yields the SAME
+InvalidCredentials (no oracle). Lockout after repeated failures (legacy-parity).
+Token issuance is delegated to the AuthProvider (auth/native by default).
+"""
+
+from __future__ import annotations
+
+import datetime as _dt
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.auth import password as password_mod
+from app.auth import repository as repo
+from app.auth import totp as totp_mod
+from app.auth.models import Credential
+from app.identity import repository as identity_repo
+from app.identity import service as identity_service
+from app.identity.number import NumberStrategy
+
+LOCKOUT_THRESHOLD = 5
+LOCKOUT_MINUTES = 15
+
+
+class AuthError(Exception):
+    pass
+
+
+class WeakPassword(AuthError):
+    pass
+
+
+class InvalidCredentials(AuthError):
+    pass
+
+
+class AccountLocked(AuthError):
+    pass
+
+
+class TotpRequired(AuthError):
+    pass
+
+
+def _now() -> _dt.datetime:
+    return _dt.datetime.now(tz=_dt.timezone.utc)
+
+
+def _aware(dt: _dt.datetime | None) -> _dt.datetime | None:
+    # SQLite returns naive datetimes; treat stored times as UTC for comparison.
+    if dt is not None and dt.tzinfo is None:
+        return dt.replace(tzinfo=_dt.timezone.utc)
+    return dt
+
+
+def _register_failure(cred: Credential) -> None:
+    cred.failed_attempts += 1
+    if cred.failed_attempts >= LOCKOUT_THRESHOLD:
+        cred.locked_until = _now() + _dt.timedelta(minutes=LOCKOUT_MINUTES)
+
+
+async def register(session: AsyncSession, *, password: str, email: str | None = None,
+                   organization_id: str | None = None, display_name: str | None = None,
+                   policy: str = "immediate", category: str | None = None,
+                   strategy: NumberStrategy | None = None):
+    ok, reason = password_mod.check_strength(password)
+    if not ok:
+        raise WeakPassword(reason)
+    account = await identity_service.register(
+        session, email=email, organization_id=organization_id,
+        display_name=display_name, policy=policy, category=category, strategy=strategy)
+    session.add(Credential(account_id=account.id,
+                           password_hash=password_mod.hash_password(password)))
+    await session.flush()
+    return account
+
+
+async def authenticate(session: AsyncSession, identifier: str, password: str, *,
+                      totp_code: str | None = None,
+                      strategy: NumberStrategy | None = None):
+    account = await identity_service.resolve_identifier(session, identifier, strategy)
+    if account is None:
+        return None
+    cred = await repo.get_credential(session, account.id)
+    if cred is None:
+        return None
+    locked = _aware(cred.locked_until)
+    if locked and locked > _now():
+        raise AccountLocked("account temporarily locked")
+    if not password_mod.verify_password(password, cred.password_hash):
+        _register_failure(cred)
+        await session.flush()
+        return None
+    if cred.totp_enabled:
+        if not totp_code:
+            raise TotpRequired("2fa code required")
+        if not totp_mod.verify_code(cred.totp_secret or "", totp_code):
+            _register_failure(cred)
+            await session.flush()
+            return None
+    cred.failed_attempts = 0
+    cred.locked_until = None
+    await session.flush()
+    return account
+
+
+async def login(session: AsyncSession, identifier: str, password: str, *,
+               auth_provider, totp_code: str | None = None,
+               strategy: NumberStrategy | None = None):
+    account = await authenticate(session, identifier, password,
+                                 totp_code=totp_code, strategy=strategy)
+    if account is None:
+        raise InvalidCredentials("invalid credentials")
+    claims = {"act": account.account_number, "org": account.organization_id}
+    tokens = await auth_provider.issue(account.id, claims)
+    return account, tokens
+
+
+async def setup_totp(session: AsyncSession, account_id: str, *, issuer: str = "Facil"):
+    cred = await repo.get_credential(session, account_id)
+    if cred is None:
+        raise InvalidCredentials("no credential for this account")
+    secret = totp_mod.generate_secret()
+    cred.totp_secret = secret
+    cred.totp_enabled = False
+    await session.flush()
+    account = await identity_repo.get_account(session, account_id)
+    name = (account.email or account.account_number or account_id) if account else account_id
+    return secret, totp_mod.provisioning_uri(secret, name, issuer=issuer)
+
+
+async def enable_totp(session: AsyncSession, account_id: str, code: str) -> bool:
+    cred = await repo.get_credential(session, account_id)
+    if cred is None or not cred.totp_secret:
+        raise InvalidCredentials("2fa not set up")
+    if not totp_mod.verify_code(cred.totp_secret, code):
+        raise InvalidCredentials("invalid 2fa code")
+    cred.totp_enabled = True
+    await session.flush()
+    return True

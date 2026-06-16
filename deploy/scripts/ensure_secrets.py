@@ -30,7 +30,7 @@ from pathlib import Path
 
 # Runtime secrets that docker compose interpolates into the data-plane services.
 RUNTIME_SECRETS = ("POSTGRES_PASSWORD", "REDIS_PASSWORD", "MINIO_ROOT_PASSWORD",
-                   "ADMIN_TOKEN")
+                   "ADMIN_TOKEN", "JWT_SECRET")
 
 
 def _parse(path: Path) -> dict[str, str]:
