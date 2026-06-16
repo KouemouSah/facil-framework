@@ -15,6 +15,7 @@ from fastapi import FastAPI, Response, status
 from sqlalchemy import text
 
 from app.api import admin_providers, admin_settings, auth, rbac
+from app.scim import api as scim_api
 from app.config import get_settings
 from app.config_store import repository as repo
 from app.config_store.resolver import ConfigResolver
@@ -146,6 +147,7 @@ app.include_router(admin_settings.router)
 app.include_router(admin_providers.router)
 app.include_router(auth.router)
 app.include_router(rbac.router)
+app.include_router(scim_api.router)
 # Business modules — included only if listed in MODULES_ENABLED (Phase A.5).
 # Not-yet-ported modules are skipped (warned); present-but-broken ones fail closed.
 load_modules(app, enabled=enabled_from_env())

@@ -155,6 +155,14 @@ Secret JWT = `JWT_SECRET` (généré par `ensure_secrets`, rendu dans l'env back
   **Introspection RFC 7662 (D4.11)** : opt-in (`auth.oidc.introspection` + client confidentiel) —
   sur cache-miss, vérifie que le jeton est encore **actif** à l'IdP (offboarding quasi-instantané,
   ≤ TTL cache) ; fail-open sur erreur transitoire (back-channel logout + statut local = autres filets).
+- **Échelle 1M+ (D4.12)** : état de sécurité partagé via `app/core/cache.py` (ABC `Cache` :
+  `MemoryCache` / `RedisCache`, `build_cache(REDIS_URL)`) — **révocation OIDC, rate-limit et
+  federation cache deviennent GLOBAUX multi-réplica** (Redis) au lieu de per-pod. Dégradation
+  in-process si Redis absent.
+- **SCIM 2.0 (D4.13)** : `/scim/v2/Users` (bearer `SCIM_TOKEN`) — pré-provisioning +
+  **deprovision PUSH instantané** (`active=false` → compte désactivé + sessions révoquées),
+  `externalId` → `federated_identity` (un login OIDC ultérieur retombe sur le compte
+  pré-provisionné). Standard IGA (Okta/Azure/SailPoint). Groups→rôles = suite.
 
 ## 6. D4.1b — identité vérifiée (PRÉPARÉ, DIFFÉRÉ)
 

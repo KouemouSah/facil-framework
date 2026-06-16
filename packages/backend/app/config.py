@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     # ALWAYS single-session; this flag also forces it for everyone else.
     auth_single_session: bool = False
 
+    # SCIM 2.0 provisioning bearer token (from the IdP/IGA). Empty = SCIM locked.
+    scim_token: str = ""
+    scim_provider: str = "keycloak"  # federated_identity provider for externalId
+
     def idle_seconds_for(self, subject_type: str | None) -> int:
         return self.session_idle_seconds_agent if subject_type == "agent" \
             else self.session_idle_seconds
