@@ -1,10 +1,16 @@
-"""Identity service — registration (mint a unique NIU) + login-identifier resolution.
+"""Identity service — registration, gated NIU issuance, login-identifier resolution.
 
-Uniqueness of the account_number is guaranteed by the DB UNIQUE constraint; the
-service mints a random candidate and retries on the (rare) collision. Login-
-identifier resolution accepts an email OR a NIU, validating the NIU's check digit
-BEFORE any DB hit (reject typos early; the auth layer returns a uniform error so
-this is not an enumeration oracle).
+Lifecycle (validated 2026-06-16):
+- register(): creates the Account (email + basics). Under policy `immediate` it
+  also issues the NIU now; under `on_verified_document` it stays
+  status=pending_identity with account_number=NULL until issue_number() is called
+  by the identity-verification step (D4.1b) once a document is verified.
+- issue_number(): mints the NIU for a category (prefix) + records subject_type +
+  flips status to active. IMMUTABLE — never re-issues an existing NIU. Uniqueness
+  is the DB UNIQUE constraint; a per-attempt SAVEPOINT lets us retry the (rare)
+  random collision without losing the account.
+- resolve_identifier(): email OR NIU; the NIU's check digit is verified before any
+  DB hit; a uniform None (no oracle) is returned for typos / unknowns.
 """
 
 from __future__ import annotations
@@ -17,6 +23,7 @@ from app.identity import repository as repo
 from app.identity.models import Account
 from app.identity.number import NumberStrategy
 
+ISSUANCE_POLICIES = ("immediate", "on_verified_document")
 _MAX_MINT_RETRIES = 8
 
 
@@ -28,6 +35,10 @@ class EmailTaken(IdentityError):
     pass
 
 
+class AlreadyIssued(IdentityError):
+    pass
+
+
 class NumberExhausted(IdentityError):
     pass
 
@@ -35,24 +46,44 @@ class NumberExhausted(IdentityError):
 async def register(session: AsyncSession, *, email: str | None = None,
                    organization_id: str | None = None,
                    display_name: str | None = None,
+                   policy: str = "immediate", category: str | None = None,
                    strategy: NumberStrategy | None = None) -> Account:
-    strategy = strategy or NumberStrategy()
-    if email is not None and await repo.get_by_email(session, email):
-        raise EmailTaken(f"email '{email}' already registered")
+    if policy not in ISSUANCE_POLICIES:
+        raise IdentityError(f"policy must be one of {ISSUANCE_POLICIES}")
+    if email is not None:
+        email = email.strip().lower()
+        if await repo.get_by_email(session, email):
+            raise EmailTaken(f"email '{email}' already registered")
+    account = Account(email=email, organization_id=organization_id,
+                      display_name=display_name, status="pending_identity")
+    session.add(account)
+    await session.flush()
+    if policy == "immediate":
+        await issue_number(session, account, category=category, strategy=strategy)
+    return account
 
+
+async def issue_number(session: AsyncSession, account: Account, *,
+                      category: str | None = None, subject_type: str | None = None,
+                      strategy: NumberStrategy | None = None) -> Account:
+    """Mint + assign the NIU (once). Called at register (immediate) or by the
+    identity-verification step (gated). Idempotent guard: never re-issues."""
+    if account.account_number:
+        raise AlreadyIssued(f"account {account.id} already has a NIU")
+    strategy = strategy or NumberStrategy()
     for _ in range(_MAX_MINT_RETRIES):
-        candidate = num.mint(strategy)
+        candidate = num.mint(strategy, category=category)
         if await repo.number_exists(session, candidate):
             continue
-        account = Account(account_number=candidate, email=email,
-                          organization_id=organization_id, display_name=display_name)
-        session.add(account)
+        account.account_number = candidate
+        account.subject_type = subject_type or category
+        account.status = "active"
         try:
-            await session.flush()
-        except IntegrityError:  # concurrent mint of the same number — retry
-            await session.rollback()
-            continue
-        return account
+            async with session.begin_nested():  # SAVEPOINT — survives a collision
+                await session.flush()
+            return account
+        except IntegrityError:
+            continue  # concurrent mint of the same number — try another
     raise NumberExhausted("could not mint a unique account_number; widen body_length")
 
 

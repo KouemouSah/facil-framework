@@ -76,6 +76,50 @@ async def test_resolve_rejects_typo_and_unknown(client):
         assert await service.resolve_identifier(session, ghost, s) is None
 
 
+_CAT_STRATEGY = NumberStrategy.from_config(
+    {"category_prefixes": {"national": "1", "foreigner": "2"}, "body_length": 8})
+
+
+@pytest.mark.asyncio
+async def test_gated_policy_defers_niu_until_issued(client):
+    _, db = client
+    async with db.session_factory() as session:
+        a = await service.register(session, email="kyc@x.io",
+                                   policy="on_verified_document")
+        await session.commit()
+        assert a.account_number is None and a.status == "pending_identity"
+        # later: identity verified -> issue NIU as a national
+        await service.issue_number(session, a, category="national",
+                                   strategy=_CAT_STRATEGY)
+        await session.commit()
+    assert a.account_number.startswith("1") and a.status == "active"
+    assert a.subject_type == "national"
+    assert num.validate(a.account_number, _CAT_STRATEGY)
+
+
+@pytest.mark.asyncio
+async def test_foreigner_distinguishable_from_national(client):
+    _, db = client
+    async with db.session_factory() as session:
+        nat = await service.register(session, policy="on_verified_document")
+        fgn = await service.register(session, policy="on_verified_document")
+        await service.issue_number(session, nat, category="national", strategy=_CAT_STRATEGY)
+        await service.issue_number(session, fgn, category="foreigner", strategy=_CAT_STRATEGY)
+        await session.commit()
+    assert nat.account_number[0] == "1" and fgn.account_number[0] == "2"
+
+
+@pytest.mark.asyncio
+async def test_niu_is_immutable_no_reissue(client):
+    _, db = client
+    async with db.session_factory() as session:
+        a = await service.register(session, email="im@x.io")  # immediate -> has NIU
+        await session.commit()
+        with pytest.raises(service.AlreadyIssued):
+            await service.issue_number(session, a, category="national",
+                                       strategy=_CAT_STRATEGY)
+
+
 @pytest.mark.asyncio
 async def test_resolve_normalizes_separators(client):
     _, db = client

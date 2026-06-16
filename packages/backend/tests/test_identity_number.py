@@ -84,3 +84,37 @@ def test_from_config_validation():
         NumberStrategy.from_config({"body_length": 2})        # too short
     with pytest.raises(ValueError):
         NumberStrategy.from_config({"prefix": "AB"})          # non-numeric prefix
+
+
+# --- category prefixes (national / foreigner / entity) -------------------
+
+_CATS = {"category_prefixes": {"national": "1", "foreigner": "2", "entity": "9"}}
+
+
+def test_category_prefix_distinguishes_and_validates():
+    s = NumberStrategy.from_config({**_CATS, "body_length": 8})
+    nat = num.mint(s, category="national")
+    fgn = num.mint(s, category="foreigner")
+    assert nat.startswith("1") and fgn.startswith("2")
+    assert num.validate(nat, s) and num.validate(fgn, s)
+    assert len(nat) == 1 + 8 + 2 == len(fgn)  # uniform length
+
+
+def test_category_required_when_configured():
+    s = NumberStrategy.from_config(_CATS)
+    with pytest.raises(ValueError):
+        num.mint(s, category=None)            # category mandatory
+    with pytest.raises(ValueError):
+        num.mint(s, category="alien")         # unknown category
+
+
+def test_validate_rejects_unknown_category_prefix():
+    s = NumberStrategy.from_config({**_CATS, "body_length": 8})
+    n = num.mint(s, category="national")
+    foreign_prefix = "7" + n[1:]              # prefix not in the configured set
+    assert num.validate(foreign_prefix, s) is False
+
+
+def test_category_prefixes_must_share_length():
+    with pytest.raises(ValueError):
+        NumberStrategy.from_config({"category_prefixes": {"a": "1", "b": "22"}})
