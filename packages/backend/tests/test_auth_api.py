@@ -74,6 +74,36 @@ async def test_refresh_rotation(client):
 
 
 @pytest.mark.asyncio
+async def test_refresh_token_reuse_is_detected(client):
+    ac, _ = client
+    await _register(ac, email="reuse@x.io")
+    t0 = (await ac.post(f"{A}/login", json={"identifier": "reuse@x.io", "password": PW})).json()
+    # First rotation succeeds and revokes t0's refresh token.
+    t1 = (await ac.post(f"{A}/refresh", json={"refresh_token": t0["refresh"]})).json()
+    assert t1["access"]
+    # Re-using the OLD (already rotated) refresh token is rejected as theft...
+    assert (await ac.post(f"{A}/refresh",
+                          json={"refresh_token": t0["refresh"]})).status_code == 401
+    # ...and that revokes the whole chain, so the rotated token is dead too.
+    assert (await ac.post(f"{A}/refresh",
+                          json={"refresh_token": t1["refresh"]})).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_logout_revokes_refresh(client):
+    ac, _ = client
+    await _register(ac, email="lo@x.io")
+    t = (await ac.post(f"{A}/login", json={"identifier": "lo@x.io", "password": PW})).json()
+    bearer = {"Authorization": f"Bearer {t['access']}"}
+    out = await ac.post(f"{A}/logout", headers=bearer,
+                        json={"refresh_token": t["refresh"]})
+    assert out.status_code == 200
+    # the refresh token no longer works after logout
+    assert (await ac.post(f"{A}/refresh",
+                          json={"refresh_token": t["refresh"]})).status_code == 401
+
+
+@pytest.mark.asyncio
 async def test_2fa_setup_enable_and_login(client):
     ac, _ = client
     await _register(ac, email="2fa@x.io")

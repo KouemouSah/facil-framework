@@ -9,11 +9,13 @@ Token issuance is delegated to the AuthProvider (auth/native by default).
 from __future__ import annotations
 
 import datetime as _dt
+import inspect
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import password as password_mod
 from app.auth import repository as repo
+from app.auth import sessions as sessions_mod
 from app.auth import totp as totp_mod
 from app.auth.models import Credential
 from app.identity import repository as identity_repo
@@ -106,16 +108,43 @@ async def authenticate(session: AsyncSession, identifier: str, password: str, *,
     return account
 
 
+def _claims(account) -> dict:
+    return {"act": account.account_number, "org": account.organization_id}
+
+
 async def login(session: AsyncSession, identifier: str, password: str, *,
                auth_provider, totp_code: str | None = None,
-               strategy: NumberStrategy | None = None):
+               strategy: NumberStrategy | None = None,
+               ip: str | None = None, ua: str | None = None):
     account = await authenticate(session, identifier, password,
                                  totp_code=totp_code, strategy=strategy)
     if account is None:
         raise InvalidCredentials("invalid credentials")
-    claims = {"act": account.account_number, "org": account.organization_id}
-    tokens = await auth_provider.issue(account.id, claims)
+    tokens = await sessions_mod.open_session(
+        session, account.id, auth_provider=auth_provider,
+        claims=_claims(account), ip=ip, ua=ua)
     return account, tokens
+
+
+async def refresh(session: AsyncSession, refresh_token: str, *, auth_provider):
+    """Rotate a refresh token (revoke old, mint new). None if invalid/reused."""
+    async def claims_for(account_id: str) -> dict | None:
+        acc = await identity_repo.get_account(session, account_id)
+        return _claims(acc) if acc else None
+    return await sessions_mod.rotate(session, refresh_token,
+                                     auth_provider=auth_provider,
+                                     claims_for=claims_for)
+
+
+async def logout(session: AsyncSession, refresh_token: str | None, *, auth_provider,
+                 all_devices: bool = False, account_id: str | None = None) -> bool:
+    if all_devices and account_id:
+        await sessions_mod.revoke_all(session, account_id)
+        return True
+    if refresh_token:
+        return await sessions_mod.revoke(session, refresh_token,
+                                         auth_provider=auth_provider)
+    return False
 
 
 async def setup_totp(session: AsyncSession, account_id: str, *, issuer: str = "Facil"):

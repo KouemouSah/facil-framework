@@ -45,9 +45,20 @@ class NativeAuthProvider(AuthProvider):
             payload.update(claims)
         return jwt.encode(payload, self._secret, algorithm=self._alg)
 
-    async def issue(self, subject: str, claims: dict | None = None) -> dict:
-        return {"access": self._encode(subject, self._access_ttl, "access", claims),
-                "refresh": self._encode(subject, self._refresh_ttl, "refresh", None)}
+    async def issue(self, subject: str, claims: dict | None = None,
+                    *, jti: str | None = None) -> dict:
+        # `jti` (the session id) goes on BOTH tokens so the service can tie a
+        # refresh token to its revocable session row (rotation + reuse detection).
+        access_claims = dict(claims or {})
+        refresh_claims: dict = {}
+        if jti is not None:
+            access_claims["jti"] = jti
+            refresh_claims["jti"] = jti
+        return {
+            "access": self._encode(subject, self._access_ttl, "access", access_claims),
+            "refresh": self._encode(subject, self._refresh_ttl, "refresh",
+                                    refresh_claims or None),
+        }
 
     async def verify(self, token: str, *, expect: str = "access") -> dict | None:
         try:

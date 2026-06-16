@@ -31,6 +31,11 @@ class RefreshIn(BaseModel):
     refresh_token: str
 
 
+class LogoutIn(BaseModel):
+    refresh_token: str | None = None
+    all_devices: bool = False
+
+
 class CodeIn(BaseModel):
     code: str
 
@@ -53,10 +58,13 @@ async def register(body: RegisterIn,
 @router.post("/login")
 async def login(body: LoginIn, request: Request,
                 session: AsyncSession = Depends(get_session)) -> dict:
+    ip = request.client.host if request.client else None
+    ua = request.headers.get("user-agent")
     try:
         account, tokens = await service.login(
             session, body.identifier, body.password,
-            auth_provider=request.app.state.auth, totp_code=body.totp_code)
+            auth_provider=request.app.state.auth, totp_code=body.totp_code,
+            ip=ip, ua=ua)
     except service.TotpRequired:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "totp_required")
     except service.AccountLocked:
@@ -69,17 +77,27 @@ async def login(body: LoginIn, request: Request,
 
 
 @router.post("/refresh")
-async def refresh(body: RefreshIn, request: Request) -> dict:
-    tokens = await request.app.state.auth.refresh(body.refresh_token)
+async def refresh(body: RefreshIn, request: Request,
+                  session: AsyncSession = Depends(get_session)) -> dict:
+    # Rotation with reuse detection (revokes the old session, mints a new one).
+    tokens = await service.refresh(session, body.refresh_token,
+                                   auth_provider=request.app.state.auth)
     if tokens is None:
+        await session.commit()  # persist any reuse-triggered mass revocation
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid refresh token")
+    await session.commit()
     return tokens
 
 
 @router.post("/logout")
-async def logout() -> dict:
-    # Stateless JWT: the client discards its tokens. Server-side refresh
-    # revocation (a session/blocklist table) lands later.
+async def logout(body: LogoutIn, request: Request,
+                 principal: dict = Depends(require_auth),
+                 session: AsyncSession = Depends(get_session)) -> dict:
+    # Revoke the presented session, or every session for the account.
+    await service.logout(session, body.refresh_token,
+                         auth_provider=request.app.state.auth,
+                         all_devices=body.all_devices, account_id=principal.get("sub"))
+    await session.commit()
     return {"status": "ok"}
 
 
