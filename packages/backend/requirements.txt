@@ -11,3 +11,4 @@ PyJWT>=2.8
 pyotp>=2.9
 PyYAML>=6.0
 cryptography>=42.0
+redis>=5.0

@@ -102,12 +102,11 @@ async def lifespan(app: FastAPI):
         {"issuer": resolver.resolve("branding.app_name", "Facil")})
     # Token-verifier chain (native + optional OIDC IdPs) consumed by require_auth.
     app.state.auth_verifiers = _build_verifiers(app, resolver)
-    # Per-token federation resolution cache (avoids a DB write per OIDC request).
-    app.state.federation_cache = {}
-    # Ingress rate-limiter store (in-process; per-IP fixed window).
-    app.state.rate_limiter = {}
-    # OIDC revocation set (sid -> expiry); populated by back-channel logout.
-    app.state.oidc_revoked = {}
+    # Shared cache / state (D4.12): Redis when REDIS_URL is set (global across
+    # replicas — required at scale for rate-limit + OIDC revocation correctness),
+    # else in-process. Backs the federation cache, rate-limiter and revocation set.
+    from app.core.cache import build_cache
+    app.state.cache = build_cache(os.environ.get("REDIS_URL"))
 
     # RBAC seeding — sync the permission catalog + the active profile's global
     # roles (idempotent). Suppressed pre-migration (schema may be absent on first
@@ -120,6 +119,8 @@ async def lifespan(app: FastAPI):
                 await session.commit()
 
     yield
+    with contextlib.suppress(Exception):
+        await app.state.cache.close()
     await db.dispose()
 
 

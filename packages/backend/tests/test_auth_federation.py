@@ -170,8 +170,8 @@ async def fed_app(tmp_path, monkeypatch):
                                     "org": "orga", "sid": "sess-1"},
                       "logout-tok": {"sub": "kc-agent-1", "sid": "sess-1"}})
     application.state.auth_verifiers = [application.state.auth, fake]
-    application.state.federation_cache = {}
-    application.state.oidc_revoked = {}
+    from app.core.cache import MemoryCache
+    application.state.cache = MemoryCache()
     application.include_router(auth_api.router)
     application.include_router(rbac_api.router)
     load_modules(application, enabled=["organization", "location"])
@@ -207,7 +207,8 @@ async def test_groups_claim_absent_does_not_touch_idp_roles(client):
 @pytest.mark.asyncio
 async def test_resolve_cached_skips_db_on_hit(client):
     _, db = client
-    cache: dict = {}
+    from app.core.cache import MemoryCache
+    cache = MemoryCache()
     claims = {"sub": "kc-cache", "email": "z@x.io", "email_verified": True,
               "jti": "jti-1"}
     async with db.session_factory() as s:
@@ -225,7 +226,8 @@ async def test_resolve_cached_skips_db_on_hit(client):
 @pytest.mark.asyncio
 async def test_introspection_inactive_denies_resolution(client):
     _, db = client
-    cache: dict = {}
+    from app.core.cache import MemoryCache
+    cache = MemoryCache()
 
     async def introspect_inactive(token):
         return False  # token revoked at the IdP

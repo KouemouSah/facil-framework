@@ -44,7 +44,8 @@ async def client(tmp_path, monkeypatch):
     app.state.registry = default_registry()
     app.state.llm_router = LLMRouter(resolver, app.state.registry)
     app.state.auth = app.state.registry.build("auth", "native", {"issuer": "facil"})
-    app.state.rate_limiter = {}  # fresh per test (ingress rate-limit store)
+    from app.core.cache import MemoryCache
+    app.state.cache = MemoryCache()  # fresh per test (rate-limit/revocation/fed cache)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:

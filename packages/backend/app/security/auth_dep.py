@@ -15,8 +15,6 @@ import json
 from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import time
-
 from app.api.deps import get_session
 from app.security.admin_token import break_glass_allowed
 
@@ -51,21 +49,18 @@ async def require_auth(request: Request,
                 return claims
             # Federated (OIDC) token: honour IdP-initiated revocation
             # (back-channel logout) — deny if the token's session id was revoked.
-            revoked = getattr(request.app.state, "oidc_revoked", None)
-            if revoked is not None:
+            # Backed by the shared cache (global across replicas at scale).
+            from app.auth import federation
+            cache = getattr(request.app.state, "cache", None)
+            if cache is not None:
                 marker = claims.get("sid") or claims.get("jti")
-                hit = revoked.get(marker) if marker else None
-                if hit is not None and hit > time.monotonic():
-                    cache = getattr(request.app.state, "federation_cache", None)
-                    if cache is not None:
-                        from app.auth.federation import _cache_key
-                        cache.pop(_cache_key(code, claims, token), None)
+                if marker and await cache.exists(f"oidc_revoked:{marker}"):
+                    await cache.delete("fed:" + federation._cache_key(
+                        code, claims, token))
                     continue  # revoked -> 401
             # Resolve to a local account + sync roles, reusing a per-token cached
             # resolution (TTL) to avoid a DB write on every request (D4.8 #3).
-            from app.auth import federation
             resolver = request.app.state.resolver
-            cache = getattr(request.app.state, "federation_cache", None)
             principal, wrote = await federation.resolve_cached(
                 cache, session, code, claims, token, role_map=_role_map(resolver),
                 introspect=getattr(verifier, "introspect", None),

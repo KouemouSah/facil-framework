@@ -18,7 +18,6 @@ token asserts email_verified; suspended/inactive accounts are denied (offboardin
 from __future__ import annotations
 
 import hashlib
-import time
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -158,20 +157,19 @@ def _cache_key(provider: str, claims: dict, token: str) -> str:
         f"{provider}:{hashlib.sha256(token.encode()).hexdigest()}"
 
 
-async def resolve_cached(cache: dict | None, session: AsyncSession, provider: str,
-                         claims: dict, token: str, *, ttl: float = RESOLVE_TTL,
+async def resolve_cached(cache, session: AsyncSession, provider: str,
+                         claims: dict, token: str, *, ttl: int = int(RESOLVE_TTL),
                          introspect=None, **opts) -> tuple[dict | None, bool]:
     """Resolve a federated principal, reusing a per-token cached resolution for
-    `ttl` seconds. Returns (principal, did_db_write). On a cache hit no DB work is
-    done (did_db_write=False) — this is what stops the per-request write storm.
-    On a cache MISS, optional `introspect(token)->bool` checks the token is still
-    active at the IdP (RFC 7662) before provisioning — None/inactive => denied."""
-    now = time.monotonic()
-    key = _cache_key(provider, claims, token)
+    `ttl` seconds (shared `Cache`). Returns (principal, did_db_write). On a cache
+    hit no DB work is done — this is what stops the per-request write storm. On a
+    cache MISS, optional `introspect(token)->bool` checks the token is still active
+    at the IdP (RFC 7662) before provisioning — None/inactive => denied."""
+    key = "fed:" + _cache_key(provider, claims, token)
     if cache is not None:
-        hit = cache.get(key)
-        if hit is not None and hit[1] > now:
-            return ({**claims, "sub": hit[0], "idp": provider,
+        hit = await cache.get(key)
+        if hit is not None:
+            return ({**claims, "sub": hit, "idp": provider,
                      "idp_subject": claims.get("sub")}, False)
     if introspect is not None and not await introspect(token):
         return None, False
@@ -179,5 +177,5 @@ async def resolve_cached(cache: dict | None, session: AsyncSession, provider: st
     if principal is None:
         return None, False
     if cache is not None:
-        cache[key] = (principal["sub"], now + ttl)
+        await cache.set(key, principal["sub"], int(ttl))
     return principal, True

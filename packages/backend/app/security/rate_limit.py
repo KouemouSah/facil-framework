@@ -11,31 +11,20 @@ no-op — so test fixtures / contexts that don't initialise it are not affected.
 
 from __future__ import annotations
 
-import time
-
 from fastapi import HTTPException, Request, status
 
 
-def _allow(store: dict, key: str, limit: int, window: float) -> bool:
-    now = time.monotonic()
-    entry = store.get(key)
-    if entry is None or now - entry[1] >= window:
-        store[key] = [1, now]          # new window
-        return True
-    if entry[0] >= limit:
-        return False
-    entry[0] += 1
-    return True
-
-
-def rate_limited(scope: str, limit: int, window_seconds: float = 60.0):
-    """Dependency: at most `limit` requests per `window_seconds` per client IP."""
+def rate_limited(scope: str, limit: int, window_seconds: int = 60):
+    """Dependency: at most `limit` requests per `window_seconds` per client IP.
+    Backed by the shared cache (Redis at scale → GLOBAL across replicas; in-process
+    otherwise). No cache configured -> limiter is a no-op."""
     async def dep(request: Request) -> None:
-        store = getattr(request.app.state, "rate_limiter", None)
-        if store is None:
-            return  # limiter disabled in this context
+        cache = getattr(request.app.state, "cache", None)
+        if cache is None:
+            return
         ip = request.client.host if request.client else "unknown"
-        if not _allow(store, f"{scope}:{ip}", limit, window_seconds):
+        count = await cache.incr(f"rl:{scope}:{ip}", int(window_seconds))
+        if count > limit:
             raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
                                 "too many requests — slow down")
     return dep

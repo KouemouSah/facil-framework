@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import contextlib
-import time
 from urllib.parse import parse_qs
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -216,8 +215,8 @@ async def oidc_backchannel_logout(request: Request) -> dict:
             logout_token = _json.loads(raw).get("logout_token")
     if not logout_token:
         raise HTTPException(400, "missing logout_token")
-    revoked = getattr(request.app.state, "oidc_revoked", None)
-    if revoked is None:
+    cache = getattr(request.app.state, "cache", None)
+    if cache is None:
         raise HTTPException(503, "oidc revocation not enabled")
     for verifier in getattr(request.app.state, "auth_verifiers", []):
         if getattr(verifier, "code", "native") == "native":
@@ -229,7 +228,7 @@ async def oidc_backchannel_logout(request: Request) -> dict:
         if not sid:
             continue
         ttl = int(request.app.state.resolver.resolve("auth.oidc.revocation_ttl", 3600))
-        revoked[sid] = time.monotonic() + ttl
+        await cache.set(f"oidc_revoked:{sid}", "1", ttl)
         return {"revoked": True, "sid": sid}
     raise HTTPException(400, "invalid logout_token")
 
