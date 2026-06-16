@@ -39,7 +39,8 @@ flowchart TB
 |---|---|---|
 | **Fondation backend** | [`BACKEND_FOUNDATION.md`](BACKEND_FOUNDATION.md) | config-store, résolveur en couches, registre de providers, Module Loader, jonction deploy↔app |
 | **Modules métier** | [`MODULES_ORG_LOCATION.md`](MODULES_ORG_LOCATION.md) | `organization` (entité + unités hiérarchiques) + `location` (sites/branches), scope-site, schéma BD |
-| **Auth & Identité** | [`AUTH_IDENTITY.md`](AUTH_IDENTITY.md) | Account + NIU générique, Credential, JWT/2FA, flux auth, RBAC (à venir) |
+| **Auth & Identité** | [`AUTH_IDENTITY.md`](AUTH_IDENTITY.md) | Account + NIU générique, Credential, JWT/2FA, flux auth |
+| **RBAC (autorisation)** | [`AUTH_RBAC.md`](AUTH_RBAC.md) | rôles/permissions, scope org/unit/site, couverture, seeds par profil, enforcement |
 | **Déploiement on-prem** | [`PHASE_0_DEPLOYMENT_BACKBONE.md`](PHASE_0_DEPLOYMENT_BACKBONE.md) · [`DATAPLANE_BOOTSTRAP.md`](DATAPLANE_BOOTSTRAP.md) · [`DEPLOYMENT_WIZARD.md`](DEPLOYMENT_WIZARD.md) | backbone, provisioning data-plane, wizard de config |
 | **Socle / contexte** | [`SOCLE_GE.md`](SOCLE_GE.md) | socle de référence (origine TaxasGE) |
 
