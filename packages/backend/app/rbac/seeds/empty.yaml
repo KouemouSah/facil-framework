@@ -1,0 +1,15 @@
+# Baseline global/system roles for the `empty` profile.
+# Roles are global (organization_id NULL); operators ASSIGN them to accounts at a
+# chosen scope (org / unit / site). `grants` are permission codes (`*` = all,
+# `resource.*` = resource wildcard). Seeding is idempotent (re-applies grants).
+roles:
+  - code: admin
+    name: Administrator
+    description: Full access (scopable per assignment).
+    is_system: true
+    grants: ['*']
+  - code: member
+    name: Member
+    description: Read-only on organizations and locations.
+    is_system: true
+    grants: [organization.read, location.read]

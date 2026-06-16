@@ -1,0 +1,17 @@
+# Global/system roles for the `private-services-company` profile (generic codes).
+roles:
+  - code: admin
+    name: Administrator
+    description: Full access (scopable per assignment).
+    is_system: true
+    grants: ['*']
+  - code: manager
+    name: Manager
+    description: Manage organizations and locations within scope.
+    is_system: true
+    grants: [organization.*, location.*]
+  - code: member
+    name: Member
+    description: Read-only on organizations and locations.
+    is_system: true
+    grants: [organization.read, location.read]

@@ -13,7 +13,7 @@ import os
 from fastapi import FastAPI, Response, status
 from sqlalchemy import text
 
-from app.api import admin_providers, admin_settings, auth
+from app.api import admin_providers, admin_settings, auth, rbac
 from app.config import get_settings
 from app.config_store import repository as repo
 from app.config_store.resolver import ConfigResolver
@@ -61,6 +61,16 @@ async def lifespan(app: FastAPI):
         "auth", "native",
         {"issuer": resolver.resolve("branding.app_name", "Facil")})
 
+    # RBAC seeding — sync the permission catalog + the active profile's global
+    # roles (idempotent). Suppressed pre-migration (schema may be absent on first
+    # boot); RBAC_SEED_ON_BOOT=0 disables it for operators who seed out-of-band.
+    if os.environ.get("RBAC_SEED_ON_BOOT", "1") != "0":
+        from app.rbac.seed import seed_roles
+        with contextlib.suppress(Exception):
+            async with db.session_factory() as session:
+                await seed_roles(session, profile=resolver.resolve("profile", "empty"))
+                await session.commit()
+
     yield
     await db.dispose()
 
@@ -70,6 +80,7 @@ app = FastAPI(title="Facil Backend", version="0.1.0", lifespan=lifespan)
 app.include_router(admin_settings.router)
 app.include_router(admin_providers.router)
 app.include_router(auth.router)
+app.include_router(rbac.router)
 # Business modules — included only if listed in MODULES_ENABLED (Phase A.5).
 # Not-yet-ported modules are skipped (warned); present-but-broken ones fail closed.
 load_modules(app, enabled=enabled_from_env())

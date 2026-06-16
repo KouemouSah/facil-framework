@@ -1,8 +1,9 @@
-"""organization module API — Organization + OrgUnit CRUD (token-gated).
+"""organization module API — Organization + OrgUnit CRUD (RBAC scope-aware).
 
-Entrypoint consumed by the Module Loader (`router`). Admin-token gated until D4
-brings real RBAC; the routes already carry organization/unit scope so the D4
-enforcement is a wiring change, not a redesign.
+Entrypoint consumed by the Module Loader (`router`). Enforced by RBAC (D4.3):
+each route requires an `organization.{read,write,delete}` permission; the scope
+is resolved from the path (org_id / unit_id), so a grant scoped to one org/unit
+subtree cannot reach another. The bootstrap admin-token still works (break-glass).
 """
 
 from __future__ import annotations
@@ -16,12 +17,15 @@ from app.modules.organization import service
 from app.modules.organization.schemas import (OrganizationCreate,
                                                OrganizationUpdate, OrgUnitCreate,
                                                OrgUnitUpdate)
-from app.security.admin_token import require_admin_token
+from app.security.permission_dep import require_permission
+
+_READ = Depends(require_permission("organization.read"))
+_WRITE = Depends(require_permission("organization.write"))
+_DELETE = Depends(require_permission("organization.delete"))
 
 router = APIRouter(
     prefix="/api/v1/modules/organization",
     tags=["organization"],
-    dependencies=[Depends(require_admin_token)],
 )
 
 _STATUS = {service.NotFound: 404, service.Conflict: 409, service.InvalidParent: 422}
@@ -33,12 +37,12 @@ def _http(e: service.OrgError) -> HTTPException:
 
 # --- Organizations -------------------------------------------------------
 
-@router.get("/")
+@router.get("/", dependencies=[_READ])
 async def list_organizations(session: AsyncSession = Depends(get_session)) -> list[dict]:
     return [o.as_dict() for o in await repo.list_organizations(session)]
 
 
-@router.post("/", status_code=201)
+@router.post("/", status_code=201, dependencies=[_WRITE])
 async def create_organization(body: OrganizationCreate,
                               session: AsyncSession = Depends(get_session)) -> dict:
     try:
@@ -51,7 +55,7 @@ async def create_organization(body: OrganizationCreate,
 
 # --- OrgUnits (literal routes before /{org_id} so they match first) ------
 
-@router.get("/units/{unit_id}")
+@router.get("/units/{unit_id}", dependencies=[_READ])
 async def get_unit(unit_id: str, session: AsyncSession = Depends(get_session)) -> dict:
     unit = await repo.get_unit(session, unit_id)
     if unit is None:
@@ -59,7 +63,7 @@ async def get_unit(unit_id: str, session: AsyncSession = Depends(get_session)) -
     return unit.as_dict()
 
 
-@router.put("/units/{unit_id}")
+@router.put("/units/{unit_id}", dependencies=[_WRITE])
 async def update_unit(unit_id: str, body: OrgUnitUpdate,
                       session: AsyncSession = Depends(get_session)) -> dict:
     try:
@@ -70,7 +74,7 @@ async def update_unit(unit_id: str, body: OrgUnitUpdate,
     return unit.as_dict()
 
 
-@router.delete("/units/{unit_id}")
+@router.delete("/units/{unit_id}", dependencies=[_DELETE])
 async def delete_unit(unit_id: str,
                       session: AsyncSession = Depends(get_session)) -> dict:
     if not await repo.delete_unit(session, unit_id):
@@ -81,7 +85,7 @@ async def delete_unit(unit_id: str,
 
 # --- Organization by id + nested units -----------------------------------
 
-@router.get("/{org_id}")
+@router.get("/{org_id}", dependencies=[_READ])
 async def get_organization(org_id: str,
                            session: AsyncSession = Depends(get_session)) -> dict:
     org = await repo.get_organization(session, org_id)
@@ -90,7 +94,7 @@ async def get_organization(org_id: str,
     return org.as_dict()
 
 
-@router.put("/{org_id}")
+@router.put("/{org_id}", dependencies=[_WRITE])
 async def update_organization(org_id: str, body: OrganizationUpdate,
                               session: AsyncSession = Depends(get_session)) -> dict:
     try:
@@ -101,7 +105,7 @@ async def update_organization(org_id: str, body: OrganizationUpdate,
     return org.as_dict()
 
 
-@router.delete("/{org_id}")
+@router.delete("/{org_id}", dependencies=[_DELETE])
 async def delete_organization(org_id: str,
                               session: AsyncSession = Depends(get_session)) -> dict:
     if not await repo.delete_organization(session, org_id):
@@ -110,7 +114,7 @@ async def delete_organization(org_id: str,
     return {"deleted": org_id}
 
 
-@router.get("/{org_id}/units")
+@router.get("/{org_id}/units", dependencies=[_READ])
 async def list_units(org_id: str,
                      session: AsyncSession = Depends(get_session)) -> list[dict]:
     if await repo.get_organization(session, org_id) is None:
@@ -118,7 +122,7 @@ async def list_units(org_id: str,
     return [u.as_dict() for u in await repo.list_units(session, org_id)]
 
 
-@router.post("/{org_id}/units", status_code=201)
+@router.post("/{org_id}/units", status_code=201, dependencies=[_WRITE])
 async def create_unit(org_id: str, body: OrgUnitCreate,
                       session: AsyncSession = Depends(get_session)) -> dict:
     try:

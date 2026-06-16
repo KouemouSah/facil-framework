@@ -1,0 +1,17 @@
+# Global/system roles for the `saas-multitenant` profile.
+roles:
+  - code: admin
+    name: Administrator
+    description: Platform-wide full access (assign at global scope).
+    is_system: true
+    grants: ['*']
+  - code: tenant_admin
+    name: Tenant Admin
+    description: Full control within a tenant organization (assign at org scope).
+    is_system: true
+    grants: [organization.*, location.*]
+  - code: member
+    name: Member
+    description: Read-only within a tenant organization.
+    is_system: true
+    grants: [organization.read, location.read]

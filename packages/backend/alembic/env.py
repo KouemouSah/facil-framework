@@ -19,6 +19,7 @@ import app.models.setting  # noqa: E402,F401  (register the Setting model)
 import app.models.provider  # noqa: E402,F401  (register the ProviderSetting model)
 import app.identity.models  # noqa: E402,F401  (register the Account model)
 import app.auth.models  # noqa: E402,F401  (register the Credential model)
+import app.rbac.models  # noqa: E402,F401  (register the RBAC models)
 
 # Register every business module's tables (regardless of MODULES_ENABLED) so
 # autogenerate sees them — tables always exist; only routers are conditional.
