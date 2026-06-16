@@ -95,12 +95,15 @@ class AccountRole(UUIDAuditBase):
 
     expires_at: Mapped[_dt.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True)
+    # 'local' = assigned by an admin (preserved); 'idp' = derived from an IdP
+    # group/claim mapping at login (re-synced each login — see D4.7 federation).
+    source: Mapped[str] = mapped_column(String(10), default="local", nullable=False)
 
     def as_dict(self) -> dict:
         return {
             "id": self.id, "account_id": self.account_id, "role_id": self.role_id,
             "organization_id": self.organization_id, "org_unit_id": self.org_unit_id,
-            "site_id": self.site_id,
+            "site_id": self.site_id, "source": self.source,
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
             "is_active": self.is_active,
         }

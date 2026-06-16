@@ -1,30 +1,62 @@
-"""require_auth — accept a Bearer JWT (NativeAuthProvider) OR the bootstrap admin
-token (break-glass). Returns the token claims (principal). The admin-token path
-is the migration bridge until RBAC wholesale-replaces it (D4.4).
+"""require_auth — accept a Bearer JWT (native or a federated OIDC IdP) OR the
+bootstrap admin token (break-glass). Returns the principal claims.
+
+For a token validated by a NON-native verifier (e.g. keycloak_oidc), the external
+identity is resolved to a LOCAL account (link / JIT-provision + IdP role sync, see
+app.auth.federation) and `sub` is rewritten to the local account id — so RBAC scope
+applies unchanged. The admin-token path is the migration bridge until RBAC fully
+replaces it.
 """
 
 from __future__ import annotations
 
-from fastapi import Header, HTTPException, Request, status
+import json
 
+from fastapi import Depends, Header, HTTPException, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_session
 from app.config import get_settings
+
+
+def _role_map(resolver) -> dict:
+    raw = resolver.resolve("auth.oidc.role_map", {})
+    if isinstance(raw, str):
+        try:
+            return json.loads(raw or "{}")
+        except ValueError:
+            return {}
+    return raw or {}
 
 
 async def require_auth(request: Request,
                        authorization: str | None = Header(default=None),
-                       x_admin_token: str | None = Header(default=None)) -> dict:
+                       x_admin_token: str | None = Header(default=None),
+                       session: AsyncSession = Depends(get_session)) -> dict:
     admin = get_settings().admin_token
     if x_admin_token and admin and x_admin_token == admin:
         return {"sub": "bootstrap-admin", "break_glass": True}
     if authorization and authorization.lower().startswith("bearer "):
         token = authorization.split(" ", 1)[1]
-        # Try each configured verifier (native, and optionally keycloak_oidc /
-        # other OIDC IdPs) — the first to validate the token wins. Falls back to
-        # the single native provider when no verifier list is configured.
         verifiers = getattr(request.app.state, "auth_verifiers", None) \
             or [request.app.state.auth]
         for verifier in verifiers:
             claims = await verifier.verify(token)
-            if claims is not None:
+            if claims is None:
+                continue
+            code = getattr(verifier, "code", "native")
+            if code == "native":
                 return claims
+            # Federated (OIDC) token: resolve to a local account + sync roles.
+            from app.auth import federation
+            resolver = request.app.state.resolver
+            principal = await federation.resolve_principal(
+                session, code, claims, role_map=_role_map(resolver),
+                claim_groups=resolver.resolve("auth.oidc.claim_groups", "groups"),
+                claim_org=resolver.resolve("auth.oidc.claim_org", "org"),
+                claim_unit=resolver.resolve("auth.oidc.claim_unit", "unit"))
+            if principal is None:
+                continue  # disabled/unresolvable account -> try next / 401
+            await session.commit()
+            return principal
     raise HTTPException(status.HTTP_401_UNAUTHORIZED, "authentication required")

@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import datetime as _dt
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import (Boolean, DateTime, ForeignKey, Integer, String, Text,
+                        UniqueConstraint)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import JSONType, UUIDAuditBase
@@ -44,6 +45,23 @@ class Session(UUIDAuditBase):
             "last_used_at": self.last_used_at.isoformat() if self.last_used_at else None,
             "ip_address": self.ip_address, "user_agent": self.user_agent,
         }
+
+
+class FederatedIdentity(UUIDAuditBase):
+    """Links a local account to an external IdP subject (D4.7). The canonical,
+    immutable key is (provider, subject) — e.g. ('keycloak', <kc-user-uuid>).
+    Keycloak federates LDAP/AD and brokers SAML upstream, so a single OIDC link
+    covers all of them. Email is NEVER the link key (takeover risk)."""
+
+    __tablename__ = "federated_identity"
+    __table_args__ = (
+        UniqueConstraint("provider", "subject", name="uq_federated_provider_subject"),
+    )
+
+    account_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("account.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(40), index=True)
+    subject: Mapped[str] = mapped_column(String(255), index=True)
 
 
 class AuthToken(UUIDAuditBase):

@@ -126,6 +126,16 @@ Secret JWT = `JWT_SECRET` (généré par `ensure_secrets`, rendu dans l'env back
   issuer + audience) ; `require_auth` essaie une **chaîne de vérificateurs** (native +
   OIDC selon `auth.methods`). L'**émission** OIDC appartient à l'IdP (flux auth-code,
   arrive avec le frontend D5 + le realm Keycloak P11) — `issue/refresh` y lèvent NotImplemented.
+- **Fédération (D4.7)** : Keycloak fédère **LDAP/AD** et brokerise **SAML** en amont →
+  on ne voit que de l'**OIDC** (zéro code LDAP/SAML chez nous). Un jeton OIDC est **résolu
+  vers un `account` LOCAL** (`federated_identity(provider, subject)` UNIQUE — clé immuable,
+  **jamais** l'email ; repli par email **vérifié** sur un compte pré-provisionné ; sinon
+  JIT-create `subject_type='agent'`) AVANT tout check RBAC, donc le **scope local s'applique
+  inchangé**. **L'autorisation reste 100% locale** — les permissions par module ne sont
+  **jamais** mappées depuis l'IdP. Automatisation : mapping **groupe→rôle** (`auth.oidc.role_map`)
+  re-synchronisé à chaque login (`account_role.source='idp'`), rôles `source='local'`
+  préservés ; offboarding (retrait de groupe AD/Keycloak) → rôle `idp` retiré au login suivant ;
+  compte suspendu/inactif → refus. Cible d'échelle : SCIM 2.0 (déprovision push) — plus tard.
 
 ## 6. D4.1b — identité vérifiée (PRÉPARÉ, DIFFÉRÉ)
 
