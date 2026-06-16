@@ -12,12 +12,6 @@ from app.core.module_registry import (ModuleLoadError, discover,
 PKG = "tests.sample_modules"
 
 
-def _paths(app: FastAPI) -> list[str]:
-    # Robust across Starlette versions: some route entries (mounts / included
-    # routers) don't expose `.path` — skip them.
-    return [p for r in app.routes if (p := getattr(r, "path", None)) is not None]
-
-
 def test_discover_lists_subpackages():
     found = discover(PKG)
     assert {"alpha", "beta", "noapi", "norouter"} <= set(found)
@@ -33,13 +27,17 @@ def test_enabled_from_env_parses_csv():
     assert enabled_from_env({}) == []
 
 
-def test_load_only_enabled_module():
+@pytest.mark.asyncio
+async def test_load_only_enabled_module():
+    # Assert BEHAVIOUR (the route actually serves), not app.routes internals —
+    # robust across Starlette versions.
     app = FastAPI()
     loaded = load_modules(app, enabled=["alpha"], package=PKG)
     assert loaded == ["alpha"]
-    paths = _paths(app)
-    assert "/api/v1/modules/alpha/ping" in paths
-    assert "/api/v1/modules/beta/ping" not in paths
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://t") as ac:
+        assert (await ac.get("/api/v1/modules/alpha/ping")).status_code == 200
+        assert (await ac.get("/api/v1/modules/beta/ping")).status_code == 404
 
 
 def test_load_preserves_order():
