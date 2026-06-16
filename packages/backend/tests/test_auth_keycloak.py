@@ -85,6 +85,22 @@ async def test_token_signed_by_other_key_rejected():
 
 
 @pytest.mark.asyncio
+async def test_verify_via_oidc_discovery():
+    # Configured with ONLY the issuer; jwks_uri is auto-derived from the
+    # .well-known/openid-configuration document (standards-based auto-config).
+    def handler(req):
+        if req.url.path.endswith("/.well-known/openid-configuration"):
+            return httpx.Response(200, json={
+                "issuer": ISS, "jwks_uri": f"{ISS}/protocol/openid-connect/certs"})
+        return httpx.Response(200, json=_jwks())
+    p = KeycloakOIDCProvider({"issuer": ISS, "audience": AUD,
+                              "transport": httpx.MockTransport(handler)})
+    claims = await p.verify(_token())
+    assert claims is not None and claims["sub"] == "user-1"
+    assert p._jwks_uri.endswith("/certs")  # discovered
+
+
+@pytest.mark.asyncio
 async def test_issue_and_refresh_not_implemented():
     p = _provider()
     with pytest.raises(NotImplementedError):

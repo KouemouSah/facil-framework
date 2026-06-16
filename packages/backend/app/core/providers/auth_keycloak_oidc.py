@@ -30,16 +30,45 @@ class KeycloakOIDCProvider(AuthProvider):
     def __init__(self, config=None) -> None:
         super().__init__(config)
         self._issuer = self.config.get("issuer", "")
+        # Explicit jwks_uri (override) OR discovered from the issuer's
+        # .well-known/openid-configuration (the professional, standards path —
+        # works with any OIDC IdP: Keycloak/Okta/Azure/Auth0).
         self._jwks_uri = self.config.get("jwks_uri", "")
+        self._discovery_url = self.config.get("discovery_url") or (
+            f"{self._issuer.rstrip('/')}/.well-known/openid-configuration"
+            if self._issuer else "")
         self._audience = self.config.get("audience") or None
         self._algs = list(self.config.get("algorithms", ["RS256"]))
         self._transport = self.config.get("transport")  # httpx transport (tests)
         self._jwks: dict | None = None
+        self._meta: dict | None = None  # cached discovery document
+
+    def _client(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient(transport=self._transport, timeout=5)
+
+    async def _discover(self) -> dict:
+        """Fetch + cache the OIDC discovery document; derive jwks_uri/issuer."""
+        if self._meta is not None:
+            return self._meta
+        async with self._client() as c:
+            resp = await c.get(self._discovery_url)
+            resp.raise_for_status()
+            self._meta = resp.json()
+        if not self._jwks_uri:
+            self._jwks_uri = self._meta.get("jwks_uri", "")
+        if not self._issuer:
+            self._issuer = self._meta.get("issuer", "")
+        return self._meta
+
+    async def _ensure_jwks_uri(self) -> None:
+        if not self._jwks_uri and self._discovery_url:
+            await self._discover()
 
     async def _fetch_jwks(self, *, force: bool = False) -> dict:
         if self._jwks is not None and not force:
             return self._jwks
-        async with httpx.AsyncClient(transport=self._transport, timeout=5) as c:
+        await self._ensure_jwks_uri()
+        async with self._client() as c:
             resp = await c.get(self._jwks_uri)
             resp.raise_for_status()
             self._jwks = resp.json()
@@ -53,7 +82,7 @@ class KeycloakOIDCProvider(AuthProvider):
         return None
 
     async def verify(self, token: str, *, expect: str = "access") -> dict | None:
-        if not self._jwks_uri:
+        if not self._jwks_uri and not self._discovery_url:
             return None
         try:
             kid = jwt.get_unverified_header(token).get("kid")

@@ -59,16 +59,21 @@ def _build_verifiers(app: FastAPI, resolver) -> list:
     if isinstance(methods, str):
         methods = [m.strip() for m in methods.split(",") if m.strip()]
     if "keycloak_oidc" in (methods or []):
+        issuer = resolver.resolve("auth.oidc.issuer", "")
         jwks_uri = resolver.resolve("auth.oidc.jwks_uri", "")
-        if jwks_uri:
+        # Discovery: the issuer alone is enough (jwks_uri auto-derived from
+        # .well-known/openid-configuration). jwks_uri stays an optional override.
+        if issuer or jwks_uri:
             verifiers.append(app.state.registry.build("auth", "keycloak_oidc", {
-                "issuer": resolver.resolve("auth.oidc.issuer", ""),
+                "issuer": issuer,
                 "jwks_uri": jwks_uri,
+                "discovery_url": resolver.resolve("auth.oidc.discovery_url", "") or None,
                 "audience": resolver.resolve("auth.oidc.audience", "") or None,
             }))
         else:
-            logger.warning("auth.methods includes keycloak_oidc but "
-                           "auth.oidc.jwks_uri is unset — OIDC verify disabled.")
+            logger.warning("auth.methods includes keycloak_oidc but neither "
+                           "auth.oidc.issuer nor auth.oidc.jwks_uri is set — "
+                           "OIDC verify disabled.")
     return verifiers
 
 

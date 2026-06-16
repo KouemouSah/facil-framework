@@ -136,6 +136,13 @@ Secret JWT = `JWT_SECRET` (généré par `ensure_secrets`, rendu dans l'env back
   re-synchronisé à chaque login (`account_role.source='idp'`), rôles `source='local'`
   préservés ; offboarding (retrait de groupe AD/Keycloak) → rôle `idp` retiré au login suivant ;
   compte suspendu/inactif → refus. Cible d'échelle : SCIM 2.0 (déprovision push) — plus tard.
+- **Pro / automatisé (D4.9-D4.10)** : **OIDC Discovery** — un seul `auth.oidc.issuer`,
+  `jwks_uri`+endpoints auto-dérivés de `.well-known/openid-configuration` (tout IdP OIDC :
+  Keycloak/Okta/Azure/Auth0). **Révocation IdP** : `POST /api/v1/auth/oidc/backchannel-logout`
+  (vérifie le `logout_token` signé → révoque la `sid`). **Provisioning realm automatisé +
+  idempotent** : `deploy/scripts/provision_keycloak.py` (realm + client + **client-scope
+  partagé** `facil-contract` portant les mappers `groups`/`org` + taxonomie de groupes) —
+  l'opérateur ajoute users/LDAP/IdP upstream. **Break-glass durci** (expiry/IP-allowlist/disable/log).
 
 ## 6. D4.1b — identité vérifiée (PRÉPARÉ, DIFFÉRÉ)
 
