@@ -72,13 +72,24 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--state", type=Path, default=DEFAULT_STATE)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    parser.add_argument(
+        "--require-db-url", action="store_true",
+        help="Fail (exit 1) if no DATABASE_URL could be rendered. Use in "
+             "database_mode=local, where the backend depends on facil_app.")
     args = parser.parse_args(argv)
     try:
         content, has_url = render(args.state)
+        # newline='\n' => no CRLF on Windows; docker compose env_file stays clean.
         args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text(content, encoding="utf-8")
+        args.out.write_text(content, encoding="utf-8", newline="\n")
     except OSError as e:
         print(f"ERROR: {e}", file=sys.stderr)
+        return 1
+    if not has_url and args.require_db_url:
+        print(f"ERROR: no facil_app password in {args.state} -> no DATABASE_URL "
+              f"rendered. The bootstrap's postgres step must succeed first "
+              f"(re-run: python deploy/providers/run_bootstrap.py --apply).",
+              file=sys.stderr)
         return 1
     note = "" if has_url else "  WARN: no facil_app password in state (run bootstrap first)"
     print(f"[OK] wrote {args.out}{note}")

@@ -61,3 +61,26 @@ def test_main_writes_file(tmp_path):
     out = tmp_path / "out.env"
     assert rbe.main(["--state", str(state), "--out", str(out)]) == 0
     assert "DATABASE_URL=" in out.read_text(encoding="utf-8")
+
+
+def test_require_db_url_fails_when_absent(tmp_path):
+    """#1 fix: fail loud (exit 1) instead of silently rendering no DATABASE_URL."""
+    state = _write_state(tmp_path, [{"name": "minio", "secrets": {}}])
+    out = tmp_path / "out.env"
+    assert rbe.main(["--state", str(state), "--out", str(out), "--require-db-url"]) == 1
+
+
+def test_require_db_url_ok_when_present(tmp_path):
+    state = _write_state(tmp_path, [
+        {"name": "postgres", "secrets": {"pg_app_password": "p"}}])
+    out = tmp_path / "out.env"
+    assert rbe.main(["--state", str(state), "--out", str(out), "--require-db-url"]) == 0
+
+
+def test_output_has_no_crlf(tmp_path):
+    """#4 fix: env file is LF-only (docker compose env_file stays clean on Windows)."""
+    state = _write_state(tmp_path, [
+        {"name": "postgres", "secrets": {"pg_app_password": "p"}}])
+    out = tmp_path / "out.env"
+    rbe.main(["--state", str(state), "--out", str(out)])
+    assert b"\r\n" not in out.read_bytes()

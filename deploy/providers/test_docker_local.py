@@ -348,6 +348,14 @@ class TestScaffoldedProfileServices:
         env = svcs["backend"]["environment"]
         assert env["SMTP_HOST"] == "smtp4dev" and env["SMTP_PORT"] == "25"
 
+    def test_no_weak_password_defaults(self, cfg: vc.DeployConfig) -> None:
+        """#3 fix: core data-plane secrets are REQUIRED (compose ${VAR:?...}),
+        never a silent weak default — so a raw `docker compose up` without the
+        secrets fails loud instead of provisioning with localdev/facilminio."""
+        out = dl.generate_compose(cfg)
+        assert ":-localdev" not in out and ":-facilminio" not in out
+        assert "${POSTGRES_PASSWORD:?" in out and "${MINIO_ROOT_PASSWORD:?" in out
+
     def test_modules_enabled_wired_to_backend(self, cfg: vc.DeployConfig) -> None:
         """The W6 modules.enabled list reaches the backend as MODULES_ENABLED
         (the Module Loader contract, Phase A.5)."""

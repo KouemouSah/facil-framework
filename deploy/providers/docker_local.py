@@ -168,7 +168,7 @@ def generate_compose(cfg: vc.DeployConfig) -> str:
         backend_depends_postgres = "      # No postgres dependency in external mode."
     else:
         db_url = (
-            f"postgresql://{project}:${{POSTGRES_PASSWORD:-localdev}}"
+            f"postgresql://{project}:${{POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required — run via docker_local --apply or export it}}"
             f"@postgres:5432/{project}"
         )
         postgres_block = f"""  # ---------------------------------------------------------------------
@@ -179,7 +179,7 @@ def generate_compose(cfg: vc.DeployConfig) -> str:
     environment:
       POSTGRES_DB: {project}
       POSTGRES_USER: {project}
-      POSTGRES_PASSWORD: ${{POSTGRES_PASSWORD:-localdev}}
+      POSTGRES_PASSWORD: ${{POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required — run via docker_local --apply or export it}}
     volumes:
       - {pg_volume}:/var/lib/postgresql/data
     ports:
@@ -220,7 +220,7 @@ def generate_compose(cfg: vc.DeployConfig) -> str:
     command: server /data --console-address ":{m.console_port}"
     environment:
       MINIO_ROOT_USER: {m.root_user}
-      MINIO_ROOT_PASSWORD: ${{MINIO_ROOT_PASSWORD:-facilminio}}
+      MINIO_ROOT_PASSWORD: ${{MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required — run via docker_local --apply or export it}}
     volumes:
       - {m.volume}:/data
     ports:
@@ -684,10 +684,19 @@ def _run_bootstrap(cfg: vc.DeployConfig) -> None:
               f"       Re-run: python deploy/providers/run_bootstrap.py --apply",
               file=sys.stderr)
         return
-    print(state.redacted_summary())
+    summary = state.redacted_summary()
+    print(summary)
     if not state.succeeded:
         print("[WARN] some provisioners failed (see above). Re-run: "
               "python deploy/providers/run_bootstrap.py --apply", file=sys.stderr)
+        # #2 guard: a host OOM (Docker CLI 'cannot allocate memory') is the usual
+        # cause under a heavy stack — give an actionable hint, it's not a code bug.
+        if "cannot allocate memory" in summary or "allocate memory" in summary:
+            print("[HINT] looks like the host ran OUT OF MEMORY during bootstrap. "
+                  "Free RAM (stop optional services, e.g. "
+                  "`docker stop facil_framework-keycloak-1 facil_framework-otel-lgtm-1`, "
+                  "and any `--profile ai/mail` containers), then re-run the bootstrap.",
+                  file=sys.stderr)
 
 
 def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) -> int:
@@ -771,9 +780,18 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
     backend_ctx = REPO_ROOT / "packages" / "backend"
     if backend_ctx.exists():
         print("\n=== Rendering backend env + starting app tier ===")
-        subprocess.run(
-            [sys.executable, str(SCRIPTS_DIR / "render_backend_env.py")],
-            cwd=REPO_ROOT, check=False)
+        # Fail loud (don't start a degraded backend) if the bootstrap's postgres
+        # step didn't yield a DATABASE_URL in local mode (the #1 silent-failure fix).
+        render_cmd = [sys.executable, str(SCRIPTS_DIR / "render_backend_env.py")]
+        if cfg.docker_local.database_mode == "local":
+            render_cmd.append("--require-db-url")
+        if subprocess.run(render_cmd, cwd=REPO_ROOT, check=False).returncode != 0:
+            print("ERROR: no DATABASE_URL for the backend — the bootstrap postgres "
+                  "step must succeed first. App tier ABORTED (data-plane stays up). "
+                  "If the bootstrap OOM'd, free RAM (stop optional services) then "
+                  "re-run: python deploy/providers/run_bootstrap.py --apply",
+                  file=sys.stderr)
+            return 1
         rc = run_compose(compose_cmd("up", "-d", "--build", "db-init", "backend"),
                          env_extra=runtime_env)
         if rc != 0:
