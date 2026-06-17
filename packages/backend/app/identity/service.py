@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.identity import number as num
 from app.identity import repository as repo
-from app.identity.models import Account
+from app.identity.models import ACCOUNT_STATUSES, Account
 from app.identity.number import NumberStrategy
 
 ISSUANCE_POLICIES = ("immediate", "on_verified_document")
@@ -43,6 +43,14 @@ class NumberExhausted(IdentityError):
     pass
 
 
+class NotFound(IdentityError):
+    pass
+
+
+class InvalidStatus(IdentityError):
+    pass
+
+
 async def register(session: AsyncSession, *, email: str | None = None,
                    organization_id: str | None = None,
                    display_name: str | None = None,
@@ -60,6 +68,20 @@ async def register(session: AsyncSession, *, email: str | None = None,
     await session.flush()
     if policy == "immediate":
         await issue_number(session, account, category=category, strategy=strategy)
+    return account
+
+
+async def set_status(session: AsyncSession, account_id: str, status: str) -> Account:
+    """Admin status transition. `is_active` mirrors status so existing auth
+    checks (which gate on is_active) honour suspension/deactivation."""
+    if status not in ACCOUNT_STATUSES:
+        raise InvalidStatus(f"status must be one of {ACCOUNT_STATUSES}")
+    account = await repo.get_account(session, account_id)
+    if account is None:
+        raise NotFound(f"account '{account_id}' not found")
+    account.status = status
+    account.is_active = status in ("pending_identity", "active")
+    await session.flush()
     return account
 
 

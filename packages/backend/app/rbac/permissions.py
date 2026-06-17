@@ -22,6 +22,10 @@ CORE_PERMISSIONS: list[dict] = [
      "description": "View roles, permissions and assignments"},
     {"code": "rbac.manage", "module": "rbac",
      "description": "Create/modify roles, grants and account assignments"},
+    {"code": "account.read", "module": "identity",
+     "description": "View accounts (agents and users)"},
+    {"code": "account.manage", "module": "identity",
+     "description": "Create accounts and change their status"},
 ]
 
 

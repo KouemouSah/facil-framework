@@ -14,7 +14,14 @@ import os
 from fastapi import FastAPI, Response, status
 from sqlalchemy import text
 
-from app.api import admin_providers, admin_settings, auth, rbac, system
+from app.api import (
+    admin_accounts,
+    admin_providers,
+    admin_settings,
+    auth,
+    rbac,
+    system,
+)
 from app.scim import api as scim_api
 from app.config import get_settings
 from app.config_store import repository as repo
@@ -145,6 +152,7 @@ async def _limit_body_size(request, call_next):
 # Core (always-on) routers — config-store + provider registry admin.
 app.include_router(admin_settings.router)
 app.include_router(admin_providers.router)
+app.include_router(admin_accounts.router)
 app.include_router(auth.router)
 app.include_router(rbac.router)
 app.include_router(scim_api.router)
