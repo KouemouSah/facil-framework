@@ -39,8 +39,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: d.detail || "register_failed" }, { status: 400 });
   }
   const account = await reg.json();
-  const roles = await (await fetch(`${BACKEND}/api/v1/rbac/roles`, { headers: H, cache: "no-store" })).json();
-  const adminRole = roles.find((r: { code: string }) => r.code === "admin");
+  const rolesResp = await (await fetch(`${BACKEND}/api/v1/rbac/roles?limit=200`, { headers: H, cache: "no-store" })).json();
+  const adminRole = (rolesResp.items ?? []).find((r: { code: string }) => r.code === "admin");
   if (!adminRole) return NextResponse.json({ error: "no_admin_role" }, { status: 500 });
   await fetch(`${BACKEND}/api/v1/rbac/accounts/${account.id}/roles`, {
     method: "POST", headers: H, body: JSON.stringify({ role_id: adminRole.id }),

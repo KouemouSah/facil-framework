@@ -8,7 +8,7 @@ the tables always exist (module tables are unconditional; only routers gate).
 
 from __future__ import annotations
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.location.models import Site
@@ -66,6 +66,18 @@ async def list_roles(session: AsyncSession,
     if organization_id is not None:
         stmt = stmt.where(Role.organization_id == organization_id)
     return list((await session.scalars(stmt)).all())
+
+
+def roles_select(*, organization_id: str | None = None, q: str | None = None):
+    """Base SELECT for roles: optional org filter + substring search (code/name).
+    Unsorted/unpaginated — caller applies sort + pagination via app.api.list_query."""
+    stmt = select(Role)
+    if organization_id is not None:
+        stmt = stmt.where(Role.organization_id == organization_id)
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(or_(Role.code.ilike(like), Role.name.ilike(like)))
+    return stmt
 
 
 async def delete_role(session: AsyncSession, role_id: str) -> bool:

@@ -16,11 +16,15 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
+from app.api.list_query import apply_sort, clamp_page, paginated
 from app.auth import audit
 from app.rbac import repository as repo
 from app.rbac import seed as seed_mod
 from app.rbac import service
+from app.rbac.models import Role
 from app.security.permission_dep import require_permission
+
+_ROLE_SORT = {"code": Role.code, "name": Role.name, "created_at": Role.created_at}
 
 router = APIRouter(prefix="/api/v1/rbac", tags=["rbac"])
 
@@ -67,10 +71,15 @@ async def list_permissions(session: AsyncSession = Depends(get_session)) -> list
 
 
 @router.get("/roles", dependencies=[_READ])
-async def list_roles(organization_id: str | None = None,
-                     session: AsyncSession = Depends(get_session)) -> list[dict]:
-    roles = await repo.list_roles(session, organization_id=organization_id)
-    return [r.as_dict() for r in roles]
+async def list_roles(organization_id: str | None = None, q: str | None = None,
+                     sort: str = "code", limit: int = 50, offset: int = 0,
+                     session: AsyncSession = Depends(get_session)) -> dict:
+    limit, offset = clamp_page(limit, offset)
+    stmt = repo.roles_select(organization_id=organization_id, q=q)
+    stmt = apply_sort(stmt, sort, allowed=_ROLE_SORT, default="code")
+    items, total = await paginated(session, stmt, limit=limit, offset=offset)
+    return {"items": [r.as_dict() for r in items], "total": total,
+            "limit": limit, "offset": offset}
 
 
 @router.post("/roles", status_code=201)

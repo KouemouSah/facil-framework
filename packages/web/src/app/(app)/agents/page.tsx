@@ -193,7 +193,7 @@ function BulkRoleDialog({ accountIds, onClose, onDone }: {
 
   const { data: roles = [] } = useQuery<Role[]>({
     queryKey: ["roles"],
-    queryFn: () => apiFetch<Role[]>(`/api/v1/rbac/roles`),
+    queryFn: () => apiFetch<{ items: Role[] }>(`/api/v1/rbac/roles?limit=200`).then((r) => r.items),
   });
   const { orgs } = useOrganizations();
 
@@ -323,7 +323,7 @@ function RolesDialog({ account, onClose }: { account: Account; onClose: () => vo
   });
   const { data: roles = [] } = useQuery<Role[]>({
     queryKey: ["roles"],
-    queryFn: () => apiFetch<Role[]>(`/api/v1/rbac/roles`),
+    queryFn: () => apiFetch<{ items: Role[] }>(`/api/v1/rbac/roles?limit=200`).then((r) => r.items),
   });
   const { orgs } = useOrganizations();
 

@@ -73,7 +73,7 @@ async def _bearer(ac, email, password="Sup3rStr0ng!pw"):
 
 
 async def _role_id(ac, code):
-    roles = (await ac.get("/api/v1/rbac/roles", headers=ADMIN)).json()
+    roles = (await ac.get("/api/v1/rbac/roles", headers=ADMIN)).json()["items"]
     return next(r["id"] for r in roles if r["code"] == code)
 
 

@@ -18,7 +18,7 @@ async def test_install_status_flips_when_superadmin_exists(client):
     # seed roles + create an account + assign the admin role (grants '*') at
     # global scope -> the installer's end state
     await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)
-    roles = (await ac.get("/api/v1/rbac/roles", headers=AUTH)).json()
+    roles = (await ac.get("/api/v1/rbac/roles", headers=AUTH)).json()["items"]
     admin_id = next(x["id"] for x in roles if x["code"] == "admin")
     acc = (await ac.post("/api/v1/auth/register",
                          json={"password": "Sup3rStr0ng!pw", "email": "root@x.io"})).json()

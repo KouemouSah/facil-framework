@@ -15,11 +15,16 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
+from app.api.list_query import apply_sort, clamp_page, paginated
 from app.auth.models import FederatedIdentity
 from app.config import get_settings
 from app.identity.models import Account
 from app.security.auth_dep import require_auth
 from app.security.permission_dep import require_permission, visible_orgs
+
+_FED_SORT = {"provider": FederatedIdentity.provider,
+             "subject": FederatedIdentity.subject,
+             "created_at": FederatedIdentity.created_at}
 
 router = APIRouter(prefix="/api/v1/admin/federation", tags=["admin-federation"])
 
@@ -41,30 +46,33 @@ async def status(session: AsyncSession = Depends(get_session)) -> dict:
 
 
 @router.get("/identities")
-async def identities(q: str | None = None, limit: int = 50, offset: int = 0,
+async def identities(q: str | None = None, sort: str = "-created_at",
+                     limit: int = 50, offset: int = 0,
                      principal: dict = Depends(require_auth),
-                     session: AsyncSession = Depends(get_session)) -> list[dict]:
+                     session: AsyncSession = Depends(get_session)) -> dict:
     # Scope filter (tenant isolation): restrict linked identities to the caller's
-    # visible organizations (None = global/break-glass sees all).
+    # visible organizations (None = global/break-glass sees all). List contract.
     visible = await visible_orgs(session, principal, "account.read")
-    limit = min(max(limit, 1), 200)
-    offset = max(offset, 0)
-    stmt = (select(FederatedIdentity, Account)
-            .join(Account, Account.id == FederatedIdentity.account_id)
-            .order_by(FederatedIdentity.created_at.desc())
-            .limit(limit).offset(offset))
+    limit, offset = clamp_page(limit, offset)
+    base = (select(FederatedIdentity, Account)
+            .join(Account, Account.id == FederatedIdentity.account_id))
     if visible is not None:
-        stmt = stmt.where(Account.organization_id.in_(visible))
+        base = base.where(Account.organization_id.in_(visible))
     if q:
         like = f"%{q}%"
-        stmt = stmt.where(or_(
+        base = base.where(or_(
             FederatedIdentity.subject.ilike(like),
             FederatedIdentity.provider.ilike(like),
             Account.email.ilike(like)))
-    rows = (await session.execute(stmt)).all()
-    return [{
+    # Two-entity SELECT -> count + execute manually (paginated() is scalar-only).
+    total = await session.scalar(
+        select(func.count()).select_from(base.order_by(None).subquery())) or 0
+    stmt = apply_sort(base, sort, allowed=_FED_SORT, default="-created_at")
+    rows = (await session.execute(stmt.limit(limit).offset(offset))).all()
+    items = [{
         "id": fi.id, "provider": fi.provider, "subject": fi.subject,
         "account_id": fi.account_id, "email": acc.email,
         "display_name": acc.display_name, "status": acc.status,
         "linked_at": fi.created_at.isoformat() if fi.created_at else None,
     } for fi, acc in rows]
+    return {"items": items, "total": total, "limit": limit, "offset": offset}

@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, ShieldCheck, KeyRound } from "lucide-react";
+import { Plus, Trash2, ShieldCheck, KeyRound, Search } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataGrid, type DataGridColumn } from "@/components/ui/data-grid";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 
 interface Role {
@@ -20,79 +20,100 @@ interface Role {
 }
 interface Permission { id: string; code: string; module: string; description?: string | null }
 
+const PAGE = 20;
+
 export default function RolesPage() {
   const qc = useQueryClient();
+  const [q, setQ] = useState("");
+  const [sort, setSort] = useState("code");
+  const [page, setPage] = useState(0);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Role | null>(null);
 
-  const { data: roles = [], isLoading, error } = useQuery<Role[]>({
-    queryKey: ["roles"],
-    queryFn: () => apiFetch<Role[]>(`/api/v1/rbac/roles`),
+  const { data, isLoading, error } = useQuery<{ items: Role[]; total: number }>({
+    queryKey: ["roles", q, sort, page],
+    queryFn: () =>
+      apiFetch<{ items: Role[]; total: number }>(
+        `/api/v1/rbac/roles?q=${encodeURIComponent(q)}&sort=${sort}` +
+        `&limit=${PAGE}&offset=${page * PAGE}`),
   });
+  const roles = data?.items ?? [];
+  const total = data?.total ?? 0;
 
   const del = useMutation({
     mutationFn: (id: string) => apiFetch(`/api/v1/rbac/roles/${id}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["roles"] }),
   });
 
+  const columns: DataGridColumn<Role>[] = [
+    { key: "code", header: "Code", sortable: true, className: "font-mono text-xs" },
+    {
+      key: "name", header: "Name", sortable: true,
+      cell: (r) => (
+        <>
+          {r.name}
+          {r.is_system && (
+            <span className="ml-2 inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+              <ShieldCheck className="size-3" /> system
+            </span>
+          )}
+        </>
+      ),
+    },
+    {
+      key: "scope", header: "Scope", className: "text-muted-foreground",
+      cell: (r) => (r.organization_id ? "Organization" : "Global"),
+    },
+    {
+      key: "actions", header: "Actions", align: "right", headClassName: "w-28",
+      cell: (r) => (
+        <>
+          <Button variant="ghost" size="icon" title="Edit permissions" onClick={() => setEditing(r)}>
+            <KeyRound className="size-4" />
+          </Button>
+          <Button variant="ghost" size="icon" title={r.is_system ? "System role (protected)" : "Delete"}
+            disabled={r.is_system || del.isPending} onClick={() => del.mutate(r.id)}>
+            <Trash2 className="size-4" />
+          </Button>
+        </>
+      ),
+    },
+  ];
+
   return (
     <div className="flex h-full flex-col gap-4">
       {/* Toolbar — fixed */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Roles &amp; access</h1>
           <p className="text-sm text-muted-foreground">Roles bundle permissions; assign them to accounts (scoped).</p>
         </div>
-        <NewRoleDialog open={open} setOpen={setOpen} />
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input className="h-9 w-56 pl-8" placeholder="Search code / name"
+              value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} />
+          </div>
+          <NewRoleDialog open={open} setOpen={setOpen} />
+        </div>
       </div>
 
-      {/* Data region — the ONLY scrollable part */}
-      <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Code</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Scope</TableHead>
-              <TableHead className="w-28 text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && (
-              <TableRow><TableCell colSpan={4} className="py-8 text-center text-muted-foreground">Loading…</TableCell></TableRow>
-            )}
-            {error && (
-              <TableRow><TableCell colSpan={4} className="py-8 text-center text-destructive">Failed to load.</TableCell></TableRow>
-            )}
-            {!isLoading && !error && roles.length === 0 && (
-              <TableRow><TableCell colSpan={4} className="py-8 text-center text-muted-foreground">No roles. Reseed a profile or create one.</TableCell></TableRow>
-            )}
-            {roles.map((r) => (
-              <TableRow key={r.id}>
-                <TableCell className="font-mono text-xs">{r.code}</TableCell>
-                <TableCell>
-                  {r.name}
-                  {r.is_system && (
-                    <span className="ml-2 inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                      <ShieldCheck className="size-3" /> system
-                    </span>
-                  )}
-                </TableCell>
-                <TableCell className="text-muted-foreground">{r.organization_id ? "Organization" : "Global"}</TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="icon" title="Edit permissions" onClick={() => setEditing(r)}>
-                    <KeyRound className="size-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" title={r.is_system ? "System role (protected)" : "Delete"}
-                    disabled={r.is_system || del.isPending} onClick={() => del.mutate(r.id)}>
-                    <Trash2 className="size-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      <DataGrid<Role>
+        columns={columns}
+        rows={roles}
+        rowKey={(r) => r.id}
+        total={total}
+        page={page}
+        pageSize={PAGE}
+        onPageChange={setPage}
+        sort={sort}
+        onSortChange={(s) => { setSort(s); setPage(0); }}
+        filters={{}}
+        onFilterChange={() => undefined}
+        isLoading={isLoading}
+        error={!!error}
+        emptyLabel="No roles. Reseed a profile or create one."
+      />
 
       {editing && <PermissionsDialog role={editing} onClose={() => setEditing(null)} />}
     </div>

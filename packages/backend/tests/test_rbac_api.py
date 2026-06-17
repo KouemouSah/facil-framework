@@ -25,7 +25,7 @@ async def test_reseed_then_list(client):
     r = await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)
     assert r.status_code == 200
     assert "admin" in r.json()["roles"]
-    roles = (await ac.get("/api/v1/rbac/roles", headers=AUTH)).json()
+    roles = (await ac.get("/api/v1/rbac/roles", headers=AUTH)).json()["items"]
     assert {x["code"] for x in roles} >= {"admin", "member"}
     perms = (await ac.get("/api/v1/rbac/permissions", headers=AUTH)).json()
     assert any(p["code"] == "organization.read" for p in perms)
@@ -87,7 +87,7 @@ async def test_unknown_grant_rejected(client):
 async def test_system_role_is_protected(client):
     ac, _ = client
     await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)
-    roles = (await ac.get("/api/v1/rbac/roles", headers=AUTH)).json()
+    roles = (await ac.get("/api/v1/rbac/roles", headers=AUTH)).json()["items"]
     admin_id = next(r["id"] for r in roles if r["code"] == "admin")
     # cannot delete or re-grant a seeded system role
     assert (await ac.delete(f"/api/v1/rbac/roles/{admin_id}", headers=AUTH)
@@ -100,7 +100,7 @@ async def test_system_role_is_protected(client):
 async def test_assignment_records_who_assigned(client):
     ac, db = client
     await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)
-    roles = (await ac.get("/api/v1/rbac/roles", headers=AUTH)).json()
+    roles = (await ac.get("/api/v1/rbac/roles", headers=AUTH)).json()["items"]
     member = next(r["id"] for r in roles if r["code"] == "member")
     acc = (await ac.post("/api/v1/auth/register",
                          json={"password": "Sup3rStr0ng!pw", "email": "w@x.com"})).json()
@@ -117,7 +117,7 @@ async def test_assignment_records_who_assigned(client):
 async def test_assign_and_revoke(client):
     ac, _ = client
     await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)
-    roles = (await ac.get("/api/v1/rbac/roles", headers=AUTH)).json()
+    roles = (await ac.get("/api/v1/rbac/roles", headers=AUTH)).json()["items"]
     admin_id = next(r["id"] for r in roles if r["code"] == "admin")
     acc = (await ac.post("/api/v1/auth/register",
                          json={"password": "Sup3rStr0ng!pw", "email": "u@x.com"})).json()
@@ -137,7 +137,7 @@ async def test_assign_and_revoke(client):
 async def test_bulk_assign_role(client):
     ac, _ = client
     await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)
-    roles = (await ac.get("/api/v1/rbac/roles", headers=AUTH)).json()
+    roles = (await ac.get("/api/v1/rbac/roles", headers=AUTH)).json()["items"]
     member = next(r["id"] for r in roles if r["code"] == "member")
     a1 = (await ac.post("/api/v1/auth/register",
                         json={"password": "Sup3rStr0ng!pw", "email": "b1@x.com"})).json()

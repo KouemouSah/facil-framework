@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Search, ShieldCheck, ShieldOff } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataGrid, type DataGridColumn } from "@/components/ui/data-grid";
 
 interface Status {
   scim: { enabled: boolean; provider: string };
@@ -21,19 +21,34 @@ interface Identity {
   linked_at?: string | null;
 }
 
+const PAGE = 20;
+
 export default function FederationPage() {
   const [q, setQ] = useState("");
+  const [sort, setSort] = useState("-created_at");
+  const [page, setPage] = useState(0);
 
   const { data: status } = useQuery<Status>({
     queryKey: ["fed-status"],
     queryFn: () => apiFetch<Status>(`/api/v1/admin/federation/status`),
   });
 
-  const { data: rows = [], isLoading, error } = useQuery<Identity[]>({
-    queryKey: ["fed-identities", q],
+  const { data, isLoading, error } = useQuery<{ items: Identity[]; total: number }>({
+    queryKey: ["fed-identities", q, sort, page],
     queryFn: () =>
-      apiFetch<Identity[]>(`/api/v1/admin/federation/identities?q=${encodeURIComponent(q)}&limit=100`),
+      apiFetch<{ items: Identity[]; total: number }>(
+        `/api/v1/admin/federation/identities?q=${encodeURIComponent(q)}&sort=${sort}` +
+        `&limit=${PAGE}&offset=${page * PAGE}`),
   });
+  const rows = data?.items ?? [];
+  const total = data?.total ?? 0;
+
+  const columns: DataGridColumn<Identity>[] = [
+    { key: "provider", header: "Provider", sortable: true, className: "font-medium" },
+    { key: "subject", header: "External subject", sortable: true, className: "font-mono text-xs" },
+    { key: "account", header: "Local account", cell: (r) => r.display_name || r.email || r.id.slice(0, 8) },
+    { key: "status", header: "Status", className: "text-muted-foreground" },
+  ];
 
   return (
     <div className="flex h-full flex-col gap-4">
@@ -69,38 +84,22 @@ export default function FederationPage() {
         </div>
       </div>
 
-      {/* Data region — the ONLY scrollable part */}
-      <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Provider</TableHead>
-              <TableHead>External subject</TableHead>
-              <TableHead>Local account</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && (
-              <TableRow><TableCell colSpan={4} className="py-8 text-center text-muted-foreground">Loading…</TableCell></TableRow>
-            )}
-            {error && (
-              <TableRow><TableCell colSpan={4} className="py-8 text-center text-destructive">Failed to load.</TableCell></TableRow>
-            )}
-            {!isLoading && !error && rows.length === 0 && (
-              <TableRow><TableCell colSpan={4} className="py-8 text-center text-muted-foreground">No federated identities.</TableCell></TableRow>
-            )}
-            {rows.map((r) => (
-              <TableRow key={r.id}>
-                <TableCell className="font-medium">{r.provider}</TableCell>
-                <TableCell className="font-mono text-xs">{r.subject}</TableCell>
-                <TableCell>{r.display_name || r.email || r.id.slice(0, 8)}</TableCell>
-                <TableCell className="text-muted-foreground">{r.status}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      <DataGrid<Identity>
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => r.id}
+        total={total}
+        page={page}
+        pageSize={PAGE}
+        onPageChange={setPage}
+        sort={sort}
+        onSortChange={(s) => { setSort(s); setPage(0); }}
+        filters={{}}
+        onFilterChange={() => undefined}
+        isLoading={isLoading}
+        error={!!error}
+        emptyLabel="No federated identities."
+      />
     </div>
   );
 }
