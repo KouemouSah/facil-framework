@@ -191,3 +191,8 @@ test-data/*.jpg
 test-data/*.png
 test-data/*.md
 !test-data/README.md
+
+# Playwright e2e artifacts
+packages/web/test-results/
+packages/web/playwright-report/
+packages/web/.playwright/
