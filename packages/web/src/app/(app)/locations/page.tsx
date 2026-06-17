@@ -15,7 +15,7 @@ import { DetailPanel } from "@/components/ui/detail-panel";
 import { JsonField } from "@/components/ui/json-field";
 import { OrgCombobox } from "@/components/ui/org-combobox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
-import { useOrganizations } from "@/lib/use-organizations";
+import { useFirstOrg } from "@/lib/use-organizations";
 
 interface Site {
   id: string;
@@ -43,14 +43,13 @@ export default function LocationsPage() {
   const select = (id: string) => router.replace(`${pathname}?sel=${id}`, { scroll: false });
   const clearSel = () => router.replace(pathname, { scroll: false });
 
-  // Organizations the caller can access — drives the scope selector. Sites are
-  // org-scoped at the API, so we need a chosen org before listing/creating.
-  const { orgs } = useOrganizations();
-
-  // Default to the first accessible org once loaded.
+  // Sites are org-scoped at the API, so we need a chosen org before
+  // listing/creating. The picker is OrgCombobox (server search); we default to
+  // the caller's first accessible org (fetched as a single row, never the list).
+  const firstOrgId = useFirstOrg();
   useEffect(() => {
-    if (!orgId && orgs.length > 0) setOrgId(orgs[0].id);
-  }, [orgs, orgId]);
+    if (!orgId && firstOrgId) setOrgId(firstOrgId);
+  }, [firstOrgId, orgId]);
 
   const { data, isLoading, error } = useQuery<{ items: Site[]; total: number }>({
     queryKey: ["sites", orgId, sort, page],

@@ -15,7 +15,7 @@ import { DetailPanel } from "@/components/ui/detail-panel";
 import { OrgCombobox } from "@/components/ui/org-combobox";
 import { SavedViews } from "@/components/saved-views";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
-import { useOrganizations, orgLabel } from "@/lib/use-organizations";
+import { useOrgLabels } from "@/lib/use-organizations";
 
 interface Account {
   id: string;
@@ -335,13 +335,12 @@ function AccountDetail({ account, onClose }: { account: Account; onClose: () => 
     queryKey: ["roles"],
     queryFn: () => apiFetch<{ items: Role[] }>(`/api/v1/rbac/roles?limit=200`).then((r) => r.items),
   });
-  const { orgs } = useOrganizations();
+  const orgLabels = useOrgLabels(assignments.map((a) => a.organization_id));
 
   const roleName = (id: string) => roles.find((r) => r.id === id)?.name ?? id.slice(0, 8);
   const orgName = (id?: string | null) => {
     if (!id) return "Global";
-    const o = orgs.find((x) => x.id === id);
-    return o ? orgLabel(o) : "org";
+    return orgLabels[id] ?? id.slice(0, 8);
   };
 
   const assign = useMutation({
