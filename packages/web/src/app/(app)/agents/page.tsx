@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, KeyRound, Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { DataGrid, type DataGridColumn } from "@/components/ui/data-grid";
+import { DetailPanel } from "@/components/ui/detail-panel";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { useOrganizations, orgLabel } from "@/lib/use-organizations";
 
@@ -35,14 +37,20 @@ const STATUS_STYLE: Record<string, string> = {
 
 export default function AgentsPage() {
   const qc = useQueryClient();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const sel = searchParams.get("sel") ?? "";
   const [q, setQ] = useState("");
   const [status, setStatusFilter] = useState("");
   const [sort, setSort] = useState("-created_at");
   const [page, setPage] = useState(0);
   const [open, setOpen] = useState(false);
-  const [rolesFor, setRolesFor] = useState<Account | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkRole, setBulkRole] = useState(false);
+
+  const selectRow = (id: string) => router.replace(`${pathname}?sel=${id}`, { scroll: false });
+  const clearSel = () => router.replace(pathname, { scroll: false });
 
   const { data, isLoading, error } = useQuery<{ items: Account[]; total: number }>({
     queryKey: ["accounts", q, status, sort, page],
@@ -54,6 +62,7 @@ export default function AgentsPage() {
   });
   const rows = data?.items ?? [];
   const total = data?.total ?? 0;
+  const selAccount = rows.find((a) => a.id === sel) ?? null;
 
   function clearSelection() { setSelected(new Set()); }
   function toggleRow(id: string) {
@@ -97,7 +106,7 @@ export default function AgentsPage() {
       cell: (a) => a.display_name || "—",
     },
     {
-      key: "status", header: "Status", sortable: true,
+      key: "status", header: "Status", sortable: true, stopClick: true,
       filter: { type: "select", options: STATUSES.map((s) => ({ value: s, label: s })) },
       cell: (a) => (
         <Select
@@ -108,14 +117,6 @@ export default function AgentsPage() {
         >
           {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
         </Select>
-      ),
-    },
-    {
-      key: "roles", header: "Roles", align: "right", headClassName: "w-20",
-      cell: (a) => (
-        <Button variant="ghost" size="icon" title="Manage roles" onClick={() => setRolesFor(a)}>
-          <KeyRound className="size-4" />
-        </Button>
       ),
     },
   ];
@@ -153,26 +154,30 @@ export default function AgentsPage() {
         </div>
       )}
 
-      {/* Data grid — server sort/filter/pagination, selection wired to bulk */}
-      <DataGrid<Account>
-        columns={columns}
-        rows={rows}
-        rowKey={(a) => a.id}
-        total={total}
-        page={page}
-        pageSize={PAGE}
-        onPageChange={setPage}
-        sort={sort}
-        onSortChange={(s) => { setSort(s); setPage(0); }}
-        filters={{ status }}
-        onFilterChange={(k, v) => { if (k === "status") { setStatusFilter(v); setPage(0); } }}
-        isLoading={isLoading}
-        error={!!error}
-        emptyLabel="No accounts."
-        selection={{ selected, onToggle: toggleRow, onToggleAll: toggleAll, allOnPage }}
-      />
+      {/* Master-detail: grid left (selection wired to bulk), account detail right */}
+      <div className={`grid min-h-0 flex-1 gap-4 ${selAccount ? "lg:grid-cols-[1fr_minmax(360px,460px)]" : ""}`}>
+        <DataGrid<Account>
+          columns={columns}
+          rows={rows}
+          rowKey={(a) => a.id}
+          total={total}
+          page={page}
+          pageSize={PAGE}
+          onPageChange={setPage}
+          sort={sort}
+          onSortChange={(s) => { setSort(s); setPage(0); }}
+          filters={{ status }}
+          onFilterChange={(k, v) => { if (k === "status") { setStatusFilter(v); setPage(0); } }}
+          isLoading={isLoading}
+          error={!!error}
+          emptyLabel="No accounts."
+          selection={{ selected, onToggle: toggleRow, onToggleAll: toggleAll, allOnPage }}
+          onRowClick={(a) => selectRow(a.id)}
+          selectedId={sel}
+        />
+        {selAccount && <AccountDetail account={selAccount} onClose={clearSel} />}
+      </div>
 
-      {rolesFor && <RolesDialog account={rolesFor} onClose={() => setRolesFor(null)} />}
       {bulkRole && (
         <BulkRoleDialog
           accountIds={[...selected]}
@@ -311,7 +316,7 @@ function NewAccountDialog({ open, setOpen }: { open: boolean; setOpen: (b: boole
   );
 }
 
-function RolesDialog({ account, onClose }: { account: Account; onClose: () => void }) {
+function AccountDetail({ account, onClose }: { account: Account; onClose: () => void }) {
   const qc = useQueryClient();
   const [roleId, setRoleId] = useState("");
   const [orgId, setOrgId] = useState("");
@@ -354,49 +359,51 @@ function RolesDialog({ account, onClose }: { account: Account; onClose: () => vo
   });
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Roles — {account.display_name || account.email || account.id.slice(0, 8)}</DialogTitle>
-        </DialogHeader>
+    <DetailPanel
+      title={account.display_name || account.email || account.id.slice(0, 8)}
+      subtitle={account.email || account.account_number || account.id}
+      onClose={onClose}
+    >
+      {/* Account meta */}
+      <dl className="mb-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+        <dt className="text-muted-foreground">Status</dt>
+        <dd><span className={`rounded px-1.5 py-0.5 text-xs ${STATUS_STYLE[account.status] ?? ""}`}>{account.status}</span></dd>
+        {account.account_number && (<><dt className="text-muted-foreground">NIU</dt><dd className="font-mono text-xs">{account.account_number}</dd></>)}
+      </dl>
 
-        <div className="space-y-2">
-          {assignments.length === 0 && <p className="text-sm text-muted-foreground">No roles assigned.</p>}
-          {assignments.map((a) => (
-            <div key={a.id} className="flex items-center justify-between rounded-md border px-3 py-1.5 text-sm">
-              <span>
-                <span className="font-medium">{roleName(a.role_id)}</span>
-                <span className="ml-2 text-xs text-muted-foreground">@ {orgName(a.organization_id)}</span>
-              </span>
-              <Button variant="ghost" size="sm" disabled={revoke.isPending} onClick={() => revoke.mutate(a.id)}>Revoke</Button>
-            </div>
-          ))}
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Roles</p>
+      <div className="space-y-2">
+        {assignments.length === 0 && <p className="text-sm text-muted-foreground">No roles assigned.</p>}
+        {assignments.map((a) => (
+          <div key={a.id} className="flex items-center justify-between rounded-md border px-3 py-1.5 text-sm">
+            <span>
+              <span className="font-medium">{roleName(a.role_id)}</span>
+              <span className="ml-2 text-xs text-muted-foreground">@ {orgName(a.organization_id)}</span>
+            </span>
+            <Button variant="ghost" size="sm" disabled={revoke.isPending} onClick={() => revoke.mutate(a.id)}>Revoke</Button>
+          </div>
+        ))}
+      </div>
+
+      <form className="mt-3 flex items-end gap-2 border-t pt-3"
+        onSubmit={(e) => { e.preventDefault(); if (roleId) assign.mutate(); }}>
+        <div className="flex-1 space-y-1.5">
+          <Label htmlFor="role">Role</Label>
+          <Select id="role" value={roleId} onChange={(e) => setRoleId(e.target.value)}>
+            <option value="">— select —</option>
+            {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </Select>
         </div>
-
-        <form className="flex items-end gap-2 border-t pt-3"
-          onSubmit={(e) => { e.preventDefault(); if (roleId) assign.mutate(); }}>
-          <div className="flex-1 space-y-1.5">
-            <Label htmlFor="role">Role</Label>
-            <Select id="role" value={roleId} onChange={(e) => setRoleId(e.target.value)}>
-              <option value="">— select —</option>
-              {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </Select>
-          </div>
-          <div className="flex-1 space-y-1.5">
-            <Label htmlFor="scope">Scope</Label>
-            <Select id="scope" value={orgId} onChange={(e) => setOrgId(e.target.value)}>
-              <option value="">Global</option>
-              {orgs.map((o) => <option key={o.id} value={o.id}>{orgLabel(o)}</option>)}
-            </Select>
-          </div>
-          <Button type="submit" disabled={!roleId || assign.isPending}>Assign</Button>
-        </form>
-        {error && <p className="text-sm text-destructive">{error}</p>}
-
-        <DialogFooter>
-          <Button type="button" variant="ghost" onClick={onClose}>Close</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <div className="flex-1 space-y-1.5">
+          <Label htmlFor="scope">Scope</Label>
+          <Select id="scope" value={orgId} onChange={(e) => setOrgId(e.target.value)}>
+            <option value="">Global</option>
+            {orgs.map((o) => <option key={o.id} value={o.id}>{orgLabel(o)}</option>)}
+          </Select>
+        </div>
+        <Button type="submit" disabled={!roleId || assign.isPending}>Assign</Button>
+      </form>
+      {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+    </DetailPanel>
   );
 }
