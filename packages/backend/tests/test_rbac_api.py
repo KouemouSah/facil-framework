@@ -62,7 +62,8 @@ async def test_get_role_permissions_roundtrip(client):
     # No grants yet.
     g0 = await ac.get(f"/api/v1/rbac/roles/{role_id}/permissions", headers=AUTH)
     assert g0.status_code == 200
-    assert g0.json() == {"role_id": role_id, "codes": []}
+    assert g0.json()["role_id"] == role_id and g0.json()["codes"] == []
+    assert "etag" in g0.json()
     # Set then read back (sorted).
     await ac.put(f"/api/v1/rbac/roles/{role_id}/permissions", headers=AUTH,
                  json={"codes": ["location.read", "organization.read"]})
