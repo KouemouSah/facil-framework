@@ -15,6 +15,7 @@ from app.auth import service
 from app.identity import repository as identity_repo
 from app.identity import service as identity_service
 from app.rbac import repository as rbac_repo
+from app.rbac import service as rbac_service
 from app.security.auth_dep import require_auth
 from app.security.rate_limit import rate_limited
 
@@ -132,6 +133,18 @@ async def me(principal: dict = Depends(require_auth),
     return {"break_glass": False, "account": account.as_dict(),
             "idp": principal.get("idp"),
             "roles": [a.as_dict() for a in assignments]}
+
+
+@router.get("/me/permissions")
+async def my_permissions(principal: dict = Depends(require_auth),
+                         session: AsyncSession = Depends(get_session)) -> dict:
+    """Effective permission codes for the current principal — the UI uses these
+    to hide nav/actions the user can't use (the backend still enforces scope).
+    Break-glass holds everything (`*`)."""
+    if principal.get("break_glass"):
+        return {"break_glass": True, "permissions": ["*"]}
+    codes = await rbac_service.effective_permissions(session, principal["sub"])
+    return {"break_glass": False, "permissions": sorted(codes)}
 
 
 @router.post("/refresh")

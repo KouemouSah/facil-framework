@@ -238,3 +238,22 @@ async def test_admin_settings_now_rbac_gated(seeded):
     # Break-glass still works (write + read).
     assert (await ac.put(f"{SET}/branding.app_name", headers=ADMIN,
                          json={"value": "Ok"})).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_me_permissions_reflects_grants(seeded):
+    """A1: /me/permissions returns the union of granted codes (UI nav gating)."""
+    ac, org_a, _ = seeded
+    member = await _role_id(ac, "member")
+    hdr, acc_id = await _bearer(ac, "heidi@x.com")
+    # No roles yet -> empty.
+    r0 = (await ac.get("/api/v1/auth/me/permissions", headers=hdr)).json()
+    assert r0 == {"break_glass": False, "permissions": []}
+    # Assign member (organization.read + location.read).
+    await ac.post(f"/api/v1/rbac/accounts/{acc_id}/roles", headers=ADMIN,
+                  json={"role_id": member, "organization_id": org_a})
+    r1 = (await ac.get("/api/v1/auth/me/permissions", headers=hdr)).json()
+    assert set(r1["permissions"]) == {"organization.read", "location.read"}
+    # Break-glass holds everything.
+    bg = (await ac.get("/api/v1/auth/me/permissions", headers=ADMIN)).json()
+    assert bg == {"break_glass": True, "permissions": ["*"]}

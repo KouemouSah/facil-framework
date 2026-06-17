@@ -9,6 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Network, Settings, Search, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
+import { hasPerm } from "@/lib/perm";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/lib/use-session";
 
@@ -33,6 +34,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   });
   const appName = branding?.app_name || "Facil";
 
+  // Effective permissions -> hide nav the user can't use (backend still enforces).
+  const { data: perms } = useQuery<{ permissions: string[] }>({
+    queryKey: ["my-permissions"],
+    queryFn: () => apiFetch(`/api/v1/auth/me/permissions`),
+    staleTime: 5 * 60 * 1000,
+  });
+  const granted = perms?.permissions ?? [];
+
   // Client guard: if the session check resolves unauthenticated (e.g. refresh
   // failed server-side), leave the protected area.
   useEffect(() => {
@@ -51,16 +60,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     session?.account?.display_name || session?.account?.email ||
     (session?.break_glass ? "Admin" : "");
 
-  // Only routes that exist are shown (no dead nav).
-  const nav = [
+  // Only routes that exist are shown, and only those the user's grants cover
+  // (`perm` undefined = always visible). Backend remains the authority.
+  const allNav = [
     { href: "/", label: t("dashboard"), icon: LayoutDashboard },
-    { href: "/organizations", label: t("organizations"), icon: Building2 },
-    { href: "/locations", label: t("locations"), icon: MapPin },
-    { href: "/agents", label: t("agents"), icon: Users },
-    { href: "/roles", label: t("roles"), icon: ShieldCheck },
-    { href: "/federation", label: t("federation"), icon: Network },
-    { href: "/settings", label: t("settings"), icon: Settings },
+    { href: "/organizations", label: t("organizations"), icon: Building2, perm: "organization.read" },
+    { href: "/locations", label: t("locations"), icon: MapPin, perm: "location.read" },
+    { href: "/agents", label: t("agents"), icon: Users, perm: "account.read" },
+    { href: "/roles", label: t("roles"), icon: ShieldCheck, perm: "rbac.read" },
+    { href: "/federation", label: t("federation"), icon: Network, perm: "account.read" },
+    { href: "/settings", label: t("settings"), icon: Settings, perm: "branding.manage" },
   ];
+  const nav = allNav.filter((i) => !i.perm || hasPerm(granted, i.perm));
 
   return (
     <div className="grid h-screen grid-cols-1 overflow-hidden md:grid-cols-[260px_1fr]">

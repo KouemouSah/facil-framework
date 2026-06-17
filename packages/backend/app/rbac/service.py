@@ -105,6 +105,22 @@ async def has_permission(session: AsyncSession, account_id: str, perm: str,
     return False
 
 
+async def effective_permissions(session: AsyncSession, account_id: str) -> set[str]:
+    """Union of permission codes granted to an account across its active,
+    non-expired role assignments (scope-agnostic). For UI reflection only — the
+    backend still enforces scope per request. May include wildcards (`*`,
+    `<resource>.*`); the client matches them like the server does."""
+    codes: set[str] = set()
+    for ar in await repo.active_account_roles(session, account_id):
+        if _expired(ar):
+            continue
+        role = await repo.get_role(session, ar.role_id)
+        if role is None or not role.is_active:
+            continue
+        codes |= await repo.role_codes(session, await _ancestor_ids(session, role))
+    return codes
+
+
 async def visible_org_ids(session: AsyncSession, account_id: str,
                           perm: str) -> set[str] | None:
     """Org ids the account can exercise `perm` on, for scope-filtered listings.
