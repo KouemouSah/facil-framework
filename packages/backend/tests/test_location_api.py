@@ -47,6 +47,17 @@ async def _site(ac, org_id, code, **kw):
 
 
 @pytest.mark.asyncio
+async def test_site_export_csv(loc_client):
+    org_id = await _org(loc_client)
+    await _site(loc_client, org_id, "EXP")
+    r = await loc_client.get(f"{LOC}/sites/export?organization_id={org_id}", headers=AUTH)
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/csv")
+    lines = r.text.strip().splitlines()
+    assert lines[0].startswith("id,code,name,site_type")
+    assert any("EXP" in ln for ln in lines[1:])
+
+
+@pytest.mark.asyncio
 async def test_site_optimistic_concurrency(loc_client):
     org_id = await _org(loc_client)
     site_id = (await _site(loc_client, org_id, "CONC")).json()["id"]

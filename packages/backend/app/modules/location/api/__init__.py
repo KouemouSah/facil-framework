@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.concurrency import enforce_if_match, row_etag
+from app.api.csv_export import EXPORT_CAP, csv_response
 from app.api.deps import get_session
 from app.api.list_query import apply_sort, clamp_page, paginated
 from app.modules.location import repository as repo
@@ -57,6 +58,21 @@ async def list_sites(organization_id: str | None = None,
     items, total = await paginated(session, stmt, limit=limit, offset=offset)
     return {"items": [s.as_dict() for s in items], "total": total,
             "limit": limit, "offset": offset}
+
+
+_SITE_EXPORT_COLS = ("id", "code", "name", "site_type", "organization_id",
+                     "city", "country_code", "is_primary", "is_active")
+
+
+@router.get("/sites/export")
+async def export_sites(organization_id: str | None = None, q: str | None = None,
+                       sort: str = "code", principal: dict = Depends(require_auth),
+                       session: AsyncSession = Depends(get_session)):
+    visible = await visible_orgs(session, principal, "location.read")
+    stmt = repo.sites_select(organization_id=organization_id, org_ids=visible, q=q)
+    stmt = apply_sort(stmt, sort, allowed=_SITE_SORT, default="code")
+    items, total = await paginated(session, stmt, limit=EXPORT_CAP, offset=0)
+    return csv_response(items, _SITE_EXPORT_COLS, "sites.csv", total=total)
 
 
 @router.post("/sites", status_code=201)

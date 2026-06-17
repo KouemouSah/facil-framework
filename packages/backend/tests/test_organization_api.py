@@ -78,6 +78,16 @@ async def test_list_pagination(org_client):
 
 
 @pytest.mark.asyncio
+async def test_org_export_csv(org_client):
+    await _mk_org(org_client, "expco")
+    r = await org_client.get(f"{BASE}/export", headers=AUTH)
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/csv")
+    lines = r.text.strip().splitlines()
+    assert lines[0].startswith("id,code,legal_name")
+    assert any("expco" in ln for ln in lines[1:])
+
+
+@pytest.mark.asyncio
 async def test_org_optimistic_concurrency(org_client):
     org_id = await _mk_org(org_client, "concur")
     g = (await org_client.get(f"{BASE}/{org_id}", headers=AUTH)).json()
