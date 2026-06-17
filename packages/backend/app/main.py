@@ -16,6 +16,7 @@ from sqlalchemy import text
 
 from app.api import (
     admin_accounts,
+    admin_branding,
     admin_federation,
     admin_providers,
     admin_settings,
@@ -155,6 +156,7 @@ app.include_router(admin_settings.router)
 app.include_router(admin_providers.router)
 app.include_router(admin_accounts.router)
 app.include_router(admin_federation.router)
+app.include_router(admin_branding.router)
 app.include_router(auth.router)
 app.include_router(rbac.router)
 app.include_router(scim_api.router)

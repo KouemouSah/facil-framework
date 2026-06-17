@@ -26,6 +26,8 @@ CORE_PERMISSIONS: list[dict] = [
      "description": "View accounts (agents and users)"},
     {"code": "account.manage", "module": "identity",
      "description": "Create accounts and change their status"},
+    {"code": "branding.manage", "module": "core",
+     "description": "Edit branding (names, colours, logos, locale)"},
 ]
 
 

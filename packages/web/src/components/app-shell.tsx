@@ -2,11 +2,13 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Network, Search, LogOut } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Network, Settings, Search, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/lib/use-session";
 
@@ -24,6 +26,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const qc = useQueryClient();
   const { data: session, isLoading } = useSession();
+  const { data: branding } = useQuery<{ app_name: string; logo_url: string }>({
+    queryKey: ["branding"],
+    queryFn: () => apiFetch(`/api/v1/system/branding`),
+    staleTime: 5 * 60 * 1000,
+  });
+  const appName = branding?.app_name || "Facil";
 
   // Client guard: if the session check resolves unauthenticated (e.g. refresh
   // failed server-side), leave the protected area.
@@ -43,8 +51,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     session?.account?.display_name || session?.account?.email ||
     (session?.break_glass ? "Admin" : "");
 
-  // Only routes that exist are shown (no dead nav). settings is added here as
-  // its D5 page lands (same table pattern).
+  // Only routes that exist are shown (no dead nav).
   const nav = [
     { href: "/", label: t("dashboard"), icon: LayoutDashboard },
     { href: "/organizations", label: t("organizations"), icon: Building2 },
@@ -52,6 +59,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     { href: "/agents", label: t("agents"), icon: Users },
     { href: "/roles", label: t("roles"), icon: ShieldCheck },
     { href: "/federation", label: t("federation"), icon: Network },
+    { href: "/settings", label: t("settings"), icon: Settings },
   ];
 
   return (
@@ -59,10 +67,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Sidebar — fixed, hidden on mobile (drawer comes in D5.1) */}
       <aside className="hidden flex-col border-r bg-card md:flex">
         <div className="flex h-14 items-center gap-2 border-b px-5 font-semibold">
-          <span className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground">
-            F
-          </span>
-          Facil
+          {branding?.logo_url ? (
+            <Image src={branding.logo_url} alt={appName} width={28} height={28} className="h-7 w-7 rounded-md object-contain" unoptimized />
+          ) : (
+            <span className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground">
+              {appName.charAt(0).toUpperCase()}
+            </span>
+          )}
+          {appName}
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
           {nav.map(({ href, label, icon: Icon }) => {

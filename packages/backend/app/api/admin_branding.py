@@ -1,0 +1,61 @@
+"""Admin branding API (D5.4) — RBAC-gated live editing of `branding.*`.
+
+The bootstrap admin-settings router is token-gated (break-glass, for the IdP/
+operator), so logged-in admins edit branding through this RBAC-gated surface
+instead. Writes upsert the `branding.*` config-store keys and refresh the
+in-process resolver immediately, so the public theme endpoint reflects changes
+on the next request (live). `branding.manage` (break-glass ok) authorizes both.
+"""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_session
+from app.branding import BRANDING_STRING_FIELDS, THEME_MODES, branding_snapshot
+from app.config_store import repository as repo
+from app.security.permission_dep import require_permission
+
+router = APIRouter(prefix="/api/v1/admin/branding", tags=["admin-branding"])
+
+_MANAGE = Depends(require_permission("branding.manage"))
+
+
+class BrandingIn(BaseModel):
+    """All optional — only provided (non-null) fields are written."""
+    app_name: str | None = None
+    tagline: str | None = None
+    logo_url: str | None = None
+    logo_dark_url: str | None = None
+    favicon_url: str | None = None
+    login_background_url: str | None = None
+    primary_color: str | None = None
+    secondary_color: str | None = None
+    theme_mode: str | None = None
+    default_locale: str | None = None
+    support_email: str | None = None
+    support_url: str | None = None
+
+
+@router.get("", dependencies=[_MANAGE])
+async def get_branding(request: Request) -> dict:
+    return branding_snapshot(request.app.state.resolver)
+
+
+@router.put("", dependencies=[_MANAGE])
+async def put_branding(body: BrandingIn, request: Request,
+                       session: AsyncSession = Depends(get_session)) -> dict:
+    data = body.model_dump(exclude_none=True)
+    if "theme_mode" in data and data["theme_mode"] not in THEME_MODES:
+        raise HTTPException(422, f"theme_mode must be one of {THEME_MODES}")
+    for field, value in data.items():
+        if field not in BRANDING_STRING_FIELDS:  # defence in depth vs the schema
+            raise HTTPException(422, f"unknown branding field '{field}'")
+        await repo.upsert_setting(session, f"branding.{field}", value,
+                                  value_type="string")
+    await session.commit()
+    # Live refresh: rebuild the resolver's DB layer so reads see the new values.
+    request.app.state.resolver.set_db(await repo.active_map(session))
+    return branding_snapshot(request.app.state.resolver)

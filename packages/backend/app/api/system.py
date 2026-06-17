@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
+from app.branding import branding_snapshot
 from app.rbac.models import AccountRole, RolePermission
 
 router = APIRouter(prefix="/api/v1/system", tags=["system"])
@@ -33,3 +34,10 @@ async def install_status(request: Request,
         "app_name": resolver.resolve("branding.app_name", "Facil"),
         "default_locale": resolver.resolve("branding.default_locale", "en"),
     }
+
+
+@router.get("/branding")
+async def branding(request: Request) -> dict:
+    """Public theme payload — consumed by the web layer to brand the whole app
+    (including the unauthenticated login/installer screens)."""
+    return branding_snapshot(request.app.state.resolver)

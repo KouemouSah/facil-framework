@@ -40,6 +40,41 @@ export async function getInstallStatus(): Promise<{ installed: boolean }> {
   }
 }
 
+export interface Branding {
+  app_name: string;
+  tagline: string;
+  logo_url: string;
+  logo_dark_url: string;
+  favicon_url: string;
+  login_background_url: string;
+  primary_color: string;
+  secondary_color: string;
+  theme_mode: string;
+  default_locale: string;
+  support_email: string;
+  support_url: string;
+  supported_locales: string[];
+}
+
+const DEFAULT_BRANDING: Branding = {
+  app_name: "Facil", tagline: "", logo_url: "", logo_dark_url: "", favicon_url: "",
+  login_background_url: "", primary_color: "#2563eb", secondary_color: "#7c3aed",
+  theme_mode: "light", default_locale: "en", support_email: "", support_url: "",
+  supported_locales: ["en", "fr", "es"],
+};
+
+/** Public theme payload for SSR theming. Fail-safe = baked defaults (never block
+ *  rendering on a brief backend hiccup). */
+export async function getBranding(): Promise<Branding> {
+  try {
+    const r = await fetch(`${BACKEND}/api/v1/system/branding`, { cache: "no-store" });
+    if (!r.ok) return DEFAULT_BRANDING;
+    return { ...DEFAULT_BRANDING, ...(await r.json()) };
+  } catch {
+    return DEFAULT_BRANDING;
+  }
+}
+
 async function rawCall(path: string, init: RequestInit, token?: string) {
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");
