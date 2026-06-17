@@ -51,6 +51,18 @@ class InvalidStatus(IdentityError):
     pass
 
 
+# Statuses that block authentication (native AND federated).
+_BLOCKING_STATUSES = ("suspended", "deactivated")
+
+
+def is_usable(account: Account | None) -> bool:
+    """Whether an account may authenticate: active flag set AND status not in a
+    blocking state. Single source of truth so native login and OIDC federation
+    agree (the federation gate delegates here)."""
+    return bool(account and account.is_active
+                and account.status not in _BLOCKING_STATUSES)
+
+
 async def register(session: AsyncSession, *, email: str | None = None,
                    organization_id: str | None = None,
                    display_name: str | None = None,

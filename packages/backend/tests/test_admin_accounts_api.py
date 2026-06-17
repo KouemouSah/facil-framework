@@ -86,6 +86,40 @@ async def test_set_status_transitions(client):
 
 
 @pytest.mark.asyncio
+async def test_invalid_email_422(client):
+    ac, _ = client
+    r = await ac.post("/api/v1/admin/accounts", headers=AUTH,
+                      json={"email": "not-an-email", "password": "Secret123"})
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_suspended_account_cannot_login(client):
+    """S1/S2: native login enforces status, and suspension kills sessions."""
+    ac, _ = client
+    await ac.post("/api/v1/admin/accounts", headers=AUTH,
+                  json={"email": "agent2@corp.com", "password": "Secret123"})
+    # Fresh account logs in fine.
+    ok = await ac.post("/api/v1/auth/login",
+                       json={"identifier": "agent2@corp.com", "password": "Secret123"})
+    assert ok.status_code == 200
+    aid = ok.json()["account"]["id"]
+    # Suspend -> native login is now rejected (uniform 401, no status oracle).
+    sus = await ac.patch(f"/api/v1/admin/accounts/{aid}/status", headers=AUTH,
+                         json={"status": "suspended"})
+    assert sus.status_code == 200
+    again = await ac.post("/api/v1/auth/login",
+                          json={"identifier": "agent2@corp.com", "password": "Secret123"})
+    assert again.status_code == 401
+    # Reactivate -> login works again.
+    await ac.patch(f"/api/v1/admin/accounts/{aid}/status", headers=AUTH,
+                   json={"status": "active"})
+    assert (await ac.post("/api/v1/auth/login",
+                          json={"identifier": "agent2@corp.com", "password": "Secret123"})
+            ).status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_statuses_catalog(client):
     ac, _ = client
     r = await ac.get("/api/v1/admin/accounts/statuses", headers=AUTH)

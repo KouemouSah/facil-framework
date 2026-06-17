@@ -18,7 +18,8 @@ from app.api.deps import get_session
 from app.auth.models import FederatedIdentity
 from app.config import get_settings
 from app.identity.models import Account
-from app.security.permission_dep import require_permission
+from app.security.auth_dep import require_auth
+from app.security.permission_dep import require_permission, visible_orgs
 
 router = APIRouter(prefix="/api/v1/admin/federation", tags=["admin-federation"])
 
@@ -39,15 +40,21 @@ async def status(session: AsyncSession = Depends(get_session)) -> dict:
     }
 
 
-@router.get("/identities", dependencies=[_READ])
+@router.get("/identities")
 async def identities(q: str | None = None, limit: int = 50, offset: int = 0,
+                     principal: dict = Depends(require_auth),
                      session: AsyncSession = Depends(get_session)) -> list[dict]:
+    # Scope filter (tenant isolation): restrict linked identities to the caller's
+    # visible organizations (None = global/break-glass sees all).
+    visible = await visible_orgs(session, principal, "account.read")
     limit = min(max(limit, 1), 200)
     offset = max(offset, 0)
     stmt = (select(FederatedIdentity, Account)
             .join(Account, Account.id == FederatedIdentity.account_id)
             .order_by(FederatedIdentity.created_at.desc())
             .limit(limit).offset(offset))
+    if visible is not None:
+        stmt = stmt.where(Account.organization_id.in_(visible))
     if q:
         like = f"%{q}%"
         stmt = stmt.where(or_(

@@ -25,6 +25,7 @@ async def e2e(tmp_path, monkeypatch):
     import app.config as cfg
     cfg._settings = None
 
+    from app.api import admin_accounts as accounts_api
     from app.api import auth as auth_api
     from app.api import rbac as rbac_api
     from app.config_store.resolver import ConfigResolver
@@ -50,6 +51,7 @@ async def e2e(tmp_path, monkeypatch):
         "auth", "native", {"issuer": "facil"})
     application.include_router(auth_api.router)
     application.include_router(rbac_api.router)
+    application.include_router(accounts_api.router)
     load_modules(application, enabled=["organization", "location"])
 
     transport = ASGITransport(app=application)
@@ -178,3 +180,36 @@ async def test_site_list_is_scope_filtered(seeded):
     assert listed.status_code == 200
     orgs = {s["organization_id"] for s in listed.json()}
     assert orgs == {org_a}
+
+
+ACC = "/api/v1/admin/accounts"
+
+
+@pytest.mark.asyncio
+async def test_admin_accounts_tenant_isolation(seeded):
+    ac, org_a, org_b = seeded
+    admin = await _role_id(ac, "admin")
+    # Seed an account in each org via break-glass.
+    a = (await ac.post(ACC, headers=ADMIN, json={
+        "email": "a@org-a.com", "password": "Sup3rStr0ng!pw",
+        "organization_id": org_a})).json()
+    b = (await ac.post(ACC, headers=ADMIN, json={
+        "email": "b@org-b.com", "password": "Sup3rStr0ng!pw",
+        "organization_id": org_b})).json()
+
+    # A user with admin scoped to org A.
+    hdr, acc_id = await _bearer(ac, "frank@x.com")
+    await ac.post(f"/api/v1/rbac/accounts/{acc_id}/roles", headers=ADMIN,
+                  json={"role_id": admin, "organization_id": org_a})
+
+    # List is scope-filtered: sees org A's account, not org B's.
+    rows = (await ac.get(ACC, headers=hdr)).json()
+    emails = {r["email"] for r in rows}
+    assert "a@org-a.com" in emails
+    assert "b@org-b.com" not in emails
+
+    # Status change is scope-enforced: allowed in org A, 403 in org B.
+    assert (await ac.patch(f"{ACC}/{a['id']}/status", headers=hdr,
+                           json={"status": "suspended"})).status_code == 200
+    assert (await ac.patch(f"{ACC}/{b['id']}/status", headers=hdr,
+                           json={"status": "suspended"})).status_code == 403

@@ -30,6 +30,7 @@ RESOLVE_TTL = 60.0
 
 from app.auth.models import FederatedIdentity
 from app.identity import repository as identity_repo
+from app.identity import service as identity_service
 from app.identity.models import Account
 from app.modules.organization import repository as org_repo
 from app.rbac import repository as rbac_repo
@@ -37,8 +38,8 @@ from app.rbac.models import AccountRole
 
 
 def _usable(account: Account | None) -> bool:
-    return bool(account and account.is_active
-                and account.status not in ("suspended", "deactivated"))
+    # Single source of truth — native login and OIDC agree on what "usable" means.
+    return identity_service.is_usable(account)
 
 
 async def _link(session: AsyncSession, provider: str, subject: str) -> FederatedIdentity | None:

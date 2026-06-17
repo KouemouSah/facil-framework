@@ -14,10 +14,17 @@ async def get_account(session: AsyncSession, account_id: str) -> Account | None:
 
 async def list_accounts(session: AsyncSession, *, q: str | None = None,
                         organization_id: str | None = None,
+                        org_ids: set[str] | None = None,
                         limit: int = 50, offset: int = 0) -> list[Account]:
     """Paginated account listing with an optional substring search (email /
-    account_number / display_name) and org filter. Newest first."""
+    account_number / display_name) and org filter. Newest first.
+
+    `org_ids` is the RBAC scope filter (the set of organizations the caller may
+    see): None = unrestricted (global/break-glass); a set restricts to those orgs
+    (an empty set therefore returns nothing — no grant, no rows)."""
     stmt = select(Account)
+    if org_ids is not None:
+        stmt = stmt.where(Account.organization_id.in_(org_ids))
     if organization_id:
         stmt = stmt.where(Account.organization_id == organization_id)
     if q:

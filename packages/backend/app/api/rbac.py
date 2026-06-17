@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
+from app.auth import audit
 from app.rbac import repository as repo
 from app.rbac import seed as seed_mod
 from app.rbac import service
@@ -138,15 +139,20 @@ async def assign_role(account_id: str, body: AssignIn, principal: dict = _MANAGE
             created_by=principal.get("sub"))
     except service.RoleNotFound as e:
         raise HTTPException(404, str(e)) from e
+    await audit.record(session, audit.ROLE_ASSIGNED, account_id=account_id,
+                       detail={"by": principal.get("sub"), "role_id": body.role_id,
+                               "organization_id": body.organization_id})
     await session.commit()
     return assignment.as_dict()
 
 
-@router.delete("/accounts/{account_id}/roles/{assignment_id}", dependencies=[_MANAGE])
-async def revoke_role(account_id: str, assignment_id: str,
+@router.delete("/accounts/{account_id}/roles/{assignment_id}")
+async def revoke_role(account_id: str, assignment_id: str, principal: dict = _MANAGE,
                       session: AsyncSession = Depends(get_session)) -> dict:
     if not await repo.delete_account_role(session, assignment_id):
         raise HTTPException(404, f"assignment '{assignment_id}' not found")
+    await audit.record(session, audit.ROLE_REVOKED, account_id=account_id,
+                       detail={"by": principal.get("sub"), "assignment_id": assignment_id})
     await session.commit()
     return {"deleted": assignment_id}
 

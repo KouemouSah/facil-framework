@@ -102,7 +102,9 @@ async def authenticate(session: AsyncSession, identifier: str, password: str, *,
                       totp_code: str | None = None,
                       strategy: NumberStrategy | None = None):
     account = await identity_service.resolve_identifier(session, identifier, strategy)
-    if account is None:
+    # Suspended/deactivated/inactive accounts must not authenticate — return a
+    # uniform None (same as a bad identifier; no status oracle to an attacker).
+    if not identity_service.is_usable(account):
         return None
     cred = await repo.get_credential(session, account.id)
     if cred is None:
