@@ -172,6 +172,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run type-check --workspace=web
+      - run: npm run test --workspace=web
       - run: npm run build --workspace=web
 
   summary:
