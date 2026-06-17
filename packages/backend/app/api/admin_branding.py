@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.concurrency import enforce_if_match, etag_for
 from app.api.deps import get_session
 from app.auth import audit
 from app.branding import BRANDING_STRING_FIELDS, THEME_MODES, branding_snapshot
@@ -56,7 +57,8 @@ class BrandingIn(BaseModel):
 
 @router.get("", dependencies=[_MANAGE])
 async def get_branding(request: Request) -> dict:
-    return branding_snapshot(request.app.state.resolver)
+    snap = branding_snapshot(request.app.state.resolver)
+    return {**snap, "etag": etag_for(snap)}  # etag for optimistic concurrency
 
 
 @router.put("", dependencies=[_MANAGE])
@@ -66,6 +68,8 @@ async def put_branding(body: BrandingIn, request: Request,
     data = body.model_dump(exclude_none=True)
     if "theme_mode" in data and data["theme_mode"] not in THEME_MODES:
         raise HTTPException(422, f"theme_mode must be one of {THEME_MODES}")
+    # Lost-update guard: reject if branding changed since the client loaded it.
+    enforce_if_match(request, etag_for(branding_snapshot(request.app.state.resolver)))
     for field, value in data.items():
         if field not in BRANDING_STRING_FIELDS:  # defence in depth vs the schema
             raise HTTPException(422, f"unknown branding field '{field}'")
@@ -77,4 +81,5 @@ async def put_branding(body: BrandingIn, request: Request,
     await session.commit()
     # Live refresh: rebuild the resolver's DB layer so reads see the new values.
     request.app.state.resolver.set_db(await repo.active_map(session))
-    return branding_snapshot(request.app.state.resolver)
+    snap = branding_snapshot(request.app.state.resolver)
+    return {**snap, "etag": etag_for(snap)}

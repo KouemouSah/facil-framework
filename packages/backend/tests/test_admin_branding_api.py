@@ -46,6 +46,28 @@ async def test_update_reflects_in_admin_and_public(client):
 
 
 @pytest.mark.asyncio
+async def test_optimistic_concurrency_if_match(client):
+    ac, _ = client
+    g = (await ac.get("/api/v1/admin/branding", headers=AUTH)).json()
+    etag = g["etag"]
+    assert etag
+
+    # Correct etag -> 200 (and the etag changes after the write).
+    ok = await ac.put("/api/v1/admin/branding", headers={**AUTH, "If-Match": etag},
+                      json={"app_name": "Concur Co"})
+    assert ok.status_code == 200
+    assert ok.json()["etag"] != etag
+
+    # Re-using the now-stale etag -> 409 (lost-update guard).
+    stale = await ac.put("/api/v1/admin/branding", headers={**AUTH, "If-Match": etag},
+                         json={"app_name": "Race"})
+    assert stale.status_code == 409
+    # No If-Match -> allowed (backwards compatible).
+    assert (await ac.put("/api/v1/admin/branding", headers=AUTH,
+                         json={"tagline": "x"})).status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_invalid_theme_mode_422(client):
     ac, _ = client
     r = await ac.put("/api/v1/admin/branding", headers=AUTH,

@@ -24,6 +24,7 @@ interface Branding {
   support_email: string;
   support_url: string;
   supported_locales: string[];
+  etag?: string;
 }
 
 export default function SettingsPage() {
@@ -47,8 +48,14 @@ export default function SettingsPage() {
 
   const save = useMutation({
     mutationFn: () => {
-      const { supported_locales: _omit, ...payload } = form as Branding;
-      return apiFetch("/api/v1/admin/branding", { method: "PUT", body: JSON.stringify(payload) });
+      const { supported_locales: _omit, etag: _e, ...payload } = form as Branding;
+      // Optimistic concurrency: echo the loaded etag; the backend 409s if branding
+      // changed since we loaded it.
+      return apiFetch("/api/v1/admin/branding", {
+        method: "PUT",
+        headers: data?.etag ? { "If-Match": data.etag } : undefined,
+        body: JSON.stringify(payload),
+      });
     },
     onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ["admin-branding"] });
@@ -59,7 +66,15 @@ export default function SettingsPage() {
       await fetch("/api/branding/revalidate", { method: "POST" }).catch(() => undefined);
       router.refresh();
     },
-    onError: (e: Error) => setError(e.message || "Save failed"),
+    onError: (e: { status?: number; message?: string }) => {
+      if (e.status === 409) {
+        setError("Branding was changed elsewhere — reloading the latest.");
+        setForm(null);  // let the refetched data repopulate the form
+        qc.invalidateQueries({ queryKey: ["admin-branding"] });
+      } else {
+        setError(e.message || "Save failed");
+      }
+    },
   });
 
   if (!form) {
