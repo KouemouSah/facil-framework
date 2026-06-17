@@ -47,6 +47,22 @@ async def _site(ac, org_id, code, **kw):
 
 
 @pytest.mark.asyncio
+async def test_site_optimistic_concurrency(loc_client):
+    org_id = await _org(loc_client)
+    site_id = (await _site(loc_client, org_id, "CONC")).json()["id"]
+    g = (await loc_client.get(f"{LOC}/sites/{site_id}", headers=AUTH)).json()
+    etag = g["etag"]
+    assert etag
+    ok = await loc_client.put(f"{LOC}/sites/{site_id}", headers={**AUTH, "If-Match": etag},
+                              json={"name": "Renamed"})
+    assert ok.status_code == 200
+    new_etag = (await loc_client.get(f"{LOC}/sites/{site_id}", headers=AUTH)).json()["etag"]
+    assert new_etag != etag
+    assert (await loc_client.put(f"{LOC}/sites/{site_id}", headers={**AUTH, "If-Match": etag},
+                                 json={"name": "Race"})).status_code == 409
+
+
+@pytest.mark.asyncio
 async def test_requires_token(loc_client):
     assert (await loc_client.get(f"{LOC}/sites")).status_code == 401
 

@@ -129,7 +129,9 @@ async def update_organization(org_id: str, body: OrganizationUpdate, request: Re
     except service.OrgError as e:
         raise _http(e) from e
     await session.commit()
-    return {**org.as_dict(), "etag": row_etag(org)}
+    # No etag here: updated_at is server-onupdate (expired after flush; reading it
+    # would need async IO). The client refetches GET for the rotated etag.
+    return org.as_dict()
 
 
 @router.delete("/{org_id}", dependencies=[_DELETE])

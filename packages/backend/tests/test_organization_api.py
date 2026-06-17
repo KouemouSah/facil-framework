@@ -85,7 +85,10 @@ async def test_org_optimistic_concurrency(org_client):
     assert etag
     ok = await org_client.put(f"{BASE}/{org_id}", headers={**AUTH, "If-Match": etag},
                               json={"legal_name": "Renamed"})
-    assert ok.status_code == 200 and ok.json()["etag"] != etag
+    assert ok.status_code == 200
+    # etag rotates (refetch to read it).
+    new_etag = (await org_client.get(f"{BASE}/{org_id}", headers=AUTH)).json()["etag"]
+    assert new_etag != etag
     # stale etag -> 409
     assert (await org_client.put(f"{BASE}/{org_id}", headers={**AUTH, "If-Match": etag},
                                  json={"legal_name": "Race"})).status_code == 409

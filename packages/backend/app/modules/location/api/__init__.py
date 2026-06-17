@@ -11,6 +11,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.concurrency import enforce_if_match, row_etag
 from app.api.deps import get_session
 from app.api.list_query import apply_sort, clamp_page, paginated
 from app.modules.location import repository as repo
@@ -80,17 +81,24 @@ async def get_site(site_id: str, session: AsyncSession = Depends(get_session)) -
     site = await repo.get_site(session, site_id)
     if site is None:
         raise HTTPException(404, f"site '{site_id}' not found")
-    return site.as_dict()
+    return {**site.as_dict(), "etag": row_etag(site)}
 
 
 @router.put("/sites/{site_id}", dependencies=[Depends(require_permission("location.update"))])
-async def update_site(site_id: str, body: SiteUpdate,
+async def update_site(site_id: str, body: SiteUpdate, request: Request,
                       session: AsyncSession = Depends(get_session)) -> dict:
+    # Optimistic concurrency: reject if the row changed since the client loaded it.
+    existing = await repo.get_site(session, site_id)
+    if existing is None:
+        raise HTTPException(404, f"site '{site_id}' not found")
+    enforce_if_match(request, row_etag(existing))
     try:
         site = await service.update_site(session, site_id, body)
     except service.LocError as e:
         raise _http(e) from e
     await session.commit()
+    # No etag here (updated_at is server-onupdate; expired after flush). The client
+    # refetches GET for the rotated etag.
     return site.as_dict()
 
 
