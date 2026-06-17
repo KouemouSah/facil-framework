@@ -1,13 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, ShieldCheck, KeyRound, Search } from "lucide-react";
+import { Plus, Trash2, ShieldCheck, Check, Search } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DataGrid, type DataGridColumn } from "@/components/ui/data-grid";
+import { DetailPanel } from "@/components/ui/detail-panel";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 
 interface Role {
@@ -24,11 +26,17 @@ const PAGE = 20;
 
 export default function RolesPage() {
   const qc = useQueryClient();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const sel = searchParams.get("sel") ?? "";
   const [q, setQ] = useState("");
   const [sort, setSort] = useState("code");
   const [page, setPage] = useState(0);
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<Role | null>(null);
+
+  const select = (id: string) => router.replace(`${pathname}?sel=${id}`, { scroll: false });
+  const clearSel = () => router.replace(pathname, { scroll: false });
 
   const { data, isLoading, error } = useQuery<{ items: Role[]; total: number }>({
     queryKey: ["roles", q, sort, page],
@@ -39,6 +47,7 @@ export default function RolesPage() {
   });
   const roles = data?.items ?? [];
   const total = data?.total ?? 0;
+  const selRole = roles.find((r) => r.id === sel) ?? null;
 
   const del = useMutation({
     mutationFn: (id: string) => apiFetch(`/api/v1/rbac/roles/${id}`, { method: "DELETE" }),
@@ -65,17 +74,12 @@ export default function RolesPage() {
       cell: (r) => (r.organization_id ? "Organization" : "Global"),
     },
     {
-      key: "actions", header: "Actions", align: "right", headClassName: "w-28",
+      key: "actions", header: "Actions", align: "right", headClassName: "w-16", stopClick: true,
       cell: (r) => (
-        <>
-          <Button variant="ghost" size="icon" title="Edit permissions" onClick={() => setEditing(r)}>
-            <KeyRound className="size-4" />
-          </Button>
-          <Button variant="ghost" size="icon" title={r.is_system ? "System role (protected)" : "Delete"}
-            disabled={r.is_system || del.isPending} onClick={() => del.mutate(r.id)}>
-            <Trash2 className="size-4" />
-          </Button>
-        </>
+        <Button variant="ghost" size="icon" title={r.is_system ? "System role (protected)" : "Delete"}
+          disabled={r.is_system || del.isPending} onClick={() => del.mutate(r.id)}>
+          <Trash2 className="size-4" />
+        </Button>
       ),
     },
   ];
@@ -98,24 +102,28 @@ export default function RolesPage() {
         </div>
       </div>
 
-      <DataGrid<Role>
-        columns={columns}
-        rows={roles}
-        rowKey={(r) => r.id}
-        total={total}
-        page={page}
-        pageSize={PAGE}
-        onPageChange={setPage}
-        sort={sort}
-        onSortChange={(s) => { setSort(s); setPage(0); }}
-        filters={{}}
-        onFilterChange={() => undefined}
-        isLoading={isLoading}
-        error={!!error}
-        emptyLabel="No roles. Reseed a profile or create one."
-      />
-
-      {editing && <PermissionsDialog role={editing} onClose={() => setEditing(null)} />}
+      {/* Master-detail: list left, permission editor right (deep-linkable ?sel=) */}
+      <div className={`grid min-h-0 flex-1 gap-4 ${selRole ? "lg:grid-cols-[1fr_minmax(360px,460px)]" : ""}`}>
+        <DataGrid<Role>
+          columns={columns}
+          rows={roles}
+          rowKey={(r) => r.id}
+          total={total}
+          page={page}
+          pageSize={PAGE}
+          onPageChange={setPage}
+          sort={sort}
+          onSortChange={(s) => { setSort(s); setPage(0); }}
+          filters={{}}
+          onFilterChange={() => undefined}
+          isLoading={isLoading}
+          error={!!error}
+          onRowClick={(r) => select(r.id)}
+          selectedId={sel}
+          emptyLabel="No roles. Reseed a profile or create one."
+        />
+        {selRole && <RoleDetail role={selRole} onClose={clearSel} />}
+      </div>
     </div>
   );
 }
@@ -170,9 +178,10 @@ function NewRoleDialog({ open, setOpen }: { open: boolean; setOpen: (b: boolean)
   );
 }
 
-function PermissionsDialog({ role, onClose }: { role: Role; onClose: () => void }) {
+function RoleDetail({ role, onClose }: { role: Role; onClose: () => void }) {
   const qc = useQueryClient();
   const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
   const [selected, setSelected] = useState<Set<string> | null>(null);
 
   const { data: catalog = [] } = useQuery<Permission[]>({
@@ -202,6 +211,7 @@ function PermissionsDialog({ role, onClose }: { role: Role; onClose: () => void 
     const next = new Set(working ?? []);
     if (next.has(code)) next.delete(code); else next.add(code);
     setSelected(next);
+    setSaved(false);
   }
 
   const save = useMutation({
@@ -212,53 +222,55 @@ function PermissionsDialog({ role, onClose }: { role: Role; onClose: () => void 
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["role-perms", role.id] });
-      onClose();
+      setSaved(true);
     },
     onError: (e: Error) => setError(e.message || "Save failed"),
   });
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Permissions — {role.name}</DialogTitle>
-        </DialogHeader>
-        {role.is_system && (
-          <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
-            System role — permissions are protected and cannot be changed.
-          </p>
-        )}
-        <div className="max-h-[55vh] space-y-4 overflow-auto pr-1">
-          {working === null && <p className="text-sm text-muted-foreground">Loading…</p>}
-          {working !== null && grouped.map(([module, perms]) => (
-            <div key={module} className="space-y-1.5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{module}</p>
-              <div className="grid grid-cols-2 gap-1.5">
-                {perms.map((p) => (
-                  <label key={p.code} className="flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-accent">
-                    <input
-                      type="checkbox"
-                      className="size-4 accent-[hsl(var(--primary))]"
-                      checked={working.has(p.code)}
-                      disabled={role.is_system}
-                      onChange={() => toggle(p.code)}
-                    />
-                    <span className="font-mono text-xs">{p.code}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        <DialogFooter>
-          <Button type="button" variant="ghost" onClick={onClose}>Close</Button>
-          <Button type="button" disabled={role.is_system || save.isPending || working === null}
+    <DetailPanel
+      title={`Permissions — ${role.name}`}
+      subtitle={role.organization_id ? "Organization role" : "Global role"}
+      onClose={onClose}
+      footer={
+        <div className="flex items-center gap-2">
+          {saved && <span className="flex items-center gap-1 text-sm text-emerald-600"><Check className="size-4" /> Saved</span>}
+          {error && <span className="text-sm text-destructive">{error}</span>}
+          <Button type="button" size="sm" className="ml-auto"
+            disabled={role.is_system || save.isPending || working === null}
             onClick={() => save.mutate()}>
             {save.isPending ? "Saving…" : "Save"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      }
+    >
+      {role.is_system && (
+        <p className="mb-3 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+          System role — permissions are protected and cannot be changed.
+        </p>
+      )}
+      <div className="space-y-4">
+        {working === null && <p className="text-sm text-muted-foreground">Loading…</p>}
+        {working !== null && grouped.map(([module, perms]) => (
+          <div key={module} className="space-y-1.5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{module}</p>
+            <div className="grid grid-cols-1 gap-1.5">
+              {perms.map((p) => (
+                <label key={p.code} className="flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-accent">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-[hsl(var(--primary))]"
+                    checked={working.has(p.code)}
+                    disabled={role.is_system}
+                    onChange={() => toggle(p.code)}
+                  />
+                  <span className="font-mono text-xs">{p.code}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </DetailPanel>
   );
 }

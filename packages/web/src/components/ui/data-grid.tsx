@@ -24,6 +24,7 @@ export interface DataGridColumn<T> {
   className?: string;
   headClassName?: string;
   align?: "right";
+  stopClick?: boolean; // interactive cell (actions/inline edit) — don't trigger onRowClick
 }
 
 export interface DataGridSelection {
@@ -48,13 +49,15 @@ export interface DataGridProps<T> {
   isLoading?: boolean;
   error?: boolean;
   selection?: DataGridSelection;
+  onRowClick?: (row: T) => void; // open a master-detail panel
+  selectedId?: string;           // highlight the active row
   emptyLabel?: string;
 }
 
 export function DataGrid<T>({
   columns, rows, rowKey, total, page, pageSize, onPageChange,
   sort, onSortChange, filters, onFilterChange, isLoading, error,
-  selection, emptyLabel = "No data.",
+  selection, onRowClick, selectedId, emptyLabel = "No data.",
 }: DataGridProps<T>) {
   const [dense, setDense] = useState(false);
   const span = columns.length + (selection ? 1 : 0);
@@ -132,18 +135,24 @@ export function DataGrid<T>({
             )}
             {!isLoading && !error && rows.map((row) => {
               const id = rowKey(row);
+              const active = selectedId === id;
               return (
-                <TableRow key={id} className={cn(dense && "[&_td]:py-1")}
-                  data-state={selection?.selected.has(id) ? "selected" : undefined}>
+                <TableRow key={id}
+                  className={cn(dense && "[&_td]:py-1", onRowClick && "cursor-pointer",
+                    active && "bg-primary/10 hover:bg-primary/10")}
+                  data-state={selection?.selected.has(id) ? "selected" : undefined}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}>
                   {selection && (
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" className="size-4 accent-[hsl(var(--primary))]"
                         aria-label={`Select row ${id}`} checked={selection.selected.has(id)}
                         onChange={() => selection.onToggle(id)} />
                     </TableCell>
                   )}
                   {columns.map((c) => (
-                    <TableCell key={c.key} className={cn(c.align === "right" && "text-right", c.className)}>
+                    <TableCell key={c.key}
+                      className={cn(c.align === "right" && "text-right", c.className)}
+                      onClick={c.stopClick ? (e) => e.stopPropagation() : undefined}>
                       {c.cell ? c.cell(row) : String((row as Record<string, unknown>)[c.key] ?? "")}
                     </TableCell>
                   ))}
