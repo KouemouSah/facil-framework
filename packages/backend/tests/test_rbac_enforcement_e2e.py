@@ -26,8 +26,10 @@ async def e2e(tmp_path, monkeypatch):
     cfg._settings = None
 
     from app.api import admin_accounts as accounts_api
+    from app.api import admin_settings as settings_api
     from app.api import auth as auth_api
     from app.api import rbac as rbac_api
+    from app.models import setting as _set  # noqa: F401 (register settings table)
     from app.config_store.resolver import ConfigResolver
     from app.core.module_registry import import_module_models, load_modules
     from app.core.providers.registry import default_registry
@@ -52,6 +54,7 @@ async def e2e(tmp_path, monkeypatch):
     application.include_router(auth_api.router)
     application.include_router(rbac_api.router)
     application.include_router(accounts_api.router)
+    application.include_router(settings_api.router)
     load_modules(application, enabled=["organization", "location"])
 
     transport = ASGITransport(app=application)
@@ -213,3 +216,25 @@ async def test_admin_accounts_tenant_isolation(seeded):
                            json={"status": "suspended"})).status_code == 200
     assert (await ac.patch(f"{ACC}/{b['id']}/status", headers=hdr,
                            json={"status": "suspended"})).status_code == 403
+
+
+SET = "/api/v1/admin/settings"
+
+
+@pytest.mark.asyncio
+async def test_admin_settings_now_rbac_gated(seeded):
+    """A2: settings moved from token-only to RBAC. A logged-in user without
+    settings.manage is forbidden; break-glass still works."""
+    ac, org_a, _ = seeded
+    member = await _role_id(ac, "member")  # member lacks settings.*
+    hdr, acc_id = await _bearer(ac, "grace@x.com")
+    await ac.post(f"/api/v1/rbac/accounts/{acc_id}/roles", headers=ADMIN,
+                  json={"role_id": member, "organization_id": org_a})
+
+    # No settings grant -> read 403 and write 403.
+    assert (await ac.get(f"{SET}/", headers=hdr)).status_code == 403
+    assert (await ac.put(f"{SET}/branding.app_name", headers=hdr,
+                         json={"value": "Hacked"})).status_code == 403
+    # Break-glass still works (write + read).
+    assert (await ac.put(f"{SET}/branding.app_name", headers=ADMIN,
+                         json={"value": "Ok"})).status_code == 200

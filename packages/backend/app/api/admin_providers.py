@@ -11,12 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_session
 from app.core.providers import repository as repo
 from app.models.provider import CAPABILITIES
-from app.security.admin_token import require_admin_token
+from app.security.permission_dep import require_permission
+
+_MANAGE = Depends(require_permission("provider.manage"))
 
 router = APIRouter(
     prefix="/api/v1/admin/providers",
     tags=["admin-providers"],
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_permission("provider.read"))],
 )
 
 
@@ -73,7 +75,7 @@ async def get_provider(capability: str, code: str,
     return obj.as_dict()
 
 
-@router.put("/{capability}/{code}")
+@router.put("/{capability}/{code}", dependencies=[_MANAGE])
 async def put_provider(capability: str, code: str, body: ProviderIn,
                        session: AsyncSession = Depends(get_session)) -> dict:
     _check_capability(capability)
@@ -100,7 +102,7 @@ async def check_provider(capability: str, code: str, request: Request,
     return {"capability": capability, "provider_code": code, **result}
 
 
-@router.post("/{capability}/{code}/default")
+@router.post("/{capability}/{code}/default", dependencies=[_MANAGE])
 async def set_default(capability: str, code: str,
                       session: AsyncSession = Depends(get_session)) -> dict:
     ok = await repo.set_default(session, capability, code)
@@ -110,7 +112,7 @@ async def set_default(capability: str, code: str,
     return {"capability": capability, "default": code}
 
 
-@router.delete("/{capability}/{code}")
+@router.delete("/{capability}/{code}", dependencies=[_MANAGE])
 async def delete_provider(capability: str, code: str,
                           session: AsyncSession = Depends(get_session)) -> dict:
     ok = await repo.delete_provider(session, capability, code)

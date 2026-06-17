@@ -28,6 +28,14 @@ CORE_PERMISSIONS: list[dict] = [
      "description": "Create accounts and change their status"},
     {"code": "branding.manage", "module": "core",
      "description": "Edit branding (names, colours, logos, locale)"},
+    {"code": "settings.read", "module": "core",
+     "description": "View config-store settings"},
+    {"code": "settings.manage", "module": "core",
+     "description": "Edit config-store settings"},
+    {"code": "provider.read", "module": "core",
+     "description": "View provider registry (LLM/storage/email/…)"},
+    {"code": "provider.manage", "module": "core",
+     "description": "Edit providers and defaults"},
 ]
 
 

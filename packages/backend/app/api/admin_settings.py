@@ -1,5 +1,8 @@
-"""Admin settings API — CRUD on the config-store (token-gated).
+"""Admin settings API — CRUD on the config-store (RBAC-gated, D4.3/A2).
 
+Reads require `settings.read`, writes `settings.manage` (manage implies read by
+convention). The bootstrap admin-token break-glass satisfies both, so the first
+operator works before any grant exists; a logged-in admin uses RBAC via the BFF.
 PUT/DELETE refresh the resolver's DB layer in-process (D1 invalidation).
 """
 
@@ -14,12 +17,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_session
 from app.config_store import repository as repo
 from app.models.setting import VALUE_TYPES
-from app.security.admin_token import require_admin_token
+from app.security.permission_dep import require_permission
+
+_MANAGE = Depends(require_permission("settings.manage"))
 
 router = APIRouter(
     prefix="/api/v1/admin/settings",
     tags=["admin-settings"],
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_permission("settings.read"))],
 )
 
 
@@ -54,7 +59,7 @@ async def get_setting(key: str, session: AsyncSession = Depends(get_session)) ->
     return obj.as_dict()
 
 
-@router.put("/{key}")
+@router.put("/{key}", dependencies=[_MANAGE])
 async def put_setting(key: str, body: SettingIn, request: Request,
                       session: AsyncSession = Depends(get_session)) -> dict:
     if body.value_type not in VALUE_TYPES:
@@ -69,7 +74,7 @@ async def put_setting(key: str, body: SettingIn, request: Request,
     return obj.as_dict()
 
 
-@router.delete("/{key}")
+@router.delete("/{key}", dependencies=[_MANAGE])
 async def delete_setting(key: str, request: Request,
                          session: AsyncSession = Depends(get_session)) -> dict:
     ok = await repo.delete_setting(session, key)
