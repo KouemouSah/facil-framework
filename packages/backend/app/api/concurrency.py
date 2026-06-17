@@ -25,12 +25,18 @@ def etag_for(value: object) -> str:
 
 
 def row_etag(entity: object) -> str:
-    """Generic per-row etag for any UUIDAuditBase entity, from (id, updated_at).
-    `updated_at` bumps on every UPDATE (ORM and Core), so this is a free, uniform
-    concurrency token for single-row resources — no schema change. Used by the
-    CRUD layer so every module gets optimistic concurrency the same way."""
-    return etag_for({"id": getattr(entity, "id", None),
-                     "u": str(getattr(entity, "updated_at", ""))})
+    """Generic per-row etag for any entity exposing `as_dict()` — a **content**
+    hash (rotates iff the row's fields change), so it needs no schema change and
+    is clock-independent (unlike `updated_at`, whose 1s resolution can't tell two
+    same-second edits apart). It also avoids reading the server-`onupdate`
+    `updated_at` (expired after flush → would need async IO). Two identical edits
+    yield the same etag — fine (idempotent, no lost update). Used by the CRUD
+    layer so every module gets optimistic concurrency the same way."""
+    if hasattr(entity, "as_dict"):
+        data = dict(entity.as_dict())
+        data.pop("etag", None)
+        return etag_for(data)
+    return etag_for({"id": getattr(entity, "id", None)})
 
 
 def enforce_if_match(request: Request, current: str) -> None:

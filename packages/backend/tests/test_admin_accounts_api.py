@@ -182,6 +182,28 @@ async def test_bulk_status(client):
 
 
 @pytest.mark.asyncio
+async def test_get_and_update_account(client):
+    ac, _ = client
+    a = (await ac.post("/api/v1/admin/accounts", headers=AUTH,
+                       json={"email": "edit@corp.com", "password": "Secret123"})).json()
+    g = (await ac.get(f"/api/v1/admin/accounts/{a['id']}", headers=AUTH)).json()
+    etag = g["etag"]
+    assert etag and g["email"] == "edit@corp.com"
+
+    # Update display_name (correct etag) -> 200; etag rotates (content changed).
+    ok = await ac.put(f"/api/v1/admin/accounts/{a['id']}", headers={**AUTH, "If-Match": etag},
+                      json={"display_name": "Edited"})
+    assert ok.status_code == 200 and ok.json()["display_name"] == "Edited"
+    new_etag = (await ac.get(f"/api/v1/admin/accounts/{a['id']}", headers=AUTH)).json()["etag"]
+    assert new_etag != etag
+    # Stale etag -> 409.
+    assert (await ac.put(f"/api/v1/admin/accounts/{a['id']}", headers={**AUTH, "If-Match": etag},
+                         json={"display_name": "Race"})).status_code == 409
+    # Unknown account -> 404.
+    assert (await ac.get("/api/v1/admin/accounts/ghost", headers=AUTH)).status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_statuses_catalog(client):
     ac, _ = client
     r = await ac.get("/api/v1/admin/accounts/statuses", headers=AUTH)

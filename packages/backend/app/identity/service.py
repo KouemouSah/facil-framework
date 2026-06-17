@@ -83,6 +83,27 @@ async def register(session: AsyncSession, *, email: str | None = None,
     return account
 
 
+async def update_account(session: AsyncSession, account_id: str, *,
+                         fields: dict) -> Account:
+    """Admin edit of an account's mutable fields (display_name, organization_id,
+    email). Only keys present in `fields` are changed. Email is normalised and
+    uniqueness-checked (EmailTaken). Raises NotFound for an unknown account."""
+    account = await repo.get_account(session, account_id)
+    if account is None:
+        raise NotFound(f"account '{account_id}' not found")
+    if "email" in fields:
+        email = (fields["email"] or "").strip().lower() or None
+        if email and email != account.email and await repo.get_by_email(session, email):
+            raise EmailTaken(f"email '{email}' already registered")
+        account.email = email
+    if "display_name" in fields:
+        account.display_name = (fields["display_name"] or None)
+    if "organization_id" in fields:
+        account.organization_id = (fields["organization_id"] or None)
+    await session.flush()
+    return account
+
+
 async def set_status(session: AsyncSession, account_id: str, status: str) -> Account:
     """Admin status transition. `is_active` mirrors status so existing auth
     checks (which gate on is_active) honour suspension/deactivation."""

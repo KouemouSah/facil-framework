@@ -23,6 +23,7 @@ EMAIL_VERIFIED = "email_verified"
 TWO_FACTOR_ENABLED = "two_factor_enabled"
 # Admin mutations (D5.2/D5.4) — sensitive actions must be traceable.
 ACCOUNT_CREATED = "account_created"
+ACCOUNT_UPDATED = "account_updated"
 ACCOUNT_STATUS_CHANGED = "account_status_changed"
 ROLE_ASSIGNED = "role_assigned"
 ROLE_REVOKED = "role_revoked"

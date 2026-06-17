@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Check } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -358,11 +358,60 @@ function AccountDetail({ account, onClose }: { account: Account; onClose: () => 
     onSuccess: () => qc.invalidateQueries({ queryKey: ["account-roles", account.id] }),
   });
 
+  // Full account (with etag) for the edit form + optimistic concurrency.
+  const { data: detail } = useQuery<Record<string, unknown>>({
+    queryKey: ["account", account.id],
+    queryFn: () => apiFetch(`/api/v1/admin/accounts/${account.id}`),
+  });
+  const [edit, setEdit] = useState<{ email: string; display_name: string; organization_id: string } | null>(null);
+  const [savedEdit, setSavedEdit] = useState(false);
+  useEffect(() => {
+    if (detail && !edit) setEdit({
+      email: (detail.email as string) ?? "",
+      display_name: (detail.display_name as string) ?? "",
+      organization_id: (detail.organization_id as string) ?? "",
+    });
+  }, [detail, edit]);
+
+  const saveAccount = useMutation({
+    mutationFn: () =>
+      apiFetch(`/api/v1/admin/accounts/${account.id}`, {
+        method: "PUT",
+        headers: detail?.etag ? { "If-Match": String(detail.etag) } : undefined,
+        body: JSON.stringify({
+          email: edit?.email || null,
+          display_name: edit?.display_name || null,
+          organization_id: edit?.organization_id || null,
+        }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["account", account.id] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      setSavedEdit(true); setError("");
+    },
+    onError: (e: { status?: number; message?: string }) => {
+      if (e.status === 409) { setError("Changed elsewhere — reloading."); setEdit(null); qc.invalidateQueries({ queryKey: ["account", account.id] }); }
+      else setError(e.message || "Save failed");
+    },
+  });
+  function setField(k: "email" | "display_name" | "organization_id", v: string) {
+    setEdit((f) => (f ? { ...f, [k]: v } : f)); setSavedEdit(false);
+  }
+
   return (
     <DetailPanel
       title={account.display_name || account.email || account.id.slice(0, 8)}
       subtitle={account.email || account.account_number || account.id}
       onClose={onClose}
+      footer={
+        <div className="flex items-center gap-2">
+          {savedEdit && <span className="flex items-center gap-1 text-sm text-emerald-600"><Check className="size-4" /> Saved</span>}
+          <Button type="button" size="sm" className="ml-auto"
+            disabled={saveAccount.isPending || edit === null} onClick={() => saveAccount.mutate()}>
+            {saveAccount.isPending ? "Saving…" : "Save details"}
+          </Button>
+        </div>
+      }
     >
       {/* Account meta */}
       <dl className="mb-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
@@ -370,6 +419,27 @@ function AccountDetail({ account, onClose }: { account: Account; onClose: () => 
         <dd><span className={`rounded px-1.5 py-0.5 text-xs ${STATUS_STYLE[account.status] ?? ""}`}>{account.status}</span></dd>
         {account.account_number && (<><dt className="text-muted-foreground">NIU</dt><dd className="font-mono text-xs">{account.account_number}</dd></>)}
       </dl>
+
+      {/* Editable fields */}
+      {edit && (
+        <div className="mb-4 grid grid-cols-1 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="acc-email">Email</Label>
+            <Input id="acc-email" type="email" value={edit.email} onChange={(e) => setField("email", e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="acc-name">Display name</Label>
+            <Input id="acc-name" value={edit.display_name} onChange={(e) => setField("display_name", e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="acc-org">Organization</Label>
+            <Select id="acc-org" value={edit.organization_id} onChange={(e) => setField("organization_id", e.target.value)}>
+              <option value="">— none —</option>
+              {orgs.map((o) => <option key={o.id} value={o.id}>{orgLabel(o)}</option>)}
+            </Select>
+          </div>
+        </div>
+      )}
 
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Roles</p>
       <div className="space-y-2">

@@ -13,10 +13,11 @@ from __future__ import annotations
 
 import re
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.concurrency import enforce_if_match, row_etag
 from app.api.deps import get_session
 from app.api.list_query import apply_sort, clamp_page, paginated
 from app.auth import audit
@@ -66,6 +67,22 @@ class StatusIn(BaseModel):
 class BulkStatusIn(BaseModel):
     account_ids: list[str]
     status: str
+
+
+class AccountUpdate(BaseModel):
+    """Admin edit of mutable account fields (all optional; only sent fields change)."""
+    email: str | None = Field(default=None, max_length=255)
+    display_name: str | None = Field(default=None, max_length=255)
+    organization_id: str | None = None
+
+    @field_validator("email")
+    @classmethod
+    def _check_email(cls, v: str | None) -> str | None:
+        if v:
+            v = v.strip()
+            if not _EMAIL_RE.match(v):
+                raise ValueError("invalid email address")
+        return v
 
 
 @router.get("")
@@ -179,3 +196,44 @@ async def bulk_set_status(body: BulkStatusIn,
 async def list_statuses(principal: dict = Depends(require_auth)) -> dict:
     """The status vocabulary, for admin UIs."""
     return {"statuses": list(ACCOUNT_STATUSES)}
+
+
+# --- Single account: read + edit (registered after the literal routes above) ---
+
+@router.get("/{account_id}")
+async def get_account(account_id: str,
+                      principal: dict = Depends(require_auth),
+                      session: AsyncSession = Depends(get_session)) -> dict:
+    account = await repo.get_account(session, account_id)
+    if account is None:
+        raise HTTPException(404, f"account '{account_id}' not found")
+    scope = await rbac_repo.resolve_scope(
+        session, {"organization_id": account.organization_id})
+    await enforce(session, principal, "account.read", scope)
+    return {**account.as_dict(), "etag": row_etag(account)}
+
+
+@router.put("/{account_id}")
+async def update_account(account_id: str, body: AccountUpdate,
+                         request: Request,
+                         principal: dict = Depends(require_auth),
+                         session: AsyncSession = Depends(get_session)) -> dict:
+    existing = await repo.get_account(session, account_id)
+    if existing is None:
+        raise HTTPException(404, f"account '{account_id}' not found")
+    scope = await rbac_repo.resolve_scope(
+        session, {"organization_id": existing.organization_id})
+    await enforce(session, principal, "account.manage", scope)
+    enforce_if_match(request, row_etag(existing))
+    try:
+        account = await identity_service.update_account(
+            session, account_id, fields=body.model_dump(exclude_unset=True))
+    except identity_service.EmailTaken as e:
+        raise HTTPException(409, str(e)) from e
+    except identity_service.NotFound as e:
+        raise HTTPException(404, str(e)) from e
+    await audit.record(session, audit.ACCOUNT_UPDATED, account_id=account_id,
+                       detail={"by": principal.get("sub"),
+                               "fields": sorted(body.model_dump(exclude_unset=True))})
+    await session.commit()
+    return account.as_dict()
