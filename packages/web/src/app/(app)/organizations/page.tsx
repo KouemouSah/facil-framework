@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Rows3, Rows2 } from "lucide-react";
+import { Plus, Trash2, Search } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataGrid, type DataGridColumn } from "@/components/ui/data-grid";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 
 interface Org { id: string; code: string; legal_name: string; display_name?: string }
@@ -15,15 +15,20 @@ const PAGE = 20;
 
 export default function OrganizationsPage() {
   const qc = useQueryClient();
+  const [q, setQ] = useState("");
+  const [sort, setSort] = useState("code");
   const [page, setPage] = useState(0);
-  const [dense, setDense] = useState(false);
   const [open, setOpen] = useState(false);
 
-  const { data: rows = [], isLoading, error } = useQuery<Org[]>({
-    queryKey: ["orgs", page],
+  const { data, isLoading, error } = useQuery<{ items: Org[]; total: number }>({
+    queryKey: ["orgs", q, sort, page],
     queryFn: () =>
-      apiFetch<Org[]>(`/api/v1/modules/organization/?limit=${PAGE}&offset=${page * PAGE}`),
+      apiFetch<{ items: Org[]; total: number }>(
+        `/api/v1/modules/organization/?q=${encodeURIComponent(q)}&sort=${sort}` +
+        `&limit=${PAGE}&offset=${page * PAGE}`),
   });
+  const rows = data?.items ?? [];
+  const total = data?.total ?? 0;
 
   const del = useMutation({
     mutationFn: (id: string) =>
@@ -31,65 +36,57 @@ export default function OrganizationsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["orgs"] }),
   });
 
+  const columns: DataGridColumn<Org>[] = [
+    { key: "code", header: "Code", sortable: true, className: "font-mono text-xs" },
+    {
+      key: "legal_name", header: "Legal name", sortable: true,
+      cell: (o) => o.display_name || o.legal_name,
+    },
+    {
+      key: "actions", header: "Actions", align: "right", headClassName: "w-16",
+      cell: (o) => (
+        <Button variant="ghost" size="icon" title="Delete"
+          onClick={() => del.mutate(o.id)} disabled={del.isPending}>
+          <Trash2 className="size-4" />
+        </Button>
+      ),
+    },
+  ];
+
   return (
     <div className="flex h-full flex-col gap-4">
       {/* Toolbar — fixed (does not scroll with the data) */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Organizations</h1>
           <p className="text-sm text-muted-foreground">Tenants you can access.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" title="Density"
-            onClick={() => setDense((d) => !d)}>
-            {dense ? <Rows3 className="size-4" /> : <Rows2 className="size-4" />}
-          </Button>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input className="h-9 w-56 pl-8" placeholder="Search code / name"
+              value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} />
+          </div>
           <NewOrgDialog open={open} setOpen={setOpen} />
         </div>
       </div>
 
-      {/* Data region — the ONLY scrollable part, with a sticky header */}
-      <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Code</TableHead>
-              <TableHead>Legal name</TableHead>
-              <TableHead className="w-16 text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && (
-              <TableRow><TableCell colSpan={3} className="py-8 text-center text-muted-foreground">Loading…</TableCell></TableRow>
-            )}
-            {error && (
-              <TableRow><TableCell colSpan={3} className="py-8 text-center text-destructive">Failed to load.</TableCell></TableRow>
-            )}
-            {!isLoading && !error && rows.length === 0 && (
-              <TableRow><TableCell colSpan={3} className="py-8 text-center text-muted-foreground">No organizations.</TableCell></TableRow>
-            )}
-            {rows.map((o) => (
-              <TableRow key={o.id} className={dense ? "[&_td]:py-1" : ""}>
-                <TableCell className="font-mono text-xs">{o.code}</TableCell>
-                <TableCell>{o.display_name || o.legal_name}</TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="icon" title="Delete"
-                    onClick={() => del.mutate(o.id)} disabled={del.isPending}>
-                    <Trash2 className="size-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Pagination — server-side (the scale mechanism) */}
-      <div className="flex items-center justify-end gap-2 text-sm">
-        <span className="text-muted-foreground">Page {page + 1}</span>
-        <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Prev</Button>
-        <Button variant="outline" size="sm" disabled={rows.length < PAGE} onClick={() => setPage((p) => p + 1)}>Next</Button>
-      </div>
+      <DataGrid<Org>
+        columns={columns}
+        rows={rows}
+        rowKey={(o) => o.id}
+        total={total}
+        page={page}
+        pageSize={PAGE}
+        onPageChange={setPage}
+        sort={sort}
+        onSortChange={(s) => { setSort(s); setPage(0); }}
+        filters={{}}
+        onFilterChange={() => undefined}
+        isLoading={isLoading}
+        error={!!error}
+        emptyLabel="No organizations."
+      />
     </div>
   );
 }

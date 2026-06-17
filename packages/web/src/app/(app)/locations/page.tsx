@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Rows3, Rows2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataGrid, type DataGridColumn } from "@/components/ui/data-grid";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { useOrganizations, orgLabel } from "@/lib/use-organizations";
 
@@ -27,8 +27,8 @@ const PAGE = 20;
 export default function LocationsPage() {
   const qc = useQueryClient();
   const [orgId, setOrgId] = useState("");
+  const [sort, setSort] = useState("code");
   const [page, setPage] = useState(0);
-  const [dense, setDense] = useState(false);
   const [open, setOpen] = useState(false);
 
   // Organizations the caller can access — drives the scope selector. Sites are
@@ -40,20 +40,47 @@ export default function LocationsPage() {
     if (!orgId && orgs.length > 0) setOrgId(orgs[0].id);
   }, [orgs, orgId]);
 
-  const { data: rows = [], isLoading, error } = useQuery<Site[]>({
-    queryKey: ["sites", orgId, page],
+  const { data, isLoading, error } = useQuery<{ items: Site[]; total: number }>({
+    queryKey: ["sites", orgId, sort, page],
     enabled: !!orgId,
     queryFn: () =>
-      apiFetch<Site[]>(
-        `/api/v1/modules/location/sites?organization_id=${orgId}&limit=${PAGE}&offset=${page * PAGE}`,
+      apiFetch<{ items: Site[]; total: number }>(
+        `/api/v1/modules/location/sites?organization_id=${orgId}&sort=${sort}` +
+        `&limit=${PAGE}&offset=${page * PAGE}`,
       ),
   });
+  const rows = data?.items ?? [];
+  const total = data?.total ?? 0;
 
   const del = useMutation({
     mutationFn: (id: string) =>
       apiFetch(`/api/v1/modules/location/sites/${id}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["sites"] }),
   });
+
+  const columns: DataGridColumn<Site>[] = [
+    { key: "code", header: "Code", sortable: true, className: "font-mono text-xs" },
+    {
+      key: "name", header: "Name", sortable: true,
+      cell: (s) => (
+        <>{s.name}{s.is_primary && <span className="ml-2 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">primary</span>}</>
+      ),
+    },
+    { key: "site_type", header: "Type", sortable: true, className: "text-muted-foreground" },
+    {
+      key: "city", header: "City", sortable: true, className: "text-muted-foreground",
+      cell: (s) => [s.city, s.country_code].filter(Boolean).join(", "),
+    },
+    {
+      key: "actions", header: "Actions", align: "right", headClassName: "w-16",
+      cell: (s) => (
+        <Button variant="ghost" size="icon" title="Delete"
+          onClick={() => del.mutate(s.id)} disabled={del.isPending}>
+          <Trash2 className="size-4" />
+        </Button>
+      ),
+    },
+  ];
 
   return (
     <div className="flex h-full flex-col gap-4">
@@ -76,63 +103,26 @@ export default function LocationsPage() {
               <option key={o.id} value={o.id}>{orgLabel(o)}</option>
             ))}
           </Select>
-          <Button variant="outline" size="icon" title="Density"
-            onClick={() => setDense((d) => !d)}>
-            {dense ? <Rows3 className="size-4" /> : <Rows2 className="size-4" />}
-          </Button>
           <NewSiteDialog open={open} setOpen={setOpen} orgId={orgId} />
         </div>
       </div>
 
-      {/* Data region — the ONLY scrollable part, with a sticky header */}
-      <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Code</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>City</TableHead>
-              <TableHead className="w-16 text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {!orgId && (
-              <TableRow><TableCell colSpan={5} className="py-8 text-center text-muted-foreground">Select an organization.</TableCell></TableRow>
-            )}
-            {orgId && isLoading && (
-              <TableRow><TableCell colSpan={5} className="py-8 text-center text-muted-foreground">Loading…</TableCell></TableRow>
-            )}
-            {orgId && error && (
-              <TableRow><TableCell colSpan={5} className="py-8 text-center text-destructive">Failed to load.</TableCell></TableRow>
-            )}
-            {orgId && !isLoading && !error && rows.length === 0 && (
-              <TableRow><TableCell colSpan={5} className="py-8 text-center text-muted-foreground">No sites.</TableCell></TableRow>
-            )}
-            {rows.map((s) => (
-              <TableRow key={s.id} className={dense ? "[&_td]:py-1" : ""}>
-                <TableCell className="font-mono text-xs">{s.code}</TableCell>
-                <TableCell>{s.name}{s.is_primary && <span className="ml-2 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">primary</span>}</TableCell>
-                <TableCell className="text-muted-foreground">{s.site_type}</TableCell>
-                <TableCell className="text-muted-foreground">{[s.city, s.country_code].filter(Boolean).join(", ")}</TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="icon" title="Delete"
-                    onClick={() => del.mutate(s.id)} disabled={del.isPending}>
-                    <Trash2 className="size-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Pagination — server-side (the scale mechanism) */}
-      <div className="flex items-center justify-end gap-2 text-sm">
-        <span className="text-muted-foreground">Page {page + 1}</span>
-        <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Prev</Button>
-        <Button variant="outline" size="sm" disabled={rows.length < PAGE} onClick={() => setPage((p) => p + 1)}>Next</Button>
-      </div>
+      <DataGrid<Site>
+        columns={columns}
+        rows={rows}
+        rowKey={(s) => s.id}
+        total={total}
+        page={page}
+        pageSize={PAGE}
+        onPageChange={setPage}
+        sort={sort}
+        onSortChange={(s) => { setSort(s); setPage(0); }}
+        filters={{}}
+        onFilterChange={() => undefined}
+        isLoading={!!orgId && isLoading}
+        error={!!error}
+        emptyLabel={orgId ? "No sites." : "Select an organization."}
+      />
     </div>
   );
 }

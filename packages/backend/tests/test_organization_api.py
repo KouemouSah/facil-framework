@@ -59,7 +59,7 @@ async def test_create_get_list_org(org_client):
     got = await org_client.get(f"{BASE}/{org_id}", headers=AUTH)
     assert got.json()["code"] == "acme" and got.json()["legal_name"] == "Acme Corp"
     lst = await org_client.get(f"{BASE}/", headers=AUTH)
-    assert org_id in [o["id"] for o in lst.json()]
+    assert org_id in [o["id"] for o in lst.json()["items"]]
 
 
 @pytest.mark.asyncio
@@ -67,11 +67,14 @@ async def test_list_pagination(org_client):
     for i in range(3):
         await _mk_org(org_client, f"pg{i}")
     page1 = await org_client.get(f"{BASE}/?limit=2&offset=0", headers=AUTH)
-    assert page1.status_code == 200 and len(page1.json()) == 2
+    assert page1.status_code == 200
+    assert len(page1.json()["items"]) == 2 and page1.json()["total"] >= 3
     page2 = await org_client.get(f"{BASE}/?limit=2&offset=2", headers=AUTH)
-    assert len(page2.json()) >= 1
+    assert len(page2.json()["items"]) >= 1
     # limit is clamped (max 200) — a huge limit doesn't error
     assert (await org_client.get(f"{BASE}/?limit=9999", headers=AUTH)).status_code == 200
+    # unknown sort field -> 422 (whitelist)
+    assert (await org_client.get(f"{BASE}/?sort=evil", headers=AUTH)).status_code == 422
 
 
 @pytest.mark.asyncio

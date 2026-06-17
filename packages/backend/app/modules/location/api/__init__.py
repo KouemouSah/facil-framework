@@ -12,12 +12,17 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
+from app.api.list_query import apply_sort, clamp_page, paginated
 from app.modules.location import repository as repo
 from app.modules.location import service
+from app.modules.location.models import Site
 from app.modules.location.schemas import SiteCreate, SiteUpdate
 from app.rbac import repository as rbac_repo
 from app.security.auth_dep import require_auth
 from app.security.permission_dep import enforce, require_permission, visible_orgs
+
+_SITE_SORT = {"code": Site.code, "name": Site.name, "site_type": Site.site_type,
+              "city": Site.city, "created_at": Site.created_at}
 
 _READ = Depends(require_permission("location.read"))
 _DELETE = Depends(require_permission("location.delete"))
@@ -38,17 +43,19 @@ def _http(e: service.LocError) -> HTTPException:
 async def list_sites(organization_id: str | None = None,
                      org_unit_id: str | None = None,
                      parent_site_id: str | None = None,
+                     q: str | None = None, sort: str = "code",
                      limit: int = 50, offset: int = 0,
                      principal: dict = Depends(require_auth),
-                     session: AsyncSession = Depends(get_session)) -> list[dict]:
-    # Scope + pagination IN SQL (org-level granularity for the visible set).
+                     session: AsyncSession = Depends(get_session)) -> dict:
+    # Scope + sort + pagination IN SQL. List contract: {items,total,limit,offset}.
     visible = await visible_orgs(session, principal, "location.read")
-    limit = min(max(limit, 1), 200)
-    offset = max(offset, 0)
-    sites = await repo.list_sites(session, organization_id=organization_id,
-                                  org_unit_id=org_unit_id, parent_site_id=parent_site_id,
-                                  org_ids=visible, limit=limit, offset=offset)
-    return [s.as_dict() for s in sites]
+    limit, offset = clamp_page(limit, offset)
+    stmt = repo.sites_select(organization_id=organization_id, org_unit_id=org_unit_id,
+                             parent_site_id=parent_site_id, org_ids=visible, q=q)
+    stmt = apply_sort(stmt, sort, allowed=_SITE_SORT, default="code")
+    items, total = await paginated(session, stmt, limit=limit, offset=offset)
+    return {"items": [s.as_dict() for s in items], "total": total,
+            "limit": limit, "offset": offset}
 
 
 @router.post("/sites", status_code=201)

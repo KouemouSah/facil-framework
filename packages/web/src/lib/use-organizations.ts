@@ -16,13 +16,15 @@ export interface Org {
 const CAP = 200;
 
 export function useOrganizations() {
-  const q = useQuery<Org[]>({
+  const q = useQuery<{ items: Org[]; total: number }>({
     queryKey: ["orgs", "all"],
-    queryFn: () => apiFetch<Org[]>(`/api/v1/modules/organization/?limit=${CAP}&offset=0`),
+    queryFn: () => apiFetch<{ items: Org[]; total: number }>(
+      `/api/v1/modules/organization/?limit=${CAP}&offset=0`),
     staleTime: 60 * 1000,
   });
-  const orgs = q.data ?? [];
-  return { orgs, truncated: orgs.length >= CAP, isLoading: q.isLoading };
+  const orgs = q.data?.items ?? [];
+  const total = q.data?.total ?? orgs.length;
+  return { orgs, truncated: total > orgs.length, isLoading: q.isLoading };
 }
 
 export function orgLabel(o: Org): string {

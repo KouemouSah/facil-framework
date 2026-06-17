@@ -12,13 +12,18 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
+from app.api.list_query import apply_sort, clamp_page, paginated
 from app.modules.organization import repository as repo
 from app.modules.organization import service
+from app.modules.organization.models import Organization
 from app.modules.organization.schemas import (OrganizationCreate,
                                                OrganizationUpdate, OrgUnitCreate,
                                                OrgUnitUpdate)
 from app.security.auth_dep import require_auth
 from app.security.permission_dep import require_permission, visible_orgs
+
+_ORG_SORT = {"code": Organization.code, "legal_name": Organization.legal_name,
+             "created_at": Organization.created_at}
 
 _READ = Depends(require_permission("organization.read"))
 _CREATE = Depends(require_permission("organization.create"))
@@ -44,16 +49,18 @@ def _page(limit: int, offset: int) -> tuple[int, int]:
 
 
 @router.get("/")
-async def list_organizations(limit: int = 50, offset: int = 0,
+async def list_organizations(q: str | None = None, sort: str = "code",
+                             limit: int = 50, offset: int = 0,
                              principal: dict = Depends(require_auth),
-                             session: AsyncSession = Depends(get_session)) -> list[dict]:
-    # Scope + pagination applied IN SQL: only the orgs the caller may read,
-    # paginated. (Global reader -> org_ids=None -> all.)
+                             session: AsyncSession = Depends(get_session)) -> dict:
+    # Scope + sort + pagination IN SQL. List contract: {items,total,limit,offset}.
     visible = await visible_orgs(session, principal, "organization.read")
-    limit, offset = _page(limit, offset)
-    orgs = await repo.list_organizations(session, org_ids=visible,
-                                         limit=limit, offset=offset)
-    return [o.as_dict() for o in orgs]
+    limit, offset = clamp_page(limit, offset)
+    stmt = repo.organizations_select(org_ids=visible, q=q)
+    stmt = apply_sort(stmt, sort, allowed=_ORG_SORT, default="code")
+    items, total = await paginated(session, stmt, limit=limit, offset=offset)
+    return {"items": [o.as_dict() for o in items], "total": total,
+            "limit": limit, "offset": offset}
 
 
 @router.post("/", status_code=201, dependencies=[_CREATE])

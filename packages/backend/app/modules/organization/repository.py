@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import delete, select
+from sqlalchemy import Select, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.organization.models import OrgUnit, Organization
@@ -10,16 +10,21 @@ from app.modules.organization.models import OrgUnit, Organization
 
 # --- Organization --------------------------------------------------------
 
-async def list_organizations(session: AsyncSession, *,
-                             org_ids: set[str] | None = None,
-                             limit: int = 50, offset: int = 0) -> list[Organization]:
-    stmt = select(Organization).order_by(Organization.code)
-    if org_ids is not None:  # scope filter in SQL (None = all / global reader)
-        if not org_ids:
-            return []
+def organizations_select(*, org_ids: set[str] | None = None,
+                         q: str | None = None) -> Select:
+    """Base SELECT for organizations: RBAC scope filter + optional substring
+    search (code / legal_name / display_name). Unsorted/unpaginated — the caller
+    applies sort + pagination via app.api.list_query."""
+    stmt = select(Organization)
+    if org_ids is not None:  # None = all / global reader; empty set -> no rows
         stmt = stmt.where(Organization.id.in_(org_ids))
-    stmt = stmt.limit(limit).offset(offset)
-    return list((await session.scalars(stmt)).all())
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(or_(
+            Organization.code.ilike(like),
+            Organization.legal_name.ilike(like),
+            Organization.display_name.ilike(like)))
+    return stmt
 
 
 async def get_organization(session: AsyncSession, org_id: str) -> Organization | None:

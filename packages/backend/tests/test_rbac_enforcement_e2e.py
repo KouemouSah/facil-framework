@@ -119,7 +119,7 @@ async def test_member_cannot_write_or_act_globally(seeded):
     # org-scoped -> the global list is SCOPE-FILTERED (sees only org A, not B)
     listed = await ac.get(f"{ORG}/", headers=hdr)
     assert listed.status_code == 200
-    ids = {o["id"] for o in listed.json()}
+    ids = {o["id"] for o in listed.json()["items"]}
     assert org_a in ids and org_b not in ids
     # org-scoped -> cannot create an org (global write)
     assert (await ac.post(f"{ORG}/", headers=hdr,
@@ -181,7 +181,7 @@ async def test_site_list_is_scope_filtered(seeded):
                   json={"role_id": admin, "organization_id": org_a})
     listed = await ac.get(f"{LOC}/sites", headers=hdr)
     assert listed.status_code == 200
-    orgs = {s["organization_id"] for s in listed.json()}
+    orgs = {s["organization_id"] for s in listed.json()["items"]}
     assert orgs == {org_a}
 
 
