@@ -189,7 +189,7 @@ function RoleDetail({ role, onClose }: { role: Role; onClose: () => void }) {
     queryFn: () => apiFetch<Permission[]>(`/api/v1/rbac/permissions`),
   });
 
-  const { data: current } = useQuery<{ role_id: string; codes: string[] }>({
+  const { data: current } = useQuery<{ role_id: string; codes: string[]; etag?: string }>({
     queryKey: ["role-perms", role.id],
     queryFn: () => apiFetch(`/api/v1/rbac/roles/${role.id}/permissions`),
   });
@@ -218,13 +218,22 @@ function RoleDetail({ role, onClose }: { role: Role; onClose: () => void }) {
     mutationFn: () =>
       apiFetch(`/api/v1/rbac/roles/${role.id}/permissions`, {
         method: "PUT",
+        headers: current?.etag ? { "If-Match": current.etag } : undefined,
         body: JSON.stringify({ codes: [...(working ?? [])] }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["role-perms", role.id] });
       setSaved(true);
     },
-    onError: (e: Error) => setError(e.message || "Save failed"),
+    onError: (e: { status?: number; message?: string }) => {
+      if (e.status === 409) {
+        setError("Permissions were changed elsewhere — reloading the latest.");
+        setSelected(null);  // drop local edits; refetched grants repopulate
+        qc.invalidateQueries({ queryKey: ["role-perms", role.id] });
+      } else {
+        setError(e.message || "Save failed");
+      }
+    },
   });
 
   return (

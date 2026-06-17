@@ -74,6 +74,27 @@ async def test_get_role_permissions_roundtrip(client):
 
 
 @pytest.mark.asyncio
+async def test_role_permissions_optimistic_concurrency(client):
+    ac, _ = client
+    await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)
+    rid = (await ac.post("/api/v1/rbac/roles", headers=AUTH,
+                         json={"code": "ccrole", "name": "CC"})).json()["id"]
+    g = (await ac.get(f"/api/v1/rbac/roles/{rid}/permissions", headers=AUTH)).json()
+    etag = g["etag"]
+    assert etag
+
+    # Correct etag -> 200, etag rotates.
+    ok = await ac.put(f"/api/v1/rbac/roles/{rid}/permissions",
+                      headers={**AUTH, "If-Match": etag},
+                      json={"codes": ["organization.read"]})
+    assert ok.status_code == 200 and ok.json()["etag"] != etag
+    # Stale etag -> 409.
+    assert (await ac.put(f"/api/v1/rbac/roles/{rid}/permissions",
+                         headers={**AUTH, "If-Match": etag},
+                         json={"codes": ["location.read"]})).status_code == 409
+
+
+@pytest.mark.asyncio
 async def test_unknown_grant_rejected(client):
     ac, _ = client
     await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)

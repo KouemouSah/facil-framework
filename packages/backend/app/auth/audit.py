@@ -26,6 +26,7 @@ ACCOUNT_CREATED = "account_created"
 ACCOUNT_STATUS_CHANGED = "account_status_changed"
 ROLE_ASSIGNED = "role_assigned"
 ROLE_REVOKED = "role_revoked"
+ROLE_GRANTS_CHANGED = "role_grants_changed"
 BRANDING_CHANGED = "branding_changed"
 
 

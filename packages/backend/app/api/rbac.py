@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.concurrency import enforce_if_match, etag_for
 from app.api.deps import get_session
 from app.api.list_query import apply_sort, clamp_page, paginated
 from app.auth import audit
@@ -106,13 +107,16 @@ async def get_role_permissions(role_id: str,
     """A role's directly-granted permission codes (read companion to PUT)."""
     if await repo.get_role(session, role_id) is None:
         raise HTTPException(404, f"role '{role_id}' not found")
-    codes = await repo.role_codes(session, [role_id])
-    return {"role_id": role_id, "codes": sorted(codes)}
+    codes = sorted(await repo.role_codes(session, [role_id]))
+    return {"role_id": role_id, "codes": codes, "etag": etag_for(codes)}
 
 
 @router.put("/roles/{role_id}/permissions", dependencies=[_MANAGE])
-async def set_role_permissions(role_id: str, body: GrantsIn,
+async def set_role_permissions(role_id: str, body: GrantsIn, request: Request,
                                session: AsyncSession = Depends(get_session)) -> dict:
+    # Lost-update guard: reject if the grants changed since the client loaded them.
+    current = sorted(await repo.role_codes(session, [role_id]))
+    enforce_if_match(request, etag_for(current))
     try:
         role = await service.set_grants(session, role_id, body.codes)
     except service.RoleNotFound as e:
@@ -121,8 +125,11 @@ async def set_role_permissions(role_id: str, body: GrantsIn,
         raise HTTPException(409, str(e)) from e
     except service.InvalidGrant as e:
         raise HTTPException(422, str(e)) from e
+    await audit.record(session, audit.ROLE_GRANTS_CHANGED,
+                       detail={"role_id": role.id, "codes": sorted(body.codes)})
     await session.commit()
-    return {"role_id": role.id, "codes": body.codes}
+    codes = sorted(body.codes)
+    return {"role_id": role.id, "codes": codes, "etag": etag_for(codes)}
 
 
 @router.delete("/roles/{role_id}", dependencies=[_MANAGE])
