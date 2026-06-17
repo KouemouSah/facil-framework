@@ -31,19 +31,21 @@ async def test_create_then_list_and_search(client):
     assert acc["email"] == "agent@corp.com"
     assert acc["is_active"] is True
 
+    # Keyset list contract: {items, next_cursor, count, capped}.
     body = (await ac.get("/api/v1/admin/accounts", headers=AUTH)).json()
-    assert body["total"] >= 1 and body["limit"] == 50 and body["offset"] == 0
+    assert body["count"] >= 1 and body["capped"] is False
+    assert body["next_cursor"] is None  # one account fits one page
     assert any(r["id"] == acc["id"] for r in body["items"])
 
     # Substring search hits display_name / email.
     hit = (await ac.get("/api/v1/admin/accounts?q=agent", headers=AUTH)).json()
-    assert [r["id"] for r in hit["items"]] == [acc["id"]] and hit["total"] == 1
+    assert [r["id"] for r in hit["items"]] == [acc["id"]] and hit["count"] == 1
     miss = (await ac.get("/api/v1/admin/accounts?q=zzzznope", headers=AUTH)).json()
-    assert miss["items"] == [] and miss["total"] == 0
+    assert miss["items"] == [] and miss["count"] == 0 and miss["next_cursor"] is None
 
 
 @pytest.mark.asyncio
-async def test_list_contract_sort_filter_total(client):
+async def test_list_contract_sort_filter_keyset(client):
     ac, _ = client
     # Seed 3 accounts; suspend one.
     a = (await ac.post("/api/v1/admin/accounts", headers=AUTH,
@@ -55,22 +57,58 @@ async def test_list_contract_sort_filter_total(client):
     await ac.patch(f"/api/v1/admin/accounts/{a['id']}/status", headers=AUTH,
                    json={"status": "suspended"})
 
-    # Sort by email asc.
+    # Sort by email asc; capped count reflects the full set.
     asc = (await ac.get("/api/v1/admin/accounts?sort=email", headers=AUTH)).json()
     emails = [r["email"] for r in asc["items"]]
-    assert emails == sorted(emails) and asc["total"] == 3
+    assert emails == sorted(emails) and asc["count"] == 3 and asc["capped"] is False
 
-    # Status filter (eq) + total reflects the filter.
+    # Status filter (eq) + count reflects the filter.
     susp = (await ac.get("/api/v1/admin/accounts?status=suspended", headers=AUTH)).json()
-    assert susp["total"] == 1 and susp["items"][0]["id"] == a["id"]
+    assert susp["count"] == 1 and susp["items"][0]["id"] == a["id"]
 
     # Unknown sort field -> 422 (whitelist).
     assert (await ac.get("/api/v1/admin/accounts?sort=password", headers=AUTH)
             ).status_code == 422
 
-    # Pagination: limit caps the page, total stays full.
-    pg = (await ac.get("/api/v1/admin/accounts?limit=2&offset=0", headers=AUTH)).json()
-    assert len(pg["items"]) == 2 and pg["total"] == 3 and pg["limit"] == 2
+    # Keyset paging: limit caps the page; follow next_cursor to the last page.
+    p1 = (await ac.get("/api/v1/admin/accounts?sort=email&limit=2", headers=AUTH)).json()
+    assert len(p1["items"]) == 2 and p1["count"] == 3 and p1["next_cursor"]
+    p2 = (await ac.get(
+        f"/api/v1/admin/accounts?sort=email&limit=2&cursor={p1['next_cursor']}",
+        headers=AUTH)).json()
+    assert len(p2["items"]) == 1 and p2["next_cursor"] is None
+    # No overlap / no skip across the two pages.
+    ids = [r["id"] for r in p1["items"]] + [r["id"] for r in p2["items"]]
+    assert len(set(ids)) == 3
+
+
+@pytest.mark.asyncio
+async def test_list_keyset_nullable_sort_no_skip(client):
+    """End-to-end null-safety: sorting by a nullable column (display_name) and
+    paging one row at a time must surface every account, NULLs included."""
+    ac, _ = client
+    seeded = []
+    for email, dn in [("n1@corp.com", "Zed"), ("n2@corp.com", None),
+                      ("n3@corp.com", "Amy"), ("n4@corp.com", None)]:
+        body = {"email": email, "password": "Secret123"}
+        if dn is not None:
+            body["display_name"] = dn
+        seeded.append((await ac.post("/api/v1/admin/accounts", headers=AUTH,
+                                     json=body)).json()["id"])
+
+    seen, cursor, guard = [], None, 0
+    while guard < 20:
+        guard += 1
+        url = "/api/v1/admin/accounts?sort=display_name&limit=1"
+        if cursor:
+            url += f"&cursor={cursor}"
+        page = (await ac.get(url, headers=AUTH)).json()
+        seen.extend(r["id"] for r in page["items"])
+        cursor = page["next_cursor"]
+        if not cursor:
+            break
+    assert set(seeded).issubset(set(seen))      # no NULL-row dropped
+    assert len(seen) == len(set(seen))          # no duplicates
 
 
 @pytest.mark.asyncio

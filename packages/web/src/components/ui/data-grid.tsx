@@ -38,10 +38,7 @@ export interface DataGridProps<T> {
   columns: DataGridColumn<T>[];
   rows: T[];
   rowKey: (row: T) => string;
-  total: number;
-  page: number;
   pageSize: number;
-  onPageChange: (page: number) => void;
   sort: string; // "field" asc / "-field" desc
   onSortChange: (sort: string) => void;
   filters: Record<string, string>;
@@ -54,6 +51,22 @@ export interface DataGridProps<T> {
   emptyLabel?: string;
   onPageSizeChange?: (size: number) => void; // opt-in: show a rows-per-page selector
   pageSizeOptions?: number[];                // default [20, 50, 100, 200] (≤ backend cap)
+
+  // Pagination mode. "offset" (default): page index + total, "X–Y of N" footer.
+  // "cursor" (scale 1M+): forward keyset Prev/Next + capped "N+" count — no total
+  // position is known, so the footer shows results count and Prev/Next only.
+  mode?: "offset" | "cursor";
+  // offset mode:
+  total?: number;
+  page?: number;
+  onPageChange?: (page: number) => void;
+  // cursor mode:
+  hasPrev?: boolean;
+  hasNext?: boolean;
+  onPrev?: () => void;
+  onNext?: () => void;
+  count?: number;
+  capped?: boolean;
 }
 
 // Backend caps list `limit` at 200 (app.api.list_query.MAX_LIMIT) — keep the
@@ -61,10 +74,12 @@ export interface DataGridProps<T> {
 const DEFAULT_PAGE_SIZES = [20, 50, 100, 200];
 
 export function DataGrid<T>({
-  columns, rows, rowKey, total, page, pageSize, onPageChange,
+  columns, rows, rowKey, pageSize,
   sort, onSortChange, filters, onFilterChange, isLoading, error,
   selection, onRowClick, selectedId, emptyLabel = "No data.",
   onPageSizeChange, pageSizeOptions = DEFAULT_PAGE_SIZES,
+  mode = "offset", total = 0, page = 0, onPageChange,
+  hasPrev = false, hasNext = false, onPrev, onNext, count = 0, capped = false,
 }: DataGridProps<T>) {
   const [dense, setDense] = useState(false);
   const span = columns.length + (selection ? 1 : 0);
@@ -181,9 +196,19 @@ export function DataGrid<T>({
             {pageSizeOptions.map((n) => <option key={n} value={n}>{n} / page</option>)}
           </Select>
         )}
-        <span className="ml-auto text-muted-foreground">{from}–{to} of {total}</span>
-        <Button variant="outline" size="sm" disabled={page === 0} onClick={() => onPageChange(page - 1)}>Prev</Button>
-        <Button variant="outline" size="sm" disabled={(page + 1) * pageSize >= total} onClick={() => onPageChange(page + 1)}>Next</Button>
+        {mode === "cursor" ? (
+          <>
+            <span className="ml-auto text-muted-foreground">{capped ? `${count}+` : count} results</span>
+            <Button variant="outline" size="sm" disabled={!hasPrev} onClick={onPrev}>Prev</Button>
+            <Button variant="outline" size="sm" disabled={!hasNext} onClick={onNext}>Next</Button>
+          </>
+        ) : (
+          <>
+            <span className="ml-auto text-muted-foreground">{from}–{to} of {total}</span>
+            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => onPageChange?.(page - 1)}>Prev</Button>
+            <Button variant="outline" size="sm" disabled={(page + 1) * pageSize >= total} onClick={() => onPageChange?.(page + 1)}>Next</Button>
+          </>
+        )}
       </div>
     </div>
   );

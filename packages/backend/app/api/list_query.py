@@ -121,10 +121,16 @@ async def keyset_page(session: AsyncSession, base_stmt: Select, *,
     Returns `(items, next_cursor, count, capped)`:
       - forward-only; `next_cursor` is None on the last page (caller's front-end
         keeps a stack of cursors for "previous").
-      - stable total order via the `id` tiebreaker (assumes a NON-NULL sort
-        column; the default sorts — code / created_at — are non-null).
+      - stable total order via the `id` tiebreaker. NULL-safe: a nullable sort
+        column orders NULLs last (ASC) / first (DESC), and the cursor predicate
+        branches on whether the boundary value is NULL — so NULL rows are never
+        skipped (a naive `col > v` would drop them on later pages).
       - `count` is the filtered total capped at `count_cap`; `capped` is True when
         the real total exceeds it (front-end shows e.g. "1000+"). No full COUNT.
+
+    The total order is made explicit (`NULLS LAST`/`NULLS FIRST`) because SQLite
+    (tests) and Postgres (prod) disagree on the default NULL placement — without
+    it a cursor computed on one dialect would mis-page on the other.
 
     The cursor encodes the sort value + id of the last row; it is only valid for
     the current sort — the caller MUST reset it when sort/filters change.
@@ -136,13 +142,21 @@ async def keyset_page(session: AsyncSession, base_stmt: Select, *,
     if cursor:
         v_raw, last_id = decode_cursor(cursor)
         v = _coerce_value(sort_col, v_raw)
-        if sort_desc:
+        if v is None:
+            # Boundary sits in the NULL block.
+            if sort_desc:  # NULLS FIRST: remaining NULLs (id<cid), then all non-null
+                stmt = stmt.where(or_(and_(sort_col.is_(None), id_col < last_id),
+                                      sort_col.is_not(None)))
+            else:          # NULLS LAST: NULLs are last -> only remaining NULLs
+                stmt = stmt.where(and_(sort_col.is_(None), id_col > last_id))
+        elif sort_desc:    # non-null block; NULLs were first and already passed
             stmt = stmt.where(or_(sort_col < v, and_(sort_col == v, id_col < last_id)))
-        else:
-            stmt = stmt.where(or_(sort_col > v, and_(sort_col == v, id_col > last_id)))
+        else:              # greater non-null, ties, then all NULLs (which come last)
+            stmt = stmt.where(or_(sort_col > v, and_(sort_col == v, id_col > last_id),
+                                  sort_col.is_(None)))
 
-    order = ([sort_col.desc(), id_col.desc()] if sort_desc
-             else [sort_col.asc(), id_col.asc()])
+    order = ([sort_col.desc().nulls_first(), id_col.desc()] if sort_desc
+             else [sort_col.asc().nulls_last(), id_col.asc()])
     stmt = stmt.order_by(None).order_by(*order).limit(limit + 1)
     rows = list((await session.scalars(stmt)).all())
 

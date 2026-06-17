@@ -19,6 +19,7 @@ import { SavedViews } from "@/components/saved-views";
 import { ExportMenu } from "@/components/export-menu";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { useOrgLabels } from "@/lib/use-organizations";
+import { useServerTable, type ServerPage } from "@/lib/use-server-table";
 import { emailField, passwordField, optionalText } from "@/lib/form-schemas";
 
 interface Account {
@@ -48,11 +49,6 @@ export default function AgentsPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const sel = searchParams.get("sel") ?? "";
-  const [q, setQ] = useState("");
-  const [status, setStatusFilter] = useState("");
-  const [sort, setSort] = useState("-created_at");
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE);
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkRole, setBulkRole] = useState(false);
@@ -60,16 +56,20 @@ export default function AgentsPage() {
   const selectRow = (id: string) => router.replace(`${pathname}?sel=${id}`, { scroll: false });
   const clearSel = () => router.replace(pathname, { scroll: false });
 
-  const { data, isLoading, error } = useQuery<{ items: Account[]; total: number }>({
-    queryKey: ["accounts", q, status, sort, page, pageSize],
-    queryFn: () =>
-      apiFetch<{ items: Account[]; total: number }>(
-        `/api/v1/admin/accounts?q=${encodeURIComponent(q)}&status=${status}` +
-        `&sort=${sort}&limit=${pageSize}&offset=${page * pageSize}`,
+  // Server-side table: keyset cursor pagination + sort/filter/search/page-size,
+  // all owned by the hook (scales to 1M+; no offset deep-scan, no full count).
+  const table = useServerTable<Account>({
+    resource: "accounts",
+    defaultSort: "-created_at",
+    defaultPageSize: DEFAULT_PAGE,
+    fetchPage: ({ cursor, limit, sort, filters, q }) =>
+      apiFetch<ServerPage<Account>>(
+        `/api/v1/admin/accounts?q=${encodeURIComponent(q)}` +
+        `&status=${filters.status ?? ""}&sort=${sort}&limit=${limit}` +
+        (cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""),
       ),
   });
-  const rows = data?.items ?? [];
-  const total = data?.total ?? 0;
+  const rows = table.rows;
   const selAccount = rows.find((a) => a.id === sel) ?? null;
 
   function clearSelection() { setSelected(new Set()); }
@@ -141,18 +141,16 @@ export default function AgentsPage() {
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input className="h-9 w-56 pl-8" placeholder="Search email / name / NIU"
-              value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} />
+              value={table.q} onChange={(e) => table.setQ(e.target.value)} />
           </div>
           <SavedViews
             resource="accounts"
-            config={{ q, status, sort }}
-            onApply={(c) => {
-              setQ(String(c.q ?? "")); setStatusFilter(String(c.status ?? ""));
-              setSort(String(c.sort ?? "-created_at")); setPage(0);
-            }}
+            config={table.savedViewConfig}
+            onApply={table.applySavedView}
           />
           <ExportMenu filename="accounts"
-            path={`/api/v1/admin/accounts/export?q=${encodeURIComponent(q)}&status=${status}&sort=${sort}`} />
+            path={`/api/v1/admin/accounts/export?q=${encodeURIComponent(table.q)}` +
+              `&status=${table.filters.status ?? ""}&sort=${table.sort}`} />
           <NewAccountDialog open={open} setOpen={setOpen} />
         </div>
       </div>
@@ -175,20 +173,24 @@ export default function AgentsPage() {
       {/* Master-detail: grid left (selection wired to bulk), account detail right */}
       <div className={`grid min-h-0 flex-1 gap-4 ${selAccount ? "lg:grid-cols-[1fr_minmax(360px,460px)]" : ""}`}>
         <DataGrid<Account>
+          mode="cursor"
           columns={columns}
           rows={rows}
           rowKey={(a) => a.id}
-          total={total}
-          page={page}
-          pageSize={pageSize}
-          onPageSizeChange={(n) => { setPageSize(n); setPage(0); }}
-          onPageChange={setPage}
-          sort={sort}
-          onSortChange={(s) => { setSort(s); setPage(0); }}
-          filters={{ status }}
-          onFilterChange={(k, v) => { if (k === "status") { setStatusFilter(v); setPage(0); } }}
-          isLoading={isLoading}
-          error={!!error}
+          pageSize={table.pageSize}
+          onPageSizeChange={table.onPageSizeChange}
+          sort={table.sort}
+          onSortChange={table.onSortChange}
+          filters={table.filters}
+          onFilterChange={table.onFilterChange}
+          hasPrev={table.hasPrev}
+          hasNext={table.hasNext}
+          onPrev={table.onPrev}
+          onNext={table.onNext}
+          count={table.count}
+          capped={table.capped}
+          isLoading={table.isLoading}
+          error={table.error}
           emptyLabel="No accounts."
           selection={{ selected, onToggle: toggleRow, onToggleAll: toggleAll, allOnPage }}
           onRowClick={(a) => selectRow(a.id)}

@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.concurrency import enforce_if_match, row_etag
 from app.api.csv_export import EXPORT_CAP, export_response
 from app.api.deps import get_session
-from app.api.list_query import apply_sort, clamp_page, paginated
+from app.api.list_query import apply_sort, keyset_page, paginated, resolve_sort
 from app.auth import audit
 from app.auth import sessions as sessions_mod
 from app.auth import service as auth_service
@@ -89,19 +89,23 @@ class AccountUpdate(BaseModel):
 @router.get("")
 async def list_accounts(q: str | None = None, organization_id: str | None = None,
                         status: str | None = None, sort: str = "-created_at",
-                        limit: int = 50, offset: int = 0,
+                        limit: int = 50, cursor: str | None = None,
                         principal: dict = Depends(require_auth),
                         session: AsyncSession = Depends(get_session)) -> dict:
     # Scope filter: None = global/break-glass (all), otherwise restrict to the
-    # caller's visible orgs (empty set -> no rows). List contract: {items,total}.
+    # caller's visible orgs (empty set -> no rows). Keyset list contract
+    # {items,next_cursor,count,capped} — cursor pagination + capped count scale
+    # to 1M+ (no OFFSET deep-scan, no full COUNT). `keyset_page` applies the
+    # whitelisted order itself, so the select is passed unsorted.
     visible = await visible_orgs(session, principal, "account.read")
-    limit, offset = clamp_page(limit, offset)
     stmt = repo.accounts_select(
         q=q, organization_id=organization_id, org_ids=visible, status=status)
-    stmt = apply_sort(stmt, sort, allowed=_SORTABLE, default="-created_at")
-    items, total = await paginated(session, stmt, limit=limit, offset=offset)
-    return {"items": [a.as_dict() for a in items], "total": total,
-            "limit": limit, "offset": offset}
+    sort_col, sort_desc = resolve_sort(sort, allowed=_SORTABLE, default="-created_at")
+    items, next_cursor, count, capped = await keyset_page(
+        session, stmt, sort_col=sort_col, sort_desc=sort_desc,
+        cursor=cursor, limit=limit)
+    return {"items": [a.as_dict() for a in items], "next_cursor": next_cursor,
+            "count": count, "capped": capped}
 
 
 _EXPORT_COLS = ("id", "account_number", "email", "display_name",

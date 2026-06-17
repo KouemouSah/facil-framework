@@ -140,3 +140,61 @@ async def test_keyset_datetime_cursor_coercion(sess):
         cursor=cursor, limit=2)
     assert [w.id for w in p2] == [2, 1]
     assert cursor2 is None
+
+
+# --- keyset NULL-safe (Option A): a nullable sort column must not skip NULLs ---
+
+@pytest_asyncio.fixture
+async def sess_nulls():
+    """Mixed NULL/non-NULL ts so paging crosses the NULL boundary.
+      id1 ts=None · id2 ts=T0+2 · id3 ts=None · id4 ts=T0+1
+    asc NULLS LAST, id asc  -> [4, 2, 1, 3]
+    desc NULLS FIRST, id desc -> [3, 1, 2, 4]
+    """
+    engine = create_async_engine("sqlite+aiosqlite://")
+    async with engine.begin() as conn:
+        await conn.run_sync(_Base.metadata.create_all)
+    Session = async_sessionmaker(engine, expire_on_commit=False)
+    async with Session() as s:
+        rows = [(1, None), (2, _T0 + timedelta(minutes=2)),
+                (3, None), (4, _T0 + timedelta(minutes=1))]
+        for wid, ts in rows:
+            s.add(Widget(id=wid, name="x", ts=ts))
+        await s.commit()
+        yield s
+    await engine.dispose()
+
+
+async def _page_all_by_one(sess, *, sort_desc):
+    """Walk the whole set one row at a time, returning the id order seen."""
+    seen, cursor, guard = [], None, 0
+    while guard < 20:
+        guard += 1
+        items, cursor, _, _ = await keyset_page(
+            sess, select(Widget), sort_col=Widget.ts, sort_desc=sort_desc,
+            cursor=cursor, limit=1)
+        seen.extend(w.id for w in items)
+        if cursor is None:
+            break
+    return seen
+
+
+@pytest.mark.asyncio
+async def test_keyset_asc_nulls_last_no_skip(sess_nulls):
+    # NULL rows (id 1,3) must appear LAST, not be dropped after the cursor.
+    assert await _page_all_by_one(sess_nulls, sort_desc=False) == [4, 2, 1, 3]
+
+
+@pytest.mark.asyncio
+async def test_keyset_desc_nulls_first_no_skip(sess_nulls):
+    # NULL rows (id 3,1) must appear FIRST, then non-null descending.
+    assert await _page_all_by_one(sess_nulls, sort_desc=True) == [3, 1, 2, 4]
+
+
+@pytest.mark.asyncio
+async def test_keyset_all_null_column_pages_by_id(sess):
+    # Degenerate case: sort column entirely NULL -> falls back to id tiebreaker.
+    for w in (await sess.scalars(select(Widget))).all():
+        w.ts = None
+    await sess.commit()
+    assert await _page_all_by_one(sess, sort_desc=False) == [1, 2, 3, 4]
