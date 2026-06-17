@@ -13,11 +13,12 @@ import { type Org, orgLabel } from "@/lib/use-organizations";
  * count. Lightweight (no combobox dependency): debounced search, click-to-select,
  * click-outside to close. `value` is the org id ("" = none).
  */
-export function OrgCombobox({ value, onChange, placeholder = "Search organization…", allowNone = true }: {
+export function OrgCombobox({ value, onChange, placeholder = "Search organization…", allowNone = true, noneLabel = "— none —" }: {
   value: string;
   onChange: (id: string) => void;
   placeholder?: string;
   allowNone?: boolean;
+  noneLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState("");
@@ -61,7 +62,7 @@ export function OrgCombobox({ value, onChange, placeholder = "Search organizatio
         className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={() => setOpen((o) => !o)}>
         <span className={cn("truncate", !value && "text-muted-foreground")}>
-          {value ? selectedLabel : (allowNone ? "— none —" : placeholder)}
+          {value ? selectedLabel : (allowNone ? noneLabel : placeholder)}
         </span>
         <span className="flex items-center gap-1">
           {value && (
@@ -79,7 +80,7 @@ export function OrgCombobox({ value, onChange, placeholder = "Search organizatio
             className="mb-1 h-8 w-full rounded-sm border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" />
           {allowNone && (
             <button type="button" className="block w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
-              onClick={() => { onChange(""); setOpen(false); }}>— none —</button>
+              onClick={() => { onChange(""); setOpen(false); }}>{noneLabel}</button>
           )}
           {isFetching && <p className="px-2 py-1.5 text-xs text-muted-foreground">Searching…</p>}
           {!isFetching && results.length === 0 && (

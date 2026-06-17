@@ -217,7 +217,6 @@ function BulkRoleDialog({ accountIds, onClose, onDone }: {
     queryKey: ["roles"],
     queryFn: () => apiFetch<{ items: Role[] }>(`/api/v1/rbac/roles?limit=200`).then((r) => r.items),
   });
-  const { orgs } = useOrganizations();
 
   const assign = useMutation({
     mutationFn: () =>
@@ -248,10 +247,7 @@ function BulkRoleDialog({ accountIds, onClose, onDone }: {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="bscope">Scope</Label>
-            <Select id="bscope" value={orgId} onChange={(e) => setOrgId(e.target.value)}>
-              <option value="">Global</option>
-              {orgs.map((o) => <option key={o.id} value={o.id}>{orgLabel(o)}</option>)}
-            </Select>
+            <OrgCombobox value={orgId} onChange={setOrgId} noneLabel="Global" />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
@@ -472,10 +468,7 @@ function AccountDetail({ account, onClose }: { account: Account; onClose: () => 
         </div>
         <div className="flex-1 space-y-1.5">
           <Label htmlFor="scope">Scope</Label>
-          <Select id="scope" value={orgId} onChange={(e) => setOrgId(e.target.value)}>
-            <option value="">Global</option>
-            {orgs.map((o) => <option key={o.id} value={o.id}>{orgLabel(o)}</option>)}
-          </Select>
+          <OrgCombobox value={orgId} onChange={setOrgId} noneLabel="Global" />
         </div>
         <Button type="submit" disabled={!roleId || assign.isPending}>Assign</Button>
       </form>
