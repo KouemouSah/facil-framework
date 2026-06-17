@@ -8,9 +8,10 @@ subtree cannot reach another. The bootstrap admin-token still works (break-glass
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.concurrency import enforce_if_match, row_etag
 from app.api.deps import get_session
 from app.api.list_query import apply_sort, clamp_page, paginated
 from app.modules.organization import repository as repo
@@ -112,18 +113,23 @@ async def get_organization(org_id: str,
     org = await repo.get_organization(session, org_id)
     if org is None:
         raise HTTPException(404, f"organization '{org_id}' not found")
-    return org.as_dict()
+    return {**org.as_dict(), "etag": row_etag(org)}
 
 
 @router.put("/{org_id}", dependencies=[_UPDATE])
-async def update_organization(org_id: str, body: OrganizationUpdate,
+async def update_organization(org_id: str, body: OrganizationUpdate, request: Request,
                               session: AsyncSession = Depends(get_session)) -> dict:
+    # Optimistic concurrency: reject if the row changed since the client loaded it.
+    existing = await repo.get_organization(session, org_id)
+    if existing is None:
+        raise HTTPException(404, f"organization '{org_id}' not found")
+    enforce_if_match(request, row_etag(existing))
     try:
         org = await service.update_organization(session, org_id, body)
     except service.OrgError as e:
         raise _http(e) from e
     await session.commit()
-    return org.as_dict()
+    return {**org.as_dict(), "etag": row_etag(org)}
 
 
 @router.delete("/{org_id}", dependencies=[_DELETE])

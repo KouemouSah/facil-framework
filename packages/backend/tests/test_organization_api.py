@@ -78,6 +78,20 @@ async def test_list_pagination(org_client):
 
 
 @pytest.mark.asyncio
+async def test_org_optimistic_concurrency(org_client):
+    org_id = await _mk_org(org_client, "concur")
+    g = (await org_client.get(f"{BASE}/{org_id}", headers=AUTH)).json()
+    etag = g["etag"]
+    assert etag
+    ok = await org_client.put(f"{BASE}/{org_id}", headers={**AUTH, "If-Match": etag},
+                              json={"legal_name": "Renamed"})
+    assert ok.status_code == 200 and ok.json()["etag"] != etag
+    # stale etag -> 409
+    assert (await org_client.put(f"{BASE}/{org_id}", headers={**AUTH, "If-Match": etag},
+                                 json={"legal_name": "Race"})).status_code == 409
+
+
+@pytest.mark.asyncio
 async def test_duplicate_org_code_409(org_client):
     await _mk_org(org_client, "dup")
     r = await org_client.post(f"{BASE}/", headers=AUTH,
