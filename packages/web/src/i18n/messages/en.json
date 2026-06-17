@@ -6,6 +6,7 @@
     "locations": "Sites",
     "agents": "Agents",
     "roles": "Roles & access",
+    "federation": "Federation & SCIM",
     "settings": "Settings"
   },
   "auth": { "login": "Sign in", "logout": "Sign out" },

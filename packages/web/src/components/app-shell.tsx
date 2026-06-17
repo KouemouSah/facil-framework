@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Search, LogOut } from "lucide-react";
+import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Network, Search, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/lib/use-session";
@@ -51,6 +51,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     { href: "/locations", label: t("locations"), icon: MapPin },
     { href: "/agents", label: t("agents"), icon: Users },
     { href: "/roles", label: t("roles"), icon: ShieldCheck },
+    { href: "/federation", label: t("federation"), icon: Network },
   ];
 
   return (

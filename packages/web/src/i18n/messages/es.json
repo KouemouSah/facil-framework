@@ -6,6 +6,7 @@
     "locations": "Sedes",
     "agents": "Agentes",
     "roles": "Roles y acceso",
+    "federation": "Federación y SCIM",
     "settings": "Ajustes"
   },
   "auth": { "login": "Iniciar sesión", "logout": "Cerrar sesión" },
