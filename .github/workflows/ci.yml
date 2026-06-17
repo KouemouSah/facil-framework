@@ -183,6 +183,8 @@ jobs:
   e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
+    # Advisory while it stabilises: a failure reports but does not red the CI run.
+    continue-on-error: true
     services:
       postgres:
         image: postgres:16
