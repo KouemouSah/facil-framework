@@ -111,6 +111,25 @@ Composant **générique réutilisable** (pas de réimplémentation par page).
   **cache des fetch serveur** (`revalidate` + `tags`, invalidation explicite au save).
 - **Thème** : variables CSS pilotées par `branding.*` (white-label, dark mode).
 
+## 13bis. Parité backend ⇄ frontend (couverture intégrale)
+
+Le frontend doit refléter **fidèlement et exhaustivement** le contrat backend.
+
+- Pour chaque ressource, l'UI couvre **toutes** les capacités exposées : opérations
+  (list / get / create / update / delete), **actions métier**, **transitions d'état**,
+  **tous les champs** (lecture **et** écriture), tri / filtres / pagination, et tous les
+  états/erreurs (401 / 403 / 404 / 409 / 422).
+- **Aucune capacité backend orpheline** (un endpoint/champ sans accès UI), **aucun champ
+  d'API** ni affiché ni éditable sans raison, **aucune UI** ne référence un endpoint/champ
+  inexistant.
+- **Exclusions admises uniquement si délibérées et documentées** — surfaces non destinées
+  à l'utilisateur final : break-glass admin-token, `/health`, métriques, SCIM côté IdP,
+  endpoints internes/bulk techniques.
+- **Livraison couplée** : tout ajout/évolution backend livre l'UI correspondante **dans le
+  même lot** ; au démarrage de tout écran, vérifier la couverture complète du contrat (et
+  réciproquement). La **fabrique CRUD** (§1/§8) est le moyen privilégié de garantir cette
+  parité sans dérive pour les nouveaux modules.
+
 ## 13. Transverse
 
 - **Tests = vraie validation** (pytest / Vitest / Playwright), **gate CI** ; pas d'auto-checklist.

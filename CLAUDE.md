@@ -54,6 +54,12 @@ Résumé impératif (toujours appliquer, sans qu'on le redemande) :
 - **Données/forme** : TanStack Query (optimistic+rollback) ; **react-hook-form + zod** ; toasts.
 - **A11y AA · i18n (toute chaîne = clé en/fr/es) · perf (RSC, budget <150KB/route, cache fetch serveur) ·
   thème via `branding.*` · coque fixe / seule la data défile**.
+- **Parité backend ⇄ frontend (couverture intégrale)** : l'UI expose **tout** le contrat
+  d'une ressource (CRUD + actions + transitions d'état + **tous** les champs lecture/écriture +
+  tri/filtres/pagination + états/erreurs 401/403/404/409/422). **Aucune capacité backend
+  orpheline**, **aucun champ d'API** non rendu/éditable sans raison, **aucune UI** vers un
+  endpoint/champ inexistant. Exclusions **seulement délibérées et documentées** (break-glass,
+  `/health`, métriques, SCIM IdP, internes/bulk). Tout ajout backend livre son UI **dans le même lot**.
 - **Tests = vraie validation** (pytest/Vitest/Playwright, gate CI) ; **réutilisation d'abord / DRY**.
 
 ## Architecture (cible)
