@@ -81,6 +81,16 @@ async def create_role(body: RoleIn, principal: dict = _MANAGE,
     return role.as_dict()
 
 
+@router.get("/roles/{role_id}/permissions", dependencies=[_READ])
+async def get_role_permissions(role_id: str,
+                               session: AsyncSession = Depends(get_session)) -> dict:
+    """A role's directly-granted permission codes (read companion to PUT)."""
+    if await repo.get_role(session, role_id) is None:
+        raise HTTPException(404, f"role '{role_id}' not found")
+    codes = await repo.role_codes(session, [role_id])
+    return {"role_id": role_id, "codes": sorted(codes)}
+
+
 @router.put("/roles/{role_id}/permissions", dependencies=[_MANAGE])
 async def set_role_permissions(role_id: str, body: GrantsIn,
                                session: AsyncSession = Depends(get_session)) -> dict:

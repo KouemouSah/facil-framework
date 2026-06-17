@@ -53,6 +53,27 @@ async def test_create_set_grants_delete_role(client):
 
 
 @pytest.mark.asyncio
+async def test_get_role_permissions_roundtrip(client):
+    ac, _ = client
+    await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)  # catalog
+    created = await ac.post("/api/v1/rbac/roles", headers=AUTH,
+                            json={"code": "viewer", "name": "Viewer"})
+    role_id = created.json()["id"]
+    # No grants yet.
+    g0 = await ac.get(f"/api/v1/rbac/roles/{role_id}/permissions", headers=AUTH)
+    assert g0.status_code == 200
+    assert g0.json() == {"role_id": role_id, "codes": []}
+    # Set then read back (sorted).
+    await ac.put(f"/api/v1/rbac/roles/{role_id}/permissions", headers=AUTH,
+                 json={"codes": ["location.read", "organization.read"]})
+    g1 = (await ac.get(f"/api/v1/rbac/roles/{role_id}/permissions", headers=AUTH)).json()
+    assert g1["codes"] == ["location.read", "organization.read"]
+    # Unknown role -> 404.
+    assert (await ac.get("/api/v1/rbac/roles/does-not-exist/permissions", headers=AUTH)
+            ).status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_unknown_grant_rejected(client):
     ac, _ = client
     await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)
