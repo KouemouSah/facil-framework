@@ -23,7 +23,7 @@ interface Role {
 }
 interface Permission { id: string; code: string; module: string; description?: string | null }
 
-const PAGE = 20;
+const DEFAULT_PAGE = 20;
 
 export default function RolesPage() {
   const qc = useQueryClient();
@@ -34,17 +34,18 @@ export default function RolesPage() {
   const [q, setQ] = useState("");
   const [sort, setSort] = useState("code");
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE);
   const [open, setOpen] = useState(false);
 
   const select = (id: string) => router.replace(`${pathname}?sel=${id}`, { scroll: false });
   const clearSel = () => router.replace(pathname, { scroll: false });
 
   const { data, isLoading, error } = useQuery<{ items: Role[]; total: number }>({
-    queryKey: ["roles", q, sort, page],
+    queryKey: ["roles", q, sort, page, pageSize],
     queryFn: () =>
       apiFetch<{ items: Role[]; total: number }>(
         `/api/v1/rbac/roles?q=${encodeURIComponent(q)}&sort=${sort}` +
-        `&limit=${PAGE}&offset=${page * PAGE}`),
+        `&limit=${pageSize}&offset=${page * pageSize}`),
   });
   const roles = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -117,7 +118,8 @@ export default function RolesPage() {
           rowKey={(r) => r.id}
           total={total}
           page={page}
-          pageSize={PAGE}
+          pageSize={pageSize}
+          onPageSizeChange={(n) => { setPageSize(n); setPage(0); }}
           onPageChange={setPage}
           sort={sort}
           onSortChange={(s) => { setSort(s); setPage(0); }}

@@ -52,12 +52,19 @@ export interface DataGridProps<T> {
   onRowClick?: (row: T) => void; // open a master-detail panel
   selectedId?: string;           // highlight the active row
   emptyLabel?: string;
+  onPageSizeChange?: (size: number) => void; // opt-in: show a rows-per-page selector
+  pageSizeOptions?: number[];                // default [20, 50, 100, 200] (≤ backend cap)
 }
+
+// Backend caps list `limit` at 200 (app.api.list_query.MAX_LIMIT) — keep the
+// largest option in step so the grid never asks for more than the server allows.
+const DEFAULT_PAGE_SIZES = [20, 50, 100, 200];
 
 export function DataGrid<T>({
   columns, rows, rowKey, total, page, pageSize, onPageChange,
   sort, onSortChange, filters, onFilterChange, isLoading, error,
   selection, onRowClick, selectedId, emptyLabel = "No data.",
+  onPageSizeChange, pageSizeOptions = DEFAULT_PAGE_SIZES,
 }: DataGridProps<T>) {
   const [dense, setDense] = useState(false);
   const span = columns.length + (selection ? 1 : 0);
@@ -168,6 +175,12 @@ export function DataGrid<T>({
         <Button variant="outline" size="icon" title="Density" onClick={() => setDense((d) => !d)}>
           {dense ? <Rows3 className="size-4" /> : <Rows2 className="size-4" />}
         </Button>
+        {onPageSizeChange && (
+          <Select aria-label="Rows per page" className="h-8 w-auto text-xs"
+            value={String(pageSize)} onChange={(e) => onPageSizeChange(Number(e.target.value))}>
+            {pageSizeOptions.map((n) => <option key={n} value={n}>{n} / page</option>)}
+          </Select>
+        )}
         <span className="ml-auto text-muted-foreground">{from}–{to} of {total}</span>
         <Button variant="outline" size="sm" disabled={page === 0} onClick={() => onPageChange(page - 1)}>Prev</Button>
         <Button variant="outline" size="sm" disabled={(page + 1) * pageSize >= total} onClick={() => onPageChange(page + 1)}>Next</Button>

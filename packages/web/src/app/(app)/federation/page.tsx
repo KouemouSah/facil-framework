@@ -21,12 +21,13 @@ interface Identity {
   linked_at?: string | null;
 }
 
-const PAGE = 20;
+const DEFAULT_PAGE = 20;
 
 export default function FederationPage() {
   const [q, setQ] = useState("");
   const [sort, setSort] = useState("-created_at");
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE);
 
   const { data: status } = useQuery<Status>({
     queryKey: ["fed-status"],
@@ -34,11 +35,11 @@ export default function FederationPage() {
   });
 
   const { data, isLoading, error } = useQuery<{ items: Identity[]; total: number }>({
-    queryKey: ["fed-identities", q, sort, page],
+    queryKey: ["fed-identities", q, sort, page, pageSize],
     queryFn: () =>
       apiFetch<{ items: Identity[]; total: number }>(
         `/api/v1/admin/federation/identities?q=${encodeURIComponent(q)}&sort=${sort}` +
-        `&limit=${PAGE}&offset=${page * PAGE}`),
+        `&limit=${pageSize}&offset=${page * pageSize}`),
   });
   const rows = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -90,7 +91,8 @@ export default function FederationPage() {
         rowKey={(r) => r.id}
         total={total}
         page={page}
-        pageSize={PAGE}
+        pageSize={pageSize}
+        onPageSizeChange={(n) => { setPageSize(n); setPage(0); }}
         onPageChange={setPage}
         sort={sort}
         onSortChange={(s) => { setSort(s); setPage(0); }}

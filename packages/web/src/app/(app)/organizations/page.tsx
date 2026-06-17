@@ -15,7 +15,7 @@ import { JsonField } from "@/components/ui/json-field";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 
 interface Org { id: string; code: string; legal_name: string; display_name?: string }
-const PAGE = 20;
+const DEFAULT_PAGE = 20;
 
 export default function OrganizationsPage() {
   const qc = useQueryClient();
@@ -26,17 +26,18 @@ export default function OrganizationsPage() {
   const [q, setQ] = useState("");
   const [sort, setSort] = useState("code");
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE);
   const [open, setOpen] = useState(false);
 
   const select = (id: string) => router.replace(`${pathname}?sel=${id}`, { scroll: false });
   const clearSel = () => router.replace(pathname, { scroll: false });
 
   const { data, isLoading, error } = useQuery<{ items: Org[]; total: number }>({
-    queryKey: ["orgs", q, sort, page],
+    queryKey: ["orgs", q, sort, page, pageSize],
     queryFn: () =>
       apiFetch<{ items: Org[]; total: number }>(
         `/api/v1/modules/organization/?q=${encodeURIComponent(q)}&sort=${sort}` +
-        `&limit=${PAGE}&offset=${page * PAGE}`),
+        `&limit=${pageSize}&offset=${page * pageSize}`),
   });
   const rows = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -96,7 +97,8 @@ export default function OrganizationsPage() {
           rowKey={(o) => o.id}
           total={total}
           page={page}
-          pageSize={PAGE}
+          pageSize={pageSize}
+          onPageSizeChange={(n) => { setPageSize(n); setPage(0); }}
           onPageChange={setPage}
           sort={sort}
           onSortChange={(s) => { setSort(s); setPage(0); }}

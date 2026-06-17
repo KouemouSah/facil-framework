@@ -29,7 +29,7 @@ interface Account {
 interface Role { id: string; code: string; name: string }
 interface Assignment { id: string; role_id: string; organization_id?: string | null }
 
-const PAGE = 20;
+const DEFAULT_PAGE = 20;
 const STATUSES = ["pending_identity", "active", "suspended", "deactivated"];
 const STATUS_STYLE: Record<string, string> = {
   active: "bg-emerald-500/10 text-emerald-600",
@@ -48,6 +48,7 @@ export default function AgentsPage() {
   const [status, setStatusFilter] = useState("");
   const [sort, setSort] = useState("-created_at");
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE);
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkRole, setBulkRole] = useState(false);
@@ -56,11 +57,11 @@ export default function AgentsPage() {
   const clearSel = () => router.replace(pathname, { scroll: false });
 
   const { data, isLoading, error } = useQuery<{ items: Account[]; total: number }>({
-    queryKey: ["accounts", q, status, sort, page],
+    queryKey: ["accounts", q, status, sort, page, pageSize],
     queryFn: () =>
       apiFetch<{ items: Account[]; total: number }>(
         `/api/v1/admin/accounts?q=${encodeURIComponent(q)}&status=${status}` +
-        `&sort=${sort}&limit=${PAGE}&offset=${page * PAGE}`,
+        `&sort=${sort}&limit=${pageSize}&offset=${page * pageSize}`,
       ),
   });
   const rows = data?.items ?? [];
@@ -179,7 +180,8 @@ export default function AgentsPage() {
           rowKey={(a) => a.id}
           total={total}
           page={page}
-          pageSize={PAGE}
+          pageSize={pageSize}
+          onPageSizeChange={(n) => { setPageSize(n); setPage(0); }}
           onPageChange={setPage}
           sort={sort}
           onSortChange={(s) => { setSort(s); setPage(0); }}

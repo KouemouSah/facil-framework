@@ -27,7 +27,7 @@ interface Site {
   is_primary: boolean;
   is_active: boolean;
 }
-const PAGE = 20;
+const DEFAULT_PAGE = 20;
 
 export default function LocationsPage() {
   const qc = useQueryClient();
@@ -38,6 +38,7 @@ export default function LocationsPage() {
   const [orgId, setOrgId] = useState("");
   const [sort, setSort] = useState("code");
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE);
   const [open, setOpen] = useState(false);
 
   const select = (id: string) => router.replace(`${pathname}?sel=${id}`, { scroll: false });
@@ -52,12 +53,12 @@ export default function LocationsPage() {
   }, [firstOrgId, orgId]);
 
   const { data, isLoading, error } = useQuery<{ items: Site[]; total: number }>({
-    queryKey: ["sites", orgId, sort, page],
+    queryKey: ["sites", orgId, sort, page, pageSize],
     enabled: !!orgId,
     queryFn: () =>
       apiFetch<{ items: Site[]; total: number }>(
         `/api/v1/modules/location/sites?organization_id=${orgId}&sort=${sort}` +
-        `&limit=${PAGE}&offset=${page * PAGE}`,
+        `&limit=${pageSize}&offset=${page * pageSize}`,
       ),
   });
   const rows = data?.items ?? [];
@@ -125,7 +126,8 @@ export default function LocationsPage() {
           rowKey={(s) => s.id}
           total={total}
           page={page}
-          pageSize={PAGE}
+          pageSize={pageSize}
+          onPageSizeChange={(n) => { setPageSize(n); setPage(0); }}
           onPageChange={setPage}
           sort={sort}
           onSortChange={(s) => { setSort(s); setPage(0); }}
