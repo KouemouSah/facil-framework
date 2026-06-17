@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { DataGrid, type DataGridColumn } from "@/components/ui/data-grid";
 import { DetailPanel } from "@/components/ui/detail-panel";
+import { OrgCombobox } from "@/components/ui/org-combobox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { useOrganizations, orgLabel } from "@/lib/use-organizations";
 
@@ -264,8 +265,6 @@ function NewAccountDialog({ open, setOpen }: { open: boolean; setOpen: (b: boole
   const [orgId, setOrgId] = useState("");
   const [error, setError] = useState("");
 
-  const { orgs, truncated: orgsTruncated } = useOrganizations();
-
   function reset() { setEmail(""); setPassword(""); setDisplayName(""); setOrgId(""); setError(""); }
 
   const create = useMutation({
@@ -304,13 +303,7 @@ function NewAccountDialog({ open, setOpen }: { open: boolean; setOpen: (b: boole
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="org">Organization</Label>
-            <Select id="org" value={orgId} onChange={(e) => setOrgId(e.target.value)}>
-              <option value="">— none —</option>
-              {orgs.map((o) => <option key={o.id} value={o.id}>{orgLabel(o)}</option>)}
-            </Select>
-            {orgsTruncated && (
-              <p className="text-xs text-muted-foreground">Showing the first 200 organizations.</p>
-            )}
+            <OrgCombobox value={orgId} onChange={setOrgId} />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
@@ -440,10 +433,7 @@ function AccountDetail({ account, onClose }: { account: Account; onClose: () => 
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="acc-org">Organization</Label>
-            <Select id="acc-org" value={edit.organization_id} onChange={(e) => setField("organization_id", e.target.value)}>
-              <option value="">— none —</option>
-              {orgs.map((o) => <option key={o.id} value={o.id}>{orgLabel(o)}</option>)}
-            </Select>
+            <OrgCombobox value={edit.organization_id} onChange={(id) => setField("organization_id", id)} />
           </div>
         </div>
       )}

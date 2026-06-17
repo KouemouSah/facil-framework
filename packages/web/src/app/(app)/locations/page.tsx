@@ -11,8 +11,9 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { DataGrid, type DataGridColumn } from "@/components/ui/data-grid";
 import { DetailPanel } from "@/components/ui/detail-panel";
+import { OrgCombobox } from "@/components/ui/org-combobox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
-import { useOrganizations, orgLabel } from "@/lib/use-organizations";
+import { useOrganizations } from "@/lib/use-organizations";
 
 interface Site {
   id: string;
@@ -42,7 +43,7 @@ export default function LocationsPage() {
 
   // Organizations the caller can access — drives the scope selector. Sites are
   // org-scoped at the API, so we need a chosen org before listing/creating.
-  const { orgs, truncated: orgsTruncated } = useOrganizations();
+  const { orgs } = useOrganizations();
 
   // Default to the first accessible org once loaded.
   useEffect(() => {
@@ -100,18 +101,11 @@ export default function LocationsPage() {
           <p className="text-sm text-muted-foreground">Physical sites and branches per organization.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Select
-            className="max-w-56"
-            value={orgId}
-            onChange={(e) => { setOrgId(e.target.value); setPage(0); }}
-            aria-label="Organization"
-            title={orgsTruncated ? "Showing the first 200 organizations" : undefined}
-          >
-            {orgs.length === 0 && <option value="">No organization</option>}
-            {orgs.map((o) => (
-              <option key={o.id} value={o.id}>{orgLabel(o)}</option>
-            ))}
-          </Select>
+          <div className="w-64">
+            <OrgCombobox value={orgId} allowNone={false}
+              placeholder="Search organization…"
+              onChange={(id) => { setOrgId(id); setPage(0); }} />
+          </div>
           <NewSiteDialog open={open} setOpen={setOpen} orgId={orgId} />
         </div>
       </div>
