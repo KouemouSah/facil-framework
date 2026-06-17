@@ -48,4 +48,5 @@ regexes = [
   '''YOUR_[A-Z0-9_]*''',      # doc placeholders (YOUR_TOKEN, YOUR_ACCESS_TOKEN…)
   '''EXAMPLE''',              # example markers
   '''CHANGE[_-]?ME''',        # template placeholders
+  '''ci-e2e-[a-z0-9-]*''',    # fake CI-only creds in the e2e workflow (no real secret)
 ]

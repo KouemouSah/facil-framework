@@ -175,6 +175,75 @@ jobs:
       - run: npm run test --workspace=web
       - run: npm run build --workspace=web
 
+  # ---------------------------------------------------------------------------
+  # E2E (Playwright) — real stack: Postgres service + backend (uvicorn) + web
+  # (next start) + a seeded super-admin so /login renders. Advisory (not in the
+  # summary gate yet) while it stabilises.
+  # ---------------------------------------------------------------------------
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: facil
+          POSTGRES_PASSWORD: facil
+          POSTGRES_DB: facil
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://facil:facil@localhost:5432/facil
+      ADMIN_TOKEN: ci-e2e-admin-token
+      JWT_SECRET: ci-e2e-jwt-not-a-secret
+      INTERNAL_API_URL: http://localhost:8080
+      MODULES_ENABLED: organization,location
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r packages/backend/requirements.txt
+      - name: Migrate + start backend
+        working-directory: packages/backend
+        run: |
+          alembic upgrade head
+          uvicorn app.main:app --host 0.0.0.0 --port 8080 &
+          for i in $(seq 1 30); do curl -fsS http://localhost:8080/health && break; sleep 1; done
+      - name: Seed an installed super-admin
+        run: |
+          API=http://localhost:8080
+          H="X-Admin-Token: $ADMIN_TOKEN"
+          curl -fsS -X POST -H "$H" "$API/api/v1/rbac/admin/reseed?profile=empty"
+          ACC=$(curl -fsS -X POST -H "$H" -H 'Content-Type: application/json' \
+            -d '{"email":"e2e@x.com","password":"Sup3rStr0ng!pw"}' \
+            "$API/api/v1/admin/accounts" | python -c 'import sys,json;print(json.load(sys.stdin)["id"])')
+          ROLE=$(curl -fsS -H "$H" "$API/api/v1/rbac/roles?limit=200" | python -c 'import sys,json;print(next(r["id"] for r in json.load(sys.stdin)["items"] if r["code"]=="admin"))')
+          curl -fsS -X POST -H "$H" -H 'Content-Type: application/json' \
+            -d "{\"role_id\":\"$ROLE\"}" "$API/api/v1/rbac/accounts/$ACC/roles"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - run: npm run build --workspace=web
+      - name: Start web
+        run: |
+          PORT=3000 npm run start --workspace=web &
+          for i in $(seq 1 30); do curl -fsS http://localhost:3000/login >/dev/null && break; sleep 1; done
+      - name: Install Playwright browser
+        working-directory: packages/web
+        run: npx playwright install --with-deps chromium
+      - name: Run e2e
+        run: npm run test:e2e --workspace=web
+        env:
+          E2E_BASE_URL: http://localhost:3000
+
   summary:
     name: CI Summary
     runs-on: ubuntu-latest
