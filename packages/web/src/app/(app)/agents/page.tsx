@@ -7,8 +7,10 @@ import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
+import { useOrganizations, orgLabel } from "@/lib/use-organizations";
 
 interface Account {
   id: string;
@@ -19,7 +21,6 @@ interface Account {
   status: string;
   is_active: boolean;
 }
-interface Org { id: string; legal_name: string; display_name?: string }
 interface Role { id: string; code: string; name: string }
 interface Assignment { id: string; role_id: string; organization_id?: string | null }
 
@@ -31,8 +32,6 @@ const STATUS_STYLE: Record<string, string> = {
   suspended: "bg-orange-500/10 text-orange-600",
   deactivated: "bg-destructive/10 text-destructive",
 };
-const selectCls =
-  "h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
 
 export default function AgentsPage() {
   const qc = useQueryClient();
@@ -102,14 +101,14 @@ export default function AgentsPage() {
                 <TableCell className="font-mono text-xs">{a.email || a.account_number || a.id.slice(0, 8)}</TableCell>
                 <TableCell>{a.display_name || "—"}</TableCell>
                 <TableCell>
-                  <select
-                    className={`${selectCls} ${STATUS_STYLE[a.status] ?? ""}`}
+                  <Select
+                    className={`h-8 w-auto px-2 text-xs ${STATUS_STYLE[a.status] ?? ""}`}
                     value={a.status}
                     disabled={setStatus.isPending}
                     onChange={(e) => setStatus.mutate({ id: a.id, status: e.target.value })}
                   >
                     {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  </Select>
                 </TableCell>
                 <TableCell className="text-right">
                   <Button variant="ghost" size="icon" title="Manage roles" onClick={() => setRolesFor(a)}>
@@ -142,10 +141,7 @@ function NewAccountDialog({ open, setOpen }: { open: boolean; setOpen: (b: boole
   const [orgId, setOrgId] = useState("");
   const [error, setError] = useState("");
 
-  const { data: orgs = [] } = useQuery<Org[]>({
-    queryKey: ["orgs", "all"],
-    queryFn: () => apiFetch<Org[]>(`/api/v1/modules/organization/?limit=200&offset=0`),
-  });
+  const { orgs, truncated: orgsTruncated } = useOrganizations();
 
   function reset() { setEmail(""); setPassword(""); setDisplayName(""); setOrgId(""); setError(""); }
 
@@ -185,11 +181,13 @@ function NewAccountDialog({ open, setOpen }: { open: boolean; setOpen: (b: boole
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="org">Organization</Label>
-            <select id="org" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              value={orgId} onChange={(e) => setOrgId(e.target.value)}>
+            <Select id="org" value={orgId} onChange={(e) => setOrgId(e.target.value)}>
               <option value="">— none —</option>
-              {orgs.map((o) => <option key={o.id} value={o.id}>{o.display_name || o.legal_name}</option>)}
-            </select>
+              {orgs.map((o) => <option key={o.id} value={o.id}>{orgLabel(o)}</option>)}
+            </Select>
+            {orgsTruncated && (
+              <p className="text-xs text-muted-foreground">Showing the first 200 organizations.</p>
+            )}
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
@@ -216,13 +214,14 @@ function RolesDialog({ account, onClose }: { account: Account; onClose: () => vo
     queryKey: ["roles"],
     queryFn: () => apiFetch<Role[]>(`/api/v1/rbac/roles`),
   });
-  const { data: orgs = [] } = useQuery<Org[]>({
-    queryKey: ["orgs", "all"],
-    queryFn: () => apiFetch<Org[]>(`/api/v1/modules/organization/?limit=200&offset=0`),
-  });
+  const { orgs } = useOrganizations();
 
   const roleName = (id: string) => roles.find((r) => r.id === id)?.name ?? id.slice(0, 8);
-  const orgName = (id?: string | null) => id ? (orgs.find((o) => o.id === id)?.display_name || orgs.find((o) => o.id === id)?.legal_name || "org") : "Global";
+  const orgName = (id?: string | null) => {
+    if (!id) return "Global";
+    const o = orgs.find((x) => x.id === id);
+    return o ? orgLabel(o) : "org";
+  };
 
   const assign = useMutation({
     mutationFn: () =>
@@ -267,19 +266,17 @@ function RolesDialog({ account, onClose }: { account: Account; onClose: () => vo
           onSubmit={(e) => { e.preventDefault(); if (roleId) assign.mutate(); }}>
           <div className="flex-1 space-y-1.5">
             <Label htmlFor="role">Role</Label>
-            <select id="role" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              value={roleId} onChange={(e) => setRoleId(e.target.value)}>
+            <Select id="role" value={roleId} onChange={(e) => setRoleId(e.target.value)}>
               <option value="">— select —</option>
               {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </select>
+            </Select>
           </div>
           <div className="flex-1 space-y-1.5">
             <Label htmlFor="scope">Scope</Label>
-            <select id="scope" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              value={orgId} onChange={(e) => setOrgId(e.target.value)}>
+            <Select id="scope" value={orgId} onChange={(e) => setOrgId(e.target.value)}>
               <option value="">Global</option>
-              {orgs.map((o) => <option key={o.id} value={o.id}>{o.display_name || o.legal_name}</option>)}
-            </select>
+              {orgs.map((o) => <option key={o.id} value={o.id}>{orgLabel(o)}</option>)}
+            </Select>
           </div>
           <Button type="submit" disabled={!roleId || assign.isPending}>Assign</Button>
         </form>

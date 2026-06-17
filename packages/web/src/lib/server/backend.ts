@@ -63,11 +63,15 @@ const DEFAULT_BRANDING: Branding = {
   supported_locales: ["en", "fr", "es"],
 };
 
-/** Public theme payload for SSR theming. Fail-safe = baked defaults (never block
- *  rendering on a brief backend hiccup). */
+/** Public theme payload for SSR theming. Cached (revalidate 60s, tag "branding")
+ *  instead of per-request — branding changes rarely, and the layout renders it on
+ *  every page. The editor calls revalidateTag("branding") on save for an instant
+ *  refresh. Fail-safe = baked defaults (never block rendering on a backend hiccup). */
 export async function getBranding(): Promise<Branding> {
   try {
-    const r = await fetch(`${BACKEND}/api/v1/system/branding`, { cache: "no-store" });
+    const r = await fetch(`${BACKEND}/api/v1/system/branding`, {
+      next: { revalidate: 60, tags: ["branding"] },
+    });
     if (!r.ok) return DEFAULT_BRANDING;
     return { ...DEFAULT_BRANDING, ...(await r.json()) };
   } catch {

@@ -8,6 +8,7 @@ import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 
 interface Branding {
   app_name: string;
@@ -24,9 +25,6 @@ interface Branding {
   support_url: string;
   supported_locales: string[];
 }
-
-const selectCls =
-  "h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 export default function SettingsPage() {
   const qc = useQueryClient();
@@ -52,11 +50,14 @@ export default function SettingsPage() {
       const { supported_locales: _omit, ...payload } = form as Branding;
       return apiFetch("/api/v1/admin/branding", { method: "PUT", body: JSON.stringify(payload) });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ["admin-branding"] });
+      qc.invalidateQueries({ queryKey: ["branding"] }); // app-shell name/logo
       setSaved(true);
       setError("");
-      router.refresh(); // re-run the server layout so the new theme applies live
+      // Bust the cached server-side branding, then re-run the layout to re-theme.
+      await fetch("/api/branding/revalidate", { method: "POST" }).catch(() => undefined);
+      router.refresh();
     },
     onError: (e: Error) => setError(e.message || "Save failed"),
   });
@@ -109,16 +110,16 @@ export default function SettingsPage() {
 
           <Section title="Locale & theme">
             <Field label="Default locale">
-              <select className={selectCls} value={form.default_locale} onChange={(e) => set("default_locale", e.target.value)}>
+              <Select value={form.default_locale} onChange={(e) => set("default_locale", e.target.value)}>
                 {locales.map((l) => <option key={l} value={l}>{l}</option>)}
-              </select>
+              </Select>
             </Field>
             <Field label="Theme mode">
-              <select className={selectCls} value={form.theme_mode} onChange={(e) => set("theme_mode", e.target.value)}>
+              <Select value={form.theme_mode} onChange={(e) => set("theme_mode", e.target.value)}>
                 <option value="light">Light</option>
                 <option value="dark">Dark</option>
                 <option value="auto">Auto</option>
-              </select>
+              </Select>
             </Field>
           </Section>
 

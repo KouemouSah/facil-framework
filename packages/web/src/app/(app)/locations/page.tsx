@@ -7,10 +7,11 @@ import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
+import { useOrganizations, orgLabel } from "@/lib/use-organizations";
 
-interface Org { id: string; code: string; legal_name: string; display_name?: string }
 interface Site {
   id: string;
   code: string;
@@ -23,9 +24,6 @@ interface Site {
 }
 const PAGE = 20;
 
-const selectCls =
-  "h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
-
 export default function LocationsPage() {
   const qc = useQueryClient();
   const [orgId, setOrgId] = useState("");
@@ -35,10 +33,7 @@ export default function LocationsPage() {
 
   // Organizations the caller can access — drives the scope selector. Sites are
   // org-scoped at the API, so we need a chosen org before listing/creating.
-  const { data: orgs = [] } = useQuery<Org[]>({
-    queryKey: ["orgs", "all"],
-    queryFn: () => apiFetch<Org[]>(`/api/v1/modules/organization/?limit=200&offset=0`),
-  });
+  const { orgs, truncated: orgsTruncated } = useOrganizations();
 
   // Default to the first accessible org once loaded.
   useEffect(() => {
@@ -69,17 +64,18 @@ export default function LocationsPage() {
           <p className="text-sm text-muted-foreground">Physical sites and branches per organization.</p>
         </div>
         <div className="flex items-center gap-2">
-          <select
-            className={`${selectCls} max-w-56`}
+          <Select
+            className="max-w-56"
             value={orgId}
             onChange={(e) => { setOrgId(e.target.value); setPage(0); }}
             aria-label="Organization"
+            title={orgsTruncated ? "Showing the first 200 organizations" : undefined}
           >
             {orgs.length === 0 && <option value="">No organization</option>}
             {orgs.map((o) => (
-              <option key={o.id} value={o.id}>{o.display_name || o.legal_name}</option>
+              <option key={o.id} value={o.id}>{orgLabel(o)}</option>
             ))}
-          </select>
+          </Select>
           <Button variant="outline" size="icon" title="Density"
             onClick={() => setDense((d) => !d)}>
             {dense ? <Rows3 className="size-4" /> : <Rows2 className="size-4" />}
@@ -193,13 +189,13 @@ function NewSiteDialog({ open, setOpen, orgId }: { open: boolean; setOpen: (b: b
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="type">Type</Label>
-              <select id="type" className={selectCls} value={siteType} onChange={(e) => setSiteType(e.target.value)}>
+              <Select id="type" value={siteType} onChange={(e) => setSiteType(e.target.value)}>
                 <option value="branch">Branch</option>
                 <option value="headquarters">Headquarters</option>
                 <option value="warehouse">Warehouse</option>
                 <option value="office">Office</option>
                 <option value="point_of_sale">Point of sale</option>
-              </select>
+              </Select>
             </div>
           </div>
           <div className="space-y-1.5">
