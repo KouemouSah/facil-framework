@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataGrid, type DataGridColumn } from "@/components/ui/data-grid";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { useOrganizations, orgLabel } from "@/lib/use-organizations";
 
@@ -36,6 +36,8 @@ const STATUS_STYLE: Record<string, string> = {
 export default function AgentsPage() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
+  const [status, setStatusFilter] = useState("");
+  const [sort, setSort] = useState("-created_at");
   const [page, setPage] = useState(0);
   const [open, setOpen] = useState(false);
   const [rolesFor, setRolesFor] = useState<Account | null>(null);
@@ -43,10 +45,11 @@ export default function AgentsPage() {
   const [bulkRole, setBulkRole] = useState(false);
 
   const { data, isLoading, error } = useQuery<{ items: Account[]; total: number }>({
-    queryKey: ["accounts", q, page],
+    queryKey: ["accounts", q, status, sort, page],
     queryFn: () =>
       apiFetch<{ items: Account[]; total: number }>(
-        `/api/v1/admin/accounts?q=${encodeURIComponent(q)}&limit=${PAGE}&offset=${page * PAGE}`,
+        `/api/v1/admin/accounts?q=${encodeURIComponent(q)}&status=${status}` +
+        `&sort=${sort}&limit=${PAGE}&offset=${page * PAGE}`,
       ),
   });
   const rows = data?.items ?? [];
@@ -84,6 +87,39 @@ export default function AgentsPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["accounts"] }); clearSelection(); },
   });
 
+  const columns: DataGridColumn<Account>[] = [
+    {
+      key: "email", header: "Identifier", sortable: true, className: "font-mono text-xs",
+      cell: (a) => a.email || a.account_number || a.id.slice(0, 8),
+    },
+    {
+      key: "display_name", header: "Name", sortable: true,
+      cell: (a) => a.display_name || "—",
+    },
+    {
+      key: "status", header: "Status", sortable: true,
+      filter: { type: "select", options: STATUSES.map((s) => ({ value: s, label: s })) },
+      cell: (a) => (
+        <Select
+          className={`h-8 w-auto px-2 text-xs ${STATUS_STYLE[a.status] ?? ""}`}
+          value={a.status}
+          disabled={setStatus.isPending}
+          onChange={(e) => setStatus.mutate({ id: a.id, status: e.target.value })}
+        >
+          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+        </Select>
+      ),
+    },
+    {
+      key: "roles", header: "Roles", align: "right", headClassName: "w-20",
+      cell: (a) => (
+        <Button variant="ghost" size="icon" title="Manage roles" onClick={() => setRolesFor(a)}>
+          <KeyRound className="size-4" />
+        </Button>
+      ),
+    },
+  ];
+
   return (
     <div className="flex h-full flex-col gap-4">
       {/* Toolbar — fixed */}
@@ -117,69 +153,24 @@ export default function AgentsPage() {
         </div>
       )}
 
-      {/* Data region — the ONLY scrollable part */}
-      <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-10">
-                <input type="checkbox" className="size-4 accent-[hsl(var(--primary))]"
-                  aria-label="Select all on page" checked={allOnPage} onChange={toggleAll} />
-              </TableHead>
-              <TableHead>Identifier</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-20 text-right">Roles</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && (
-              <TableRow><TableCell colSpan={5} className="py-8 text-center text-muted-foreground">Loading…</TableCell></TableRow>
-            )}
-            {error && (
-              <TableRow><TableCell colSpan={5} className="py-8 text-center text-destructive">Failed to load.</TableCell></TableRow>
-            )}
-            {!isLoading && !error && rows.length === 0 && (
-              <TableRow><TableCell colSpan={5} className="py-8 text-center text-muted-foreground">No accounts.</TableCell></TableRow>
-            )}
-            {rows.map((a) => (
-              <TableRow key={a.id} data-state={selected.has(a.id) ? "selected" : undefined}>
-                <TableCell>
-                  <input type="checkbox" className="size-4 accent-[hsl(var(--primary))]"
-                    aria-label={`Select ${a.email || a.id}`}
-                    checked={selected.has(a.id)} onChange={() => toggleRow(a.id)} />
-                </TableCell>
-                <TableCell className="font-mono text-xs">{a.email || a.account_number || a.id.slice(0, 8)}</TableCell>
-                <TableCell>{a.display_name || "—"}</TableCell>
-                <TableCell>
-                  <Select
-                    className={`h-8 w-auto px-2 text-xs ${STATUS_STYLE[a.status] ?? ""}`}
-                    value={a.status}
-                    disabled={setStatus.isPending}
-                    onChange={(e) => setStatus.mutate({ id: a.id, status: e.target.value })}
-                  >
-                    {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </Select>
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="icon" title="Manage roles" onClick={() => setRolesFor(a)}>
-                    <KeyRound className="size-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Pagination — server-side, with total */}
-      <div className="flex items-center justify-end gap-2 text-sm">
-        <span className="text-muted-foreground">
-          {total === 0 ? "0" : `${page * PAGE + 1}–${Math.min((page + 1) * PAGE, total)}`} of {total}
-        </span>
-        <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Prev</Button>
-        <Button variant="outline" size="sm" disabled={(page + 1) * PAGE >= total} onClick={() => setPage((p) => p + 1)}>Next</Button>
-      </div>
+      {/* Data grid — server sort/filter/pagination, selection wired to bulk */}
+      <DataGrid<Account>
+        columns={columns}
+        rows={rows}
+        rowKey={(a) => a.id}
+        total={total}
+        page={page}
+        pageSize={PAGE}
+        onPageChange={setPage}
+        sort={sort}
+        onSortChange={(s) => { setSort(s); setPage(0); }}
+        filters={{ status }}
+        onFilterChange={(k, v) => { if (k === "status") { setStatusFilter(v); setPage(0); } }}
+        isLoading={isLoading}
+        error={!!error}
+        emptyLabel="No accounts."
+        selection={{ selected, onToggle: toggleRow, onToggleAll: toggleAll, allOnPage }}
+      />
 
       {rolesFor && <RolesDialog account={rolesFor} onClose={() => setRolesFor(null)} />}
       {bulkRole && (
