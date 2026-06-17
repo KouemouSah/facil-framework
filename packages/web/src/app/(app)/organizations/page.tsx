@@ -6,10 +6,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Search, Check, Download } from "lucide-react";
+import { Plus, Trash2, Search, Check } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { codeField, requiredText } from "@/lib/form-schemas";
-import { downloadFile } from "@/lib/download";
+import { ExportMenu } from "@/components/export-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -83,12 +83,8 @@ export default function OrganizationsPage() {
             <Input className="h-9 w-56 pl-8" placeholder="Search code / name"
               value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} />
           </div>
-          <Button variant="outline" size="sm" title="Export CSV"
-            onClick={() => downloadFile(
-              `/api/v1/modules/organization/export?q=${encodeURIComponent(q)}&sort=${sort}`,
-              "organizations.csv")}>
-            <Download className="size-4" /> Export
-          </Button>
+          <ExportMenu filename="organizations"
+            path={`/api/v1/modules/organization/export?q=${encodeURIComponent(q)}&sort=${sort}`} />
           <NewOrgDialog open={open} setOpen={setOpen} />
         </div>
       </div>

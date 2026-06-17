@@ -12,3 +12,4 @@ pyotp>=2.9
 PyYAML>=6.0
 cryptography>=42.0
 redis>=5.0
+openpyxl>=3.1

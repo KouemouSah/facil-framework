@@ -52,6 +52,27 @@ async def test_roles_export_csv(client):
 
 
 @pytest.mark.asyncio
+async def test_roles_export_xlsx(client):
+    ac, _ = client
+    await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)
+    await ac.post("/api/v1/rbac/roles", headers=AUTH,
+                  json={"code": "xlsxrole", "name": "Spreadsheet"})
+    r = await ac.get("/api/v1/rbac/roles/export?format=xlsx", headers=AUTH)
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    assert "filename=roles.xlsx" in r.headers["content-disposition"]
+    # Body is a real workbook: openpyxl can open it; header row + the new role.
+    import io
+    from openpyxl import load_workbook
+    wb = load_workbook(io.BytesIO(r.content))
+    ws = wb.active
+    assert ws["A1"].value == "id"  # frozen header
+    codes = [row[1] for row in ws.iter_rows(min_row=2, values_only=True)]
+    assert "xlsxrole" in codes
+
+
+@pytest.mark.asyncio
 async def test_create_set_grants_delete_role(client):
     ac, _ = client
     await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)  # catalog

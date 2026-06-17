@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.concurrency import enforce_if_match, etag_for
-from app.api.csv_export import EXPORT_CAP, csv_response
+from app.api.csv_export import EXPORT_CAP, export_response
 from app.api.deps import get_session
 from app.api.list_query import apply_sort, clamp_page, paginated
 from app.auth import audit
@@ -90,14 +90,14 @@ _ROLE_EXPORT_COLS = ("id", "code", "name", "description", "organization_id",
 
 @router.get("/roles/export", dependencies=[_READ])
 async def export_roles(organization_id: str | None = None, q: str | None = None,
-                       sort: str = "code",
+                       sort: str = "code", format: str = "csv",
                        session: AsyncSession = Depends(get_session)):
-    """CSV export of the (filtered) roles. Capped at EXPORT_CAP rows; if the
+    """CSV/XLSX export of the (filtered) roles. Capped at EXPORT_CAP rows; if the
     match set is larger, X-Truncated reports it (no silent cap)."""
     stmt = repo.roles_select(organization_id=organization_id, q=q)
     stmt = apply_sort(stmt, sort, allowed=_ROLE_SORT, default="code")
     items, total = await paginated(session, stmt, limit=EXPORT_CAP, offset=0)
-    return csv_response(items, _ROLE_EXPORT_COLS, "roles.csv", total=total)
+    return export_response(items, _ROLE_EXPORT_COLS, "roles", format, total=total)
 
 
 @router.post("/roles", status_code=201)

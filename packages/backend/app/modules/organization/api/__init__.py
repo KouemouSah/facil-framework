@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.concurrency import enforce_if_match, row_etag
-from app.api.csv_export import EXPORT_CAP, csv_response
+from app.api.csv_export import EXPORT_CAP, export_response
 from app.api.deps import get_session
 from app.api.list_query import apply_sort, clamp_page, paginated
 from app.modules.organization import repository as repo
@@ -71,13 +71,14 @@ _ORG_EXPORT_COLS = ("id", "code", "legal_name", "display_name", "email",
 
 @router.get("/export")
 async def export_organizations(q: str | None = None, sort: str = "code",
+                               format: str = "csv",
                                principal: dict = Depends(require_auth),
                                session: AsyncSession = Depends(get_session)):
     visible = await visible_orgs(session, principal, "organization.read")
     stmt = repo.organizations_select(org_ids=visible, q=q)
     stmt = apply_sort(stmt, sort, allowed=_ORG_SORT, default="code")
     items, total = await paginated(session, stmt, limit=EXPORT_CAP, offset=0)
-    return csv_response(items, _ORG_EXPORT_COLS, "organizations.csv", total=total)
+    return export_response(items, _ORG_EXPORT_COLS, "organizations", format, total=total)
 
 
 @router.post("/", status_code=201, dependencies=[_CREATE])

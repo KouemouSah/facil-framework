@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.concurrency import enforce_if_match, row_etag
-from app.api.csv_export import EXPORT_CAP, csv_response
+from app.api.csv_export import EXPORT_CAP, export_response
 from app.api.deps import get_session
 from app.api.list_query import apply_sort, clamp_page, paginated
 from app.auth import audit
@@ -111,16 +111,17 @@ _EXPORT_COLS = ("id", "account_number", "email", "display_name",
 @router.get("/export")
 async def export_accounts(q: str | None = None, organization_id: str | None = None,
                           status: str | None = None, sort: str = "-created_at",
+                          format: str = "csv",
                           principal: dict = Depends(require_auth),
                           session: AsyncSession = Depends(get_session)) -> Response:
-    """CSV export of the (filtered + scoped) accounts. Capped at EXPORT_CAP rows;
-    if the match set is larger, X-Truncated reports it (no silent cap)."""
+    """CSV/XLSX export of the (filtered + scoped) accounts. Capped at EXPORT_CAP
+    rows; if the match set is larger, X-Truncated reports it (no silent cap)."""
     visible = await visible_orgs(session, principal, "account.read")
     stmt = repo.accounts_select(
         q=q, organization_id=organization_id, org_ids=visible, status=status)
     stmt = apply_sort(stmt, sort, allowed=_SORTABLE, default="-created_at")
     items, total = await paginated(session, stmt, limit=EXPORT_CAP, offset=0)
-    return csv_response(items, _EXPORT_COLS, "accounts.csv", total=total)
+    return export_response(items, _EXPORT_COLS, "accounts", format, total=total)
 
 
 @router.post("", status_code=201)

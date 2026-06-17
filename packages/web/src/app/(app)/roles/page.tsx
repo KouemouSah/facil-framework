@@ -6,10 +6,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, ShieldCheck, Check, Search, Download } from "lucide-react";
+import { Plus, Trash2, ShieldCheck, Check, Search } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { codeField, requiredText, optionalText } from "@/lib/form-schemas";
-import { downloadFile } from "@/lib/download";
+import { ExportMenu } from "@/components/export-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -104,12 +104,8 @@ export default function RolesPage() {
             <Input className="h-9 w-56 pl-8" placeholder="Search code / name"
               value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} />
           </div>
-          <Button variant="outline" size="sm" title="Export CSV"
-            onClick={() => downloadFile(
-              `/api/v1/rbac/roles/export?q=${encodeURIComponent(q)}&sort=${sort}`,
-              "roles.csv")}>
-            <Download className="size-4" /> Export
-          </Button>
+          <ExportMenu filename="roles"
+            path={`/api/v1/rbac/roles/export?q=${encodeURIComponent(q)}&sort=${sort}`} />
           <NewRoleDialog open={open} setOpen={setOpen} />
         </div>
       </div>

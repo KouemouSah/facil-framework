@@ -6,9 +6,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Check, Download } from "lucide-react";
+import { Plus, Search, Check } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import { downloadFile } from "@/lib/download";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +16,7 @@ import { DataGrid, type DataGridColumn } from "@/components/ui/data-grid";
 import { DetailPanel } from "@/components/ui/detail-panel";
 import { OrgCombobox } from "@/components/ui/org-combobox";
 import { SavedViews } from "@/components/saved-views";
+import { ExportMenu } from "@/components/export-menu";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { useOrgLabels } from "@/lib/use-organizations";
 import { emailField, passwordField, optionalText } from "@/lib/form-schemas";
@@ -151,12 +151,8 @@ export default function AgentsPage() {
               setSort(String(c.sort ?? "-created_at")); setPage(0);
             }}
           />
-          <Button variant="outline" size="sm" title="Export CSV"
-            onClick={() => downloadFile(
-              `/api/v1/admin/accounts/export?q=${encodeURIComponent(q)}&status=${status}&sort=${sort}`,
-              "accounts.csv")}>
-            <Download className="size-4" /> Export
-          </Button>
+          <ExportMenu filename="accounts"
+            path={`/api/v1/admin/accounts/export?q=${encodeURIComponent(q)}&status=${status}&sort=${sort}`} />
           <NewAccountDialog open={open} setOpen={setOpen} />
         </div>
       </div>

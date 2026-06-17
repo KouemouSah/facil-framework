@@ -6,10 +6,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Check, Download } from "lucide-react";
+import { Plus, Trash2, Check } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { codeField, requiredText, optionalText } from "@/lib/form-schemas";
-import { downloadFile } from "@/lib/download";
+import { ExportMenu } from "@/components/export-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -112,12 +112,8 @@ export default function LocationsPage() {
               placeholder="Search organization…"
               onChange={(id) => { setOrgId(id); setPage(0); }} />
           </div>
-          <Button variant="outline" size="sm" title="Export CSV" disabled={!orgId}
-            onClick={() => downloadFile(
-              `/api/v1/modules/location/sites/export?organization_id=${orgId}&sort=${sort}`,
-              "sites.csv")}>
-            <Download className="size-4" /> Export
-          </Button>
+          <ExportMenu filename="sites" disabled={!orgId}
+            path={`/api/v1/modules/location/sites/export?organization_id=${orgId}&sort=${sort}`} />
           <NewSiteDialog open={open} setOpen={setOpen} orgId={orgId} />
         </div>
       </div>
