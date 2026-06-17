@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { DataGrid, type DataGridColumn } from "@/components/ui/data-grid";
 import { DetailPanel } from "@/components/ui/detail-panel";
+import { JsonField } from "@/components/ui/json-field";
 import { OrgCombobox } from "@/components/ui/org-combobox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { useOrganizations } from "@/lib/use-organizations";
@@ -143,8 +144,8 @@ export default function LocationsPage() {
   );
 }
 
-// Editable scalar fields of SiteUpdate (org_unit_id/parent_site_id refs +
-// operating_hours/metadata JSON = parity follow-up).
+// Editable scalar fields of SiteUpdate (org_unit_id/parent_site_id refs;
+// operating_hours/metadata JSON are edited via the JsonField editors below).
 const SITE_FIELDS: { key: string; label: string }[] = [
   { key: "name", label: "Name" },
   { key: "site_type", label: "Type" },
@@ -164,6 +165,9 @@ function SiteDetail({ siteId, onClose }: { siteId: string; onClose: () => void }
   const qc = useQueryClient();
   const [form, setForm] = useState<Record<string, string> | null>(null);
   const [primary, setPrimary] = useState(false);
+  const [operatingHours, setOperatingHours] = useState<unknown>({});
+  const [metadata, setMetadata] = useState<unknown>({});
+  const [jsonOk, setJsonOk] = useState({ operating_hours: true, metadata: true });
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
 
@@ -178,6 +182,9 @@ function SiteDetail({ siteId, onClose }: { siteId: string; onClose: () => void }
       for (const { key } of SITE_FIELDS) f[key] = (data[key] as string) ?? "";
       setForm(f);
       setPrimary(Boolean(data.is_primary));
+      setOperatingHours(data.operating_hours ?? {});
+      setMetadata(data.metadata ?? {});
+      setJsonOk({ operating_hours: true, metadata: true });
     }
   }, [data, form]);
 
@@ -185,6 +192,8 @@ function SiteDetail({ siteId, onClose }: { siteId: string; onClose: () => void }
     mutationFn: () => {
       const payload: Record<string, unknown> = { is_primary: primary };
       for (const { key } of SITE_FIELDS) payload[key] = (form?.[key] ?? "") || null;
+      payload.operating_hours = operatingHours;
+      payload.metadata = metadata;
       return apiFetch(`/api/v1/modules/location/sites/${siteId}`, {
         method: "PUT",
         headers: data?.etag ? { "If-Match": String(data.etag) } : undefined,
@@ -220,7 +229,8 @@ function SiteDetail({ siteId, onClose }: { siteId: string; onClose: () => void }
           {saved && <span className="flex items-center gap-1 text-sm text-emerald-600"><Check className="size-4" /> Saved</span>}
           {error && <span className="text-sm text-destructive">{error}</span>}
           <Button type="button" size="sm" className="ml-auto"
-            disabled={save.isPending || form === null} onClick={() => save.mutate()}>
+            disabled={save.isPending || form === null || !jsonOk.operating_hours || !jsonOk.metadata}
+            onClick={() => save.mutate()}>
             {save.isPending ? "Saving…" : "Save"}
           </Button>
         </div>
@@ -228,18 +238,28 @@ function SiteDetail({ siteId, onClose }: { siteId: string; onClose: () => void }
     >
       {form === null && <p className="text-sm text-muted-foreground">Loading…</p>}
       {form !== null && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {SITE_FIELDS.map(({ key, label }) => (
-            <div key={key} className="space-y-1.5">
-              <Label htmlFor={`site-${key}`}>{label}</Label>
-              <Input id={`site-${key}`} value={form[key]} onChange={(e) => set(key, e.target.value)} />
-            </div>
-          ))}
-          <label className="flex items-center gap-2 pt-2 text-sm">
-            <input type="checkbox" className="size-4 accent-[hsl(var(--primary))]"
-              checked={primary} onChange={(e) => { setPrimary(e.target.checked); setSaved(false); }} />
-            Primary site
-          </label>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {SITE_FIELDS.map(({ key, label }) => (
+              <div key={key} className="space-y-1.5">
+                <Label htmlFor={`site-${key}`}>{label}</Label>
+                <Input id={`site-${key}`} value={form[key]} onChange={(e) => set(key, e.target.value)} />
+              </div>
+            ))}
+            <label className="flex items-center gap-2 pt-2 text-sm">
+              <input type="checkbox" className="size-4 accent-[hsl(var(--primary))]"
+                checked={primary} onChange={(e) => { setPrimary(e.target.checked); setSaved(false); }} />
+              Primary site
+            </label>
+          </div>
+          <JsonField id="site-operating_hours" label="Operating hours (JSON)"
+            value={data?.operating_hours}
+            hint='e.g. {"mon": ["09:00-17:00"], "sat": []}'
+            onChange={(v, ok) => { setJsonOk((s) => ({ ...s, operating_hours: ok })); if (ok) setOperatingHours(v); setSaved(false); }} />
+          <JsonField id="site-metadata" label="Metadata (JSON)"
+            value={data?.metadata}
+            hint="Free-form site metadata."
+            onChange={(v, ok) => { setJsonOk((s) => ({ ...s, metadata: ok })); if (ok) setMetadata(v); setSaved(false); }} />
         </div>
       )}
     </DetailPanel>

@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DataGrid, type DataGridColumn } from "@/components/ui/data-grid";
 import { DetailPanel } from "@/components/ui/detail-panel";
+import { JsonField } from "@/components/ui/json-field";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 
 interface Org { id: string; code: string; legal_name: string; display_name?: string }
@@ -114,7 +115,7 @@ export default function OrganizationsPage() {
 }
 
 // Editable scalar fields of OrganizationUpdate (code is immutable; the JSON
-// document_identity/settings get a dedicated editor later — parity follow-up).
+// document_identity/settings are edited via the JsonField editors below).
 const ORG_FIELDS: { key: string; label: string }[] = [
   { key: "legal_name", label: "Legal name" },
   { key: "display_name", label: "Display name" },
@@ -138,6 +139,9 @@ const ORG_FIELDS: { key: string; label: string }[] = [
 function OrgDetail({ orgId, onClose }: { orgId: string; onClose: () => void }) {
   const qc = useQueryClient();
   const [form, setForm] = useState<Record<string, string> | null>(null);
+  const [docIdentity, setDocIdentity] = useState<unknown>({});
+  const [settings, setSettings] = useState<unknown>({});
+  const [jsonOk, setJsonOk] = useState({ document_identity: true, settings: true });
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
 
@@ -151,13 +155,18 @@ function OrgDetail({ orgId, onClose }: { orgId: string; onClose: () => void }) {
       const f: Record<string, string> = {};
       for (const { key } of ORG_FIELDS) f[key] = (data[key] as string) ?? "";
       setForm(f);
+      setDocIdentity(data.document_identity ?? {});
+      setSettings(data.settings ?? {});
+      setJsonOk({ document_identity: true, settings: true });
     }
   }, [data, form]);
 
   const save = useMutation({
     mutationFn: () => {
-      const payload: Record<string, string | null> = {};
+      const payload: Record<string, unknown> = {};
       for (const { key } of ORG_FIELDS) payload[key] = (form?.[key] ?? "") || null;
+      payload.document_identity = docIdentity;
+      payload.settings = settings;
       return apiFetch(`/api/v1/modules/organization/${orgId}`, {
         method: "PUT",
         headers: data?.etag ? { "If-Match": String(data.etag) } : undefined,
@@ -193,7 +202,8 @@ function OrgDetail({ orgId, onClose }: { orgId: string; onClose: () => void }) {
           {saved && <span className="flex items-center gap-1 text-sm text-emerald-600"><Check className="size-4" /> Saved</span>}
           {error && <span className="text-sm text-destructive">{error}</span>}
           <Button type="button" size="sm" className="ml-auto"
-            disabled={save.isPending || form === null} onClick={() => save.mutate()}>
+            disabled={save.isPending || form === null || !jsonOk.document_identity || !jsonOk.settings}
+            onClick={() => save.mutate()}>
             {save.isPending ? "Saving…" : "Save"}
           </Button>
         </div>
@@ -201,13 +211,23 @@ function OrgDetail({ orgId, onClose }: { orgId: string; onClose: () => void }) {
     >
       {form === null && <p className="text-sm text-muted-foreground">Loading…</p>}
       {form !== null && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {ORG_FIELDS.map(({ key, label }) => (
-            <div key={key} className="space-y-1.5">
-              <Label htmlFor={`org-${key}`}>{label}</Label>
-              <Input id={`org-${key}`} value={form[key]} onChange={(e) => set(key, e.target.value)} />
-            </div>
-          ))}
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {ORG_FIELDS.map(({ key, label }) => (
+              <div key={key} className="space-y-1.5">
+                <Label htmlFor={`org-${key}`}>{label}</Label>
+                <Input id={`org-${key}`} value={form[key]} onChange={(e) => set(key, e.target.value)} />
+              </div>
+            ))}
+          </div>
+          <JsonField id="org-document_identity" label="Document identity (JSON)"
+            value={data?.document_identity}
+            hint="Identifiers shown on generated documents (registry, VAT…)."
+            onChange={(v, ok) => { setJsonOk((s) => ({ ...s, document_identity: ok })); if (ok) setDocIdentity(v); setSaved(false); }} />
+          <JsonField id="org-settings" label="Settings (JSON)"
+            value={data?.settings}
+            hint="Free-form organization settings."
+            onChange={(v, ok) => { setJsonOk((s) => ({ ...s, settings: ok })); if (ok) setSettings(v); setSaved(false); }} />
         </div>
       )}
     </DetailPanel>
