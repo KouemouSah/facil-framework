@@ -32,6 +32,26 @@ async def test_reseed_then_list(client):
 
 
 @pytest.mark.asyncio
+async def test_roles_export_csv(client):
+    ac, _ = client
+    await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)
+    await ac.post("/api/v1/rbac/roles", headers=AUTH,
+                  json={"code": "exprole", "name": "Exportable"})
+    r = await ac.get("/api/v1/rbac/roles/export", headers=AUTH)
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/csv")
+    assert "attachment; filename=roles.csv" in r.headers["content-disposition"]
+    lines = r.text.strip().splitlines()
+    assert lines[0].startswith("id,code,name,description")
+    assert any("exprole" in ln for ln in lines[1:])
+    # Filter (q) carries into the export.
+    one = await ac.get("/api/v1/rbac/roles/export?q=exprole", headers=AUTH)
+    assert len(one.text.strip().splitlines()) == 2  # header + 1 row
+    # Reads require auth.
+    assert (await ac.get("/api/v1/rbac/roles/export")).status_code == 401
+
+
+@pytest.mark.asyncio
 async def test_create_set_grants_delete_role(client):
     ac, _ = client
     await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)  # catalog
