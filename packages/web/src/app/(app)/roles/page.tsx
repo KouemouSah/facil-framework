@@ -2,9 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, ShieldCheck, Check, Search, Download } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { codeField, requiredText, optionalText } from "@/lib/form-schemas";
 import { downloadFile } from "@/lib/download";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -137,44 +141,56 @@ export default function RolesPage() {
   );
 }
 
+const roleForm = z.object({
+  code: codeField,
+  name: requiredText("Name"),
+  description: optionalText(),
+});
+type RoleForm = z.infer<typeof roleForm>;
+
 function NewRoleDialog({ open, setOpen }: { open: boolean; setOpen: (b: boolean) => void }) {
   const qc = useQueryClient();
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
   const [error, setError] = useState("");
-
-  function reset() { setCode(""); setName(""); setDescription(""); setError(""); }
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<RoleForm>({
+    resolver: zodResolver(roleForm),
+    defaultValues: { code: "", name: "", description: "" },
+  });
 
   const create = useMutation({
-    mutationFn: () =>
+    mutationFn: (values: RoleForm) =>
       apiFetch("/api/v1/rbac/roles", {
         method: "POST",
-        body: JSON.stringify({ code, name, description: description || null }),
+        body: JSON.stringify({
+          code: values.code, name: values.name,
+          description: values.description || null,
+        }),
       }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["roles"] }); setOpen(false); reset(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["roles"] }); setOpen(false); reset(); setError(""); },
     onError: (e: Error) => setError(e.message || "Create failed"),
   });
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { reset(); setError(""); } }}>
       <DialogTrigger asChild>
         <Button size="sm"><Plus className="size-4" /> New role</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>New role</DialogTitle></DialogHeader>
-        <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); create.mutate(); }}>
+        <form className="space-y-3" onSubmit={handleSubmit((v) => create.mutate(v))}>
           <div className="space-y-1.5">
             <Label htmlFor="code">Code</Label>
-            <Input id="code" required value={code} onChange={(e) => setCode(e.target.value)} placeholder="auditor" />
+            <Input id="code" {...register("code")} placeholder="auditor" />
+            {errors.code && <p className="text-xs text-destructive">{errors.code.message}</p>}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="name">Name</Label>
-            <Input id="name" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Auditor" />
+            <Input id="name" {...register("name")} placeholder="Auditor" />
+            {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="desc">Description</Label>
-            <Input id="desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Read-only access to records" />
+            <Input id="desc" {...register("description")} placeholder="Read-only access to records" />
+            {errors.description && <p className="text-xs text-destructive">{errors.description.message}</p>}
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>

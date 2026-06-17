@@ -2,9 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Search, Check, Download } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { codeField, requiredText } from "@/lib/form-schemas";
 import { downloadFile } from "@/lib/download";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -236,22 +240,27 @@ function OrgDetail({ orgId, onClose }: { orgId: string; onClose: () => void }) {
   );
 }
 
+const orgForm = z.object({ code: codeField, legal_name: requiredText("Legal name") });
+type OrgForm = z.infer<typeof orgForm>;
+
 function NewOrgDialog({ open, setOpen }: { open: boolean; setOpen: (b: boolean) => void }) {
   const qc = useQueryClient();
-  const [code, setCode] = useState("");
-  const [legalName, setLegalName] = useState("");
   const [error, setError] = useState("");
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<OrgForm>({
+    resolver: zodResolver(orgForm),
+    defaultValues: { code: "", legal_name: "" },
+  });
 
   const create = useMutation({
-    mutationFn: () =>
+    mutationFn: (values: OrgForm) =>
       apiFetch("/api/v1/modules/organization/", {
         method: "POST",
-        body: JSON.stringify({ code, legal_name: legalName }),
+        body: JSON.stringify(values),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["orgs"] });
       setOpen(false);
-      setCode(""); setLegalName(""); setError("");
+      reset(); setError("");
     },
     onError: (e: Error) => setError(e.message || "Create failed"),
   });
@@ -263,17 +272,16 @@ function NewOrgDialog({ open, setOpen }: { open: boolean; setOpen: (b: boolean) 
       </DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>New organization</DialogTitle></DialogHeader>
-        <form
-          className="space-y-3"
-          onSubmit={(e) => { e.preventDefault(); create.mutate(); }}
-        >
+        <form className="space-y-3" onSubmit={handleSubmit((v) => create.mutate(v))}>
           <div className="space-y-1.5">
             <Label htmlFor="code">Code</Label>
-            <Input id="code" required value={code} onChange={(e) => setCode(e.target.value)} placeholder="acme" />
+            <Input id="code" {...register("code")} placeholder="acme" />
+            {errors.code && <p className="text-xs text-destructive">{errors.code.message}</p>}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="legal">Legal name</Label>
-            <Input id="legal" required value={legalName} onChange={(e) => setLegalName(e.target.value)} placeholder="Acme Corp" />
+            <Input id="legal" {...register("legal_name")} placeholder="Acme Corp" />
+            {errors.legal_name && <p className="text-xs text-destructive">{errors.legal_name.message}</p>}
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>

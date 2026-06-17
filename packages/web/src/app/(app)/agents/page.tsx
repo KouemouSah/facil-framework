@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search, Check, Download } from "lucide-react";
 import { apiFetch } from "@/lib/api";
@@ -16,6 +19,7 @@ import { OrgCombobox } from "@/components/ui/org-combobox";
 import { SavedViews } from "@/components/saved-views";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { useOrgLabels } from "@/lib/use-organizations";
+import { emailField, passwordField, optionalText } from "@/lib/form-schemas";
 
 interface Account {
   id: string;
@@ -264,49 +268,60 @@ function BulkRoleDialog({ accountIds, onClose, onDone }: {
   );
 }
 
+const accountForm = z.object({
+  email: emailField,
+  password: passwordField,
+  display_name: optionalText(),
+});
+type AccountForm = z.infer<typeof accountForm>;
+
 function NewAccountDialog({ open, setOpen }: { open: boolean; setOpen: (b: boolean) => void }) {
   const qc = useQueryClient();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [orgId, setOrgId] = useState("");
+  const [orgId, setOrgId] = useState(""); // OrgCombobox is controlled separately (optional, no validation)
   const [error, setError] = useState("");
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<AccountForm>({
+    resolver: zodResolver(accountForm),
+    defaultValues: { email: "", password: "", display_name: "" },
+  });
 
-  function reset() { setEmail(""); setPassword(""); setDisplayName(""); setOrgId(""); setError(""); }
+  function resetAll() { reset(); setOrgId(""); setError(""); }
 
   const create = useMutation({
-    mutationFn: () =>
+    mutationFn: (values: AccountForm) =>
       apiFetch("/api/v1/admin/accounts", {
         method: "POST",
         body: JSON.stringify({
-          email, password,
-          display_name: displayName || null,
+          email: values.email, password: values.password,
+          display_name: values.display_name || null,
           organization_id: orgId || null,
         }),
       }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["accounts"] }); setOpen(false); reset(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["accounts"] }); setOpen(false); resetAll(); },
     onError: (e: Error) => setError(e.message || "Create failed"),
   });
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) resetAll(); }}>
       <DialogTrigger asChild>
         <Button size="sm"><Plus className="size-4" /> New account</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>New account</DialogTitle></DialogHeader>
-        <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); create.mutate(); }}>
+        <form className="space-y-3" onSubmit={handleSubmit((v) => create.mutate(v))}>
           <div className="space-y-1.5">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="agent@org.com" />
+            <Input id="email" type="email" {...register("email")} placeholder="agent@org.com" />
+            {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="pwd">Temporary password</Label>
-            <Input id="pwd" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="≥ 8 chars, upper/lower/digit" />
+            <Input id="pwd" type="password" {...register("password")} placeholder="≥ 8 chars, upper/lower/digit" />
+            {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="dn">Display name</Label>
-            <Input id="dn" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Jane Agent" />
+            <Input id="dn" {...register("display_name")} placeholder="Jane Agent" />
+            {errors.display_name && <p className="text-xs text-destructive">{errors.display_name.message}</p>}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="org">Organization</Label>

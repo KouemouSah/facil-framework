@@ -2,9 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Check, Download } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { codeField, requiredText, optionalText } from "@/lib/form-schemas";
 import { downloadFile } from "@/lib/download";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -267,59 +271,62 @@ function SiteDetail({ siteId, onClose }: { siteId: string; onClose: () => void }
   );
 }
 
+const siteForm = z.object({
+  code: codeField,
+  name: requiredText("Name"),
+  site_type: z.enum(["branch", "headquarters", "warehouse", "office", "point_of_sale"]),
+  city: optionalText(120),
+  country_code: z.string().trim().regex(/^[A-Za-z]{2}$/, "Two-letter ISO code")
+    .optional().or(z.literal("")),
+});
+type SiteForm = z.infer<typeof siteForm>;
+
 function NewSiteDialog({ open, setOpen, orgId }: { open: boolean; setOpen: (b: boolean) => void; orgId: string }) {
   const qc = useQueryClient();
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [siteType, setSiteType] = useState("branch");
-  const [city, setCity] = useState("");
-  const [countryCode, setCountryCode] = useState("");
   const [error, setError] = useState("");
-
-  function reset() {
-    setCode(""); setName(""); setSiteType("branch"); setCity(""); setCountryCode(""); setError("");
-  }
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<SiteForm>({
+    resolver: zodResolver(siteForm),
+    defaultValues: { code: "", name: "", site_type: "branch", city: "", country_code: "" },
+  });
 
   const create = useMutation({
-    mutationFn: () =>
+    mutationFn: (values: SiteForm) =>
       apiFetch("/api/v1/modules/location/sites", {
         method: "POST",
         body: JSON.stringify({
           organization_id: orgId,
-          code,
-          name,
-          site_type: siteType,
-          city: city || null,
-          country_code: countryCode ? countryCode.toUpperCase() : null,
+          code: values.code,
+          name: values.name,
+          site_type: values.site_type,
+          city: values.city || null,
+          country_code: values.country_code ? values.country_code.toUpperCase() : null,
         }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["sites"] });
       setOpen(false);
-      reset();
+      reset(); setError("");
     },
     onError: (e: Error) => setError(e.message || "Create failed"),
   });
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { reset(); setError(""); } }}>
       <DialogTrigger asChild>
         <Button size="sm" disabled={!orgId}><Plus className="size-4" /> New</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>New site</DialogTitle></DialogHeader>
-        <form
-          className="space-y-3"
-          onSubmit={(e) => { e.preventDefault(); create.mutate(); }}
-        >
+        <form className="space-y-3" onSubmit={handleSubmit((v) => create.mutate(v))}>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="code">Code</Label>
-              <Input id="code" required value={code} onChange={(e) => setCode(e.target.value)} placeholder="hq" />
+              <Input id="code" {...register("code")} placeholder="hq" />
+              {errors.code && <p className="text-xs text-destructive">{errors.code.message}</p>}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="type">Type</Label>
-              <Select id="type" value={siteType} onChange={(e) => setSiteType(e.target.value)}>
+              <Select id="type" {...register("site_type")}>
                 <option value="branch">Branch</option>
                 <option value="headquarters">Headquarters</option>
                 <option value="warehouse">Warehouse</option>
@@ -330,16 +337,19 @@ function NewSiteDialog({ open, setOpen, orgId }: { open: boolean; setOpen: (b: b
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="name">Name</Label>
-            <Input id="name" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Head office" />
+            <Input id="name" {...register("name")} placeholder="Head office" />
+            {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="city">City</Label>
-              <Input id="city" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Malabo" />
+              <Input id="city" {...register("city")} placeholder="Malabo" />
+              {errors.city && <p className="text-xs text-destructive">{errors.city.message}</p>}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="cc">Country (ISO-2)</Label>
-              <Input id="cc" maxLength={2} value={countryCode} onChange={(e) => setCountryCode(e.target.value)} placeholder="GQ" />
+              <Input id="cc" maxLength={2} {...register("country_code")} placeholder="GQ" />
+              {errors.country_code && <p className="text-xs text-destructive">{errors.country_code.message}</p>}
             </div>
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
