@@ -42,13 +42,15 @@ export default function AgentsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkRole, setBulkRole] = useState(false);
 
-  const { data: rows = [], isLoading, error } = useQuery<Account[]>({
+  const { data, isLoading, error } = useQuery<{ items: Account[]; total: number }>({
     queryKey: ["accounts", q, page],
     queryFn: () =>
-      apiFetch<Account[]>(
+      apiFetch<{ items: Account[]; total: number }>(
         `/api/v1/admin/accounts?q=${encodeURIComponent(q)}&limit=${PAGE}&offset=${page * PAGE}`,
       ),
   });
+  const rows = data?.items ?? [];
+  const total = data?.total ?? 0;
 
   function clearSelection() { setSelected(new Set()); }
   function toggleRow(id: string) {
@@ -170,11 +172,13 @@ export default function AgentsPage() {
         </Table>
       </div>
 
-      {/* Pagination — server-side */}
+      {/* Pagination — server-side, with total */}
       <div className="flex items-center justify-end gap-2 text-sm">
-        <span className="text-muted-foreground">Page {page + 1}</span>
+        <span className="text-muted-foreground">
+          {total === 0 ? "0" : `${page * PAGE + 1}–${Math.min((page + 1) * PAGE, total)}`} of {total}
+        </span>
         <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Prev</Button>
-        <Button variant="outline" size="sm" disabled={rows.length < PAGE} onClick={() => setPage((p) => p + 1)}>Next</Button>
+        <Button variant="outline" size="sm" disabled={(page + 1) * PAGE >= total} onClick={() => setPage((p) => p + 1)}>Next</Button>
       </div>
 
       {rolesFor && <RolesDialog account={rolesFor} onClose={() => setRolesFor(null)} />}

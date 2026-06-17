@@ -31,14 +31,46 @@ async def test_create_then_list_and_search(client):
     assert acc["email"] == "agent@corp.com"
     assert acc["is_active"] is True
 
-    rows = (await ac.get("/api/v1/admin/accounts", headers=AUTH)).json()
-    assert any(r["id"] == acc["id"] for r in rows)
+    body = (await ac.get("/api/v1/admin/accounts", headers=AUTH)).json()
+    assert body["total"] >= 1 and body["limit"] == 50 and body["offset"] == 0
+    assert any(r["id"] == acc["id"] for r in body["items"])
 
     # Substring search hits display_name / email.
     hit = (await ac.get("/api/v1/admin/accounts?q=agent", headers=AUTH)).json()
-    assert [r["id"] for r in hit] == [acc["id"]]
+    assert [r["id"] for r in hit["items"]] == [acc["id"]] and hit["total"] == 1
     miss = (await ac.get("/api/v1/admin/accounts?q=zzzznope", headers=AUTH)).json()
-    assert miss == []
+    assert miss["items"] == [] and miss["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_list_contract_sort_filter_total(client):
+    ac, _ = client
+    # Seed 3 accounts; suspend one.
+    a = (await ac.post("/api/v1/admin/accounts", headers=AUTH,
+                       json={"email": "aaa@corp.com", "password": "Secret123"})).json()
+    await ac.post("/api/v1/admin/accounts", headers=AUTH,
+                  json={"email": "bbb@corp.com", "password": "Secret123"})
+    await ac.post("/api/v1/admin/accounts", headers=AUTH,
+                  json={"email": "ccc@corp.com", "password": "Secret123"})
+    await ac.patch(f"/api/v1/admin/accounts/{a['id']}/status", headers=AUTH,
+                   json={"status": "suspended"})
+
+    # Sort by email asc.
+    asc = (await ac.get("/api/v1/admin/accounts?sort=email", headers=AUTH)).json()
+    emails = [r["email"] for r in asc["items"]]
+    assert emails == sorted(emails) and asc["total"] == 3
+
+    # Status filter (eq) + total reflects the filter.
+    susp = (await ac.get("/api/v1/admin/accounts?status=suspended", headers=AUTH)).json()
+    assert susp["total"] == 1 and susp["items"][0]["id"] == a["id"]
+
+    # Unknown sort field -> 422 (whitelist).
+    assert (await ac.get("/api/v1/admin/accounts?sort=password", headers=AUTH)
+            ).status_code == 422
+
+    # Pagination: limit caps the page, total stays full.
+    pg = (await ac.get("/api/v1/admin/accounts?limit=2&offset=0", headers=AUTH)).json()
+    assert len(pg["items"]) == 2 and pg["total"] == 3 and pg["limit"] == 2
 
 
 @pytest.mark.asyncio

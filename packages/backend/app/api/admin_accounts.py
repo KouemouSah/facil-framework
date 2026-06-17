@@ -18,12 +18,13 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
+from app.api.list_query import apply_sort, clamp_page, paginated
 from app.auth import audit
 from app.auth import sessions as sessions_mod
 from app.auth import service as auth_service
 from app.identity import repository as repo
 from app.identity import service as identity_service
-from app.identity.models import ACCOUNT_STATUSES
+from app.identity.models import ACCOUNT_STATUSES, Account
 from app.rbac import repository as rbac_repo
 from app.rbac import service as rbac_service
 from app.security.auth_dep import require_auth
@@ -32,6 +33,11 @@ from app.security.permission_dep import enforce, visible_orgs
 router = APIRouter(prefix="/api/v1/admin/accounts", tags=["admin-accounts"])
 
 _BLOCKING = ("suspended", "deactivated")
+# Whitelisted sort columns for the list contract (no arbitrary ordering).
+_SORTABLE = {
+    "created_at": Account.created_at, "email": Account.email,
+    "display_name": Account.display_name, "status": Account.status,
+}
 # Pragmatic email shape check (no email-validator dep, consistent with the rest
 # of the codebase which keeps `email` a plain str). Real verification is the
 # email-verification flow (D4.5), not this syntactic gate.
@@ -64,18 +70,20 @@ class BulkStatusIn(BaseModel):
 
 @router.get("")
 async def list_accounts(q: str | None = None, organization_id: str | None = None,
+                        status: str | None = None, sort: str = "-created_at",
                         limit: int = 50, offset: int = 0,
                         principal: dict = Depends(require_auth),
-                        session: AsyncSession = Depends(get_session)) -> list[dict]:
+                        session: AsyncSession = Depends(get_session)) -> dict:
     # Scope filter: None = global/break-glass (all), otherwise restrict to the
-    # caller's visible orgs (empty set -> no rows).
+    # caller's visible orgs (empty set -> no rows). List contract: {items,total}.
     visible = await visible_orgs(session, principal, "account.read")
-    limit = min(max(limit, 1), 200)
-    offset = max(offset, 0)
-    accounts = await repo.list_accounts(
-        session, q=q, organization_id=organization_id, org_ids=visible,
-        limit=limit, offset=offset)
-    return [a.as_dict() for a in accounts]
+    limit, offset = clamp_page(limit, offset)
+    stmt = repo.accounts_select(
+        q=q, organization_id=organization_id, org_ids=visible, status=status)
+    stmt = apply_sort(stmt, sort, allowed=_SORTABLE, default="-created_at")
+    items, total = await paginated(session, stmt, limit=limit, offset=offset)
+    return {"items": [a.as_dict() for a in items], "total": total,
+            "limit": limit, "offset": offset}
 
 
 @router.post("", status_code=201)

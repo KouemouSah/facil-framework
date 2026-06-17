@@ -205,9 +205,9 @@ async def test_admin_accounts_tenant_isolation(seeded):
     await ac.post(f"/api/v1/rbac/accounts/{acc_id}/roles", headers=ADMIN,
                   json={"role_id": admin, "organization_id": org_a})
 
-    # List is scope-filtered: sees org A's account, not org B's.
-    rows = (await ac.get(ACC, headers=hdr)).json()
-    emails = {r["email"] for r in rows}
+    # List is scope-filtered: sees org A's account, not org B's. {items,total}.
+    body = (await ac.get(ACC, headers=hdr)).json()
+    emails = {r["email"] for r in body["items"]}
     assert "a@org-a.com" in emails
     assert "b@org-b.com" not in emails
 
