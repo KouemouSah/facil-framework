@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.concurrency import enforce_if_match, etag_for
 from app.api.csv_export import EXPORT_CAP, export_response
 from app.api.deps import get_session
-from app.api.list_query import apply_sort, clamp_page, paginated
+from app.api.list_query import apply_sort, keyset_page, paginated, resolve_sort
 from app.auth import audit
 from app.rbac import repository as repo
 from app.rbac import seed as seed_mod
@@ -74,14 +74,16 @@ async def list_permissions(session: AsyncSession = Depends(get_session)) -> list
 
 @router.get("/roles", dependencies=[_READ])
 async def list_roles(organization_id: str | None = None, q: str | None = None,
-                     sort: str = "code", limit: int = 50, offset: int = 0,
+                     sort: str = "code", limit: int = 50, cursor: str | None = None,
                      session: AsyncSession = Depends(get_session)) -> dict:
-    limit, offset = clamp_page(limit, offset)
+    # Keyset pagination (scale 1M+). Contract: {items,next_cursor,count,capped}.
     stmt = repo.roles_select(organization_id=organization_id, q=q)
-    stmt = apply_sort(stmt, sort, allowed=_ROLE_SORT, default="code")
-    items, total = await paginated(session, stmt, limit=limit, offset=offset)
-    return {"items": [r.as_dict() for r in items], "total": total,
-            "limit": limit, "offset": offset}
+    sort_col, sort_desc = resolve_sort(sort, allowed=_ROLE_SORT, default="code")
+    items, next_cursor, count, capped = await keyset_page(
+        session, stmt, sort_col=sort_col, sort_desc=sort_desc,
+        cursor=cursor, limit=limit)
+    return {"items": [r.as_dict() for r in items], "next_cursor": next_cursor,
+            "count": count, "capped": capped}
 
 
 _ROLE_EXPORT_COLS = ("id", "code", "name", "description", "organization_id",

@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.concurrency import enforce_if_match, row_etag
 from app.api.csv_export import EXPORT_CAP, export_response
 from app.api.deps import get_session
-from app.api.list_query import apply_sort, clamp_page, paginated
+from app.api.list_query import apply_sort, keyset_page, paginated, resolve_sort
 from app.modules.organization import repository as repo
 from app.modules.organization import service
 from app.modules.organization.models import Organization
@@ -52,17 +52,20 @@ def _page(limit: int, offset: int) -> tuple[int, int]:
 
 @router.get("/")
 async def list_organizations(q: str | None = None, sort: str = "code",
-                             limit: int = 50, offset: int = 0,
+                             limit: int = 50, cursor: str | None = None,
                              principal: dict = Depends(require_auth),
                              session: AsyncSession = Depends(get_session)) -> dict:
-    # Scope + sort + pagination IN SQL. List contract: {items,total,limit,offset}.
+    # Scope + keyset pagination IN SQL (scale 1M+). Contract:
+    # {items,next_cursor,count,capped}. `keyset_page` applies the whitelisted
+    # order itself, so the select is passed unsorted.
     visible = await visible_orgs(session, principal, "organization.read")
-    limit, offset = clamp_page(limit, offset)
     stmt = repo.organizations_select(org_ids=visible, q=q)
-    stmt = apply_sort(stmt, sort, allowed=_ORG_SORT, default="code")
-    items, total = await paginated(session, stmt, limit=limit, offset=offset)
-    return {"items": [o.as_dict() for o in items], "total": total,
-            "limit": limit, "offset": offset}
+    sort_col, sort_desc = resolve_sort(sort, allowed=_ORG_SORT, default="code")
+    items, next_cursor, count, capped = await keyset_page(
+        session, stmt, sort_col=sort_col, sort_desc=sort_desc,
+        cursor=cursor, limit=limit)
+    return {"items": [o.as_dict() for o in items], "next_cursor": next_cursor,
+            "count": count, "capped": capped}
 
 
 _ORG_EXPORT_COLS = ("id", "code", "legal_name", "display_name", "email",

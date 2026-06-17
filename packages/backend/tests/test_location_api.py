@@ -125,7 +125,7 @@ async def test_branch_hierarchy_and_filter(loc_client):
     assert {b["code"] for b in branches} == {"BR"}
     filtered = (await loc_client.get(
         f"{LOC}/sites?parent_site_id={main['id']}", headers=AUTH)).json()
-    assert {b["code"] for b in filtered["items"]} == {"BR"} and filtered["total"] == 1
+    assert {b["code"] for b in filtered["items"]} == {"BR"} and filtered["count"] == 1
 
 
 @pytest.mark.asyncio

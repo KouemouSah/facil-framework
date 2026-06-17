@@ -66,10 +66,12 @@ async def test_create_get_list_org(org_client):
 async def test_list_pagination(org_client):
     for i in range(3):
         await _mk_org(org_client, f"pg{i}")
-    page1 = await org_client.get(f"{BASE}/?limit=2&offset=0", headers=AUTH)
+    page1 = await org_client.get(f"{BASE}/?sort=code&limit=2", headers=AUTH)
     assert page1.status_code == 200
-    assert len(page1.json()["items"]) == 2 and page1.json()["total"] >= 3
-    page2 = await org_client.get(f"{BASE}/?limit=2&offset=2", headers=AUTH)
+    b1 = page1.json()
+    assert len(b1["items"]) == 2 and b1["count"] >= 3 and b1["next_cursor"]
+    page2 = await org_client.get(
+        f"{BASE}/?sort=code&limit=2&cursor={b1['next_cursor']}", headers=AUTH)
     assert len(page2.json()["items"]) >= 1
     # limit is clamped (max 200) — a huge limit doesn't error
     assert (await org_client.get(f"{BASE}/?limit=9999", headers=AUTH)).status_code == 200

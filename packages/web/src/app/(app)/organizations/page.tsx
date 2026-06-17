@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { DataGrid, type DataGridColumn } from "@/components/ui/data-grid";
 import { DetailPanel } from "@/components/ui/detail-panel";
 import { JsonField } from "@/components/ui/json-field";
+import { useServerTable, type ServerPage } from "@/lib/use-server-table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 
 interface Org { id: string; code: string; legal_name: string; display_name?: string }
@@ -27,24 +28,21 @@ export default function OrganizationsPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const sel = searchParams.get("sel") ?? "";
-  const [q, setQ] = useState("");
-  const [sort, setSort] = useState("code");
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE);
   const [open, setOpen] = useState(false);
 
   const select = (id: string) => router.replace(`${pathname}?sel=${id}`, { scroll: false });
   const clearSel = () => router.replace(pathname, { scroll: false });
 
-  const { data, isLoading, error } = useQuery<{ items: Org[]; total: number }>({
-    queryKey: ["orgs", q, sort, page, pageSize],
-    queryFn: () =>
-      apiFetch<{ items: Org[]; total: number }>(
+  const table = useServerTable<Org>({
+    resource: "orgs",
+    defaultSort: "code",
+    defaultPageSize: DEFAULT_PAGE,
+    fetchPage: ({ cursor, limit, sort, q }) =>
+      apiFetch<ServerPage<Org>>(
         `/api/v1/modules/organization/?q=${encodeURIComponent(q)}&sort=${sort}` +
-        `&limit=${pageSize}&offset=${page * pageSize}`),
+        `&limit=${limit}` + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : "")),
   });
-  const rows = data?.items ?? [];
-  const total = data?.total ?? 0;
+  const rows = table.rows;
 
   const del = useMutation({
     mutationFn: (id: string) =>
@@ -81,10 +79,10 @@ export default function OrganizationsPage() {
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input className="h-9 w-56 pl-8" placeholder="Search code / name"
-              value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} />
+              value={table.q} onChange={(e) => table.setQ(e.target.value)} />
           </div>
           <ExportMenu filename="organizations"
-            path={`/api/v1/modules/organization/export?q=${encodeURIComponent(q)}&sort=${sort}`} />
+            path={`/api/v1/modules/organization/export?q=${encodeURIComponent(table.q)}&sort=${table.sort}`} />
           <NewOrgDialog open={open} setOpen={setOpen} />
         </div>
       </div>
@@ -92,20 +90,24 @@ export default function OrganizationsPage() {
       {/* Master-detail: list left, edit form right (deep-linkable ?sel=) */}
       <div className={`grid min-h-0 flex-1 gap-4 ${sel ? "lg:grid-cols-[1fr_minmax(380px,520px)]" : ""}`}>
         <DataGrid<Org>
+          mode="cursor"
           columns={columns}
           rows={rows}
           rowKey={(o) => o.id}
-          total={total}
-          page={page}
-          pageSize={pageSize}
-          onPageSizeChange={(n) => { setPageSize(n); setPage(0); }}
-          onPageChange={setPage}
-          sort={sort}
-          onSortChange={(s) => { setSort(s); setPage(0); }}
-          filters={{}}
-          onFilterChange={() => undefined}
-          isLoading={isLoading}
-          error={!!error}
+          pageSize={table.pageSize}
+          onPageSizeChange={table.onPageSizeChange}
+          sort={table.sort}
+          onSortChange={table.onSortChange}
+          filters={table.filters}
+          onFilterChange={table.onFilterChange}
+          hasPrev={table.hasPrev}
+          hasNext={table.hasNext}
+          onPrev={table.onPrev}
+          onNext={table.onNext}
+          count={table.count}
+          capped={table.capped}
+          isLoading={table.isLoading}
+          error={table.error}
           onRowClick={(o) => select(o.id)}
           selectedId={sel}
           emptyLabel="No organizations."

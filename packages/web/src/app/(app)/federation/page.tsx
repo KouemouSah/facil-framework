@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, ShieldCheck, ShieldOff } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { DataGrid, type DataGridColumn } from "@/components/ui/data-grid";
+import { useServerTable, type ServerPage } from "@/lib/use-server-table";
 
 interface Status {
   scim: { enabled: boolean; provider: string };
@@ -24,25 +24,21 @@ interface Identity {
 const DEFAULT_PAGE = 20;
 
 export default function FederationPage() {
-  const [q, setQ] = useState("");
-  const [sort, setSort] = useState("-created_at");
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE);
-
   const { data: status } = useQuery<Status>({
     queryKey: ["fed-status"],
     queryFn: () => apiFetch<Status>(`/api/v1/admin/federation/status`),
   });
 
-  const { data, isLoading, error } = useQuery<{ items: Identity[]; total: number }>({
-    queryKey: ["fed-identities", q, sort, page, pageSize],
-    queryFn: () =>
-      apiFetch<{ items: Identity[]; total: number }>(
+  const table = useServerTable<Identity>({
+    resource: "fed-identities",
+    defaultSort: "-created_at",
+    defaultPageSize: DEFAULT_PAGE,
+    fetchPage: ({ cursor, limit, sort, q }) =>
+      apiFetch<ServerPage<Identity>>(
         `/api/v1/admin/federation/identities?q=${encodeURIComponent(q)}&sort=${sort}` +
-        `&limit=${pageSize}&offset=${page * pageSize}`),
+        `&limit=${limit}` + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : "")),
   });
-  const rows = data?.items ?? [];
-  const total = data?.total ?? 0;
+  const rows = table.rows;
 
   const columns: DataGridColumn<Identity>[] = [
     { key: "provider", header: "Provider", sortable: true, className: "font-medium" },
@@ -62,7 +58,7 @@ export default function FederationPage() {
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input className="h-9 w-56 pl-8" placeholder="Search subject / provider / email"
-            value={q} onChange={(e) => setQ(e.target.value)} />
+            value={table.q} onChange={(e) => table.setQ(e.target.value)} />
         </div>
       </div>
 
@@ -86,20 +82,24 @@ export default function FederationPage() {
       </div>
 
       <DataGrid<Identity>
+        mode="cursor"
         columns={columns}
         rows={rows}
         rowKey={(r) => r.id}
-        total={total}
-        page={page}
-        pageSize={pageSize}
-        onPageSizeChange={(n) => { setPageSize(n); setPage(0); }}
-        onPageChange={setPage}
-        sort={sort}
-        onSortChange={(s) => { setSort(s); setPage(0); }}
-        filters={{}}
-        onFilterChange={() => undefined}
-        isLoading={isLoading}
-        error={!!error}
+        pageSize={table.pageSize}
+        onPageSizeChange={table.onPageSizeChange}
+        sort={table.sort}
+        onSortChange={table.onSortChange}
+        filters={table.filters}
+        onFilterChange={table.onFilterChange}
+        hasPrev={table.hasPrev}
+        hasNext={table.hasNext}
+        onPrev={table.onPrev}
+        onNext={table.onNext}
+        count={table.count}
+        capped={table.capped}
+        isLoading={table.isLoading}
+        error={table.error}
         emptyLabel="No federated identities."
       />
     </div>

@@ -15,7 +15,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
-from app.api.list_query import apply_sort, clamp_page, paginated
+from app.api.list_query import keyset_page, resolve_sort
 from app.auth.models import FederatedIdentity
 from app.config import get_settings
 from app.identity.models import Account
@@ -47,15 +47,18 @@ async def status(session: AsyncSession = Depends(get_session)) -> dict:
 
 @router.get("/identities")
 async def identities(q: str | None = None, sort: str = "-created_at",
-                     limit: int = 50, offset: int = 0,
+                     limit: int = 50, cursor: str | None = None,
                      principal: dict = Depends(require_auth),
                      session: AsyncSession = Depends(get_session)) -> dict:
-    # Scope filter (tenant isolation): restrict linked identities to the caller's
-    # visible organizations (None = global/break-glass sees all). List contract.
+    # Scope filter (tenant isolation): restrict to the caller's visible orgs
+    # (None = global/break-glass). Keyset pagination (scale 1M+); contract
+    # {items,next_cursor,count,capped}. The join to Account is for filtering
+    # (scope + search) only — keyset runs over FederatedIdentity (its whitelisted
+    # sort cols + id tiebreaker); the page's accounts are then batch-loaded by id
+    # for display, keeping the generic keyset_page (scalar) helper unchanged.
     visible = await visible_orgs(session, principal, "account.read")
-    limit, offset = clamp_page(limit, offset)
-    base = (select(FederatedIdentity, Account)
-            .join(Account, Account.id == FederatedIdentity.account_id))
+    base = select(FederatedIdentity).join(
+        Account, Account.id == FederatedIdentity.account_id)
     if visible is not None:
         base = base.where(Account.organization_id.in_(visible))
     if q:
@@ -64,15 +67,23 @@ async def identities(q: str | None = None, sort: str = "-created_at",
             FederatedIdentity.subject.ilike(like),
             FederatedIdentity.provider.ilike(like),
             Account.email.ilike(like)))
-    # Two-entity SELECT -> count + execute manually (paginated() is scalar-only).
-    total = await session.scalar(
-        select(func.count()).select_from(base.order_by(None).subquery())) or 0
-    stmt = apply_sort(base, sort, allowed=_FED_SORT, default="-created_at")
-    rows = (await session.execute(stmt.limit(limit).offset(offset))).all()
-    items = [{
-        "id": fi.id, "provider": fi.provider, "subject": fi.subject,
-        "account_id": fi.account_id, "email": acc.email,
-        "display_name": acc.display_name, "status": acc.status,
-        "linked_at": fi.created_at.isoformat() if fi.created_at else None,
-    } for fi, acc in rows]
-    return {"items": items, "total": total, "limit": limit, "offset": offset}
+    sort_col, sort_desc = resolve_sort(sort, allowed=_FED_SORT, default="-created_at")
+    fids, next_cursor, count, capped = await keyset_page(
+        session, base, sort_col=sort_col, sort_desc=sort_desc,
+        cursor=cursor, limit=limit)
+    accounts = {a.id: a for a in (await session.scalars(
+        select(Account).where(
+            Account.id.in_([f.account_id for f in fids])))).all()}
+    items = []
+    for fi in fids:
+        acc = accounts.get(fi.account_id)
+        items.append({
+            "id": fi.id, "provider": fi.provider, "subject": fi.subject,
+            "account_id": fi.account_id,
+            "email": acc.email if acc else None,
+            "display_name": acc.display_name if acc else None,
+            "status": acc.status if acc else None,
+            "linked_at": fi.created_at.isoformat() if fi.created_at else None,
+        })
+    return {"items": items, "next_cursor": next_cursor,
+            "count": count, "capped": capped}

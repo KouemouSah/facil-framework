@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DataGrid, type DataGridColumn } from "@/components/ui/data-grid";
 import { DetailPanel } from "@/components/ui/detail-panel";
+import { useServerTable, type ServerPage } from "@/lib/use-server-table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 
 interface Role {
@@ -35,24 +36,21 @@ export default function RolesPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const sel = searchParams.get("sel") ?? "";
-  const [q, setQ] = useState("");
-  const [sort, setSort] = useState("code");
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE);
   const [open, setOpen] = useState(false);
 
   const select = (id: string) => router.replace(`${pathname}?sel=${id}`, { scroll: false });
   const clearSel = () => router.replace(pathname, { scroll: false });
 
-  const { data, isLoading, error } = useQuery<{ items: Role[]; total: number }>({
-    queryKey: ["roles", q, sort, page, pageSize],
-    queryFn: () =>
-      apiFetch<{ items: Role[]; total: number }>(
+  const table = useServerTable<Role>({
+    resource: "roles",
+    defaultSort: "code",
+    defaultPageSize: DEFAULT_PAGE,
+    fetchPage: ({ cursor, limit, sort, q }) =>
+      apiFetch<ServerPage<Role>>(
         `/api/v1/rbac/roles?q=${encodeURIComponent(q)}&sort=${sort}` +
-        `&limit=${pageSize}&offset=${page * pageSize}`),
+        `&limit=${limit}` + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : "")),
   });
-  const roles = data?.items ?? [];
-  const total = data?.total ?? 0;
+  const roles = table.rows;
   const selRole = roles.find((r) => r.id === sel) ?? null;
 
   const del = useMutation({
@@ -102,10 +100,10 @@ export default function RolesPage() {
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input className="h-9 w-56 pl-8" placeholder="Search code / name"
-              value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} />
+              value={table.q} onChange={(e) => table.setQ(e.target.value)} />
           </div>
           <ExportMenu filename="roles"
-            path={`/api/v1/rbac/roles/export?q=${encodeURIComponent(q)}&sort=${sort}`} />
+            path={`/api/v1/rbac/roles/export?q=${encodeURIComponent(table.q)}&sort=${table.sort}`} />
           <NewRoleDialog open={open} setOpen={setOpen} />
         </div>
       </div>
@@ -113,20 +111,24 @@ export default function RolesPage() {
       {/* Master-detail: list left, permission editor right (deep-linkable ?sel=) */}
       <div className={`grid min-h-0 flex-1 gap-4 ${selRole ? "lg:grid-cols-[1fr_minmax(360px,460px)]" : ""}`}>
         <DataGrid<Role>
+          mode="cursor"
           columns={columns}
           rows={roles}
           rowKey={(r) => r.id}
-          total={total}
-          page={page}
-          pageSize={pageSize}
-          onPageSizeChange={(n) => { setPageSize(n); setPage(0); }}
-          onPageChange={setPage}
-          sort={sort}
-          onSortChange={(s) => { setSort(s); setPage(0); }}
-          filters={{}}
-          onFilterChange={() => undefined}
-          isLoading={isLoading}
-          error={!!error}
+          pageSize={table.pageSize}
+          onPageSizeChange={table.onPageSizeChange}
+          sort={table.sort}
+          onSortChange={table.onSortChange}
+          filters={table.filters}
+          onFilterChange={table.onFilterChange}
+          hasPrev={table.hasPrev}
+          hasNext={table.hasNext}
+          onPrev={table.onPrev}
+          onNext={table.onNext}
+          count={table.count}
+          capped={table.capped}
+          isLoading={table.isLoading}
+          error={table.error}
           onRowClick={(r) => select(r.id)}
           selectedId={sel}
           emptyLabel="No roles. Reseed a profile or create one."

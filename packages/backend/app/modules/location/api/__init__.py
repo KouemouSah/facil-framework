@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.concurrency import enforce_if_match, row_etag
 from app.api.csv_export import EXPORT_CAP, export_response
 from app.api.deps import get_session
-from app.api.list_query import apply_sort, clamp_page, paginated
+from app.api.list_query import apply_sort, keyset_page, paginated, resolve_sort
 from app.modules.location import repository as repo
 from app.modules.location import service
 from app.modules.location.models import Site
@@ -46,18 +46,20 @@ async def list_sites(organization_id: str | None = None,
                      org_unit_id: str | None = None,
                      parent_site_id: str | None = None,
                      q: str | None = None, sort: str = "code",
-                     limit: int = 50, offset: int = 0,
+                     limit: int = 50, cursor: str | None = None,
                      principal: dict = Depends(require_auth),
                      session: AsyncSession = Depends(get_session)) -> dict:
-    # Scope + sort + pagination IN SQL. List contract: {items,total,limit,offset}.
+    # Scope + keyset pagination IN SQL (scale 1M+). Contract:
+    # {items,next_cursor,count,capped}. NULL-safe (city is nullable).
     visible = await visible_orgs(session, principal, "location.read")
-    limit, offset = clamp_page(limit, offset)
     stmt = repo.sites_select(organization_id=organization_id, org_unit_id=org_unit_id,
                              parent_site_id=parent_site_id, org_ids=visible, q=q)
-    stmt = apply_sort(stmt, sort, allowed=_SITE_SORT, default="code")
-    items, total = await paginated(session, stmt, limit=limit, offset=offset)
-    return {"items": [s.as_dict() for s in items], "total": total,
-            "limit": limit, "offset": offset}
+    sort_col, sort_desc = resolve_sort(sort, allowed=_SITE_SORT, default="code")
+    items, next_cursor, count, capped = await keyset_page(
+        session, stmt, sort_col=sort_col, sort_desc=sort_desc,
+        cursor=cursor, limit=limit)
+    return {"items": [s.as_dict() for s in items], "next_cursor": next_cursor,
+            "count": count, "capped": capped}
 
 
 _SITE_EXPORT_COLS = ("id", "code", "name", "site_type", "organization_id",

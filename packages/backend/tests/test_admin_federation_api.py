@@ -44,7 +44,7 @@ async def test_identities_listing_and_search(client):
         await s.commit()
 
     body = (await ac.get("/api/v1/admin/federation/identities", headers=AUTH)).json()
-    assert body["total"] == 1
+    assert body["count"] == 1 and body["next_cursor"] is None
     rows = body["items"]
     assert rows[0]["provider"] == "keycloak"
     assert rows[0]["subject"] == "kc-uuid-123"
@@ -57,6 +57,6 @@ async def test_identities_listing_and_search(client):
 
     # Search by subject / provider / email.
     assert (await ac.get("/api/v1/admin/federation/identities?q=kc-uuid",
-                         headers=AUTH)).json()["total"] == 1
+                         headers=AUTH)).json()["count"] == 1
     assert (await ac.get("/api/v1/admin/federation/identities?q=nomatch",
                          headers=AUTH)).json()["items"] == []

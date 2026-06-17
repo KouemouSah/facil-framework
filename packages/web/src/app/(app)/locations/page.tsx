@@ -20,6 +20,7 @@ import { JsonField } from "@/components/ui/json-field";
 import { OrgCombobox } from "@/components/ui/org-combobox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { useFirstOrg } from "@/lib/use-organizations";
+import { useServerTable, type ServerPage } from "@/lib/use-server-table";
 
 interface Site {
   id: string;
@@ -40,9 +41,6 @@ export default function LocationsPage() {
   const searchParams = useSearchParams();
   const sel = searchParams.get("sel") ?? "";
   const [orgId, setOrgId] = useState("");
-  const [sort, setSort] = useState("code");
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE);
   const [open, setOpen] = useState(false);
 
   const select = (id: string) => router.replace(`${pathname}?sel=${id}`, { scroll: false });
@@ -56,17 +54,22 @@ export default function LocationsPage() {
     if (!orgId && firstOrgId) setOrgId(firstOrgId);
   }, [firstOrgId, orgId]);
 
-  const { data, isLoading, error } = useQuery<{ items: Site[]; total: number }>({
-    queryKey: ["sites", orgId, sort, page, pageSize],
+  const table = useServerTable<Site>({
+    resource: "sites",
+    defaultSort: "code",
+    defaultPageSize: DEFAULT_PAGE,
     enabled: !!orgId,
-    queryFn: () =>
-      apiFetch<{ items: Site[]; total: number }>(
-        `/api/v1/modules/location/sites?organization_id=${orgId}&sort=${sort}` +
-        `&limit=${pageSize}&offset=${page * pageSize}`,
-      ),
+    fetchPage: ({ cursor, limit, sort, filters }) =>
+      apiFetch<ServerPage<Site>>(
+        `/api/v1/modules/location/sites?organization_id=${filters.organization_id ?? ""}` +
+        `&sort=${sort}&limit=${limit}` + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : "")),
   });
-  const rows = data?.items ?? [];
-  const total = data?.total ?? 0;
+  // Mirror the org gate into the table filter so the query re-keys + the cursor
+  // stack resets when the org changes (org is a resource-specific gate, not a
+  // column filter; the hook's reset machinery handles it).
+  const setTableFilter = table.onFilterChange;
+  useEffect(() => { setTableFilter("organization_id", orgId); }, [orgId, setTableFilter]);
+  const rows = table.rows;
 
   const del = useMutation({
     mutationFn: (id: string) =>
@@ -110,10 +113,10 @@ export default function LocationsPage() {
           <div className="w-64">
             <OrgCombobox value={orgId} allowNone={false}
               placeholder="Search organization…"
-              onChange={(id) => { setOrgId(id); setPage(0); }} />
+              onChange={(id) => setOrgId(id)} />
           </div>
           <ExportMenu filename="sites" disabled={!orgId}
-            path={`/api/v1/modules/location/sites/export?organization_id=${orgId}&sort=${sort}`} />
+            path={`/api/v1/modules/location/sites/export?organization_id=${orgId}&sort=${table.sort}`} />
           <NewSiteDialog open={open} setOpen={setOpen} orgId={orgId} />
         </div>
       </div>
@@ -121,20 +124,24 @@ export default function LocationsPage() {
       {/* Master-detail: list left, edit form right (deep-linkable ?sel=) */}
       <div className={`grid min-h-0 flex-1 gap-4 ${sel ? "lg:grid-cols-[1fr_minmax(380px,520px)]" : ""}`}>
         <DataGrid<Site>
+          mode="cursor"
           columns={columns}
           rows={rows}
           rowKey={(s) => s.id}
-          total={total}
-          page={page}
-          pageSize={pageSize}
-          onPageSizeChange={(n) => { setPageSize(n); setPage(0); }}
-          onPageChange={setPage}
-          sort={sort}
-          onSortChange={(s) => { setSort(s); setPage(0); }}
-          filters={{}}
-          onFilterChange={() => undefined}
-          isLoading={!!orgId && isLoading}
-          error={!!error}
+          pageSize={table.pageSize}
+          onPageSizeChange={table.onPageSizeChange}
+          sort={table.sort}
+          onSortChange={table.onSortChange}
+          filters={table.filters}
+          onFilterChange={table.onFilterChange}
+          hasPrev={table.hasPrev}
+          hasNext={table.hasNext}
+          onPrev={table.onPrev}
+          onNext={table.onNext}
+          count={table.count}
+          capped={table.capped}
+          isLoading={!!orgId && table.isLoading}
+          error={table.error}
           onRowClick={(s) => select(s.id)}
           selectedId={sel}
           emptyLabel={orgId ? "No sites." : "Select an organization."}

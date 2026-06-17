@@ -51,6 +51,8 @@ export interface UseServerTableArgs<T> {
   defaultSort: string;
   defaultPageSize?: number;
   initialFilters?: Record<string, string>;
+  /** Gate the fetch (e.g. wait for an org to be selected). Default true. */
+  enabled?: boolean;
 }
 
 export interface UseServerTable<T> {
@@ -79,6 +81,7 @@ export interface UseServerTable<T> {
 
 export function useServerTable<T>({
   resource, fetchPage, defaultSort, defaultPageSize = 20, initialFilters = {},
+  enabled = true,
 }: UseServerTableArgs<T>): UseServerTable<T> {
   const [q, setQState] = useState("");
   const [sort, setSortState] = useState(defaultSort);
@@ -100,7 +103,8 @@ export function useServerTable<T>({
   const query = useQuery({
     queryKey: [resource, q, sort, filters, pageSize, paging.cursor],
     queryFn: () => fetchPage({ cursor: paging.cursor, limit: pageSize, sort, filters, q }),
-    // Keep the current page visible while the next/prev one loads (no fl/ empty flash).
+    enabled,
+    // Keep the current page visible while the next/prev one loads (no empty flash).
     placeholderData: keepPreviousData,
   });
   const data = query.data;
