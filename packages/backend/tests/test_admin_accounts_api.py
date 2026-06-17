@@ -120,6 +120,36 @@ async def test_suspended_account_cannot_login(client):
 
 
 @pytest.mark.asyncio
+async def test_bulk_status(client):
+    ac, _ = client
+    a1 = (await ac.post("/api/v1/admin/accounts", headers=AUTH,
+                        json={"email": "blk1@corp.com", "password": "Secret123"})).json()
+    a2 = (await ac.post("/api/v1/admin/accounts", headers=AUTH,
+                        json={"email": "blk2@corp.com", "password": "Secret123"})).json()
+
+    r = await ac.post("/api/v1/admin/accounts/bulk-status", headers=AUTH,
+                      json={"account_ids": [a1["id"], a2["id"], "ghost"],
+                            "status": "suspended"})
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body["updated"]) == {a1["id"], a2["id"]}
+    assert body["errors"] == [{"account_id": "ghost", "detail": "not found"}]
+
+    # Both suspended -> native login blocked.
+    assert (await ac.post("/api/v1/auth/login",
+                          json={"identifier": "blk1@corp.com", "password": "Secret123"})
+            ).status_code == 401
+
+    # Invalid status / empty -> 422.
+    assert (await ac.post("/api/v1/admin/accounts/bulk-status", headers=AUTH,
+                          json={"account_ids": [a1["id"]], "status": "nope"})
+            ).status_code == 422
+    assert (await ac.post("/api/v1/admin/accounts/bulk-status", headers=AUTH,
+                          json={"account_ids": [], "status": "active"})
+            ).status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_statuses_catalog(client):
     ac, _ = client
     r = await ac.get("/api/v1/admin/accounts/statuses", headers=AUTH)

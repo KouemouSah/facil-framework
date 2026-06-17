@@ -25,6 +25,7 @@ from app.identity import repository as repo
 from app.identity import service as identity_service
 from app.identity.models import ACCOUNT_STATUSES
 from app.rbac import repository as rbac_repo
+from app.rbac import service as rbac_service
 from app.security.auth_dep import require_auth
 from app.security.permission_dep import enforce, visible_orgs
 
@@ -53,6 +54,11 @@ class AccountIn(BaseModel):
 
 
 class StatusIn(BaseModel):
+    status: str
+
+
+class BulkStatusIn(BaseModel):
+    account_ids: list[str]
     status: str
 
 
@@ -120,6 +126,45 @@ async def set_status(account_id: str, body: StatusIn,
                        detail={"by": principal.get("sub"), "status": body.status})
     await session.commit()
     return account.as_dict()
+
+
+@router.post("/bulk-status")
+async def bulk_set_status(body: BulkStatusIn,
+                          principal: dict = Depends(require_auth),
+                          session: AsyncSession = Depends(get_session)) -> dict:
+    """Set the status of many accounts. Scope-enforced PER account (they may span
+    organizations) — out-of-scope or missing ids are reported, not 403-ing the
+    whole call. Blocking statuses revoke each account's sessions. Bounded at 500."""
+    if body.status not in ACCOUNT_STATUSES:
+        raise HTTPException(422, f"status must be one of {ACCOUNT_STATUSES}")
+    ids = list(dict.fromkeys(body.account_ids))
+    if not ids:
+        raise HTTPException(422, "account_ids must not be empty")
+    if len(ids) > 500:
+        raise HTTPException(422, "too many accounts (max 500)")
+    bg = bool(principal.get("break_glass"))
+    updated: list[str] = []
+    errors: list[dict] = []
+    for aid in ids:
+        acc = await repo.get_account(session, aid)
+        if acc is None:
+            errors.append({"account_id": aid, "detail": "not found"})
+            continue
+        scope = await rbac_repo.resolve_scope(
+            session, {"organization_id": acc.organization_id})
+        if not bg and not await rbac_service.has_permission(
+                session, principal["sub"], "account.manage", scope):
+            errors.append({"account_id": aid, "detail": "forbidden"})
+            continue
+        await identity_service.set_status(session, aid, body.status)
+        if body.status in _BLOCKING:
+            await sessions_mod.revoke_all(session, aid)
+        await audit.record(session, audit.ACCOUNT_STATUS_CHANGED, account_id=aid,
+                           detail={"by": principal.get("sub"), "status": body.status,
+                                   "bulk": True})
+        updated.append(aid)
+    await session.commit()
+    return {"updated": updated, "errors": errors}
 
 
 @router.get("/statuses")

@@ -39,6 +39,8 @@ export default function AgentsPage() {
   const [page, setPage] = useState(0);
   const [open, setOpen] = useState(false);
   const [rolesFor, setRolesFor] = useState<Account | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkRole, setBulkRole] = useState(false);
 
   const { data: rows = [], isLoading, error } = useQuery<Account[]>({
     queryKey: ["accounts", q, page],
@@ -48,6 +50,20 @@ export default function AgentsPage() {
       ),
   });
 
+  function clearSelection() { setSelected(new Set()); }
+  function toggleRow(id: string) {
+    setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+  const allOnPage = rows.length > 0 && rows.every((r) => selected.has(r.id));
+  function toggleAll() {
+    setSelected((s) => {
+      const n = new Set(s);
+      if (allOnPage) rows.forEach((r) => n.delete(r.id));
+      else rows.forEach((r) => n.add(r.id));
+      return n;
+    });
+  }
+
   const setStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       apiFetch(`/api/v1/admin/accounts/${id}/status`, {
@@ -55,6 +71,15 @@ export default function AgentsPage() {
         body: JSON.stringify({ status }),
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["accounts"] }),
+  });
+
+  const bulkStatus = useMutation({
+    mutationFn: (status: string) =>
+      apiFetch(`/api/v1/admin/accounts/bulk-status`, {
+        method: "POST",
+        body: JSON.stringify({ account_ids: [...selected], status }),
+      }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["accounts"] }); clearSelection(); },
   });
 
   return (
@@ -75,11 +100,30 @@ export default function AgentsPage() {
         </div>
       </div>
 
+      {/* Contextual bulk action bar — appears only when rows are selected */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-2 rounded-lg border bg-accent/40 px-3 py-2 text-sm">
+          <span className="font-medium">{selected.size} selected</span>
+          <div className="ml-auto flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => setBulkRole(true)}>Assign role</Button>
+            <Button size="sm" variant="outline" disabled={bulkStatus.isPending}
+              onClick={() => bulkStatus.mutate("active")}>Activate</Button>
+            <Button size="sm" variant="outline" disabled={bulkStatus.isPending}
+              onClick={() => bulkStatus.mutate("suspended")}>Suspend</Button>
+            <Button size="sm" variant="ghost" onClick={clearSelection}>Clear</Button>
+          </div>
+        </div>
+      )}
+
       {/* Data region — the ONLY scrollable part */}
       <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10">
+                <input type="checkbox" className="size-4 accent-[hsl(var(--primary))]"
+                  aria-label="Select all on page" checked={allOnPage} onChange={toggleAll} />
+              </TableHead>
               <TableHead>Identifier</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Status</TableHead>
@@ -88,16 +132,21 @@ export default function AgentsPage() {
           </TableHeader>
           <TableBody>
             {isLoading && (
-              <TableRow><TableCell colSpan={4} className="py-8 text-center text-muted-foreground">Loading…</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="py-8 text-center text-muted-foreground">Loading…</TableCell></TableRow>
             )}
             {error && (
-              <TableRow><TableCell colSpan={4} className="py-8 text-center text-destructive">Failed to load.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="py-8 text-center text-destructive">Failed to load.</TableCell></TableRow>
             )}
             {!isLoading && !error && rows.length === 0 && (
-              <TableRow><TableCell colSpan={4} className="py-8 text-center text-muted-foreground">No accounts.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="py-8 text-center text-muted-foreground">No accounts.</TableCell></TableRow>
             )}
             {rows.map((a) => (
-              <TableRow key={a.id}>
+              <TableRow key={a.id} data-state={selected.has(a.id) ? "selected" : undefined}>
+                <TableCell>
+                  <input type="checkbox" className="size-4 accent-[hsl(var(--primary))]"
+                    aria-label={`Select ${a.email || a.id}`}
+                    checked={selected.has(a.id)} onChange={() => toggleRow(a.id)} />
+                </TableCell>
                 <TableCell className="font-mono text-xs">{a.email || a.account_number || a.id.slice(0, 8)}</TableCell>
                 <TableCell>{a.display_name || "—"}</TableCell>
                 <TableCell>
@@ -129,7 +178,74 @@ export default function AgentsPage() {
       </div>
 
       {rolesFor && <RolesDialog account={rolesFor} onClose={() => setRolesFor(null)} />}
+      {bulkRole && (
+        <BulkRoleDialog
+          accountIds={[...selected]}
+          onClose={() => setBulkRole(false)}
+          onDone={() => { setBulkRole(false); clearSelection(); }}
+        />
+      )}
     </div>
+  );
+}
+
+function BulkRoleDialog({ accountIds, onClose, onDone }: {
+  accountIds: string[]; onClose: () => void; onDone: () => void;
+}) {
+  const [roleId, setRoleId] = useState("");
+  const [orgId, setOrgId] = useState("");
+  const [error, setError] = useState("");
+
+  const { data: roles = [] } = useQuery<Role[]>({
+    queryKey: ["roles"],
+    queryFn: () => apiFetch<Role[]>(`/api/v1/rbac/roles`),
+  });
+  const { orgs } = useOrganizations();
+
+  const assign = useMutation({
+    mutationFn: () =>
+      apiFetch(`/api/v1/rbac/accounts/bulk-roles`, {
+        method: "POST",
+        body: JSON.stringify({
+          account_ids: accountIds, role_id: roleId,
+          organization_id: orgId || null,
+        }),
+      }),
+    onSuccess: () => onDone(),
+    onError: (e: Error) => setError(e.message || "Assign failed"),
+  });
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Assign role to {accountIds.length} account(s)</DialogTitle>
+        </DialogHeader>
+        <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); if (roleId) assign.mutate(); }}>
+          <div className="space-y-1.5">
+            <Label htmlFor="brole">Role</Label>
+            <Select id="brole" value={roleId} onChange={(e) => setRoleId(e.target.value)}>
+              <option value="">— select —</option>
+              {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="bscope">Scope</Label>
+            <Select id="bscope" value={orgId} onChange={(e) => setOrgId(e.target.value)}>
+              <option value="">Global</option>
+              {orgs.map((o) => <option key={o.id} value={o.id}>{orgLabel(o)}</option>)}
+            </Select>
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <DialogClose asChild><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button></DialogClose>
+            <Button type="submit" disabled={!roleId || assign.isPending}>
+              {assign.isPending ? "Assigning…" : "Assign"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

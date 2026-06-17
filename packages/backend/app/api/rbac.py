@@ -50,6 +50,15 @@ class AssignIn(BaseModel):
     expires_at: _dt.datetime | None = None
 
 
+class BulkAssignIn(BaseModel):
+    account_ids: list[str]
+    role_id: str
+    organization_id: str | None = None
+    org_unit_id: str | None = None
+    site_id: str | None = None
+    expires_at: _dt.datetime | None = None
+
+
 # --- Catalog + roles -----------------------------------------------------
 
 @router.get("/permissions", dependencies=[_READ])
@@ -144,6 +153,39 @@ async def assign_role(account_id: str, body: AssignIn, principal: dict = _MANAGE
                                "organization_id": body.organization_id})
     await session.commit()
     return assignment.as_dict()
+
+
+@router.post("/accounts/bulk-roles", status_code=201)
+async def bulk_assign_role(body: BulkAssignIn, principal: dict = _MANAGE,
+                           session: AsyncSession = Depends(get_session)) -> dict:
+    """Assign one role to many accounts at the same scope (one transaction).
+    The role must exist (else the whole call fails); per-account failures are
+    reported. Bounded at 500 to stay a single, predictable unit of work."""
+    ids = list(dict.fromkeys(body.account_ids))  # de-dupe, keep order
+    if not ids:
+        raise HTTPException(422, "account_ids must not be empty")
+    if len(ids) > 500:
+        raise HTTPException(422, "too many accounts (max 500)")
+    assigned: list[str] = []
+    errors: list[dict] = []
+    for aid in ids:
+        try:
+            await service.assign_role(
+                session, account_id=aid, role_id=body.role_id,
+                organization_id=body.organization_id, org_unit_id=body.org_unit_id,
+                site_id=body.site_id, expires_at=body.expires_at,
+                created_by=principal.get("sub"))
+        except service.RoleNotFound as e:
+            raise HTTPException(404, str(e)) from e  # role missing -> abort all
+        except Exception as e:  # noqa: BLE001 (per-item failure, keep going)
+            errors.append({"account_id": aid, "detail": str(e)})
+            continue
+        await audit.record(session, audit.ROLE_ASSIGNED, account_id=aid,
+                           detail={"by": principal.get("sub"), "role_id": body.role_id,
+                                   "organization_id": body.organization_id, "bulk": True})
+        assigned.append(aid)
+    await session.commit()
+    return {"assigned": assigned, "errors": errors}
 
 
 @router.delete("/accounts/{account_id}/roles/{assignment_id}")

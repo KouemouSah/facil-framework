@@ -134,6 +134,38 @@ async def test_assign_and_revoke(client):
 
 
 @pytest.mark.asyncio
+async def test_bulk_assign_role(client):
+    ac, _ = client
+    await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)
+    roles = (await ac.get("/api/v1/rbac/roles", headers=AUTH)).json()
+    member = next(r["id"] for r in roles if r["code"] == "member")
+    a1 = (await ac.post("/api/v1/auth/register",
+                        json={"password": "Sup3rStr0ng!pw", "email": "b1@x.com"})).json()
+    a2 = (await ac.post("/api/v1/auth/register",
+                        json={"password": "Sup3rStr0ng!pw", "email": "b2@x.com"})).json()
+
+    r = await ac.post("/api/v1/rbac/accounts/bulk-roles", headers=AUTH,
+                      json={"account_ids": [a1["id"], a2["id"], a1["id"]],  # dupe ignored
+                            "role_id": member, "organization_id": "org-1"})
+    assert r.status_code == 201
+    body = r.json()
+    assert set(body["assigned"]) == {a1["id"], a2["id"]}
+    assert body["errors"] == []
+    # Both now carry the role.
+    for aid in (a1["id"], a2["id"]):
+        listed = (await ac.get(f"/api/v1/rbac/accounts/{aid}/roles", headers=AUTH)).json()
+        assert any(x["role_id"] == member for x in listed)
+
+    # Unknown role -> whole call fails (404); empty -> 422.
+    assert (await ac.post("/api/v1/rbac/accounts/bulk-roles", headers=AUTH,
+                          json={"account_ids": [a1["id"]], "role_id": "nope"})
+            ).status_code == 404
+    assert (await ac.post("/api/v1/rbac/accounts/bulk-roles", headers=AUTH,
+                          json={"account_ids": [], "role_id": member})
+            ).status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_assign_unknown_role_404(client):
     ac, _ = client
     acc = (await ac.post("/api/v1/auth/register",
