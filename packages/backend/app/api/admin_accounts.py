@@ -13,7 +13,10 @@ from __future__ import annotations
 
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+import csv
+import io
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -101,6 +104,35 @@ async def list_accounts(q: str | None = None, organization_id: str | None = None
     items, total = await paginated(session, stmt, limit=limit, offset=offset)
     return {"items": [a.as_dict() for a in items], "total": total,
             "limit": limit, "offset": offset}
+
+
+_EXPORT_COLS = ("id", "account_number", "email", "display_name",
+                "organization_id", "status", "is_active")
+_EXPORT_CAP = 10000
+
+
+@router.get("/export")
+async def export_accounts(q: str | None = None, organization_id: str | None = None,
+                          status: str | None = None, sort: str = "-created_at",
+                          principal: dict = Depends(require_auth),
+                          session: AsyncSession = Depends(get_session)) -> Response:
+    """CSV export of the (filtered + scoped) accounts. Capped at 10k rows; if the
+    match set is larger, X-Truncated reports it (no silent cap)."""
+    visible = await visible_orgs(session, principal, "account.read")
+    stmt = repo.accounts_select(
+        q=q, organization_id=organization_id, org_ids=visible, status=status)
+    stmt = apply_sort(stmt, sort, allowed=_SORTABLE, default="-created_at")
+    items, total = await paginated(session, stmt, limit=_EXPORT_CAP, offset=0)
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(_EXPORT_COLS)
+    for a in items:
+        d = a.as_dict()
+        writer.writerow([d.get(c, "") for c in _EXPORT_COLS])
+    headers = {"Content-Disposition": "attachment; filename=accounts.csv"}
+    if total > _EXPORT_CAP:
+        headers["X-Truncated"] = f"{_EXPORT_CAP}/{total}"
+    return Response(content=buf.getvalue(), media_type="text/csv", headers=headers)
 
 
 @router.post("", status_code=201)

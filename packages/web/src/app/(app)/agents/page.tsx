@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Check } from "lucide-react";
+import { Plus, Search, Check, Download } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { downloadFile } from "@/lib/download";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -135,6 +136,12 @@ export default function AgentsPage() {
             <Input className="h-9 w-56 pl-8" placeholder="Search email / name / NIU"
               value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} />
           </div>
+          <Button variant="outline" size="sm" title="Export CSV"
+            onClick={() => downloadFile(
+              `/api/v1/admin/accounts/export?q=${encodeURIComponent(q)}&status=${status}&sort=${sort}`,
+              "accounts.csv")}>
+            <Download className="size-4" /> Export
+          </Button>
           <NewAccountDialog open={open} setOpen={setOpen} />
         </div>
       </div>

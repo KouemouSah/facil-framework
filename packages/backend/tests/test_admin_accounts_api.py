@@ -204,6 +204,25 @@ async def test_get_and_update_account(client):
 
 
 @pytest.mark.asyncio
+async def test_export_csv(client):
+    ac, _ = client
+    await ac.post("/api/v1/admin/accounts", headers=AUTH,
+                  json={"email": "exp1@corp.com", "password": "Secret123"})
+    await ac.post("/api/v1/admin/accounts", headers=AUTH,
+                  json={"email": "exp2@corp.com", "password": "Secret123"})
+    r = await ac.get("/api/v1/admin/accounts/export", headers=AUTH)
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/csv")
+    lines = r.text.strip().splitlines()
+    assert lines[0].startswith("id,account_number,email")
+    assert any("exp1@corp.com" in ln for ln in lines[1:])
+    # Filter carries into the export.
+    one = await ac.get("/api/v1/admin/accounts/export?q=exp1", headers=AUTH)
+    body = one.text.strip().splitlines()
+    assert len(body) == 2  # header + 1 row
+
+
+@pytest.mark.asyncio
 async def test_statuses_catalog(client):
     ac, _ = client
     r = await ac.get("/api/v1/admin/accounts/statuses", headers=AUTH)

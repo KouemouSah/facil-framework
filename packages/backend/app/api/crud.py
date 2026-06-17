@@ -12,8 +12,6 @@ logic (cycle guards, uniqueness, nested resources) may keep hand-written routers
 that compose the same helpers (list_query, concurrency, visible_orgs, audit).
 """
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Request
