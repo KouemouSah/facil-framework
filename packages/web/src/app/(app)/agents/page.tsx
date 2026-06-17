@@ -13,6 +13,7 @@ import { Select } from "@/components/ui/select";
 import { DataGrid, type DataGridColumn } from "@/components/ui/data-grid";
 import { DetailPanel } from "@/components/ui/detail-panel";
 import { OrgCombobox } from "@/components/ui/org-combobox";
+import { SavedViews } from "@/components/saved-views";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { useOrganizations, orgLabel } from "@/lib/use-organizations";
 
@@ -137,6 +138,14 @@ export default function AgentsPage() {
             <Input className="h-9 w-56 pl-8" placeholder="Search email / name / NIU"
               value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} />
           </div>
+          <SavedViews
+            resource="accounts"
+            config={{ q, status, sort }}
+            onApply={(c) => {
+              setQ(String(c.q ?? "")); setStatusFilter(String(c.status ?? ""));
+              setSort(String(c.sort ?? "-created_at")); setPage(0);
+            }}
+          />
           <Button variant="outline" size="sm" title="Export CSV"
             onClick={() => downloadFile(
               `/api/v1/admin/accounts/export?q=${encodeURIComponent(q)}&status=${status}&sort=${sort}`,

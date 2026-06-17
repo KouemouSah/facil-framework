@@ -22,6 +22,7 @@ from app.api import (
     admin_settings,
     auth,
     rbac,
+    saved_views,
     system,
 )
 from app.scim import api as scim_api
@@ -149,6 +150,7 @@ app.include_router(admin_federation.router)
 app.include_router(admin_branding.router)
 app.include_router(auth.router)
 app.include_router(rbac.router)
+app.include_router(saved_views.router)
 app.include_router(scim_api.router)
 app.include_router(system.router)
 # Business modules — included only if listed in MODULES_ENABLED (Phase A.5).
