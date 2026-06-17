@@ -12,16 +12,25 @@ s'appliquent à tout nouveau code. Toute exception doit être justifiée dans la
 
 Toute route qui renvoie une collection DOIT exposer un contrat uniforme :
 
-- `limit` (défaut 50, **borne dure 200**), `offset` (≥ 0).
-- `sort` : `champ` (asc) ou `-champ` (desc), **whitelist** de champs triables.
+- **Pagination — deux contrats selon l'échelle de la collection** :
+  - **Keyset / curseur — DÉFAUT pour toute liste scale-sensible** (volume potentiel > 10⁴) :
+    `?cursor=<token>&limit=<≤200>&sort=&filter=` → `{"items":[...], "next_cursor": str|null,
+    "count": int, "capped": bool}`. Préc/Suiv (forward backend + pile de curseurs côté front via
+    `useServerTable`), **count plafonné** (« N+ » au-delà de `COUNT_CAP=1000`) — **pas de `COUNT(*)`
+    exact ni d'`OFFSET` deep-scan**. NULL-safe (`NULLS LAST`/`FIRST` explicite, parité PG/SQLite).
+    Helper `app.api.list_query.keyset_page` ; **index composite `(tri, id)` requis** (migration 0014).
+    Front : `DataGrid mode="cursor"`. *(Listes admin core en keyset : accounts, organizations, sites,
+    roles, federation.)*
+  - **Offset — petites listes bornées / fabrique CRUD interne** : `?limit=<≤200>&offset=&sort=&filter=`
+    → `{"items":[...], "total": N, "limit", "offset"}`. Acceptable quand le volume reste borné ;
+    au-delà, migrer en keyset. Helper `paginated` ; `DataGrid mode="offset"` (défaut). Exports = offset (cap `EXPORT_CAP`).
+- `sort` : `champ` (asc) ou `-champ` (desc), **whitelist** de champs triables (**422** si hors whitelist).
 - `filter` : filtres structurés par champ (`eq`, `contains`, `in`, plages dates) —
   pas seulement une recherche texte globale.
-- **Total** : renvoyer le nombre total (`{"items": [...], "total": N, "limit", "offset"}`
-  ou header `X-Total-Count`) pour une vraie pagination (numéros de page, « 1-50 sur N »).
 - **Scope RBAC** : filtrer par `visible_orgs(principal, perm)` (isolation tenant),
   jamais renvoyer hors périmètre.
 - **Jamais de liste non bornée** ni de cap silencieux : si on tronque, on le **signale**
-  (log backend + indication UI).
+  (log backend + indication UI). Le `count` keyset plafonné « N+ » est un cap **assumé et affiché**, pas silencieux.
 
 ## 2. Sécurité & RBAC (backend)
 
@@ -74,7 +83,8 @@ Une liste de niveau ERP fournit, **côté serveur** :
 
 - **Tri par colonne** (clic sur l'en-tête, indicateur asc/desc).
 - **Filtres par colonne** (texte, énum/statut, date) + recherche globale.
-- **Pagination** avec total (« 1-50 sur N », saut de page).
+- **Pagination** : keyset Préc/Suiv + count plafonné « N+ » (`mode="cursor"`, défaut scale) ou
+  offset « 1-50 sur N » (`mode="offset"`, petites listes). Hook `useServerTable` = état + pile de curseurs.
 - **Densité** (confort/compact), en-têtes **sticky**, **virtualisation** au-delà de ~100 lignes.
 - États **vide / chargement (skeleton) / erreur** explicites.
 - **Multi-sélection** + **barre d'actions contextuelle** (bulk) quand des actions de masse existent.
