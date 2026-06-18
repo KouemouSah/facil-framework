@@ -38,7 +38,10 @@ RUNTIME_SECRETS = ("POSTGRES_PASSWORD", "REDIS_PASSWORD", "MINIO_ROOT_PASSWORD",
                    # Keycloak admin bootstrap password (compose interpolates it;
                    # the keycloak provisioner reads it). Auto-generated so prod
                    # never falls back to the weak `:-admin` compose default.
-                   "KEYCLOAK_ADMIN_PASSWORD")
+                   "KEYCLOAK_ADMIN_PASSWORD",
+                   # OpenBao dev root token — the keystone credential. Auto-generated
+                   # so it is NEVER the guessable literal `root` (SEC-001).
+                   "OPENBAO_DEV_ROOT_TOKEN")
 
 
 def _parse(path: Path) -> dict[str, str]:

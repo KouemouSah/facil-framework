@@ -67,6 +67,7 @@ REPO_ROOT = DEPLOY_DIR.parent
 DEFAULT_CONFIG = DEPLOY_DIR / "config.yaml"
 COMPOSE_FILE = REPO_ROOT / "docker-compose.local.yml"
 CADDYFILE = REPO_ROOT / "Caddyfile"  # generated; mounted by the `edge` profile
+STATE_FILE = DEPLOY_DIR / ".bootstrap-state.json"  # bootstrap provisioning state
 SECRETS_FILE = REPO_ROOT / ".env.secrets"  # local-only, gitignored
 SECRETS_EXAMPLE = DEPLOY_DIR / ".env.secrets.example"
 
@@ -252,7 +253,7 @@ def generate_compose(cfg: vc.DeployConfig) -> str:
     command: ["server", "-dev", "-dev-listen-address=0.0.0.0:8200"]
     environment:
       BAO_ADDR: http://127.0.0.1:8200
-      BAO_DEV_ROOT_TOKEN_ID: ${{OPENBAO_DEV_ROOT_TOKEN:-root}}
+      BAO_DEV_ROOT_TOKEN_ID: ${{OPENBAO_DEV_ROOT_TOKEN:?OPENBAO_DEV_ROOT_TOKEN is required — run via docker_local --apply (ensure_secrets) or export it}}
     cap_add:
       - IPC_LOCK
     ports:
@@ -336,7 +337,7 @@ def generate_compose(cfg: vc.DeployConfig) -> str:
     command: ["start-dev"]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: {kc.admin_user}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${{KEYCLOAK_ADMIN_PASSWORD:-admin}}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${{KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is required — run via docker_local --apply (ensure_secrets) or export it}}
     ports:
       - "{kc.http_port}:8080"
     restart: unless-stopped
@@ -817,6 +818,20 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
             return 1
     else:
         print("\n[INFO] --no-bootstrap: skipped data-plane provisioning.")
+        # Even when skipping provisioning, openbao mode REQUIRES a prior successful
+        # bootstrap (the AppRole the backend authenticates with). Verify the state
+        # file rather than silently starting the backend on plaintext env secrets.
+        if cfg.secrets.provider == "openbao":
+            sys.path.insert(0, str(PROVIDERS_DIR))
+            from bootstrap.state import BootstrapState  # noqa: E402 (lazy)
+            prior = BootstrapState.load(STATE_FILE) if STATE_FILE.exists() else None
+            if _openbao_required_but_failed(cfg, prior):
+                print("ERROR: --no-bootstrap with secrets.provider=openbao, but no "
+                      "successful OpenBao step in .bootstrap-state.json. The backend "
+                      "would have no AppRole. App tier ABORTED. Run the bootstrap "
+                      "first: python deploy/providers/run_bootstrap.py --apply",
+                      file=sys.stderr)
+                return 1
 
     # Render packages/backend/.env.deploy.gen (DATABASE_URL = facil_app) from the
     # bootstrap state, then bring up the app tier — only if it's present.

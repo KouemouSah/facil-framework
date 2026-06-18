@@ -25,7 +25,7 @@ def test_idempotent_keeps_existing(tmp_path):
     f = tmp_path / ".env.secrets"
     f.write_text("POSTGRES_PASSWORD=keepme\nREDIS_PASSWORD=alsokeep\n"
                  "MINIO_ROOT_PASSWORD=third\nADMIN_TOKEN=tok\nJWT_SECRET_KEY=jwt\n"
-                 "KEYCLOAK_ADMIN_PASSWORD=kcpw\n",
+                 "KEYCLOAK_ADMIN_PASSWORD=kcpw\nOPENBAO_DEV_ROOT_TOKEN=baotok\n",
                  encoding="utf-8")
     gen = es.ensure_secrets(f)
     assert gen == []                            # nothing generated
@@ -39,7 +39,8 @@ def test_only_missing_generated(tmp_path):
     f.write_text("POSTGRES_PASSWORD=existing\n", encoding="utf-8")
     gen = es.ensure_secrets(f)
     assert set(gen) == {"REDIS_PASSWORD", "MINIO_ROOT_PASSWORD", "ADMIN_TOKEN",
-                        "JWT_SECRET_KEY", "KEYCLOAK_ADMIN_PASSWORD"}
+                        "JWT_SECRET_KEY", "KEYCLOAK_ADMIN_PASSWORD",
+                        "OPENBAO_DEV_ROOT_TOKEN"}
     parsed = es._parse(f)
     assert parsed["POSTGRES_PASSWORD"] == "existing"   # preserved
     assert parsed["REDIS_PASSWORD"] and parsed["MINIO_ROOT_PASSWORD"]

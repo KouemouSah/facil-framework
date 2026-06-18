@@ -97,7 +97,11 @@ def provision(ctx: BootstrapContext) -> ProvisionStep:
     # The OIDC redirect URI must match the BFF callback exactly (no wildcard —
     # SECURITY, enforced in provision_keycloak). Host-facing frontend port.
     callback = f"http://localhost:{cfg.docker_local.frontend_port}/api/auth/oidc/callback"
-    admin_pw = env_value(ctx.secrets_file, kc.admin_password_secret, "admin")
+    admin_pw = env_value(ctx.secrets_file, kc.admin_password_secret, "")
+    if not admin_pw:
+        return step.fail(
+            f"{kc.admin_password_secret} not set in .env.secrets — refusing the weak "
+            f"`admin` default. Run ensure_secrets (or the apply) first.")
     try:
         res = pk.provision(host_base, realm, kc.admin_user, admin_pw,
                            client_id, list(kc.groups), public_client=False,

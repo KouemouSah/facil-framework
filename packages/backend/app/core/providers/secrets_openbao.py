@@ -72,4 +72,5 @@ class OpenBaoSecretsProvider(SecretsProvider):
             data = await self._load()
             return {"ok": True, "detail": f"AppRole login OK, {len(data)} secrets readable"}
         except Exception as e:  # noqa: BLE001
-            return {"ok": False, "detail": f"{type(e).__name__}: {e}"}
+            # Redact: never echo the raw exception (may carry the vault URL/body).
+            return {"ok": False, "detail": type(e).__name__}

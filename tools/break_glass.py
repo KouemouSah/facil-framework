@@ -89,7 +89,9 @@ def main(argv: list[str] | None = None) -> int:
     action = "DISABLED (admin-token API locked)" if a.disable else "ROTATED"
     print(f"[OK] break-glass ADMIN_TOKEN {action} in {SECRETS_FILE.name}.")
     if not a.disable:
-        print(f"     New token: {value}  (store it securely — shown once)")
+        # Do NOT echo the token (shell history / CI logs / scrollback). It lives in
+        # the gitignored .env.secrets; read it from there when an emergency needs it.
+        print(f"     New token written to {SECRETS_FILE.name} (not printed — read it there).")
     print("     Recreate the backend to apply: "
           "docker compose -f docker-compose.local.yml up -d --no-deps --force-recreate backend")
     return 0

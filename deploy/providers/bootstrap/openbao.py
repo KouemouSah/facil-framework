@@ -262,7 +262,6 @@ def provision(ctx: BootstrapContext) -> ProvisionStep:
     cfg = ctx.cfg
     o = cfg.secrets.openbao
     base = f"http://localhost:{o.port}/v1"
-    token = env_value(ctx.secrets_file, o.dev_root_token_secret, "root")
     step = ProvisionStep(name=NAME)
 
     if ctx.dry_run:
@@ -277,6 +276,12 @@ def provision(ctx: BootstrapContext) -> ProvisionStep:
 
     if requests is None:
         return step.fail("requests not installed — cannot reach OpenBao API")
+
+    token = env_value(ctx.secrets_file, o.dev_root_token_secret, "")
+    if not token:
+        return step.fail(
+            f"{o.dev_root_token_secret} not set in .env.secrets — refusing to use the "
+            f"guessable `root` default (SEC-001). Run ensure_secrets (or the apply) first.")
 
     secrets_env = load_env_file(ctx.secrets_file)
     try:
@@ -295,7 +300,10 @@ def provision(ctx: BootstrapContext) -> ProvisionStep:
         return step.fail(f"unexpected OpenBao response: {exc}")
 
     step.secrets = {
-        "openbao_addr": f"http://openbao:{o.port}",   # in-network address for backend
+        # In-network address for the backend: the container ALWAYS listens on 8200;
+        # o.port is only the HOST-published port (operator-configurable). Using
+        # o.port here would break if the operator remaps the host port.
+        "openbao_addr": "http://openbao:8200",
         "openbao_kv_path": KV_PATH,
         "openbao_role_id": role_id,
         "openbao_secret_id": secret_id,

@@ -64,14 +64,20 @@ def _build_verifiers(app: FastAPI, resolver) -> list:
     if "keycloak_oidc" in (methods or []):
         issuer = resolver.resolve("auth.oidc.issuer", "")
         jwks_uri = resolver.resolve("auth.oidc.jwks_uri", "")
-        # Discovery: the issuer alone is enough (jwks_uri auto-derived from
-        # .well-known/openid-configuration). jwks_uri stays an optional override.
-        if issuer or jwks_uri:
+        audience = resolver.resolve("auth.oidc.audience", "") or None
+        # Fail-secure: without an audience the verifier disables `verify_aud` and
+        # would accept ANY token signed by the realm (e.g. minted for another
+        # client) — refuse to build it rather than degrade authentication.
+        if (issuer or jwks_uri) and not audience:
+            logger.error("auth.methods includes keycloak_oidc but auth.oidc.audience "
+                         "is empty — refusing the OIDC verifier (would skip audience "
+                         "validation). Set auth.oidc.audience to the client id.")
+        elif issuer or jwks_uri:
             verifiers.append(app.state.registry.build("auth", "keycloak_oidc", {
                 "issuer": issuer,
                 "jwks_uri": jwks_uri,
                 "discovery_url": resolver.resolve("auth.oidc.discovery_url", "") or None,
-                "audience": resolver.resolve("auth.oidc.audience", "") or None,
+                "audience": audience,
                 # RFC 7662 introspection (near-instant IdP offboarding) — opt-in,
                 # needs a confidential client (id + secret from secrets store).
                 "introspection": bool(resolver.resolve("auth.oidc.introspection", False)),

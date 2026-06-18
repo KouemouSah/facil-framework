@@ -72,6 +72,16 @@ def main() -> int:
               file=sys.stderr)
         return 1
 
+    # The ENVIRONMENT check guards the LOCAL secrets, but FACIL_API could point at a
+    # remote prod backend. Refuse a non-local target unless explicitly acknowledged.
+    host = urllib.parse.urlparse(API).hostname or ""
+    if host not in {"localhost", "127.0.0.1", "::1", "backend"} \
+            and not os.environ.get("FACIL_ALLOW_REMOTE"):
+        print(f"REFUSING: FACIL_API={API} is not local. This tool creates admin "
+              f"accounts and must not target a remote/production backend. Set "
+              f"FACIL_ALLOW_REMOTE=1 only if you are certain.", file=sys.stderr)
+        return 1
+
     token = _env_from_secrets("ADMIN_TOKEN")
     if not token:
         print("ERROR: no ADMIN_TOKEN in .env.secrets (the break-glass bootstrap "

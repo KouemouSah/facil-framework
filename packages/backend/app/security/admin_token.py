@@ -8,6 +8,7 @@ LOCKED (503) rather than open — fail closed.
 from __future__ import annotations
 
 import datetime as _dt
+import hmac
 import logging
 
 from fastapi import Header, HTTPException, status
@@ -31,7 +32,9 @@ def break_glass_allowed(x_admin_token: str | None, ip: str | None) -> bool:
     is in the optional allowlist. Disable entirely by leaving admin_token empty.
     Every successful use is logged (break-glass must be traceable)."""
     s = get_settings()
-    if not s.admin_token or x_admin_token != s.admin_token:
+    # Constant-time compare: this token is a full RBAC bypass — never leak its
+    # length/prefix via a timing side-channel (CWE-208).
+    if not s.admin_token or not hmac.compare_digest(x_admin_token or "", s.admin_token):
         return False
     if s.admin_token_expires_at:
         exp = _parse_iso(s.admin_token_expires_at)
@@ -53,5 +56,5 @@ async def require_admin_token(x_admin_token: str | None = Header(default=None)) 
             status.HTTP_503_SERVICE_UNAVAILABLE,
             "admin API locked: ADMIN_TOKEN is not configured",
         )
-    if not x_admin_token or x_admin_token != token:
+    if not x_admin_token or not hmac.compare_digest(x_admin_token, token):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid admin token")

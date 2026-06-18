@@ -96,6 +96,7 @@ def ctx(tmp_path: Path) -> BootstrapContext:
     (tmp_path / ".env.secrets").write_text(
         "JWT_SECRET_KEY=jwt\nSECRET_KEY=sk\nTOTP_ENCRYPTION_KEY=totp\n"
         "CRON_SECRET=cron\nRECEIPT_VERIFICATION_SECRET=rcpt\n"
+        "OPENBAO_DEV_ROOT_TOKEN=devroot\n"  # required (SEC-001: no `root` default)
         "GEMINI_API_KEY=\n",  # empty integration secret — must be ignored
         encoding="utf-8",
     )
@@ -271,7 +272,7 @@ def test_runtime_secrets_mirrored(monkeypatch, tmp_path):
     (tmp_path / "deploy").mkdir()
     (tmp_path / ".env.secrets").write_text(
         "JWT_SECRET_KEY=j\nSECRET_KEY=s\nTOTP_ENCRYPTION_KEY=t\n"
-        "CRON_SECRET=c\nRECEIPT_VERIFICATION_SECRET=r\n"
+        "CRON_SECRET=c\nRECEIPT_VERIFICATION_SECRET=r\nOPENBAO_DEV_ROOT_TOKEN=dr\n"
         "POSTGRES_PASSWORD=pgpw\nREDIS_PASSWORD=rdpw\nMINIO_ROOT_PASSWORD=miopw\n",
         encoding="utf-8",
     )
