@@ -1,0 +1,17 @@
+# Compose override (Phase C): run backend / web / db-init from the pre-built GHCR
+# images instead of the local `build:` context. Layered ON TOP of the generated
+# docker-compose.local.yml (which is never hand-edited):
+#
+#   docker compose -f docker-compose.local.yml -f deploy/compose.images.yml \
+#     --profile web up -d --no-build --pull always backend frontend
+#
+# tools/refresh-local.sh wraps this. Images are built only by CI
+# (release-images.yml → GHCR), never manually. Tag/owner are overridable via env
+# (defaults target the develop line).
+services:
+  db-init:
+    image: ghcr.io/${FACIL_IMAGE_OWNER:-kouemousah}/facil-backend:${FACIL_IMAGE_TAG:-develop}
+  backend:
+    image: ghcr.io/${FACIL_IMAGE_OWNER:-kouemousah}/facil-backend:${FACIL_IMAGE_TAG:-develop}
+  frontend:
+    image: ghcr.io/${FACIL_IMAGE_OWNER:-kouemousah}/facil-web:${FACIL_IMAGE_TAG:-develop}
