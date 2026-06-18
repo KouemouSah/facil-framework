@@ -197,6 +197,26 @@ async def test_assign_and_revoke(client):
 
 
 @pytest.mark.asyncio
+async def test_assign_with_unit_site_scope(client):
+    """The assign endpoint accepts + persists the full org/unit/site scope tuple
+    — the exact contract the ScopePicker UI relies on (F.5 parity)."""
+    ac, _ = client
+    await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)
+    roles = (await ac.get("/api/v1/rbac/roles", headers=AUTH)).json()["items"]
+    member = next(r["id"] for r in roles if r["code"] == "member")
+    acc = (await ac.post("/api/v1/auth/register",
+                         json={"password": "Sup3rStr0ng!pw", "email": "scope@x.com"})).json()
+    r = await ac.post(f"/api/v1/rbac/accounts/{acc['id']}/roles", headers=AUTH,
+                      json={"role_id": member, "organization_id": "org-1",
+                            "org_unit_id": "unit-1", "site_id": "site-1"})
+    assert r.status_code == 201, r.text
+    listed = (await ac.get(f"/api/v1/rbac/accounts/{acc['id']}/roles", headers=AUTH)).json()
+    assert listed[0]["organization_id"] == "org-1"
+    assert listed[0]["org_unit_id"] == "unit-1"
+    assert listed[0]["site_id"] == "site-1"
+
+
+@pytest.mark.asyncio
 async def test_bulk_assign_role(client):
     ac, _ = client
     await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)

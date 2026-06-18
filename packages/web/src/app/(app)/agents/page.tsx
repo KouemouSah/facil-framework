@@ -15,6 +15,7 @@ import { Select } from "@/components/ui/select";
 import { DataGrid, type DataGridColumn } from "@/components/ui/data-grid";
 import { DetailPanel } from "@/components/ui/detail-panel";
 import { OrgCombobox } from "@/components/ui/org-combobox";
+import { ScopePicker, type Scope, EMPTY_SCOPE } from "@/components/ui/scope-picker";
 import { SavedViews } from "@/components/saved-views";
 import { ExportMenu } from "@/components/export-menu";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
@@ -32,7 +33,22 @@ interface Account {
   is_active: boolean;
 }
 interface Role { id: string; code: string; name: string }
-interface Assignment { id: string; role_id: string; organization_id?: string | null }
+interface Assignment {
+  id: string; role_id: string;
+  organization_id?: string | null;
+  org_unit_id?: string | null;
+  site_id?: string | null;
+}
+
+// Build the AssignIn/BulkAssignIn scope payload from a ScopePicker value
+// (empty string → null = wider scope per the backend NULL-widening rule).
+function scopePayload(s: Scope) {
+  return {
+    organization_id: s.organization_id || null,
+    org_unit_id: s.org_unit_id || null,
+    site_id: s.site_id || null,
+  };
+}
 
 const DEFAULT_PAGE = 20;
 const STATUSES = ["pending_identity", "active", "suspended", "deactivated"];
@@ -214,7 +230,7 @@ function BulkRoleDialog({ accountIds, onClose, onDone }: {
   accountIds: string[]; onClose: () => void; onDone: () => void;
 }) {
   const [roleId, setRoleId] = useState("");
-  const [orgId, setOrgId] = useState("");
+  const [scope, setScope] = useState<Scope>(EMPTY_SCOPE);
   const [error, setError] = useState("");
 
   const { data: roles = [] } = useQuery<Role[]>({
@@ -227,8 +243,7 @@ function BulkRoleDialog({ accountIds, onClose, onDone }: {
       apiFetch(`/api/v1/rbac/accounts/bulk-roles`, {
         method: "POST",
         body: JSON.stringify({
-          account_ids: accountIds, role_id: roleId,
-          organization_id: orgId || null,
+          account_ids: accountIds, role_id: roleId, ...scopePayload(scope),
         }),
       }),
     onSuccess: () => onDone(),
@@ -250,8 +265,8 @@ function BulkRoleDialog({ accountIds, onClose, onDone }: {
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="bscope">Scope</Label>
-            <OrgCombobox value={orgId} onChange={setOrgId} noneLabel="Global" />
+            <Label>Scope</Label>
+            <ScopePicker value={scope} onChange={setScope} />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
@@ -339,7 +354,7 @@ function NewAccountDialog({ open, setOpen }: { open: boolean; setOpen: (b: boole
 function AccountDetail({ account, onClose }: { account: Account; onClose: () => void }) {
   const qc = useQueryClient();
   const [roleId, setRoleId] = useState("");
-  const [orgId, setOrgId] = useState("");
+  const [scope, setScope] = useState<Scope>(EMPTY_SCOPE);
   const [error, setError] = useState("");
 
   const { data: assignments = [] } = useQuery<Assignment[]>({
@@ -362,11 +377,11 @@ function AccountDetail({ account, onClose }: { account: Account; onClose: () => 
     mutationFn: () =>
       apiFetch(`/api/v1/rbac/accounts/${account.id}/roles`, {
         method: "POST",
-        body: JSON.stringify({ role_id: roleId, organization_id: orgId || null }),
+        body: JSON.stringify({ role_id: roleId, ...scopePayload(scope) }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["account-roles", account.id] });
-      setRoleId(""); setOrgId(""); setError("");
+      setRoleId(""); setScope(EMPTY_SCOPE); setError("");
     },
     onError: (e: Error) => setError(e.message || "Assign failed"),
   });
@@ -464,27 +479,32 @@ function AccountDetail({ account, onClose }: { account: Account; onClose: () => 
           <div key={a.id} className="flex items-center justify-between rounded-md border px-3 py-1.5 text-sm">
             <span>
               <span className="font-medium">{roleName(a.role_id)}</span>
-              <span className="ml-2 text-xs text-muted-foreground">@ {orgName(a.organization_id)}</span>
+              <span className="ml-2 text-xs text-muted-foreground">
+                @ {orgName(a.organization_id)}
+                {a.site_id ? " · site" : a.org_unit_id ? " · unit" : ""}
+              </span>
             </span>
             <Button variant="ghost" size="sm" disabled={revoke.isPending} onClick={() => revoke.mutate(a.id)}>Revoke</Button>
           </div>
         ))}
       </div>
 
-      <form className="mt-3 flex items-end gap-2 border-t pt-3"
+      <form className="mt-3 space-y-3 border-t pt-3"
         onSubmit={(e) => { e.preventDefault(); if (roleId) assign.mutate(); }}>
-        <div className="flex-1 space-y-1.5">
+        <div className="space-y-1.5">
           <Label htmlFor="role">Role</Label>
           <Select id="role" value={roleId} onChange={(e) => setRoleId(e.target.value)}>
             <option value="">— select —</option>
             {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
           </Select>
         </div>
-        <div className="flex-1 space-y-1.5">
-          <Label htmlFor="scope">Scope</Label>
-          <OrgCombobox value={orgId} onChange={setOrgId} noneLabel="Global" />
+        <div className="space-y-1.5">
+          <Label>Scope</Label>
+          <ScopePicker value={scope} onChange={setScope} />
         </div>
-        <Button type="submit" disabled={!roleId || assign.isPending}>Assign</Button>
+        <Button type="submit" className="w-full" disabled={!roleId || assign.isPending}>
+          {assign.isPending ? "Assigning…" : "Assign role"}
+        </Button>
       </form>
       {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
     </DetailPanel>
