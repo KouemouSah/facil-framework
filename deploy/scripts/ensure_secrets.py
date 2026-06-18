@@ -34,7 +34,11 @@ from pathlib import Path
 # read JWT_SECRET here, generating a *second*, unrelated secret — fixed so the
 # backend signs with the same key the deploy provisions.
 RUNTIME_SECRETS = ("POSTGRES_PASSWORD", "REDIS_PASSWORD", "MINIO_ROOT_PASSWORD",
-                   "ADMIN_TOKEN", "JWT_SECRET_KEY")
+                   "ADMIN_TOKEN", "JWT_SECRET_KEY",
+                   # Keycloak admin bootstrap password (compose interpolates it;
+                   # the keycloak provisioner reads it). Auto-generated so prod
+                   # never falls back to the weak `:-admin` compose default.
+                   "KEYCLOAK_ADMIN_PASSWORD")
 
 
 def _parse(path: Path) -> dict[str, str]:

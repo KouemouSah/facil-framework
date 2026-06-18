@@ -494,6 +494,9 @@ services:
         NEXT_PUBLIC_API_URL: {public_api_url}
         NEXT_PUBLIC_BUILD_VERSION: {cfg.meta.version}
         NEXT_PUBLIC_ENVIRONMENT: {env_label}
+        # Build-time SSO flag (client bundle). The apply sets it to 1 when Keycloak
+        # is enabled; otherwise the compose default keeps the button hidden.
+        NEXT_PUBLIC_OIDC_ENABLED: ${{NEXT_PUBLIC_OIDC_ENABLED:-0}}
     env_file:
       - ./packages/web/.env.deploy.gen
     environment:
@@ -841,8 +844,13 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
                  f"--frontend-url=http://localhost:{cfg.docker_local.frontend_port}"],
                 cwd=REPO_ROOT, check=False)
         # App tier built locally (db-init + backend + frontend) — no registry.
+        # When Keycloak is on, turn the build-time SSO flag on so the (client) login
+        # page shows the SSO button.
+        build_env = dict(runtime_env)
+        if cfg.auth.keycloak.enabled and "keycloak_oidc" in _kc_methods:
+            build_env["NEXT_PUBLIC_OIDC_ENABLED"] = "1"
         rc = run_compose(compose_cmd("up", "-d", "--build", "db-init", "backend", "frontend"),
-                         env_extra=runtime_env)
+                         env_extra=build_env)
         if rc != 0:
             print(f"[WARN] app tier up failed (exit {rc}) — data-plane is up; "
                   f"fix and re-run. If the frontend (Next) build OOM'd, pull the "

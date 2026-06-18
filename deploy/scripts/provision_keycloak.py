@@ -51,7 +51,14 @@ def _admin_token(c: httpx.Client, server: str, user: str, pw: str) -> str:
 
 def provision(server: str, realm: str, admin_user: str, admin_password: str,
               client_id: str, groups: list[str], *,
-              public_client: bool = False) -> dict:
+              public_client: bool = False,
+              redirect_uris: list[str] | None = None,
+              web_origins: list[str] | None = None) -> dict:
+    # SECURITY: never a wildcard redirect ("*" = open-redirect / OAuth code theft,
+    # CWE-601). Default to the BFF callback only; webOrigins "+" derives CORS from
+    # the registered redirect URIs (no wildcard).
+    redirect_uris = redirect_uris or ["http://localhost:3000/api/auth/oidc/callback"]
+    web_origins = web_origins or ["+"]
     out: dict = {"realm": realm, "client": client_id, "groups": [], "mappers": []}
     with httpx.Client(timeout=20) as c:
         H = {"Authorization": f"Bearer {_admin_token(c, server, admin_user, admin_password)}"}
@@ -95,10 +102,21 @@ def provision(server: str, realm: str, admin_user: str, admin_password: str,
                 "clientId": client_id, "enabled": True,
                 "publicClient": public_client,
                 "directAccessGrantsEnabled": public_client,
-                "standardFlowEnabled": True, "redirectUris": ["*"]})
+                "standardFlowEnabled": True,
+                "redirectUris": redirect_uris, "webOrigins": web_origins})
             clients = c.get(f"{api}/{realm}/clients?clientId={client_id}", headers=H).json()
             out["created_client"] = True
         cid = clients[0]["id"]
+        # Idempotent SECURITY enforcement: re-apply the safe redirect/origins on the
+        # existing client too (so a client created with "*" earlier is corrected).
+        rep = clients[0]
+        if (rep.get("redirectUris") != redirect_uris
+                or rep.get("webOrigins") != web_origins
+                or rep.get("publicClient") != public_client):
+            rep.update(redirectUris=redirect_uris, webOrigins=web_origins,
+                       publicClient=public_client, standardFlowEnabled=True)
+            c.put(f"{api}/{realm}/clients/{cid}", headers=H, json=rep)
+            out["client_hardened"] = True
         c.put(f"{api}/{realm}/clients/{cid}/default-client-scopes/{scope['id']}", headers=H)
 
         # 4b. confidential client secret — the BFF authenticates with it on the

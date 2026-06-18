@@ -19,6 +19,13 @@ operator/business config, never seeded here.
 
 from __future__ import annotations
 
+import time
+
+try:
+    import httpx
+except ImportError:  # pragma: no cover
+    httpx = None
+
 from .context import BootstrapContext, vc
 from .env_secrets import env_value
 from .state import ProvisionStep
@@ -28,6 +35,29 @@ NAME = "keycloak"
 # In-network service address (compose service `keycloak`, container port 8080) the
 # backend uses for server-side JWKS fetch — independent of the host-published port.
 _INTERNAL = "http://keycloak:8080"
+
+
+def _wait_ready(base: str, step, *, attempts: int = 40, delay: float = 3.0,
+                sleep=time.sleep) -> bool:
+    """Poll the (unauthenticated) master discovery doc until Keycloak serves it.
+
+    Keycloak has no compose healthcheck and ``start-dev`` takes 20-40s to accept
+    requests, so wait_for_healthy reports it 'ready' (running) far too early. We
+    retry HOST-side on connection errors (no dependency on in-container tooling),
+    mirroring the OpenBao readiness gate."""
+    if httpx is None:
+        return True  # can't probe; provision() will surface the real failure
+    url = f"{base}/realms/master/.well-known/openid-configuration"
+    for i in range(attempts):
+        try:
+            if httpx.get(url, timeout=5).status_code == 200:
+                if i:
+                    step.actions.append(f"API ready after {i + 1} probe(s)")
+                return True
+        except httpx.RequestError:
+            pass
+        sleep(delay)
+    return False
 
 
 def is_applicable(cfg: vc.DeployConfig) -> bool:
@@ -60,10 +90,18 @@ def provision(ctx: BootstrapContext) -> ProvisionStep:
     except ImportError as exc:  # pragma: no cover
         return step.fail(f"provision_keycloak not importable: {exc}")
 
+    if not _wait_ready(host_base, step):
+        return step.fail("Keycloak API not ready (timed out waiting for the master "
+                         "discovery doc) — is the `auth` profile up?")
+
+    # The OIDC redirect URI must match the BFF callback exactly (no wildcard —
+    # SECURITY, enforced in provision_keycloak). Host-facing frontend port.
+    callback = f"http://localhost:{cfg.docker_local.frontend_port}/api/auth/oidc/callback"
     admin_pw = env_value(ctx.secrets_file, kc.admin_password_secret, "admin")
     try:
         res = pk.provision(host_base, realm, kc.admin_user, admin_pw,
-                           client_id, list(kc.groups), public_client=False)
+                           client_id, list(kc.groups), public_client=False,
+                           redirect_uris=[callback])
     except Exception as exc:  # httpx errors, bad admin creds, KeyError on response
         return step.fail(f"Keycloak provisioning failed: {type(exc).__name__}: {exc}")
 

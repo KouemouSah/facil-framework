@@ -63,17 +63,22 @@ def test_is_applicable():
 
 def test_provision_captures_oidc_facts(monkeypatch, ctx):
     captured = {}
+    monkeypatch.setattr(kc, "_wait_ready", lambda *a, **k: True)
 
     def fake_provision(server, realm, admin_user, admin_pw, client_id, groups, *,
-                       public_client=False):
+                       public_client=False, redirect_uris=None, web_origins=None):
         captured.update(server=server, realm=realm, admin_pw=admin_pw,
-                        client_id=client_id, groups=groups, public=public_client)
+                        client_id=client_id, groups=groups, public=public_client,
+                        redirect_uris=redirect_uris)
         return {"realm": realm, "client": client_id, "created_realm": True,
                 "created_client": True, "groups": groups, "mappers": ["groups", "org"],
                 "client_secret": "SEKRET-123"}
 
     monkeypatch.setattr(pk, "provision", fake_provision)
     step = kc.provision(ctx)
+    # SECURITY: explicit BFF callback, never a wildcard.
+    assert captured["redirect_uris"] == [
+        "http://localhost:3000/api/auth/oidc/callback"]
 
     assert step.status == "ok"
     assert captured["admin_pw"] == "s3cret"           # read from .env.secrets
@@ -87,6 +92,7 @@ def test_provision_captures_oidc_facts(monkeypatch, ctx):
 
 
 def test_provision_warns_without_secret(monkeypatch, ctx):
+    monkeypatch.setattr(kc, "_wait_ready", lambda *a, **k: True)
     monkeypatch.setattr(pk, "provision",
                         lambda *a, **k: {"realm": "facil", "client": "facil-backend"})
     step = kc.provision(ctx)
@@ -96,12 +102,41 @@ def test_provision_warns_without_secret(monkeypatch, ctx):
 
 
 def test_provision_failure_is_failed_step(monkeypatch, ctx):
+    monkeypatch.setattr(kc, "_wait_ready", lambda *a, **k: True)
+
     def boom(*a, **k):
         raise RuntimeError("admin login 401")
     monkeypatch.setattr(pk, "provision", boom)
     step = kc.provision(ctx)
     assert step.status == "failed"
     assert "Keycloak provisioning failed" in step.detail
+
+
+def test_not_ready_is_failed_step(monkeypatch, ctx):
+    monkeypatch.setattr(kc, "_wait_ready", lambda *a, **k: False)
+    step = kc.provision(ctx)
+    assert step.status == "failed"
+    assert "not ready" in step.detail
+
+
+def test_wait_ready_retries_then_ok(monkeypatch):
+    from bootstrap.state import ProvisionStep
+    calls = {"n": 0}
+
+    class _Resp:
+        status_code = 200
+
+    def fake_get(url, timeout=5):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise kc.httpx.ConnectError("down")
+        return _Resp()
+
+    monkeypatch.setattr(kc.httpx, "get", fake_get)
+    step = ProvisionStep(name="keycloak")
+    assert kc._wait_ready("http://localhost:8088", step,
+                          sleep=lambda *_: None, attempts=5) is True
+    assert calls["n"] == 3
 
 
 def test_dry_run_mutates_nothing(monkeypatch, tmp_path):

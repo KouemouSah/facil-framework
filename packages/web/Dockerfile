@@ -15,6 +15,10 @@ COPY . .
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_BUILD_VERSION
 ARG NEXT_PUBLIC_ENVIRONMENT
+# NEXT_PUBLIC_* are inlined into the client bundle AT BUILD TIME (the login page is
+# a client component), so the SSO-button flag must be a build arg — a runtime
+# env_file value would never reach the browser. Defaults off.
+ARG NEXT_PUBLIC_OIDC_ENABLED=0
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
