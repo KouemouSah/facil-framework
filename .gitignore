@@ -196,3 +196,6 @@ test-data/*.md
 packages/web/test-results/
 packages/web/playwright-report/
 packages/web/.playwright/
+
+# Dev admin credentials (created by tools/dev_create_admins.py — never commit)
+.admins.dev.json
