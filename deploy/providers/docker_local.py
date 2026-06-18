@@ -480,21 +480,17 @@ services:
         condition: service_completed_successfully
 
   # ---------------------------------------------------------------------
-  # Frontend — Next.js. Browser hits localhost:<port>; SSR inside the
-  # container hits http://backend:<port> via INTERNAL_API_URL.
-  # The Next.js code should branch on typeof window === 'undefined'
-  # to pick the right URL (see DEPLOYMENT.md "SSR vs CSR API URLs").
-  # Profile-gated (`web`, OFF by default) until packages/web is built (D5):
-  #   docker compose --profile web up
+  # Frontend — Next.js standalone. DEFAULT service of the stack: the
+  # facil_framework group mirrors production, which runs the CI-built image —
+  # never `npm run dev`. It PULLS the same GHCR image the VPS pulls; make the
+  # package PUBLIC (open-core, no secrets baked) so no login is needed, exactly
+  # like postgres/redis. Tag/owner overridable via env. Refresh after a push
+  # with tools/refresh-local.sh. (Frontend hot-reload dev = `npm run dev` on the
+  # host — a separate tool, not this prod-faithful container.)
   # ---------------------------------------------------------------------
   frontend:
-    profiles: ["web"]
-    build:
-      context: ./packages/web
-      args:
-        NEXT_PUBLIC_API_URL: {public_api_url}
-        NEXT_PUBLIC_BUILD_VERSION: {cfg.meta.version}
-        NEXT_PUBLIC_ENVIRONMENT: {env_label}
+    image: ghcr.io/${{FACIL_IMAGE_OWNER:-kouemousah}}/facil-web:${{FACIL_IMAGE_TAG:-develop}}
+    pull_policy: missing
     env_file:
       - ./packages/web/.env.deploy.gen
     environment:
@@ -797,6 +793,16 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
         if rc != 0:
             print(f"[WARN] app tier up failed (exit {rc}) — data-plane is up; "
                   f"fix and re-run.", file=sys.stderr)
+        # Frontend = pulled GHCR image (prod-faithful, no local build). Brought up
+        # separately so a registry/auth hiccup can't abort the backend. Needs the
+        # package public (open-core) or a one-time `docker login ghcr.io`.
+        rc_fe = run_compose(compose_cmd("up", "-d", "--no-build", "frontend"),
+                            env_extra=runtime_env)
+        if rc_fe != 0:
+            print(f"[WARN] frontend up failed (exit {rc_fe}) — could not pull the "
+                  f"GHCR image. Make ghcr.io/<owner>/facil-web PUBLIC (open-core) "
+                  f"or run `docker login ghcr.io`, then `tools/refresh-local.sh`.",
+                  file=sys.stderr)
     else:
         print("\n[INFO] packages/backend absent — app tier skipped (data-plane only).")
 
@@ -806,8 +812,6 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
     print(f"  Backend:  http://localhost:{cfg.docker_local.backend_port}")
     print(f"  Frontend: http://localhost:{cfg.docker_local.frontend_port}")
     print("\n[INFO] Optional profile-gated services (OFF by default, opt-in per profile):")
-    print(f"  docker compose -f {COMPOSE_FILE.name} --profile web up -d            "
-          f"# Frontend (Next.js) -> http://localhost:{cfg.docker_local.frontend_port}")
     print(f"  docker compose -f {COMPOSE_FILE.name} --profile edge up -d           "
           f"# Caddy single-origin -> http://localhost:{cfg.edge.http_port}")
     print(f"  docker compose -f {COMPOSE_FILE.name} --profile auth up -d            "
