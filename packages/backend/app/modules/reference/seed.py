@@ -1,129 +1,98 @@
-"""Idempotent seed of reference master data (currencies / countries / regions).
+"""Seed reference master data from the COMPLETE ISO datasets (dynamic, not hardcoded).
 
-Upsert by the ISO business key (`code`), so re-running is safe (boot or reseed).
-This is a curated starter set (major world currencies + ~30 countries incl. the
-Central-African / Equatorial-Guinea context, plus sample subdivisions); it is
-extensible to the full ISO 4217 / 3166 datasets without schema change.
+Source = `pycountry` (maintained ISO 3166-1 / 3166-2 / 4217): ~249 countries,
+~178 currencies, ~5000 subdivisions — so a fresh deployment is fully populated by
+default, no curated/hardcoded list.
+
+Strategy:
+- "seed if empty" per table (bulk insert) so boot stays fast — reference data is
+  stable, we don't re-upsert thousands of rows on every restart;
+- `force=True` (admin reseed) re-syncs by upsert (code business key), e.g. after a
+  pycountry bump.
+
+Cities are deliberately NOT seeded: they are not ISO reference data (millions of
+them); city stays validated free text (optional GeoNames import is a later, opt-in
+feature), the SAP/Odoo convention.
 """
 
 from __future__ import annotations
 
-from sqlalchemy import select
+import pycountry
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.reference.models import Country, CountryRegion, Currency
 
-# (code, name, symbol, decimal_places)
-_CURRENCIES = [
-    ("USD", "US Dollar", "$", 2), ("EUR", "Euro", "€", 2),
-    ("GBP", "Pound Sterling", "£", 2), ("JPY", "Yen", "¥", 0),
-    ("CNY", "Yuan Renminbi", "¥", 2), ("XAF", "CFA Franc BEAC", "FCFA", 0),
-    ("XOF", "CFA Franc BCEAO", "CFA", 0), ("NGN", "Naira", "₦", 2),
-    ("ZAR", "Rand", "R", 2), ("CAD", "Canadian Dollar", "$", 2),
-    ("AUD", "Australian Dollar", "$", 2), ("CHF", "Swiss Franc", "Fr", 2),
-    ("INR", "Indian Rupee", "₹", 2), ("BRL", "Brazilian Real", "R$", 2),
-    ("MXN", "Mexican Peso", "$", 2), ("RUB", "Russian Ruble", "₽", 2),
-    ("AED", "UAE Dirham", "د.إ", 2), ("SAR", "Saudi Riyal", "﷼", 2),
-    ("MAD", "Moroccan Dirham", "DH", 2), ("EGP", "Egyptian Pound", "E£", 2),
-    ("KES", "Kenyan Shilling", "KSh", 2), ("GHS", "Ghana Cedi", "₵", 2),
-]
 
-# (code, alpha3, numeric, name, phone_code, default_currency_code)
-_COUNTRIES = [
-    ("GQ", "GNQ", "226", "Equatorial Guinea", "+240", "XAF"),
-    ("CM", "CMR", "120", "Cameroon", "+237", "XAF"),
-    ("GA", "GAB", "266", "Gabon", "+241", "XAF"),
-    ("CG", "COG", "178", "Congo", "+242", "XAF"),
-    ("TD", "TCD", "148", "Chad", "+235", "XAF"),
-    ("CF", "CAF", "140", "Central African Republic", "+236", "XAF"),
-    ("SN", "SEN", "686", "Senegal", "+221", "XOF"),
-    ("CI", "CIV", "384", "Côte d'Ivoire", "+225", "XOF"),
-    ("NG", "NGA", "566", "Nigeria", "+234", "NGN"),
-    ("GH", "GHA", "288", "Ghana", "+233", "GHS"),
-    ("ZA", "ZAF", "710", "South Africa", "+27", "ZAR"),
-    ("KE", "KEN", "404", "Kenya", "+254", "KES"),
-    ("MA", "MAR", "504", "Morocco", "+212", "MAD"),
-    ("EG", "EGY", "818", "Egypt", "+20", "EGP"),
-    ("US", "USA", "840", "United States", "+1", "USD"),
-    ("CA", "CAN", "124", "Canada", "+1", "CAD"),
-    ("GB", "GBR", "826", "United Kingdom", "+44", "GBP"),
-    ("FR", "FRA", "250", "France", "+33", "EUR"),
-    ("ES", "ESP", "724", "Spain", "+34", "EUR"),
-    ("DE", "DEU", "276", "Germany", "+49", "EUR"),
-    ("IT", "ITA", "380", "Italy", "+39", "EUR"),
-    ("PT", "PRT", "620", "Portugal", "+351", "EUR"),
-    ("CN", "CHN", "156", "China", "+86", "CNY"),
-    ("JP", "JPN", "392", "Japan", "+81", "JPY"),
-    ("IN", "IND", "356", "India", "+91", "INR"),
-    ("AU", "AUS", "036", "Australia", "+61", "AUD"),
-    ("BR", "BRA", "076", "Brazil", "+55", "BRL"),
-    ("MX", "MEX", "484", "Mexico", "+52", "MXN"),
-    ("RU", "RUS", "643", "Russia", "+7", "RUB"),
-    ("AE", "ARE", "784", "United Arab Emirates", "+971", "AED"),
-    ("SA", "SAU", "682", "Saudi Arabia", "+966", "SAR"),
-]
-
-# country_code -> [(region_code, name, region_type)]  (sample subdivisions)
-_REGIONS = {
-    "GQ": [
-        ("GQ-BN", "Bioko Norte", "province"), ("GQ-BS", "Bioko Sur", "province"),
-        ("GQ-LI", "Litoral", "province"), ("GQ-CS", "Centro Sur", "province"),
-        ("GQ-KN", "Kié-Ntem", "province"), ("GQ-WN", "Wele-Nzas", "province"),
-        ("GQ-AN", "Annobón", "province"), ("GQ-DJ", "Djibloho", "province"),
-    ],
-    "US": [
-        ("US-CA", "California", "state"), ("US-NY", "New York", "state"),
-        ("US-TX", "Texas", "state"), ("US-FL", "Florida", "state"),
-    ],
-}
+async def _count(session: AsyncSession, model) -> int:
+    return await session.scalar(select(func.count()).select_from(model)) or 0
 
 
-async def _upsert(session: AsyncSession, model, code_value: str,
-                  fields: dict, *, extra_key: dict | None = None):
-    """Upsert one row by its business key (code, optionally scoped). Returns the row."""
-    stmt = select(model).where(model.code == code_value)
-    for k, v in (extra_key or {}).items():
-        stmt = stmt.where(getattr(model, k) == v)
-    row = await session.scalar(stmt)
-    if row is None:
-        row = model(code=code_value, **(extra_key or {}), **fields)
-        session.add(row)
-    else:
-        for k, v in fields.items():
-            setattr(row, k, v)
-    return row
+def _currency_rows() -> list[dict]:
+    # ISO 4217 has no symbol/decimal-places; default 2 dp, symbol null (editable).
+    return [{"code": c.alpha_3, "name": c.name[:80]} for c in pycountry.currencies]
 
 
-async def seed_reference(session: AsyncSession) -> dict:
-    """Idempotent: upsert currencies, then countries (linking default currency),
-    then sample regions. Commits once. Returns counts."""
-    cur_by_code: dict[str, Currency] = {}
-    for code, name, symbol, dp in _CURRENCIES:
-        cur = await _upsert(session, Currency, code,
-                            {"name": name, "symbol": symbol, "decimal_places": dp})
-        cur_by_code[code] = cur
-    await session.flush()  # currencies need ids before countries reference them
+def _country_rows() -> list[dict]:
+    return [{
+        "code": c.alpha_2, "alpha3": getattr(c, "alpha_3", None),
+        "numeric_code": getattr(c, "numeric", None), "name": c.name[:120],
+    } for c in pycountry.countries]
 
-    country_by_code: dict[str, Country] = {}
-    for code, a3, num, name, phone, cur_code in _COUNTRIES:
-        cur = cur_by_code.get(cur_code)
-        country = await _upsert(session, Country, code, {
-            "alpha3": a3, "numeric_code": num, "name": name, "phone_code": phone,
-            "default_currency_id": cur.id if cur else None})
-        country_by_code[code] = country
-    await session.flush()
 
-    region_n = 0
-    for country_code, regions in _REGIONS.items():
-        country = country_by_code.get(country_code)
-        if country is None:
+async def _seed_flat(session: AsyncSession, model, rows: list[dict], force: bool) -> int:
+    """Bulk-insert when empty; upsert by `code` when force. Skip if populated."""
+    existing = await _count(session, model)
+    if existing and not force:
+        return existing
+    if not force:
+        session.add_all(model(**r) for r in rows)
+        return len(rows)
+    have = {r.code: r for r in (await session.scalars(select(model))).all()}
+    for data in rows:
+        row = have.get(data["code"])
+        if row:
+            for k, v in data.items():
+                setattr(row, k, v)
+        else:
+            session.add(model(**data))
+    return len(rows)
+
+
+async def _seed_regions(session: AsyncSession, code_to_id: dict[str, str], force: bool) -> int:
+    existing = await _count(session, CountryRegion)
+    if existing and not force:
+        return existing
+    rows = []
+    for s in pycountry.subdivisions:
+        cid = code_to_id.get(s.country_code)
+        if cid is None:
             continue
-        for rcode, rname, rtype in regions:
-            await _upsert(session, CountryRegion, rcode,
-                          {"name": rname, "region_type": rtype},
-                          extra_key={"country_id": country.id})
-            region_n += 1
+        rtype = getattr(s, "type", None)
+        rows.append({"country_id": cid, "code": s.code[:10], "name": s.name[:120],
+                     "region_type": rtype[:40] if rtype else None})
+    if not force:
+        session.add_all(CountryRegion(**r) for r in rows)
+        return len(rows)
+    have = {(r.country_id, r.code): r
+            for r in (await session.scalars(select(CountryRegion))).all()}
+    for data in rows:
+        row = have.get((data["country_id"], data["code"]))
+        if row:
+            for k, v in data.items():
+                setattr(row, k, v)
+        else:
+            session.add(CountryRegion(**data))
+    return len(rows)
 
+
+async def seed_reference(session: AsyncSession, *, force: bool = False) -> dict:
+    """Populate currencies/countries/regions from the full ISO datasets. Idempotent:
+    seeds only-if-empty by default; `force` re-syncs. Commits once."""
+    n_cur = await _seed_flat(session, Currency, _currency_rows(), force)
+    n_country = await _seed_flat(session, Country, _country_rows(), force)
+    await session.flush()  # country ids needed to resolve regions' country_id
+    code_to_id = {c.code: c.id for c in (await session.scalars(select(Country))).all()}
+    n_region = await _seed_regions(session, code_to_id, force)
     await session.commit()
-    return {"currencies": len(_CURRENCIES), "countries": len(_COUNTRIES),
-            "regions": region_n}
+    return {"currencies": n_cur, "countries": n_country, "regions": n_region}
