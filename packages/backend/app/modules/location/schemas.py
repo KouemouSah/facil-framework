@@ -14,6 +14,7 @@ class SiteCreate(BaseModel):
     code: str = Field(..., pattern=_CODE)
     name: str = Field(..., min_length=1, max_length=255)
     site_type: str = Field("branch", max_length=40)
+    address_id: str | None = None
     address_line1: str | None = None
     address_line2: str | None = None
     city: str | None = Field(None, max_length=120)
@@ -40,6 +41,11 @@ class SiteCreate(BaseModel):
     def _upper_cc(cls, v: str | None) -> str | None:
         return v.upper() if v else v
 
+    @field_validator("org_unit_id", "parent_site_id", "address_id", mode="before")
+    @classmethod
+    def _blank_fk_to_none(cls, v: object) -> object:
+        return None if v == "" else v
+
 
 class SiteUpdate(BaseModel):
     """All optional; `code` and `organization_id` are immutable."""
@@ -47,6 +53,7 @@ class SiteUpdate(BaseModel):
     parent_site_id: str | None = None
     name: str | None = Field(None, min_length=1, max_length=255)
     site_type: str | None = Field(None, max_length=40)
+    address_id: str | None = None
     address_line1: str | None = None
     address_line2: str | None = None
     city: str | None = None
@@ -63,3 +70,8 @@ class SiteUpdate(BaseModel):
     notes: str | None = None
     metadata: dict | None = None
     is_active: bool | None = None
+
+    @field_validator("org_unit_id", "parent_site_id", "address_id", mode="before")
+    @classmethod
+    def _blank_fk_to_none(cls, v: object) -> object:
+        return None if v == "" else v

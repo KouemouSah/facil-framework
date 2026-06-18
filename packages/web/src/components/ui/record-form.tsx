@@ -26,7 +26,7 @@ import { AddressField } from "@/components/ui/address-field";
  * error-prone here while meeting every §11bis behaviour.
  */
 export type FieldType =
-  | "text" | "textarea" | "number"
+  | "text" | "textarea" | "number" | "checkbox"
   | "ref" | "org" | "party" | "address" | "json" | "select";
 
 export interface FieldDef {
@@ -137,6 +137,7 @@ export function RecordForm({
       if (f.immutable && mode === "edit") continue;
       if (f.type === "json") { out[f.name] = jsonValues[f.name] ?? {}; continue; }
       const raw = values[f.name] ?? "";
+      if (f.type === "checkbox") { out[f.name] = raw === "true"; continue; }
       if (f.type === "number") { out[f.name] = raw === "" ? null : Number(raw); continue; }
       // Blank → null uniformly: text/select clear to null, and empty FK pickers
       // (org/party/address/ref) are ids that must be null (never "") to detach.
@@ -217,6 +218,15 @@ export function RecordForm({
       case "address":
         return <AddressField label={f.label} value={values[f.name] ?? ""}
           onChange={(v) => setField(f.name, v)} />;
+      case "checkbox":
+        return (
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" className="size-4 accent-[hsl(var(--primary))]"
+              checked={values[f.name] === "true"} disabled={readOnly}
+              onChange={(e) => setField(f.name, e.target.checked ? "true" : "")} />
+            {f.label}
+          </label>
+        );
       case "select":
         return (
           <select id={id} value={values[f.name] ?? ""} disabled={readOnly}
@@ -257,7 +267,7 @@ export function RecordForm({
           // Address renders its own label/border; others get a Label.
           return (
             <div key={f.name} className={`space-y-1.5 ${span}`}>
-              {f.type !== "address" && f.type !== "json" && (
+              {f.type !== "address" && f.type !== "json" && f.type !== "checkbox" && (
                 <Label htmlFor={`rf-${f.name}`}>
                   {f.label}{f.required && <span className="text-destructive"> *</span>}
                 </Label>

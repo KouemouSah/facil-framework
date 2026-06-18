@@ -31,6 +31,12 @@ class Site(UUIDAuditBase):
     # headquarters / branch / office / counter / warehouse — free/configurable.
     site_type: Mapped[str] = mapped_column(String(40), default="branch")
 
+    # ERP-grade F.3c: structured reusable address (party module). Supersedes the
+    # flat geo text columns below, which are kept non-destructively during the
+    # transition (backfilled into address by a later data migration).
+    address_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("address.id", ondelete="SET NULL"), nullable=True)
+
     address_line1: Mapped[str | None] = mapped_column(Text, nullable=True)
     address_line2: Mapped[str | None] = mapped_column(Text, nullable=True)
     city: Mapped[str | None] = mapped_column(String(120), nullable=True)
@@ -54,6 +60,7 @@ class Site(UUIDAuditBase):
             "id": self.id, "organization_id": self.organization_id,
             "org_unit_id": self.org_unit_id, "parent_site_id": self.parent_site_id,
             "code": self.code, "name": self.name, "site_type": self.site_type,
+            "address_id": self.address_id,
             "address_line1": self.address_line1, "address_line2": self.address_line2,
             "city": self.city, "region": self.region,
             "country_code": self.country_code, "postal_code": self.postal_code,

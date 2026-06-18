@@ -9,6 +9,7 @@ the scope from the body and enforces in-handler. Bootstrap admin-token = break-g
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.concurrency import enforce_if_match, row_etag
@@ -39,6 +40,16 @@ _STATUS = {service.NotFound: 404, service.Conflict: 409, service.InvalidRef: 422
 
 def _http(e: service.LocError) -> HTTPException:
     return HTTPException(_STATUS.get(type(e), 400), str(e))
+
+
+async def _commit(session: AsyncSession) -> None:
+    """Commit, mapping a FK/uniqueness violation (e.g. a bad address reference)
+    to 409 rather than a bare 500."""
+    try:
+        await session.commit()
+    except IntegrityError as e:
+        await session.rollback()
+        raise HTTPException(409, "duplicate or invalid reference") from e
 
 
 @router.get("/sites")
@@ -91,7 +102,7 @@ async def create_site(body: SiteCreate, request: Request,
         site = await service.create_site(session, body)
     except service.LocError as e:
         raise _http(e) from e
-    await session.commit()
+    await _commit(session)
     return site.as_dict()
 
 
@@ -115,7 +126,7 @@ async def update_site(site_id: str, body: SiteUpdate, request: Request,
         site = await service.update_site(session, site_id, body)
     except service.LocError as e:
         raise _http(e) from e
-    await session.commit()
+    await _commit(session)
     # No etag here (updated_at is server-onupdate; expired after flush). The client
     # refetches GET for the rotated etag.
     return site.as_dict()

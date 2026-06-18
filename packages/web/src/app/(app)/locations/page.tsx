@@ -2,23 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Check } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import { codeField, requiredText, optionalText } from "@/lib/form-schemas";
+import { codeField, requiredText } from "@/lib/form-schemas";
 import { ExportMenu } from "@/components/export-menu";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
 import { DataGrid, type DataGridColumn } from "@/components/ui/data-grid";
 import { DetailPanel } from "@/components/ui/detail-panel";
-import { JsonField } from "@/components/ui/json-field";
+import { RecordForm, type FieldDef } from "@/components/ui/record-form";
 import { OrgCombobox } from "@/components/ui/org-combobox";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useFirstOrg } from "@/lib/use-organizations";
 import { useServerTable, type ServerPage } from "@/lib/use-server-table";
 
@@ -33,6 +27,34 @@ interface Site {
   is_active: boolean;
 }
 const DEFAULT_PAGE = 20;
+const SITE_BASE = "/api/v1/modules/location/sites";
+
+const SITE_TYPES = [
+  { value: "branch", label: "Branch" },
+  { value: "headquarters", label: "Headquarters" },
+  { value: "warehouse", label: "Warehouse" },
+  { value: "office", label: "Office" },
+  { value: "point_of_sale", label: "Point of sale" },
+];
+
+// Canonical site fields (ERP-grade F.3c): geo moves to a reusable Address
+// (address_id via AddressField); the old flat address/city/country inputs are
+// gone. org_unit_id / parent_site_id stay API-only until their pickers land.
+const SITE_FIELDS: FieldDef[] = [
+  { name: "code", label: "Code", required: true, immutable: true, zod: codeField,
+    hint: "Immutable identifier." },
+  { name: "name", label: "Name", required: true, zod: requiredText("Name") },
+  { name: "site_type", label: "Type", type: "select", required: true, selectOptions: SITE_TYPES },
+  { name: "is_primary", label: "Primary site", type: "checkbox" },
+  { name: "phone", label: "Phone" },
+  { name: "email", label: "Email" },
+  { name: "timezone", label: "Timezone", placeholder: "UTC" },
+  { name: "address_id", label: "Address", type: "address" },
+  { name: "notes", label: "Notes", type: "textarea", colSpan: 2 },
+  { name: "operating_hours", label: "Operating hours (JSON)", type: "json",
+    hint: 'e.g. {"mon": ["09:00-17:00"], "sat": []}' },
+  { name: "metadata", label: "Metadata (JSON)", type: "json", hint: "Free-form site metadata." },
+];
 
 export default function LocationsPage() {
   const qc = useQueryClient();
@@ -46,9 +68,7 @@ export default function LocationsPage() {
   const select = (id: string) => router.replace(`${pathname}?sel=${id}`, { scroll: false });
   const clearSel = () => router.replace(pathname, { scroll: false });
 
-  // Sites are org-scoped at the API, so we need a chosen org before
-  // listing/creating. The picker is OrgCombobox (server search); we default to
-  // the caller's first accessible org (fetched as a single row, never the list).
+  // Sites are org-scoped at the API, so a chosen org gates listing/creating.
   const firstOrgId = useFirstOrg();
   useEffect(() => {
     if (!orgId && firstOrgId) setOrgId(firstOrgId);
@@ -61,19 +81,15 @@ export default function LocationsPage() {
     enabled: !!orgId,
     fetchPage: ({ cursor, limit, sort, filters }) =>
       apiFetch<ServerPage<Site>>(
-        `/api/v1/modules/location/sites?organization_id=${filters.organization_id ?? ""}` +
+        `${SITE_BASE}?organization_id=${filters.organization_id ?? ""}` +
         `&sort=${sort}&limit=${limit}` + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : "")),
   });
-  // Mirror the org gate into the table filter so the query re-keys + the cursor
-  // stack resets when the org changes (org is a resource-specific gate, not a
-  // column filter; the hook's reset machinery handles it).
   const setTableFilter = table.onFilterChange;
   useEffect(() => { setTableFilter("organization_id", orgId); }, [orgId, setTableFilter]);
   const rows = table.rows;
 
   const del = useMutation({
-    mutationFn: (id: string) =>
-      apiFetch(`/api/v1/modules/location/sites/${id}`, { method: "DELETE" }),
+    mutationFn: (id: string) => apiFetch(`${SITE_BASE}/${id}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["sites"] }),
   });
 
@@ -116,13 +132,13 @@ export default function LocationsPage() {
               onChange={(id) => setOrgId(id)} />
           </div>
           <ExportMenu filename="sites" disabled={!orgId}
-            path={`/api/v1/modules/location/sites/export?organization_id=${orgId}&sort=${table.sort}`} />
+            path={`${SITE_BASE}/export?organization_id=${orgId}&sort=${table.sort}`} />
           <NewSiteDialog open={open} setOpen={setOpen} orgId={orgId} />
         </div>
       </div>
 
       {/* Master-detail: list left, edit form right (deep-linkable ?sel=) */}
-      <div className={`grid min-h-0 flex-1 gap-4 ${sel ? "lg:grid-cols-[1fr_minmax(380px,520px)]" : ""}`}>
+      <div className={`grid min-h-0 flex-1 gap-4 ${sel ? "lg:grid-cols-[1fr_minmax(420px,560px)]" : ""}`}>
         <DataGrid<Site>
           mode="cursor"
           columns={columns}
@@ -152,215 +168,74 @@ export default function LocationsPage() {
   );
 }
 
-// Editable scalar fields of SiteUpdate (org_unit_id/parent_site_id refs;
-// operating_hours/metadata JSON are edited via the JsonField editors below).
-const SITE_FIELDS: { key: string; label: string }[] = [
-  { key: "name", label: "Name" },
-  { key: "site_type", label: "Type" },
-  { key: "address_line1", label: "Address line 1" },
-  { key: "address_line2", label: "Address line 2" },
-  { key: "city", label: "City" },
-  { key: "region", label: "Region" },
-  { key: "country_code", label: "Country (ISO-2)" },
-  { key: "postal_code", label: "Postal code" },
-  { key: "phone", label: "Phone" },
-  { key: "email", label: "Email" },
-  { key: "timezone", label: "Timezone" },
-  { key: "notes", label: "Notes" },
-];
-
 function SiteDetail({ siteId, onClose }: { siteId: string; onClose: () => void }) {
   const qc = useQueryClient();
-  const [form, setForm] = useState<Record<string, string> | null>(null);
-  const [primary, setPrimary] = useState(false);
-  const [operatingHours, setOperatingHours] = useState<unknown>({});
-  const [metadata, setMetadata] = useState<unknown>({});
-  const [jsonOk, setJsonOk] = useState({ operating_hours: true, metadata: true });
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState("");
-
   const { data } = useQuery<Record<string, unknown>>({
     queryKey: ["site", siteId],
-    queryFn: () => apiFetch(`/api/v1/modules/location/sites/${siteId}`),
+    queryFn: () => apiFetch(`${SITE_BASE}/${siteId}`),
   });
-
-  useEffect(() => {
-    if (data && !form) {
-      const f: Record<string, string> = {};
-      for (const { key } of SITE_FIELDS) f[key] = (data[key] as string) ?? "";
-      setForm(f);
-      setPrimary(Boolean(data.is_primary));
-      setOperatingHours(data.operating_hours ?? {});
-      setMetadata(data.metadata ?? {});
-      setJsonOk({ operating_hours: true, metadata: true });
-    }
-  }, [data, form]);
-
-  const save = useMutation({
-    mutationFn: () => {
-      const payload: Record<string, unknown> = { is_primary: primary };
-      for (const { key } of SITE_FIELDS) payload[key] = (form?.[key] ?? "") || null;
-      payload.operating_hours = operatingHours;
-      payload.metadata = metadata;
-      return apiFetch(`/api/v1/modules/location/sites/${siteId}`, {
-        method: "PUT",
-        headers: data?.etag ? { "If-Match": String(data.etag) } : undefined,
-        body: JSON.stringify(payload),
-      });
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["site", siteId] });
-      qc.invalidateQueries({ queryKey: ["sites"] });
-      setSaved(true);
-    },
-    onError: (e: { status?: number; message?: string }) => {
-      if (e.status === 409) {
-        setError("Changed elsewhere — reloading the latest.");
-        setForm(null);
-        qc.invalidateQueries({ queryKey: ["site", siteId] });
-      } else { setError(e.message || "Save failed"); }
-    },
-  });
-
-  function set(k: string, v: string) {
-    setForm((f) => (f ? { ...f, [k]: v } : f));
-    setSaved(false);
-  }
 
   return (
     <DetailPanel
       title={(data?.name as string) || "Site"}
       subtitle={data?.code ? `code ${data.code}` : undefined}
       onClose={onClose}
-      footer={
-        <div className="flex items-center gap-2">
-          {saved && <span className="flex items-center gap-1 text-sm text-emerald-600"><Check className="size-4" /> Saved</span>}
-          {error && <span className="text-sm text-destructive">{error}</span>}
-          <Button type="button" size="sm" className="ml-auto"
-            disabled={save.isPending || form === null || !jsonOk.operating_hours || !jsonOk.metadata}
-            onClick={() => save.mutate()}>
-            {save.isPending ? "Saving…" : "Save"}
-          </Button>
-        </div>
-      }
     >
-      {form === null && <p className="text-sm text-muted-foreground">Loading…</p>}
-      {form !== null && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {SITE_FIELDS.map(({ key, label }) => (
-              <div key={key} className="space-y-1.5">
-                <Label htmlFor={`site-${key}`}>{label}</Label>
-                <Input id={`site-${key}`} value={form[key]} onChange={(e) => set(key, e.target.value)} />
-              </div>
-            ))}
-            <label className="flex items-center gap-2 pt-2 text-sm">
-              <input type="checkbox" className="size-4 accent-[hsl(var(--primary))]"
-                checked={primary} onChange={(e) => { setPrimary(e.target.checked); setSaved(false); }} />
-              Primary site
-            </label>
-          </div>
-          <JsonField id="site-operating_hours" label="Operating hours (JSON)"
-            value={data?.operating_hours}
-            hint='e.g. {"mon": ["09:00-17:00"], "sat": []}'
-            onChange={(v, ok) => { setJsonOk((s) => ({ ...s, operating_hours: ok })); if (ok) setOperatingHours(v); setSaved(false); }} />
-          <JsonField id="site-metadata" label="Metadata (JSON)"
-            value={data?.metadata}
-            hint="Free-form site metadata."
-            onChange={(v, ok) => { setJsonOk((s) => ({ ...s, metadata: ok })); if (ok) setMetadata(v); setSaved(false); }} />
-        </div>
+      {!data && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {data && (
+        <RecordForm
+          key={String(data.etag ?? siteId)}
+          fields={SITE_FIELDS}
+          mode="edit"
+          layout="rich"
+          initial={data}
+          etag={data.etag ? String(data.etag) : undefined}
+          onSubmit={(payload, etag) =>
+            apiFetch(`${SITE_BASE}/${siteId}`, {
+              method: "PUT",
+              headers: etag ? { "If-Match": etag } : undefined,
+              body: JSON.stringify(payload),
+            })}
+          onSuccess={() => {
+            qc.invalidateQueries({ queryKey: ["site", siteId] });
+            qc.invalidateQueries({ queryKey: ["sites"] });
+          }}
+          onConflict={() => qc.invalidateQueries({ queryKey: ["site", siteId] })}
+        />
       )}
     </DetailPanel>
   );
 }
 
-const siteForm = z.object({
-  code: codeField,
-  name: requiredText("Name"),
-  site_type: z.enum(["branch", "headquarters", "warehouse", "office", "point_of_sale"]),
-  city: optionalText(120),
-  country_code: z.string().trim().regex(/^[A-Za-z]{2}$/, "Two-letter ISO code")
-    .optional().or(z.literal("")),
-});
-type SiteForm = z.infer<typeof siteForm>;
-
 function NewSiteDialog({ open, setOpen, orgId }: { open: boolean; setOpen: (b: boolean) => void; orgId: string }) {
   const qc = useQueryClient();
-  const [error, setError] = useState("");
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<SiteForm>({
-    resolver: zodResolver(siteForm),
-    defaultValues: { code: "", name: "", site_type: "branch", city: "", country_code: "" },
-  });
-
-  const create = useMutation({
-    mutationFn: (values: SiteForm) =>
-      apiFetch("/api/v1/modules/location/sites", {
-        method: "POST",
-        body: JSON.stringify({
-          organization_id: orgId,
-          code: values.code,
-          name: values.name,
-          site_type: values.site_type,
-          city: values.city || null,
-          country_code: values.country_code ? values.country_code.toUpperCase() : null,
-        }),
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["sites"] });
-      setOpen(false);
-      reset(); setError("");
-    },
-    onError: (e: Error) => setError(e.message || "Create failed"),
-  });
-
   return (
-    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { reset(); setError(""); } }}>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" disabled={!orgId}><Plus className="size-4" /> New</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>New site</DialogTitle></DialogHeader>
-        <form className="space-y-3" onSubmit={handleSubmit((v) => create.mutate(v))}>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="code">Code</Label>
-              <Input id="code" {...register("code")} placeholder="hq" />
-              {errors.code && <p className="text-xs text-destructive">{errors.code.message}</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="type">Type</Label>
-              <Select id="type" {...register("site_type")}>
-                <option value="branch">Branch</option>
-                <option value="headquarters">Headquarters</option>
-                <option value="warehouse">Warehouse</option>
-                <option value="office">Office</option>
-                <option value="point_of_sale">Point of sale</option>
-              </Select>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="name">Name</Label>
-            <Input id="name" {...register("name")} placeholder="Head office" />
-            {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="city">City</Label>
-              <Input id="city" {...register("city")} placeholder="Malabo" />
-              {errors.city && <p className="text-xs text-destructive">{errors.city.message}</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="cc">Country (ISO-2)</Label>
-              <Input id="cc" maxLength={2} {...register("country_code")} placeholder="GQ" />
-              {errors.country_code && <p className="text-xs text-destructive">{errors.country_code.message}</p>}
-            </div>
-          </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <DialogFooter>
-            <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
-            <Button type="submit" disabled={create.isPending || !orgId}>{create.isPending ? "Creating…" : "Create"}</Button>
-          </DialogFooter>
-        </form>
+        <div className="max-h-[70vh] overflow-auto pr-1">
+          <RecordForm
+            fields={SITE_FIELDS}
+            mode="create"
+            layout="rich"
+            enableSaveNew
+            submitLabel="Create"
+            initial={{ site_type: "branch" }}
+            onSubmit={(payload) =>
+              apiFetch(SITE_BASE, {
+                method: "POST",
+                body: JSON.stringify({ ...payload, organization_id: orgId }),
+              })}
+            onSuccess={({ again }) => {
+              qc.invalidateQueries({ queryKey: ["sites"] });
+              if (!again) setOpen(false);
+            }}
+            onCancel={() => setOpen(false)}
+          />
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -7,6 +7,7 @@ and a branch anti-cycle guard (ancestor walk on parent_site_id).
 
 from __future__ import annotations
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.location import repository as repo
@@ -31,9 +32,18 @@ class InvalidRef(LocError):
     pass
 
 
+async def _address_exists(session: AsyncSession, address_id: str) -> bool:
+    # Probe the sibling party module's `address` table by id without importing
+    # its model (modular-monolith decoupling; the table name is a constant).
+    res = await session.execute(
+        text("SELECT 1 FROM address WHERE id = :id"), {"id": address_id})
+    return res.first() is not None
+
+
 async def _validate_refs(session: AsyncSession, org_id: str,
                          org_unit_id: str | None,
-                         parent_site_id: str | None) -> None:
+                         parent_site_id: str | None,
+                         address_id: str | None = None) -> None:
     if org_unit_id:
         unit = await org_repo.get_unit(session, org_unit_id)
         if unit is None or unit.organization_id != org_id:
@@ -42,6 +52,8 @@ async def _validate_refs(session: AsyncSession, org_id: str,
         parent = await repo.get_site(session, parent_site_id)
         if parent is None or parent.organization_id != org_id:
             raise InvalidRef(f"parent site '{parent_site_id}' not found in this organization")
+    if address_id and not await _address_exists(session, address_id):
+        raise InvalidRef(f"address '{address_id}' does not reference an existing address")
 
 
 async def _would_cycle(session: AsyncSession, site_id: str,
@@ -64,7 +76,7 @@ async def create_site(session: AsyncSession, data: SiteCreate) -> Site:
     if await repo.get_site_by_code(session, data.organization_id, data.code):
         raise Conflict(f"site code '{data.code}' already exists in this organization")
     await _validate_refs(session, data.organization_id, data.org_unit_id,
-                         data.parent_site_id)
+                         data.parent_site_id, data.address_id)
     payload = data.model_dump()
     meta = payload.pop("metadata")
     site = Site(meta=meta, **payload)
@@ -83,8 +95,9 @@ async def update_site(session: AsyncSession, site_id: str, data: SiteUpdate) -> 
     fields = data.model_dump(exclude_unset=True)
     new_unit = fields.get("org_unit_id") if "org_unit_id" in fields else site.org_unit_id
     new_parent = fields.get("parent_site_id") if "parent_site_id" in fields else site.parent_site_id
-    if "org_unit_id" in fields or "parent_site_id" in fields:
-        await _validate_refs(session, site.organization_id, new_unit, new_parent)
+    new_address = fields.get("address_id") if "address_id" in fields else site.address_id
+    if "org_unit_id" in fields or "parent_site_id" in fields or "address_id" in fields:
+        await _validate_refs(session, site.organization_id, new_unit, new_parent, new_address)
     if "parent_site_id" in fields and await _would_cycle(session, site_id, new_parent):
         raise InvalidRef("cannot set a site under itself or one of its branches")
     if "metadata" in fields:
