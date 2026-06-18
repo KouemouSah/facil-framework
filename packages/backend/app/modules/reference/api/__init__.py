@@ -10,6 +10,7 @@ concurrency via ETag/If-Match on update, like organization/account.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -147,6 +148,45 @@ async def update_region(rid: str, body: schemas.RegionUpdate, request: Request,
 @router.delete("/regions/{rid}", dependencies=[_DELETE])
 async def delete_region(rid: str, session: AsyncSession = Depends(get_session)) -> dict:
     return await _delete(session, CountryRegion, rid, "region")
+
+
+# --- Bulk import (mass create; per-row SAVEPOINT, no silent drop) --------
+
+_IMPORTABLE = {
+    "currencies": (schemas.CurrencyIn, Currency),
+    "countries": (schemas.CountryIn, Country),
+    "regions": (schemas.RegionIn, CountryRegion),
+}
+
+
+class ImportIn(BaseModel):
+    rows: list[dict]
+
+
+@router.post("/{entity}/import", dependencies=[_CREATE])
+async def import_entity(entity: str, body: ImportIn,
+                        session: AsyncSession = Depends(get_session)) -> dict:
+    """Mass-create reference rows (CSV parsed client-side -> rows). Each row is
+    validated via the entity schema and inserted in its OWN savepoint, so a bad/
+    duplicate row is reported (row index + reason) without aborting the batch and
+    without silent drops. Bounded at 1000 rows."""
+    if entity not in _IMPORTABLE:
+        raise HTTPException(404, f"unknown entity '{entity}'")
+    schema_in, model = _IMPORTABLE[entity]
+    if len(body.rows) > 1000:
+        raise HTTPException(422, "too many rows (max 1000)")
+    created, errors = 0, []
+    for i, row in enumerate(body.rows, start=1):
+        clean = {k: v for k, v in row.items() if v not in ("", None)}
+        try:
+            data = schema_in(**clean).model_dump()
+            async with session.begin_nested():
+                session.add(model(**data))
+            created += 1
+        except Exception as e:  # noqa: BLE001 — collected per row, never silent
+            errors.append({"row": i, "detail": str(e)[:300]})
+    await session.commit()
+    return {"created": created, "errors": errors, "total": len(body.rows)}
 
 
 # --- Shared CRUD helpers -------------------------------------------------

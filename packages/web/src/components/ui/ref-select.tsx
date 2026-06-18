@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronsUpDown, X } from "lucide-react";
+import { ChevronsUpDown, Plus, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +32,7 @@ function defaultLabel(it: RefItem): string {
 export function RefSelect({
   value, onChange, resource, filter, placeholder = "Search…",
   allowNone = true, noneLabel = "— none —", disabled = false, labelOf = defaultLabel,
+  onRequestCreate,
 }: {
   value: string;
   onChange: (id: string) => void;
@@ -42,6 +43,9 @@ export function RefSelect({
   noneLabel?: string;
   disabled?: boolean;
   labelOf?: (item: RefItem) => string;
+  /** Inline quick-create (Odoo "Create and Edit"): shows "+ Create '<term>'" when
+   * the search has no exact match. The consumer opens its create form pre-filled. */
+  onRequestCreate?: (term: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState("");
@@ -118,6 +122,15 @@ export function RefSelect({
               {labelOf(it)}
             </button>
           ))}
+          {onRequestCreate && term.trim() && !results.some(
+            (it) => it.code.toLowerCase() === term.trim().toLowerCase()
+              || it.name.toLowerCase() === term.trim().toLowerCase()) && (
+            <button type="button"
+              className="mt-1 flex w-full items-center gap-1.5 rounded-sm border-t px-2 py-1.5 text-left text-sm text-primary hover:bg-accent"
+              onClick={() => { onRequestCreate(term.trim()); setOpen(false); }}>
+              <Plus className="size-3.5" /> Create “{term.trim()}”
+            </button>
+          )}
         </div>
       )}
     </div>

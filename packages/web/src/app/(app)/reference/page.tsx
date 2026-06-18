@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Check } from "lucide-react";
+import { Plus, Trash2, Upload } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { parseCsv } from "@/lib/parse-csv";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -87,6 +88,20 @@ function RefTab({ tab }: { tab: Tab }) {
     onSuccess: () => table.refetch(),
   });
 
+  // Bulk import: parse the CSV client-side, POST rows; the backend reports per-row
+  // errors (no silent drop). Region rows need a country_id column in the CSV.
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [imported, setImported] =
+    useState<{ created: number; total: number; errors: { row: number; detail: string }[] } | null>(null);
+  const doImport = useMutation({
+    mutationFn: async (file: File) => {
+      const rows = parseCsv(await file.text());
+      return apiFetch<{ created: number; total: number; errors: { row: number; detail: string }[] }>(
+        `${REF}/${tab}/import`, { method: "POST", body: JSON.stringify({ rows }) });
+    },
+    onSuccess: (r) => { setImported(r); table.refetch(); },
+  });
+
   const columns: DataGridColumn<Row>[] = [
     { key: "code", header: "Code", sortable: true, className: "font-mono text-xs" },
     { key: "name", header: "Name", sortable: true },
@@ -115,12 +130,32 @@ function RefTab({ tab }: { tab: Tab }) {
         )}
         <Input className="h-9 w-56" placeholder="Search code / name"
           value={table.q} onChange={(e) => table.setQ(e.target.value)} />
-        <Button size="sm" className="ml-auto"
+        <input ref={fileRef} type="file" accept=".csv,text/csv" hidden
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) doImport.mutate(f); e.target.value = ""; }} />
+        <Button size="sm" variant="outline" className="ml-auto" disabled={doImport.isPending}
+          onClick={() => fileRef.current?.click()}>
+          <Upload className="size-4" /> {doImport.isPending ? "Importing…" : "Import CSV"}
+        </Button>
+        <Button size="sm"
           disabled={tab === "regions" && !countryId}
           onClick={() => setEditing("new")}>
           <Plus className="size-4" /> New
         </Button>
       </div>
+
+      {imported && (
+        <div className="rounded-md border bg-accent/30 px-3 py-2 text-sm">
+          <span className="font-medium">{imported.created}/{imported.total} created.</span>
+          {imported.errors.length > 0 && (
+            <span className="ml-2 text-destructive">
+              {imported.errors.length} error(s): {imported.errors.slice(0, 3).map((e) => `row ${e.row}`).join(", ")}
+              {imported.errors.length > 3 ? "…" : ""}
+            </span>
+          )}
+          <button type="button" className="ml-2 text-xs text-muted-foreground underline"
+            onClick={() => setImported(null)}>dismiss</button>
+        </div>
+      )}
 
       <div className={`grid min-h-0 flex-1 gap-4 ${editing ? "lg:grid-cols-[1fr_minmax(340px,420px)]" : ""}`}>
         <DataGrid<Row>

@@ -76,3 +76,25 @@ async def test_country_and_region_relationship(client):
     assert listed["count"] == 1 and listed["items"][0]["code"] == "GQ-LI"
     # Other country -> empty.
     assert (await ac.get(f"{RE}?country_id=other", headers=AUTH)).json()["count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_bulk_import_reports_per_row(client):
+    ac, _ = client
+    CUR = "/api/v1/modules/reference/currencies"
+    # 2 valid + 1 invalid (bad code length) + 1 duplicate of the first.
+    body = {"rows": [
+        {"code": "AAA", "name": "Alpha"},
+        {"code": "BBB", "name": "Beta"},
+        {"code": "TOOLONG", "name": "Bad"},   # code must be 3 chars -> error
+        {"code": "AAA", "name": "Dup"},        # duplicate -> error (savepoint)
+    ]}
+    r = (await ac.post(f"{CUR}/import", headers=AUTH, json=body)).json()
+    assert r["total"] == 4 and r["created"] == 2
+    assert {e["row"] for e in r["errors"]} == {3, 4}  # rows are 1-indexed
+    # The valid ones are persisted; one bad row did not abort the batch.
+    listed = (await ac.get(f"{CUR}?q=AAA", headers=AUTH)).json()
+    assert any(i["code"] == "AAA" for i in listed["items"])
+    # Unknown entity -> 404.
+    assert (await ac.post("/api/v1/modules/reference/ghost/import", headers=AUTH,
+                          json={"rows": []})).status_code == 404
