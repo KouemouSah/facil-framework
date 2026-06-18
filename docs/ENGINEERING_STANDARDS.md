@@ -111,6 +111,39 @@ Composant **générique réutilisable** (pas de réimplémentation par page).
 - **Formulaires** : `react-hook-form` + `zod` (validation = même forme que l'API). Toasts d'issue.
 - **BFF** : tokens en cookies httpOnly (zéro token en JS) ; intercepteur **401 → /login**.
 
+## 11bis. Création / édition de records — formulaire ERP-grade (OBLIGATOIRE)
+
+Référence : Salesforce Lightning *record forms* · Odoo *form views* (génériques, metadata-driven).
+**Interdiction des formulaires ad-hoc réécrits par page.** Un **composant `RecordForm` réutilisable**
+(définition de champs → rendu + validation + save), exactement comme le DataGrid l'est pour les listes :
+toute création/édition passe par lui ; un champ personnalisé (`field_definition`, F.6) s'y rend
+automatiquement. C'est la règle qui empêche les régressions form-par-form.
+
+Contrat **obligatoire** de toute création/édition :
+- **Rendu adaptatif** : record simple → **slide-over / quick-create** ; record riche → **page plein écran**
+  (header + onglets + related lists). Même `RecordForm`, deux conteneurs.
+- **Validation défense-en-profondeur** : **client `react-hook-form` + `zod`** (erreurs inline immédiates,
+  miroir des contraintes API) **ET** serveur (pydantic). Jamais l'un sans l'autre.
+- **Erreurs serveur mappées** : **422 → erreurs par champ** ; **409** (conflit) → message + reload ;
+  401 → login ; jamais d'erreur avalée (toast form-level + erreur champ-level).
+- **Concurrence optimiste** : l'édition envoie **`If-Match`** (ETag du GET) → 409/412 géré (recharge la
+  version courante). Obligatoire dès qu'un record est éditable par plusieurs acteurs.
+- **Actions** : **Save**, **Save & New** (création), **Cancel** avec **garde « modifications non
+  enregistrées »** (dirty-check avant fermeture/navigation). **Anti double-submit** (disabled + pending).
+- **Permission-driven** : create/edit/delete masqués/désactivés selon `hasPerm` (le backend tranche).
+- **Pickers relationnels** : combobox **recherche serveur** (jamais de `<select>` cap 200) + **inline-create**
+  (« Créer '<terme>' », Odoo *Create & Edit*).
+- **A11y AA · i18n** (toute chaîne = clé) · **TanStack Query** (optimistic + rollback + invalidation au save) ·
+  toasts d'issue · états loading/disabled.
+- **Import en masse** : pour les entités à fort volume, fournir l'**import CSV** (validation **par ligne**,
+  rapport d'erreurs, **jamais de drop silencieux**) en complément du formulaire unitaire.
+
+**Sécurité** : la validation client ne remplace **jamais** la validation serveur (RBAC + pydantic + audit) ;
+elle ne fait que guider et réduire les allers-retours. Auth = cookies httpOnly via le BFF, zéro secret en JS.
+
+⚠️ **Dette connue (à résorber)** : `RefForm` (admin référentiels) et les dialogs create écrits à la main ne
+respectent pas encore tout ce contrat (pas de `zod`, pas d'`If-Match`) → **migrer vers `RecordForm`**.
+
 ## 12. Frontend — ergonomie, a11y, i18n, perf, thème
 
 - **Coque fixe** (sidebar/topbar/filtres/barre d'actions ne défilent pas) ; **seule la zone

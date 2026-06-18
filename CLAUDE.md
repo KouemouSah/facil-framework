@@ -52,6 +52,10 @@ Résumé impératif (toujours appliquer, sans qu'on le redemande) :
 - **Master-detail / split-view** pour la config riche (dialogs = create/confirm seulement) ; deep-linkable.
 - **UI permission-driven** : masquer/désactiver nav **et actions** (`/me/permissions` + `hasPerm`).
 - **Données/forme** : TanStack Query (optimistic+rollback) ; **react-hook-form + zod** ; toasts.
+- **Création/édition = `RecordForm` réutilisable** (ENGINEERING_STANDARDS §11bis, **OBLIGATOIRE**) :
+  pas de formulaire ad-hoc par page ; rendu **adaptatif** (slide-over simple / page riche) ; validation
+  **client zod + serveur pydantic** ; **`If-Match`** (concurrence optimiste) ; **422→champ / 409→reload** ;
+  Save / **Save & New** / Cancel + garde dirty ; pickers recherche-serveur + inline-create ; import CSV en masse.
 - **A11y AA · i18n (toute chaîne = clé en/fr/es) · perf (RSC, budget <150KB/route, cache fetch serveur) ·
   thème via `branding.*` · coque fixe / seule la data défile**.
 - **Parité backend ⇄ frontend (couverture intégrale)** : l'UI expose **tout** le contrat
