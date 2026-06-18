@@ -326,11 +326,14 @@ class TestScaffoldedProfileServices:
     def test_base_services_have_no_profile(self, cfg: vc.DeployConfig) -> None:
         """Core services must remain un-gated (start on plain `up`)."""
         svcs = yaml.safe_load(dl.generate_compose(cfg))["services"]
-        # frontend is profile-gated (`web`, OFF until D5); the rest are core.
-        for name in ("postgres", "redis", "backend", "db-init"):
+        # frontend is now a default service too (the facil_framework group mirrors
+        # production); it runs the CI-built GHCR image, not a local build.
+        for name in ("postgres", "redis", "backend", "db-init", "frontend"):
             assert "profiles" not in svcs[name], \
                 f"{name} must NOT be profile-gated (it's a core service)"
-        assert svcs["frontend"]["profiles"] == ["web"]
+        fe = svcs["frontend"]
+        assert fe["image"].startswith("ghcr.io/") and "facil-web" in fe["image"]
+        assert "build" not in fe, "frontend should pull the prod image, not build"
 
     def test_ollama_scaffold_and_backend_wiring(self, cfg: vc.DeployConfig) -> None:
         """Ollama is profile-gated `ai`, persists weights in facil_ollama, and
