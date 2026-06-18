@@ -40,7 +40,7 @@ if str(_SCRIPTS_DIR) not in sys.path:
 
 import validate_config as vc  # noqa: E402
 
-from . import minio, openbao, postgres  # noqa: E402
+from . import keycloak, minio, openbao, postgres  # noqa: E402
 from .context import BootstrapContext  # noqa: E402
 from .docker_helpers import (  # noqa: E402
     ContainerInfo,
@@ -49,13 +49,15 @@ from .docker_helpers import (  # noqa: E402
 )
 from .state import BootstrapState  # noqa: E402
 
-# Ordered registry. Order matters: postgres + minio run FIRST so OpenBao (last)
-# can mirror the creds they mint (facil_app DATABASE_URL, MinIO SA) into the vault
-# in the same run (via ctx.completed).
-PROVISIONERS: list[ModuleType] = [postgres, minio, openbao]
+# Ordered registry. Order matters: postgres + minio run FIRST so OpenBao can mirror
+# the creds they mint (facil_app DATABASE_URL, MinIO SA) into the vault in the same
+# run (via ctx.completed). Keycloak (K) is independent — it only applies when a
+# surface uses keycloak_oidc, and captures its OIDC facts into the state.
+PROVISIONERS: list[ModuleType] = [postgres, minio, openbao, keycloak]
 
 # Provisioner NAME -> compose service whose health gates it.
-SERVICE_FOR = {"openbao": "openbao", "minio": "minio", "postgres": "postgres"}
+SERVICE_FOR = {"openbao": "openbao", "minio": "minio", "postgres": "postgres",
+               "keycloak": "keycloak"}
 
 DEFAULT_NETWORK = "facil_framework_default"
 

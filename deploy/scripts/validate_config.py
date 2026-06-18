@@ -116,11 +116,19 @@ class AuthKeycloakConfig(BaseModel):
     # production Postgres wiring are LATE-BINDING and done in P11 — these fields
     # are only a placeholder so the service skeleton (image, port, admin
     # bootstrap) exists and future activation is a profile switch, not a build.
+    # Explicit opt-in (default OFF): keycloak is profile-gated in the stack, so the
+    # bootstrap only provisions it (and the apply only waits for it) when the
+    # operator turns this on AND a surface uses keycloak_oidc. Keeps the default
+    # local/cloud apply unaffected (no wait on a service that isn't up).
+    enabled: bool = False
     image: str = "quay.io/keycloak/keycloak:26.0"
     http_port: int = Field(default=8088, ge=1, le=65535)
     admin_user: str = "admin"
     admin_password_secret: str = "KEYCLOAK_ADMIN_PASSWORD"
-    realm: str = "facil-agents"   # placeholder name — realm actually created in P11
+    realm: str = "facil"          # realm provisioned by the keycloak bootstrap (K)
+    client_id: str = "facil-backend"   # OIDC client the BFF authenticates as
+    # Group taxonomy mapped to RBAC roles via auth.oidc.role_map (federation).
+    groups: list[str] = Field(default_factory=lambda: ["agents", "supervisors"])
 
 
 # Pluggable auth methods. The operator chooses freely PER SURFACE and may enable

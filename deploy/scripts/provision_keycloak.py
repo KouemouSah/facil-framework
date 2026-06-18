@@ -101,6 +101,13 @@ def provision(server: str, realm: str, admin_user: str, admin_password: str,
         cid = clients[0]["id"]
         c.put(f"{api}/{realm}/clients/{cid}/default-client-scopes/{scope['id']}", headers=H)
 
+        # 4b. confidential client secret — the BFF authenticates with it on the
+        #     server-side code->token exchange. Public clients have none.
+        if not public_client:
+            sec = c.get(f"{api}/{realm}/clients/{cid}/client-secret", headers=H)
+            if sec.status_code == 200:
+                out["client_secret"] = sec.json().get("value", "")
+
         # 5. group taxonomy (idempotent)
         existing_g = {g["name"] for g in c.get(f"{api}/{realm}/groups", headers=H).json()}
         for g in groups:
