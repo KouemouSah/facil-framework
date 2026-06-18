@@ -77,6 +77,48 @@ def test_require_db_url_ok_when_present(tmp_path):
     assert rbe.main(["--state", str(state), "--out", str(out), "--require-db-url"]) == 0
 
 
+def test_merge_preserves_existing_config(tmp_path):
+    """render_env.py's config keys must survive — render_backend_env only ADDS
+    the bootstrap secrets (the two renderers share .env.deploy.gen)."""
+    state = _write_state(tmp_path, [
+        {"name": "postgres", "secrets": {"pg_app_password": "p", "pg_app_role": "facil_app"}}])
+    out = tmp_path / "out.env"
+    out.write_text("BANGE_MERCHANT_ID=42\nENVIRONMENT=development\n", encoding="utf-8")
+    assert rbe.main(["--state", str(state), "--out", str(out)]) == 0
+    txt = out.read_text(encoding="utf-8")
+    assert "BANGE_MERCHANT_ID=42" in txt      # config preserved
+    assert "ENVIRONMENT=development" in txt    # config preserved
+    assert "DATABASE_URL=" in txt              # secret added
+
+
+def test_merge_is_idempotent(tmp_path):
+    """Re-running must not duplicate the managed block or the config keys."""
+    state = _write_state(tmp_path, [
+        {"name": "postgres", "secrets": {"pg_app_password": "p", "pg_app_role": "facil_app"}}])
+    out = tmp_path / "out.env"
+    out.write_text("BANGE_MERCHANT_ID=42\n", encoding="utf-8")
+    rbe.main(["--state", str(state), "--out", str(out)])
+    rbe.main(["--state", str(state), "--out", str(out)])
+    txt = out.read_text(encoding="utf-8")
+    assert txt.count("DATABASE_URL=") == 1
+    assert txt.count("BANGE_MERCHANT_ID=42") == 1
+    assert txt.count(rbe.MANAGED_MARKER) == 1
+
+
+def test_merge_overrides_stale_secret(tmp_path):
+    """A stale managed key loose in the body is replaced, not duplicated."""
+    state = _write_state(tmp_path, [
+        {"name": "postgres", "secrets": {"pg_app_password": "new", "pg_app_role": "facil_app"}}])
+    out = tmp_path / "out.env"
+    out.write_text("FOO=keep\nDATABASE_URL=postgresql+asyncpg://old:old@h:5432/d\n",
+                   encoding="utf-8")
+    rbe.main(["--state", str(state), "--out", str(out)])
+    txt = out.read_text(encoding="utf-8")
+    assert txt.count("DATABASE_URL=") == 1
+    assert "new" in txt and "old:old" not in txt
+    assert "FOO=keep" in txt
+
+
 def test_output_has_no_crlf(tmp_path):
     """#4 fix: env file is LF-only (docker compose env_file stays clean on Windows)."""
     state = _write_state(tmp_path, [

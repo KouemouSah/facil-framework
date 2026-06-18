@@ -22,10 +22,15 @@ FROM node:20-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 RUN groupadd -g 1001 nodejs && useradd -u 1001 -g nodejs -m nextjs
-# Standalone server + static assets + public.
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
+# Standalone server + static assets + public. --chown so the runtime user owns
+# the .next tree: the standalone server writes the ISR/prerender cache under
+# .next/cache at runtime, which fails with EACCES if the files are root-owned.
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+# Pre-create the writable cache dir (server.js mkdir's it otherwise; owning it
+# up front avoids a first-request EACCES race on read-only-ish layers).
+RUN mkdir -p .next/cache && chown -R nextjs:nodejs .next
 USER nextjs
 EXPOSE 3000
 CMD ["node", "server.js"]

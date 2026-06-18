@@ -68,6 +68,49 @@ def render(state_path: Path = DEFAULT_STATE, *, project: str = "facil",
     return "".join(lines), has_url
 
 
+# Sentinel that delimits the block this script owns. Everything from the marker
+# to EOF is rewritten on each run, so the merge is idempotent.
+MANAGED_MARKER = (
+    "# --- render_backend_env: bootstrap-derived connection secrets (managed) ---"
+)
+
+
+def _managed_lines(content: str) -> list[str]:
+    """The KEY=value lines produced by render() (drops its header comments)."""
+    return [
+        ln for ln in content.splitlines(keepends=True)
+        if "=" in ln and not ln.lstrip().startswith("#")
+    ]
+
+
+def merge_into(existing: str, content: str) -> str:
+    """Merge render()'s managed keys into an existing env file.
+
+    render_env.py owns the non-secret config keys (BANGE_*, GEMINI_*, …) and
+    writes them to the SAME .env.deploy.gen. This script must ADD the
+    bootstrap-derived connection secrets (DATABASE_URL/MINIO_*/OPENBAO_*) without
+    clobbering that config — so we preserve every non-managed line and (re)append
+    our managed block. Idempotent: re-running drops the prior block first.
+    """
+    managed = _managed_lines(content)
+    if not existing.strip():
+        return content  # fresh file: keep render()'s own header + lines
+
+    base = existing.split(MANAGED_MARKER, 1)[0].rstrip("\n")
+    managed_keys = {ln.split("=", 1)[0] for ln in managed}
+    # Defensive: also drop any stray managed keys left loose in the config body.
+    kept = [
+        ln for ln in base.splitlines()
+        if not ("=" in ln and not ln.lstrip().startswith("#")
+                and ln.split("=", 1)[0] in managed_keys)
+    ]
+    base = "\n".join(kept).rstrip("\n")
+    if not managed:
+        return base + "\n"
+    block = MANAGED_MARKER + "\n" + "".join(managed)
+    return base + "\n\n" + block
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--state", type=Path, default=DEFAULT_STATE)
@@ -79,9 +122,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         content, has_url = render(args.state)
+        # Merge into the existing file (render_env.py's config) instead of
+        # overwriting it — the two renderers share .env.deploy.gen.
+        existing = args.out.read_text(encoding="utf-8") if args.out.exists() else ""
+        merged = merge_into(existing, content)
         # newline='\n' => no CRLF on Windows; docker compose env_file stays clean.
         args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text(content, encoding="utf-8", newline="\n")
+        args.out.write_text(merged, encoding="utf-8", newline="\n")
     except OSError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
