@@ -91,6 +91,17 @@ def main() -> int:
 
     emails = [e.strip() for e in os.environ.get("ADMIN_EMAILS", DEFAULT_EMAILS).split(",")
               if e.strip()]
+    # Preserve passwords already recorded for existing accounts, so re-running the
+    # tool never DESTROYS the credentials it printed earlier (we can't recover them
+    # from the bcrypt hash in the DB).
+    prior_pw = {}
+    if CREDS_FILE.exists():
+        try:
+            for a in json.loads(CREDS_FILE.read_text(encoding="utf-8")):
+                if a.get("password") and not a["password"].startswith("("):
+                    prior_pw[a["email"]] = a["password"]
+        except (ValueError, OSError):
+            pass
     out = []
     for email in emails:
         pw = _strong_password()
@@ -108,7 +119,10 @@ def main() -> int:
                 print(f"WARN: {email} exists but lookup failed ({s2}); skipping.",
                       file=sys.stderr)
                 continue
-            acc_id, created, pw = match["id"], False, "(unchanged — existing account)"
+            # Reuse the previously-recorded password if we have it; otherwise the
+            # account exists with a password we can't recover (we never reset it).
+            acc_id, created = match["id"], False
+            pw = prior_pw.get(email, "(unknown — existing account, not in creds file)")
         else:
             print(f"ERROR: register {email} -> {st}: {acc}", file=sys.stderr)
             continue
