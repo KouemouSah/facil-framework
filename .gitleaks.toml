@@ -39,6 +39,12 @@ paths = [
   # secrets, dummy passwords/tokens). The app code (packages/backend/app/) stays
   # scanned — only the test tree is exempt.
   '''(^|/)packages/backend/tests/''',
+
+  # Deploy bootstrap TEST fixtures (test_postgres/openbao/keycloak/…) carry fake
+  # passwords / client secrets to drive the provisioner mocks. The provisioner
+  # code itself (deploy/providers/bootstrap/*.py, non-test) stays scanned — only
+  # the test_*.py files are exempt.
+  '''(^|/)deploy/providers/bootstrap/test_[^/]*\.py$''',
 ]
 
 # --- Value allowlist ------------------------------------------------------
