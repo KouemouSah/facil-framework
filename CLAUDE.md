@@ -85,6 +85,18 @@ taille du lot (productivité). `ENGINEERING_STANDARDS.md` = le *quoi* ; les agen
 
 **Changement trivial/mécanique** → self-checklist suffit (ne pas sur-outiller). En cas de doute : revue.
 
+### Ajout d'agents / skills — politique (vetté, minimal, anti-supply-chain)
+- **PAS de bulk-install** depuis des marketplaces **communautaires** (`aitmpl.com`, `davila7/claude-code-templates`) :
+  un agent/skill peut déclarer des permissions d'outils, des **hooks shell** et des prompts arbitraires → **risque
+  supply-chain** (cf. `hookify`/`dash0` désactivés pour cette raison). « Nécessaire ET sécurisé » ≠ « tout installer ».
+- **À la demande + justifié** : n'ajouter qu'un item précis comblant un **vrai manque** non couvert par le jeu déjà
+  présent (très riche : `code-reviewer`, `security-auditor`, `silent-failure-hunter`, `type-design-analyzer`,
+  `frontend-design`, `webapp-testing`, `supabase-postgres-best-practices`, `chrome-devtools-mcp:a11y-debugging`…).
+- **First-party d'abord** (`anthropics/skills`) > communautaire. ✔ Vérifié 2026-06-18 : **tout `anthropics/skills`
+  est déjà disponible ici** (via `example-skills:*` + `document-skills:*`) → rien à installer côté first-party.
+- **Vetting OBLIGATOIRE avant activation** : lire la définition (outils autorisés, **hooks**, prompt) ; **refuser** tout
+  hook shell non justifié ou permission large. Install via le mécanisme officiel, **par item, avec accord user** — jamais en masse.
+
 ## Architecture (cible)
 
 **Monolithe modulaire** (ADR-0001), 1 DB, surfaces citoyen/agent séparées.
