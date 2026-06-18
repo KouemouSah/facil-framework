@@ -480,17 +480,20 @@ services:
         condition: service_completed_successfully
 
   # ---------------------------------------------------------------------
-  # Frontend — Next.js standalone. DEFAULT service of the stack: the
-  # facil_framework group mirrors production, which runs the CI-built image —
-  # never `npm run dev`. It PULLS the same GHCR image the VPS pulls; make the
-  # package PUBLIC (open-core, no secrets baked) so no login is needed, exactly
-  # like postgres/redis. Tag/owner overridable via env. Refresh after a push
-  # with tools/refresh-local.sh. (Frontend hot-reload dev = `npm run dev` on the
-  # host — a separate tool, not this prod-faithful container.)
+  # Frontend — Next.js. DEFAULT service of the stack (the facil_framework group
+  # mirrors production). Built LOCALLY from source, exactly like the backend —
+  # zero registry / login needed for local dev. The prod/VPS path instead PULLS
+  # the CI-built image (release-images.yml -> GHCR); to mirror that locally (e.g.
+  # if the local Next build is too heavy) use tools/refresh-local.sh. Frontend
+  # hot-reload dev = `npm run dev` on the host (a separate tool).
   # ---------------------------------------------------------------------
   frontend:
-    image: ghcr.io/${{FACIL_IMAGE_OWNER:-kouemousah}}/facil-web:${{FACIL_IMAGE_TAG:-develop}}
-    pull_policy: missing
+    build:
+      context: ./packages/web
+      args:
+        NEXT_PUBLIC_API_URL: {public_api_url}
+        NEXT_PUBLIC_BUILD_VERSION: {cfg.meta.version}
+        NEXT_PUBLIC_ENVIRONMENT: {env_label}
     env_file:
       - ./packages/web/.env.deploy.gen
     environment:
@@ -788,21 +791,13 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
                   "re-run: python deploy/providers/run_bootstrap.py --apply",
                   file=sys.stderr)
             return 1
-        rc = run_compose(compose_cmd("up", "-d", "--build", "db-init", "backend"),
+        # App tier built locally (db-init + backend + frontend) — no registry.
+        rc = run_compose(compose_cmd("up", "-d", "--build", "db-init", "backend", "frontend"),
                          env_extra=runtime_env)
         if rc != 0:
             print(f"[WARN] app tier up failed (exit {rc}) — data-plane is up; "
-                  f"fix and re-run.", file=sys.stderr)
-        # Frontend = pulled GHCR image (prod-faithful, no local build). Brought up
-        # separately so a registry/auth hiccup can't abort the backend. Needs the
-        # package public (open-core) or a one-time `docker login ghcr.io`.
-        rc_fe = run_compose(compose_cmd("up", "-d", "--no-build", "frontend"),
-                            env_extra=runtime_env)
-        if rc_fe != 0:
-            print(f"[WARN] frontend up failed (exit {rc_fe}) — could not pull the "
-                  f"GHCR image. Make ghcr.io/<owner>/facil-web PUBLIC (open-core) "
-                  f"or run `docker login ghcr.io`, then `tools/refresh-local.sh`.",
-                  file=sys.stderr)
+                  f"fix and re-run. If the frontend (Next) build OOM'd, pull the "
+                  f"prebuilt image instead: tools/refresh-local.sh.", file=sys.stderr)
     else:
         print("\n[INFO] packages/backend absent — app tier skipped (data-plane only).")
 

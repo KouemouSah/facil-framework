@@ -27,9 +27,11 @@ customisable **sans code** via un Customization Studio. License **AGPL-3.0** (Op
 
 1. **JAMAIS de build prod manuel** — build local Docker Desktop pour dev/test uniquement
    (`docker buildx` via Bash, PAS via MCP_DOCKER qui est cassé/inutile). Prod = CI GitHub Actions → GHCR → pull serveur.
-   **Images backend + web (Phase C)** : buildées+poussées par `.github/workflows/release-images.yml`
-   → `ghcr.io/<owner>/facil-{backend,web}` (push `main`/`develop`). Rafraîchir le local = **`tools/refresh-local.sh`**
-   (pull GHCR via override `deploy/compose.images.yml`, `--no-build`) — **jamais** `docker build` manuel pour tester.
+   **Local = build** : backend ET frontend se **buildent localement** dans le groupe `facil_framework`
+   (services par défaut, `build:`, zéro registre/login — comme `backend-1`). **Prod/VPS = pull** : la CI
+   (`.github/workflows/release-images.yml`) build+push `ghcr.io/<owner>/facil-{backend,web}` (push `main`/`develop`),
+   le serveur **pull** ces images (pas de build sur le serveur). En local, **option** de pull au lieu de builder
+   (ex. si le build Next OOM) = **`tools/refresh-local.sh`** (override `deploy/compose.images.yml`). Jamais de build prod manuel.
 2. **Toujours vérifier avant d'agir** — interroger la BD / lire le source / tester l'endpoint. Ne rien inventer, pas de placeholder, pas de champ fantôme.
 3. **Challenger les suggestions** — être l'expert, critique, sans biais.
 4. **Plans par phase** — plan → impl → test fin de phase → checklist → critique honnête → auto-correct → commit local groupé → phase suivante. Push sous validation explicite.
