@@ -9,9 +9,26 @@
  * the login page instead of surfacing a raw error.
  */
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  /** `detail` is the raw parsed error body. For a 422 it is FastAPI's
+   * validation array (`[{loc:["body","field"], msg, type}]`), which lets a form
+   * map each error onto its field (§11bis 422→field). */
+  constructor(public status: number, message: string, public detail?: unknown) {
     super(message);
     this.name = "ApiError";
+  }
+
+  /** Field → message map parsed from a 422 body (empty if not a validation error). */
+  fieldErrors(): Record<string, string> {
+    const out: Record<string, string> = {};
+    const d = this.detail as { detail?: unknown };
+    const items = Array.isArray(this.detail) ? this.detail
+      : Array.isArray(d?.detail) ? d.detail : [];
+    for (const it of items as Array<{ loc?: unknown[]; msg?: string }>) {
+      const loc = Array.isArray(it.loc) ? it.loc : [];
+      const field = loc.length ? String(loc[loc.length - 1]) : "";
+      if (field && field !== "body" && !(field in out)) out[field] = it.msg ?? "Invalid value";
+    }
+    return out;
   }
 }
 
@@ -38,14 +55,20 @@ export async function apiFetch<T = unknown>(
   }
 
   if (!res.ok) {
-    let detail = res.statusText;
+    let message = res.statusText;
+    let raw: unknown;
     try {
-      const body = await res.json();
-      detail = (body && (body.detail || body.message)) || detail;
+      raw = await res.json();
+      const d = (raw as { detail?: unknown; message?: unknown })?.detail
+        ?? (raw as { message?: unknown })?.message;
+      // A 422 `detail` is an array (per-field) — keep a readable message but
+      // hand the structured body to ApiError for field mapping.
+      message = typeof d === "string" ? d
+        : Array.isArray(d) ? "Validation failed" : message;
     } catch {
       /* non-JSON error body */
     }
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, message, raw);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;

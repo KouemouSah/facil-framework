@@ -1,26 +1,50 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Search, Check } from "lucide-react";
+import { Plus, Trash2, Search } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { codeField, requiredText } from "@/lib/form-schemas";
 import { ExportMenu } from "@/components/export-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { DataGrid, type DataGridColumn } from "@/components/ui/data-grid";
 import { DetailPanel } from "@/components/ui/detail-panel";
-import { JsonField } from "@/components/ui/json-field";
+import { RecordForm, type FieldDef } from "@/components/ui/record-form";
 import { useServerTable, type ServerPage } from "@/lib/use-server-table";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 interface Org { id: string; code: string; legal_name: string; display_name?: string }
 const DEFAULT_PAGE = 20;
+const ORG_BASE = "/api/v1/modules/organization";
+
+// Canonical Company fields (ERP-grade F.3): the legal identity (tax id /
+// registration / postal address) now lives on the linked Party + Address — the
+// org keeps its code/branding/scope plus FK links to that master data. The old
+// flat free-text geo/tax/currency inputs are intentionally gone.
+const ORG_FIELDS: FieldDef[] = [
+  { name: "code", label: "Code", required: true, immutable: true, zod: codeField,
+    hint: "Immutable identifier." },
+  { name: "legal_name", label: "Legal name", required: true, zod: requiredText("Legal name") },
+  { name: "display_name", label: "Display name" },
+  { name: "party_id", label: "Legal identity (directory)", type: "party",
+    hint: "Party holding tax id / registration / contacts." },
+  { name: "parent_id", label: "Consolidation parent", type: "org",
+    hint: "Owning company for multi-company groups." },
+  { name: "currency_id", label: "Currency", type: "ref", refResource: "currencies" },
+  { name: "email", label: "Email" },
+  { name: "phone", label: "Phone" },
+  { name: "website", label: "Website" },
+  { name: "logo_url", label: "Logo URL", colSpan: 2 },
+  { name: "default_locale", label: "Default locale", placeholder: "en" },
+  { name: "timezone", label: "Timezone", placeholder: "UTC" },
+  { name: "hq_address_id", label: "Head office address", type: "address" },
+  { name: "document_identity", label: "Document identity (JSON)", type: "json",
+    hint: "Identifiers shown on generated documents (registry, VAT…)." },
+  { name: "settings", label: "Settings (JSON)", type: "json",
+    hint: "Free-form organization settings." },
+];
 
 export default function OrganizationsPage() {
   const qc = useQueryClient();
@@ -39,14 +63,13 @@ export default function OrganizationsPage() {
     defaultPageSize: DEFAULT_PAGE,
     fetchPage: ({ cursor, limit, sort, q }) =>
       apiFetch<ServerPage<Org>>(
-        `/api/v1/modules/organization/?q=${encodeURIComponent(q)}&sort=${sort}` +
+        `${ORG_BASE}/?q=${encodeURIComponent(q)}&sort=${sort}` +
         `&limit=${limit}` + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : "")),
   });
   const rows = table.rows;
 
   const del = useMutation({
-    mutationFn: (id: string) =>
-      apiFetch(`/api/v1/modules/organization/${id}`, { method: "DELETE" }),
+    mutationFn: (id: string) => apiFetch(`${ORG_BASE}/${id}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["orgs"] }),
   });
 
@@ -82,13 +105,13 @@ export default function OrganizationsPage() {
               value={table.q} onChange={(e) => table.setQ(e.target.value)} />
           </div>
           <ExportMenu filename="organizations"
-            path={`/api/v1/modules/organization/export?q=${encodeURIComponent(table.q)}&sort=${table.sort}`} />
+            path={`${ORG_BASE}/export?q=${encodeURIComponent(table.q)}&sort=${table.sort}`} />
           <NewOrgDialog open={open} setOpen={setOpen} />
         </div>
       </div>
 
       {/* Master-detail: list left, edit form right (deep-linkable ?sel=) */}
-      <div className={`grid min-h-0 flex-1 gap-4 ${sel ? "lg:grid-cols-[1fr_minmax(380px,520px)]" : ""}`}>
+      <div className={`grid min-h-0 flex-1 gap-4 ${sel ? "lg:grid-cols-[1fr_minmax(420px,560px)]" : ""}`}>
         <DataGrid<Org>
           mode="cursor"
           columns={columns}
@@ -118,151 +141,48 @@ export default function OrganizationsPage() {
   );
 }
 
-// Editable scalar fields of OrganizationUpdate (code is immutable; the JSON
-// document_identity/settings are edited via the JsonField editors below).
-const ORG_FIELDS: { key: string; label: string }[] = [
-  { key: "legal_name", label: "Legal name" },
-  { key: "display_name", label: "Display name" },
-  { key: "email", label: "Email" },
-  { key: "phone", label: "Phone" },
-  { key: "website", label: "Website" },
-  { key: "logo_url", label: "Logo URL" },
-  { key: "address_line1", label: "Address line 1" },
-  { key: "address_line2", label: "Address line 2" },
-  { key: "city", label: "City" },
-  { key: "region", label: "Region" },
-  { key: "country_code", label: "Country (ISO-2)" },
-  { key: "postal_code", label: "Postal code" },
-  { key: "tax_id", label: "Tax ID" },
-  { key: "registration_number", label: "Registration #" },
-  { key: "default_locale", label: "Default locale" },
-  { key: "timezone", label: "Timezone" },
-  { key: "currency", label: "Currency (ISO-3)" },
-];
-
 function OrgDetail({ orgId, onClose }: { orgId: string; onClose: () => void }) {
   const qc = useQueryClient();
-  const [form, setForm] = useState<Record<string, string> | null>(null);
-  const [docIdentity, setDocIdentity] = useState<unknown>({});
-  const [settings, setSettings] = useState<unknown>({});
-  const [jsonOk, setJsonOk] = useState({ document_identity: true, settings: true });
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState("");
-
   const { data } = useQuery<Record<string, unknown>>({
     queryKey: ["org", orgId],
-    queryFn: () => apiFetch(`/api/v1/modules/organization/${orgId}`),
+    queryFn: () => apiFetch(`${ORG_BASE}/${orgId}`),
   });
-
-  useEffect(() => {
-    if (data && !form) {
-      const f: Record<string, string> = {};
-      for (const { key } of ORG_FIELDS) f[key] = (data[key] as string) ?? "";
-      setForm(f);
-      setDocIdentity(data.document_identity ?? {});
-      setSettings(data.settings ?? {});
-      setJsonOk({ document_identity: true, settings: true });
-    }
-  }, [data, form]);
-
-  const save = useMutation({
-    mutationFn: () => {
-      const payload: Record<string, unknown> = {};
-      for (const { key } of ORG_FIELDS) payload[key] = (form?.[key] ?? "") || null;
-      payload.document_identity = docIdentity;
-      payload.settings = settings;
-      return apiFetch(`/api/v1/modules/organization/${orgId}`, {
-        method: "PUT",
-        headers: data?.etag ? { "If-Match": String(data.etag) } : undefined,
-        body: JSON.stringify(payload),
-      });
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["org", orgId] });
-      qc.invalidateQueries({ queryKey: ["orgs"] });
-      setSaved(true);
-    },
-    onError: (e: { status?: number; message?: string }) => {
-      if (e.status === 409) {
-        setError("Changed elsewhere — reloading the latest.");
-        setForm(null);
-        qc.invalidateQueries({ queryKey: ["org", orgId] });
-      } else { setError(e.message || "Save failed"); }
-    },
-  });
-
-  function set(k: string, v: string) {
-    setForm((f) => (f ? { ...f, [k]: v } : f));
-    setSaved(false);
-  }
 
   return (
     <DetailPanel
       title={(data?.display_name as string) || (data?.legal_name as string) || "Organization"}
       subtitle={data?.code ? `code ${data.code}` : undefined}
       onClose={onClose}
-      footer={
-        <div className="flex items-center gap-2">
-          {saved && <span className="flex items-center gap-1 text-sm text-emerald-600"><Check className="size-4" /> Saved</span>}
-          {error && <span className="text-sm text-destructive">{error}</span>}
-          <Button type="button" size="sm" className="ml-auto"
-            disabled={save.isPending || form === null || !jsonOk.document_identity || !jsonOk.settings}
-            onClick={() => save.mutate()}>
-            {save.isPending ? "Saving…" : "Save"}
-          </Button>
-        </div>
-      }
     >
-      {form === null && <p className="text-sm text-muted-foreground">Loading…</p>}
-      {form !== null && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {ORG_FIELDS.map(({ key, label }) => (
-              <div key={key} className="space-y-1.5">
-                <Label htmlFor={`org-${key}`}>{label}</Label>
-                <Input id={`org-${key}`} value={form[key]} onChange={(e) => set(key, e.target.value)} />
-              </div>
-            ))}
-          </div>
-          <JsonField id="org-document_identity" label="Document identity (JSON)"
-            value={data?.document_identity}
-            hint="Identifiers shown on generated documents (registry, VAT…)."
-            onChange={(v, ok) => { setJsonOk((s) => ({ ...s, document_identity: ok })); if (ok) setDocIdentity(v); setSaved(false); }} />
-          <JsonField id="org-settings" label="Settings (JSON)"
-            value={data?.settings}
-            hint="Free-form organization settings."
-            onChange={(v, ok) => { setJsonOk((s) => ({ ...s, settings: ok })); if (ok) setSettings(v); setSaved(false); }} />
-        </div>
+      {!data && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {data && (
+        <RecordForm
+          // Remount on a fresh load (post-save / post-conflict) to reseed initial + etag.
+          key={String(data.etag ?? orgId)}
+          fields={ORG_FIELDS}
+          mode="edit"
+          layout="rich"
+          initial={data}
+          etag={data.etag ? String(data.etag) : undefined}
+          onSubmit={(payload, etag) =>
+            apiFetch(`${ORG_BASE}/${orgId}`, {
+              method: "PUT",
+              headers: etag ? { "If-Match": etag } : undefined,
+              body: JSON.stringify(payload),
+            })}
+          onSuccess={() => {
+            qc.invalidateQueries({ queryKey: ["org", orgId] });
+            qc.invalidateQueries({ queryKey: ["orgs"] });
+          }}
+          onConflict={() => qc.invalidateQueries({ queryKey: ["org", orgId] })}
+        />
       )}
     </DetailPanel>
   );
 }
 
-const orgForm = z.object({ code: codeField, legal_name: requiredText("Legal name") });
-type OrgForm = z.infer<typeof orgForm>;
-
 function NewOrgDialog({ open, setOpen }: { open: boolean; setOpen: (b: boolean) => void }) {
   const qc = useQueryClient();
-  const [error, setError] = useState("");
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<OrgForm>({
-    resolver: zodResolver(orgForm),
-    defaultValues: { code: "", legal_name: "" },
-  });
-
-  const create = useMutation({
-    mutationFn: (values: OrgForm) =>
-      apiFetch("/api/v1/modules/organization/", {
-        method: "POST",
-        body: JSON.stringify(values),
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["orgs"] });
-      setOpen(false);
-      reset(); setError("");
-    },
-    onError: (e: Error) => setError(e.message || "Create failed"),
-  });
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -270,23 +190,22 @@ function NewOrgDialog({ open, setOpen }: { open: boolean; setOpen: (b: boolean) 
       </DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>New organization</DialogTitle></DialogHeader>
-        <form className="space-y-3" onSubmit={handleSubmit((v) => create.mutate(v))}>
-          <div className="space-y-1.5">
-            <Label htmlFor="code">Code</Label>
-            <Input id="code" {...register("code")} placeholder="acme" />
-            {errors.code && <p className="text-xs text-destructive">{errors.code.message}</p>}
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="legal">Legal name</Label>
-            <Input id="legal" {...register("legal_name")} placeholder="Acme Corp" />
-            {errors.legal_name && <p className="text-xs text-destructive">{errors.legal_name.message}</p>}
-          </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <DialogFooter>
-            <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
-            <Button type="submit" disabled={create.isPending}>{create.isPending ? "Creating…" : "Create"}</Button>
-          </DialogFooter>
-        </form>
+        <div className="max-h-[70vh] overflow-auto pr-1">
+          <RecordForm
+            fields={ORG_FIELDS}
+            mode="create"
+            layout="rich"
+            enableSaveNew
+            submitLabel="Create"
+            onSubmit={(payload) =>
+              apiFetch(`${ORG_BASE}/`, { method: "POST", body: JSON.stringify(payload) })}
+            onSuccess={({ again }) => {
+              qc.invalidateQueries({ queryKey: ["orgs"] });
+              if (!again) setOpen(false);
+            }}
+            onCancel={() => setOpen(false)}
+          />
+        </div>
       </DialogContent>
     </Dialog>
   );
