@@ -136,9 +136,17 @@ def wait_for_healthy(
 # ---------------------------------------------------------------------------
 
 def exec_in(container: str, cmd: list[str], *, timeout: int = 60,
-            check: bool = True) -> subprocess.CompletedProcess:
-    """``docker exec <container> <cmd...>`` — used for in-container psql."""
-    return run(["exec", container, *cmd], timeout=timeout, check=check)
+            check: bool = True, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
+    """``docker exec [-e K=V...] <container> <cmd...>`` — used for in-container psql.
+
+    ``env`` injects ``-e`` flags (e.g. ``PGPASSWORD`` for a password-auth probe)
+    without leaking the value into a shell — argv only.
+    """
+    args = ["exec"]
+    for k, v in (env or {}).items():
+        args += ["-e", f"{k}={v}"]
+    args += [container, *cmd]
+    return run(args, timeout=timeout, check=check)
 
 
 def run_oneshot(

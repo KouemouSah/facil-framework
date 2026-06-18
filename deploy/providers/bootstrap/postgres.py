@@ -50,6 +50,22 @@ def _existing_extensions(container, user, db) -> set[str]:
     return {line.strip() for line in out.splitlines() if line.strip()}
 
 
+def _password_works(container, role, db, pw) -> bool:
+    """True if ``role`` can authenticate with ``pw``. Connects over TCP
+    (``-h 127.0.0.1``) so password auth (md5/scram) applies — the local socket
+    would use peer auth and bypass the password. PGPASSWORD is passed as an env
+    flag (argv only, never a shell)."""
+    if not pw:
+        return False
+    proc = exec_in(
+        container,
+        ["psql", "-h", "127.0.0.1", "-U", role, "-d", db,
+         "-v", "ON_ERROR_STOP=1", "-tAc", "SELECT 1"],
+        env={"PGPASSWORD": pw}, check=False,
+    )
+    return proc.returncode == 0 and proc.stdout.strip() == "1"
+
+
 # Least-privilege grants for the application role. The superuser (POSTGRES_USER)
 # stays reserved for migrations / db-init; the backend connects as this role.
 def _grants(role: str, db: str) -> list[str]:
@@ -83,20 +99,24 @@ def _ensure_app_role(ctx, container, user, db, step) -> tuple[str, str]:
     if prior and (ps := prior.step(NAME)):
         prior_pw = ps.secrets.get("pg_app_password", "")
 
-    if exists and prior_pw:
+    # Idempotent rotation (S3): only change the password when we cannot keep the
+    # one we have. Reusing a *verified* password avoids a needless rotation that
+    # would invalidate the env-rendered DATABASE_URL until a re-render+restart.
+    if exists and prior_pw and _password_works(container, role, db, prior_pw):
         pw = prior_pw
-        step.actions.append(f"app role '{role}' present — password reused")
+        step.actions.append(f"app role '{role}' present — password reused (verified)")
+    elif exists:
+        pw = _secrets.token_urlsafe(24)
+        _psql(container, user, db, f"ALTER ROLE {role} WITH LOGIN PASSWORD '{pw}'")
+        reason = ("state password no longer valid" if prior_pw
+                  else "no prior password in state")
+        step.actions.append(f"app role '{role}' password rotated ({reason})")
     else:
         pw = _secrets.token_urlsafe(24)
-        if exists:
-            _psql(container, user, db,
-                  f"ALTER ROLE {role} WITH LOGIN PASSWORD '{pw}'")
-            step.actions.append(f"app role '{role}' password rotated (unknown prior)")
-        else:
-            _psql(container, user, db,
-                  f"CREATE ROLE {role} LOGIN NOSUPERUSER NOCREATEDB "
-                  f"NOCREATEROLE PASSWORD '{pw}'")
-            step.actions.append(f"app role '{role}' created (NOSUPERUSER, least-privilege)")
+        _psql(container, user, db,
+              f"CREATE ROLE {role} LOGIN NOSUPERUSER NOCREATEDB "
+              f"NOCREATEROLE PASSWORD '{pw}'")
+        step.actions.append(f"app role '{role}' created (NOSUPERUSER, least-privilege)")
 
     for g in _grants(role, db):
         _psql(container, user, db, g)

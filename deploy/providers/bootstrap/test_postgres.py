@@ -46,15 +46,22 @@ def make_cfg(**overrides) -> vc.DeployConfig:
 
 
 class FakePsql:
-    def __init__(self, existing=(), fail_on_create=False, role_exists=False):
+    def __init__(self, existing=(), fail_on_create=False, role_exists=False,
+                 password_valid=True):
         self.existing = "\n".join(existing)
         self.fail_on_create = fail_on_create
         self.role_exists = role_exists
+        self.password_valid = password_valid   # does the verify probe succeed?
         self.creates: list[str] = []
         self.role_sql: list[str] = []   # CREATE ROLE / ALTER ROLE statements
+        self.verified = False           # was the password verification probe run?
 
-    def __call__(self, container, cmd, *, timeout=60, check=True):
+    def __call__(self, container, cmd, *, timeout=60, check=True, env=None):
         sql = cmd[-1]
+        if env and "PGPASSWORD" in env:        # password verification probe (S3)
+            self.verified = True
+            return SimpleNamespace(stdout="1" if self.password_valid else "",
+                                   returncode=0 if self.password_valid else 2)
         if sql.startswith("SELECT extname"):
             return SimpleNamespace(stdout=self.existing, returncode=0)
         if sql.startswith("SELECT 1 FROM pg_roles"):
@@ -180,21 +187,40 @@ def test_app_role_password_reused(monkeypatch, tmp_path):
                    steps=[ProvisionStep(name="postgres", status="ok",
                                         secrets={"pg_app_password": "REUSEME01234567890"})]
                    ).save(ctx.state_file)
-    fake = FakePsql(role_exists=True)
+    fake = FakePsql(role_exists=True, password_valid=True)
     _patch(monkeypatch, fake)
     step = pg.provision(ctx)
+    assert fake.verified is True                      # S3: password was verified
     assert fake.role_sql == []                       # neither created nor altered
     assert step.secrets["pg_app_password"] == "REUSEME01234567890"
-    assert any("reused" in a for a in step.actions)
+    assert any("reused (verified)" in a for a in step.actions)
+
+
+def test_app_role_rotated_when_state_password_stale(monkeypatch, tmp_path):
+    """S3: a state password that no longer authenticates IS rotated (not reused)."""
+    ctx = _ctx_with_state(tmp_path)
+    BootstrapState(project="facil", storage_provider="minio",
+                   secrets_provider="openbao", database_mode="local",
+                   steps=[ProvisionStep(name="postgres", status="ok",
+                                        secrets={"pg_app_password": "STALEpw0123456789"})]
+                   ).save(ctx.state_file)
+    fake = FakePsql(role_exists=True, password_valid=False)   # verify fails
+    _patch(monkeypatch, fake)
+    step = pg.provision(ctx)
+    assert fake.verified is True
+    assert any(s.startswith("ALTER ROLE facil_app") for s in fake.role_sql)
+    assert any("no longer valid" in a for a in step.actions)
+    assert step.secrets["pg_app_password"] != "STALEpw0123456789"   # fresh pw
 
 
 def test_app_role_rotated_when_prior_unknown(monkeypatch, tmp_path):
-    ctx = _ctx_with_state(tmp_path)        # role exists but no state file
+    ctx = _ctx_with_state(tmp_path)        # role exists but no state file (no prior pw)
     fake = FakePsql(role_exists=True)
     _patch(monkeypatch, fake)
     step = pg.provision(ctx)
+    assert fake.verified is False                    # nothing to verify (no prior)
     assert any(s.startswith("ALTER ROLE facil_app") for s in fake.role_sql)
-    assert any("rotated" in a for a in step.actions)
+    assert any("no prior password in state" in a for a in step.actions)
 
 
 def test_app_role_grants_include_default_privileges(monkeypatch, tmp_path):
