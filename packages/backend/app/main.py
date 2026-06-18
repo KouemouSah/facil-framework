@@ -27,6 +27,7 @@ from app.api import (
 )
 from app.scim import api as scim_api
 from app.modules.reference.api import router as reference_router
+from app.modules.party.api import router as party_router
 from app.branding import resolver_defaults as branding_defaults
 from app.config import get_settings
 from app.config_store import repository as repo
@@ -174,6 +175,8 @@ app.include_router(system.router)
 # Reference master data (countries/currencies/regions) is foundational — org/site
 # depend on it — so it is a CORE router, always mounted (not a MODULES_ENABLED module).
 app.include_router(reference_router)
+# Party directory (Odoo res.partner) — foundational pillar, also core.
+app.include_router(party_router)
 # Business modules — included only if listed in MODULES_ENABLED (Phase A.5).
 # Not-yet-ported modules are skipped (warned); present-but-broken ones fail closed.
 load_modules(app, enabled=enabled_from_env())
