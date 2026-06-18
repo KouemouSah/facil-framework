@@ -66,6 +66,25 @@ Résumé impératif (toujours appliquer, sans qu'on le redemande) :
   `/health`, métriques, SCIM IdP, internes/bulk). Tout ajout backend livre son UI **dans le même lot**.
 - **Tests = vraie validation** (pytest/Vitest/Playwright, gate CI) ; **réutilisation d'abord / DRY**.
 
+## Workflow qualité — gate avant commit (OBLIGATOIRE, anti-régression)
+
+Objectif : **ne pas répéter les mêmes erreurs** (régressions, sécurité, parité, formes). On **s'appuie sur
+les agents spécialisés déjà disponibles** (pas d'auto-checklist seule) ; le gate est **proportionné** à la
+taille du lot (productivité). `ENGINEERING_STANDARDS.md` = le *quoi* ; les agents vérifient le *respect*.
+
+**Tout lot non-trivial** (nouvel endpoint, écran, formulaire, migration, logique sensible) → avant commit :
+1. **Tests verts** (pytest/Vitest) + **smoke live** sur Postgres réel quand la stack est up.
+2. **Revue par agents** sur le diff (corriger les findings, pas juste les lister) :
+   - Bugs / logique / régressions → agent `code-reviewer` (pr-review-toolkit) ou skill `/code-review`.
+   - **Sécurité** (auth, RBAC, upload, secrets, injection, XSS) → agent `security-auditor` / skill `/security-review` (+ SAST CI).
+   - **Erreurs silencieuses / fallback** → agent `silent-failure-hunter`.
+   - **Frontend** → skill `frontend-design` + revue explicite contre **§11bis** (RecordForm, zod, `If-Match`, permission-driven, a11y/i18n).
+   - **Nouveaux types** → agent `type-design-analyzer`.
+3. **Self-checklist** finale : **parité** (capacité backend exposée ?) · **standards** (§ pertinents respectés ?) ·
+   **DRY** (réutilise un composant/factory générique, pas d'ad-hoc ?) · **sécurité** (validation client ET serveur ?).
+
+**Changement trivial/mécanique** → self-checklist suffit (ne pas sur-outiller). En cas de doute : revue.
+
 ## Architecture (cible)
 
 **Monolithe modulaire** (ADR-0001), 1 DB, surfaces citoyen/agent séparées.
