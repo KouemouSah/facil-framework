@@ -28,6 +28,13 @@ class OrganizationCreate(BaseModel):
     currency: str | None = Field(None, min_length=3, max_length=3)
     document_identity: dict = Field(default_factory=dict)
     settings: dict = Field(default_factory=dict)
+    # ERP Company links (F.3): consolidation parent + canonical FKs to the
+    # party/address/currency master data. Optional; FK integrity enforced by the
+    # DB (a bad reference surfaces as 409 via the API's IntegrityError mapping).
+    parent_id: str | None = None
+    party_id: str | None = None
+    hq_address_id: str | None = None
+    currency_id: str | None = None
 
     @field_validator("code")
     @classmethod
@@ -38,6 +45,14 @@ class OrganizationCreate(BaseModel):
     @classmethod
     def _upper_cc(cls, v: str | None) -> str | None:
         return v.upper() if v else v
+
+    # A cleared picker in the UI sends "" — treat it as "no link" (NULL), never
+    # store an empty string that would then fail the existence/FK checks.
+    @field_validator("parent_id", "party_id", "hq_address_id", "currency_id",
+                     mode="before")
+    @classmethod
+    def _blank_fk_to_none(cls, v: object) -> object:
+        return None if v == "" else v
 
 
 class OrganizationUpdate(BaseModel):
@@ -62,6 +77,18 @@ class OrganizationUpdate(BaseModel):
     document_identity: dict | None = None
     settings: dict | None = None
     is_active: bool | None = None
+    # ERP Company links (F.3) — see OrganizationCreate. `parent_id` self-reference
+    # is rejected by the service (consolidation-cycle guard).
+    parent_id: str | None = None
+    party_id: str | None = None
+    hq_address_id: str | None = None
+    currency_id: str | None = None
+
+    @field_validator("parent_id", "party_id", "hq_address_id", "currency_id",
+                     mode="before")
+    @classmethod
+    def _blank_fk_to_none(cls, v: object) -> object:
+        return None if v == "" else v
 
 
 class OrgUnitCreate(BaseModel):

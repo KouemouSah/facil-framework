@@ -20,6 +20,12 @@ async def org_client(tmp_path, monkeypatch):
     from app.db.base import Base
     from app.db.engine import Database
 
+    # Register the non-module core tables (account/credential/rbac) so the FK
+    # from account_role -> account resolves during create_all, even when this
+    # file runs in isolation (import_module_models only covers app.modules.*).
+    from app.identity import models as _account_models  # noqa: F401
+    from app.auth import models as _cred_models  # noqa: F401
+    from app.rbac import models as _rbac_models  # noqa: F401
     import_module_models()
     db = Database(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
     async with db.engine.begin() as conn:
@@ -186,3 +192,136 @@ async def test_delete_unit_and_org(org_client):
     assert (await org_client.delete(f"{BASE}/{org_id}",
                                     headers=AUTH)).status_code == 200
     assert (await org_client.get(f"{BASE}/{org_id}", headers=AUTH)).status_code == 404
+
+
+# --- Company links (F.3): parent / party / hq_address / currency ----------
+# A second client mounts organization + reference + party so the linked master
+# data is created through the real APIs and the FK validation is exercised
+# end-to-end (not just stubbed).
+
+RBASE = "/api/v1/modules/reference"
+PBASE = "/api/v1/modules/party"
+
+
+@pytest_asyncio.fixture
+async def links_client(tmp_path, monkeypatch):
+    monkeypatch.setenv("ADMIN_TOKEN", "test-token")
+    import app.config as cfg
+    cfg._settings = None
+    from app.core.module_registry import import_module_models, load_modules
+    from app.db.base import Base
+    from app.db.engine import Database
+
+    from app.identity import models as _account_models  # noqa: F401
+    from app.auth import models as _cred_models  # noqa: F401
+    from app.rbac import models as _rbac_models  # noqa: F401
+    import_module_models()
+    db = Database(f"sqlite+aiosqlite:///{tmp_path/'links.db'}")
+    async with db.engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    application = FastAPI()
+    application.state.db = db
+    load_modules(application, enabled=["organization", "reference", "party"])
+    transport = ASGITransport(app=application)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+    await db.dispose()
+    cfg._settings = None
+
+
+async def _mk_currency(ac, code="USD"):
+    r = await ac.post(f"{RBASE}/currencies", headers=AUTH, json={"code": code, "name": code})
+    assert r.status_code == 201, r.text
+    return r.json()["id"]
+
+
+async def _mk_party(ac, name="Acme Legal Identity"):
+    r = await ac.post(f"{PBASE}/parties", headers=AUTH, json={"name": name})
+    assert r.status_code == 201, r.text
+    return r.json()["id"]
+
+
+async def _mk_address(ac, city="Malabo"):
+    r = await ac.post(f"{PBASE}/addresses", headers=AUTH, json={"city": city})
+    assert r.status_code == 201, r.text
+    return r.json()["id"]
+
+
+async def _etag(ac, org_id):
+    return (await ac.get(f"{BASE}/{org_id}", headers=AUTH)).json()["etag"]
+
+
+@pytest.mark.asyncio
+async def test_company_links_roundtrip(links_client):
+    ac = links_client
+    cur = await _mk_currency(ac, "EUR")
+    party = await _mk_party(ac)
+    addr = await _mk_address(ac)
+    parent = await _mk_org(ac, "group")
+    r = await ac.post(f"{BASE}/", headers=AUTH, json={
+        "code": "subco", "legal_name": "Sub Co", "parent_id": parent,
+        "party_id": party, "hq_address_id": addr, "currency_id": cur})
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["parent_id"] == parent and body["party_id"] == party
+    assert body["hq_address_id"] == addr and body["currency_id"] == cur
+    got = (await ac.get(f"{BASE}/{body['id']}", headers=AUTH)).json()
+    assert got["currency_id"] == cur and got["hq_address_id"] == addr
+
+
+@pytest.mark.asyncio
+async def test_update_links(links_client):
+    ac = links_client
+    cur = await _mk_currency(ac, "GBP")
+    org = await _mk_org(ac, "updlink")
+    r = await ac.put(f"{BASE}/{org}", headers={**AUTH, "If-Match": await _etag(ac, org)},
+                     json={"currency_id": cur})
+    assert r.status_code == 200 and r.json()["currency_id"] == cur
+
+
+@pytest.mark.asyncio
+async def test_self_parent_422(links_client):
+    ac = links_client
+    org = await _mk_org(ac, "selfp")
+    r = await ac.put(f"{BASE}/{org}", headers={**AUTH, "If-Match": await _etag(ac, org)},
+                     json={"parent_id": org})
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_parent_cycle_422(links_client):
+    ac = links_client
+    a = await _mk_org(ac, "ca")
+    b = await _mk_org(ac, "cb")
+    # a's parent = b (ok)
+    ok = await ac.put(f"{BASE}/{a}", headers={**AUTH, "If-Match": await _etag(ac, a)},
+                      json={"parent_id": b})
+    assert ok.status_code == 200, ok.text
+    # b's parent = a would close the loop -> 422
+    r = await ac.put(f"{BASE}/{b}", headers={**AUTH, "If-Match": await _etag(ac, b)},
+                     json={"parent_id": a})
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("field", ["party_id", "hq_address_id", "currency_id", "parent_id"])
+async def test_bad_reference_422(links_client, field):
+    missing = "00000000-0000-0000-0000-000000000000"
+    r = await links_client.post(f"{BASE}/", headers=AUTH, json={
+        "code": f"bad.{field}", "legal_name": "Bad Ref", field: missing})
+    assert r.status_code == 422, r.text
+
+
+@pytest.mark.asyncio
+async def test_blank_fk_clears_link(links_client):
+    """A cleared picker sends "" — it must detach (NULL), not 422 on a "" FK."""
+    ac = links_client
+    cur = await _mk_currency(ac, "JPY")
+    org = await _mk_org(ac, "clearlink")
+    set_r = await ac.put(f"{BASE}/{org}", headers={**AUTH, "If-Match": await _etag(ac, org)},
+                         json={"currency_id": cur})
+    assert set_r.status_code == 200 and set_r.json()["currency_id"] == cur
+    clr = await ac.put(f"{BASE}/{org}", headers={**AUTH, "If-Match": await _etag(ac, org)},
+                       json={"currency_id": ""})
+    assert clr.status_code == 200, clr.text
+    assert clr.json()["currency_id"] is None

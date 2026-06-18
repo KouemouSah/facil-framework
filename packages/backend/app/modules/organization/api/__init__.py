@@ -9,6 +9,7 @@ subtree cannot reach another. The bootstrap admin-token still works (break-glass
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.concurrency import enforce_if_match, row_etag
@@ -37,11 +38,22 @@ router = APIRouter(
     tags=["organization"],
 )
 
-_STATUS = {service.NotFound: 404, service.Conflict: 409, service.InvalidParent: 422}
+_STATUS = {service.NotFound: 404, service.Conflict: 409,
+           service.InvalidParent: 422, service.InvalidReference: 422}
 
 
 def _http(e: service.OrgError) -> HTTPException:
     return HTTPException(_STATUS.get(type(e), 400), str(e))
+
+
+async def _commit(session: AsyncSession) -> None:
+    """Commit, mapping a FK/uniqueness violation (e.g. a bad party/address/
+    currency reference on an org) to 409 instead of a bare 500."""
+    try:
+        await session.commit()
+    except IntegrityError as e:
+        await session.rollback()
+        raise HTTPException(409, "duplicate or invalid reference") from e
 
 
 # --- Organizations -------------------------------------------------------
@@ -91,7 +103,7 @@ async def create_organization(body: OrganizationCreate,
         org = await service.create_organization(session, body)
     except service.OrgError as e:
         raise _http(e) from e
-    await session.commit()
+    await _commit(session)
     return org.as_dict()
 
 
@@ -148,7 +160,7 @@ async def update_organization(org_id: str, body: OrganizationUpdate, request: Re
         org = await service.update_organization(session, org_id, body)
     except service.OrgError as e:
         raise _http(e) from e
-    await session.commit()
+    await _commit(session)
     # No etag here: updated_at is server-onupdate (expired after flush; reading it
     # would need async IO). The client refetches GET for the rotated etag.
     return org.as_dict()
