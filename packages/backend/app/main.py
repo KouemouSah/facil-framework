@@ -26,6 +26,7 @@ from app.api import (
     system,
 )
 from app.scim import api as scim_api
+from app.modules.reference.api import router as reference_router
 from app.branding import resolver_defaults as branding_defaults
 from app.config import get_settings
 from app.config_store import repository as repo
@@ -119,6 +120,14 @@ async def lifespan(app: FastAPI):
                 await seed_roles(session, profile=resolver.resolve("profile", "empty"))
                 await session.commit()
 
+    # Reference master data (countries/currencies/regions) — idempotent upsert by
+    # ISO code. Same guard as RBAC; REFERENCE_SEED_ON_BOOT=0 disables it.
+    if os.environ.get("REFERENCE_SEED_ON_BOOT", "1") != "0":
+        from app.modules.reference.seed import seed_reference
+        with contextlib.suppress(Exception):
+            async with db.session_factory() as session:
+                await seed_reference(session)
+
     yield
     with contextlib.suppress(Exception):
         await app.state.cache.close()
@@ -153,6 +162,9 @@ app.include_router(rbac.router)
 app.include_router(saved_views.router)
 app.include_router(scim_api.router)
 app.include_router(system.router)
+# Reference master data (countries/currencies/regions) is foundational — org/site
+# depend on it — so it is a CORE router, always mounted (not a MODULES_ENABLED module).
+app.include_router(reference_router)
 # Business modules — included only if listed in MODULES_ENABLED (Phase A.5).
 # Not-yet-ported modules are skipped (warned); present-but-broken ones fail closed.
 load_modules(app, enabled=enabled_from_env())
