@@ -111,6 +111,18 @@ async def lifespan(app: FastAPI):
     from app.core.cache import build_cache
     app.state.cache = build_cache(os.environ.get("REDIS_URL"))
 
+    # Secrets provider enrollment — make OpenBao the default `secrets` provider
+    # when its AppRole creds are present, so resolve_secret reads the vault instead
+    # of silently falling back to env. Idempotent; SECRETS_PROVIDER_SEED_ON_BOOT=0
+    # disables it. Same pre-migration guard as the other seeds.
+    if os.environ.get("SECRETS_PROVIDER_SEED_ON_BOOT", "1") != "0":
+        from app.core.providers.seed import seed_default_secrets_provider
+        with contextlib.suppress(Exception):
+            async with db.session_factory() as session:
+                if await seed_default_secrets_provider(session):
+                    await session.commit()
+                    logger.info("enrolled OpenBao as the default 'secrets' provider")
+
     # RBAC seeding — sync the permission catalog + the active profile's global
     # roles (idempotent). Suppressed pre-migration (schema may be absent on first
     # boot); RBAC_SEED_ON_BOOT=0 disables it for operators who seed out-of-band.
