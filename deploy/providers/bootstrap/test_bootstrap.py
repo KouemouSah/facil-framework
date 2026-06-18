@@ -143,7 +143,7 @@ def test_select_default_runs_all_three():
     # defaults: storage=minio, secrets=env_file?, db_mode=local.
     cfg = make_cfg(storage={"provider": "minio"},
                    secrets={"provider": "openbao"})
-    assert _names(select_provisioners(cfg)) == ["openbao", "minio", "postgres"]
+    assert _names(select_provisioners(cfg)) == ["postgres", "minio", "openbao"]
 
 
 def test_select_skips_minio_when_storage_not_minio():
@@ -228,7 +228,7 @@ def test_run_bootstrap_dry_run_skips_wait(tmp_path: Path):
     state = run_bootstrap(cfg, dry_run=True, repo_root=tmp_path,
                           log=lambda *_: None, _wait=fake_wait)
     assert called["wait"] is False                 # dry-run never waits
-    assert _step_names(state.steps) == ["openbao", "minio", "postgres"]
+    assert _step_names(state.steps) == ["postgres", "minio", "openbao"]
     # dry-run is no-mutation: no state file written.
     assert not (tmp_path / "deploy" / ".bootstrap-state.json").exists()
 
@@ -245,7 +245,7 @@ def test_run_bootstrap_writes_state(tmp_path: Path):
     f = tmp_path / "deploy" / ".bootstrap-state.json"
     assert f.exists()
     reloaded = BootstrapState.load(f)
-    assert _step_names(reloaded.steps) == ["openbao", "minio", "postgres"]
+    assert _step_names(reloaded.steps) == ["postgres", "minio", "openbao"]
 
 
 def test_merge_preserves_absent_provisioners(tmp_path: Path):
@@ -264,7 +264,7 @@ def test_merge_preserves_absent_provisioners(tmp_path: Path):
                          secrets_provider="openbao", database_mode="local",
                          steps=[ProvisionStep(name="postgres", status="ok")])
     _merge_prior_steps(new, f)
-    assert _step_names(new.steps) == ["openbao", "minio", "postgres"]  # sorted
+    assert _step_names(new.steps) == ["postgres", "minio", "openbao"]  # sorted
     assert new.step("openbao").secrets["openbao_secret_id"] == "SID"   # preserved
     assert new.step("minio").secrets["minio_secret_key"] == "MK"       # preserved
 

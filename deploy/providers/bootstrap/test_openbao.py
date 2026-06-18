@@ -231,6 +231,40 @@ def test_api_readiness_times_out_becomes_failed_step(monkeypatch, ctx):
     assert "API not ready" in step.detail
 
 
+# --- S1: infra creds mirror (DATABASE_URL + MinIO SA from sibling steps) ---
+
+def test_infra_secrets_mirrored_from_completed(monkeypatch, ctx):
+    ctx.completed = {
+        "postgres": {"pg_app_role": "facil_app", "pg_app_password": "pw",
+                     "pg_app_db": "facil"},
+        "minio": {"minio_access_key": "ak", "minio_secret_key": "sk"},
+    }
+    captured = {}
+
+    def fake(method, url, token, *, json=None, allow=()):
+        if url.endswith("/facil/data/infra") and method == "POST":
+            captured["data"] = json["data"]
+        return FakeBao(kv_mounted=True, boot_current=None)(
+            method, url, token, json=json, allow=allow)
+
+    monkeypatch.setattr(ob, "_request", fake)
+    step = ob.provision(ctx)
+    assert step.status == "ok"
+    assert captured["data"]["DATABASE_URL"] == \
+        "postgresql+asyncpg://facil_app:pw@postgres:5432/facil"
+    assert captured["data"]["MINIO_ACCESS_KEY"] == "ak"
+    assert captured["data"]["MINIO_SECRET_KEY"] == "sk"
+
+
+def test_infra_skipped_when_no_sibling_creds(monkeypatch, ctx):
+    # ctx.completed empty (no postgres/minio steps ran before) -> nothing to mirror.
+    fake = FakeBao(kv_mounted=True, boot_current=None)
+    monkeypatch.setattr(ob, "_request", fake)
+    step = ob.provision(ctx)
+    assert ("POST", "/facil/data/infra") not in fake.calls
+    assert any("no infra creds" in a for a in step.actions)
+
+
 # --- H3: runtime secrets mirror ---
 
 def test_runtime_secrets_mirrored(monkeypatch, tmp_path):

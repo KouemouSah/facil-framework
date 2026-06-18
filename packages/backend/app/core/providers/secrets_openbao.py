@@ -25,7 +25,11 @@ class OpenBaoSecretsProvider(SecretsProvider):
         self._role_id = os.environ.get("OPENBAO_ROLE_ID", "")
         self._secret_id = os.environ.get("OPENBAO_SECRET_ID", "")
         self._kv = self.config.get("kv_path", "facil")
-        self._paths = self.config.get("paths", ["boot", "runtime"])
+        # Always read the infra path (DATABASE_URL/MinIO SA) on top of whatever is
+        # configured, so a row seeded before S1 (paths=[boot,runtime]) still picks
+        # up the backend infra creds. De-duplicated, order-preserving.
+        configured = self.config.get("paths") or ["boot", "runtime"]
+        self._paths = list(dict.fromkeys([*configured, "infra"]))
         self._cache: dict[str, str] | None = None
 
     async def _login(self, client: httpx.AsyncClient) -> str:

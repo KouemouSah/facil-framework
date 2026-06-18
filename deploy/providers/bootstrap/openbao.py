@@ -52,6 +52,7 @@ RUNTIME_SECRET_KEYS = ("POSTGRES_PASSWORD", "REDIS_PASSWORD", "MINIO_ROOT_PASSWO
 KV_PATH = "facil"          # kv-v2 mount path
 BOOT_PATH = "boot"         # secret name under the mount
 RUNTIME_PATH = "runtime"   # runtime data-plane passwords under the mount
+INFRA_PATH = "infra"       # backend-consumed infra creds (DATABASE_URL, MinIO SA)
 POLICY_NAME = "facil-backend"
 ROLE_NAME = "facil-backend"
 
@@ -153,6 +154,40 @@ def _ensure_boot_secrets(base, token, secrets_env, step):
     return len(desired)
 
 
+def _put_if_changed(base, token, path, desired, step, label):
+    """Write-if-changed a kv-v2 secret. Returns the key count written/kept."""
+    cur = _request("GET", f"{base}/{KV_PATH}/data/{path}", token, allow=(404,))
+    current = cur.json().get("data", {}).get("data", {}) if cur.status_code == 200 else {}
+    if current == desired:
+        step.actions.append(f"{label} up to date ({len(desired)} keys)")
+        return len(desired)
+    _request("POST", f"{base}/{KV_PATH}/data/{path}", token, json={"data": desired})
+    step.actions.append(f"{label} written to '{KV_PATH}/{path}' ({len(desired)} keys)")
+    return len(desired)
+
+
+def _ensure_infra_secrets(base, token, ctx, step):
+    """Mirror the backend-consumed infra creds (facil_app DATABASE_URL + MinIO SA)
+    into ``facil/infra`` (write-if-changed). Sourced from the postgres/minio steps
+    of THIS run (ctx.completed), so the backend can resolve them from the vault
+    instead of the env (S2). Covered by the read-only ``facil-backend`` policy."""
+    pg = (ctx.completed or {}).get("postgres", {})
+    mi = (ctx.completed or {}).get("minio", {})
+    desired: dict[str, str] = {}
+    if pg.get("pg_app_password"):
+        role = pg.get("pg_app_role", "facil_app")
+        db = pg.get("pg_app_db", "facil")
+        desired["DATABASE_URL"] = (
+            f"postgresql+asyncpg://{role}:{pg['pg_app_password']}@postgres:5432/{db}")
+    if mi.get("minio_access_key"):
+        desired["MINIO_ACCESS_KEY"] = mi["minio_access_key"]
+        desired["MINIO_SECRET_KEY"] = mi.get("minio_secret_key", "")
+    if not desired:
+        step.actions.append("no infra creds available to mirror (postgres/minio steps)")
+        return 0
+    return _put_if_changed(base, token, INFRA_PATH, desired, step, "infra secrets")
+
+
 def _ensure_runtime_secrets(base, token, secrets_env, step):
     """Mirror the data-plane runtime passwords into ``facil/runtime`` (write-if-
     changed). Covered by the existing read-only ``facil-backend`` policy."""
@@ -243,6 +278,7 @@ def provision(ctx: BootstrapContext) -> ProvisionStep:
         _ensure_kv_mount(base, token, step)
         n = _ensure_boot_secrets(base, token, secrets_env, step)
         _ensure_runtime_secrets(base, token, secrets_env, step)
+        _ensure_infra_secrets(base, token, ctx, step)
         _ensure_policy(base, token, step)
         _ensure_approle(base, token, step)
         role_id = _role_id(base, token)

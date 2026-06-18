@@ -49,9 +49,10 @@ from .docker_helpers import (  # noqa: E402
 )
 from .state import BootstrapState  # noqa: E402
 
-# Ordered registry. Order matters: openbao before minio so the MinIO service
-# account can later be stored into OpenBao kv in the same run.
-PROVISIONERS: list[ModuleType] = [openbao, minio, postgres]
+# Ordered registry. Order matters: postgres + minio run FIRST so OpenBao (last)
+# can mirror the creds they mint (facil_app DATABASE_URL, MinIO SA) into the vault
+# in the same run (via ctx.completed).
+PROVISIONERS: list[ModuleType] = [postgres, minio, openbao]
 
 # Provisioner NAME -> compose service whose health gates it.
 SERVICE_FOR = {"openbao": "openbao", "minio": "minio", "postgres": "postgres"}
@@ -142,6 +143,14 @@ def run_bootstrap(
         ctx_kwargs["repo_root"] = repo_root
     ctx = BootstrapContext(**ctx_kwargs)
 
+    # Seed sibling creds from the prior state so a single-provisioner re-run
+    # (e.g. --only=openbao) still sees the postgres/minio secrets.
+    prior = BootstrapState.load(ctx.state_file)
+    if prior:
+        for ps in prior.steps:
+            if ps.secrets:
+                ctx.completed[ps.name] = dict(ps.secrets)
+
     for p in selected:
         try:
             step = p.provision(ctx)
@@ -149,6 +158,9 @@ def run_bootstrap(
             from .state import ProvisionStep
             step = ProvisionStep(name=p.NAME).fail(f"unexpected error: {exc}")
         state.steps.append(step)
+        # Expose this step's creds to later provisioners in the same run.
+        if step.secrets:
+            ctx.completed[step.name] = dict(step.secrets)
 
     if dry_run:
         log("[bootstrap] dry-run - state not written.")

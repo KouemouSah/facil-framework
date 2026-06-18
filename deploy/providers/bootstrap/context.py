@@ -56,6 +56,10 @@ class BootstrapContext:
     repo_root: Path = field(default_factory=lambda: _PROVIDERS_DIR.parent.parent)
     dry_run: bool = False
     log: Callable[[str], None] = print
+    # Secrets minted by sibling provisioners earlier in THIS run (name -> secrets),
+    # seeded from the prior state file so a single-provisioner re-run still sees
+    # them. Lets OpenBao (run last) mirror the postgres/minio creds into the vault.
+    completed: dict[str, dict] = field(default_factory=dict)
 
     @property
     def secrets_file(self) -> Path:
