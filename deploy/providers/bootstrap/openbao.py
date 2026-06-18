@@ -23,6 +23,7 @@ every ``up`` — which is exactly why each step is idempotent.
 from __future__ import annotations
 
 import json as _json
+import time
 
 try:
     import requests
@@ -83,6 +84,39 @@ def _request(method, url, token, *, json=None, allow=()):
     if resp.status_code >= 400 and resp.status_code not in allow:
         raise OpenBaoError(f"{method} {url} -> {resp.status_code}: {resp.text[:200]}")
     return resp
+
+
+# OpenBao's /sys/health returns non-200 for standby/sealed/uninitialised, but any
+# HTTP response means the API accepts connections — which is all we wait for.
+_HEALTH_OK = (200, 429, 472, 473, 501, 503)
+
+
+def _wait_api_ready(base, token, step, *, attempts=30, delay=1.0, sleep=None):
+    """Poll /sys/health until the API accepts connections.
+
+    The Docker healthcheck can report ``healthy`` a beat before the published
+    port actually serves requests, so the very first call used to die with
+    ``RemoteDisconnected`` and the whole step failed. Here we retry on connection
+    errors (the transient) but treat ANY HTTP status — even an error one — as
+    "the server is up", since that is what we need before provisioning.
+    """
+    sleep = sleep or time.sleep
+    last_exc = None
+    for i in range(attempts):
+        try:
+            _request("GET", f"{base}/sys/health", token, allow=_HEALTH_OK)
+        except OpenBaoError:
+            pass  # server answered with a status code → it is up
+        except requests.RequestException as exc:  # not accepting connections yet
+            last_exc = exc
+            sleep(delay)
+            continue
+        if i:
+            step.actions.append(f"API ready after {i + 1} probe(s)")
+        return
+    raise OpenBaoError(
+        f"API not ready after {attempts} probe(s) "
+        f"({attempts * delay:.0f}s): {last_exc}")
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +239,7 @@ def provision(ctx: BootstrapContext) -> ProvisionStep:
 
     secrets_env = load_env_file(ctx.secrets_file)
     try:
+        _wait_api_ready(base, token, step)
         _ensure_kv_mount(base, token, step)
         n = _ensure_boot_secrets(base, token, secrets_env, step)
         _ensure_runtime_secrets(base, token, secrets_env, step)

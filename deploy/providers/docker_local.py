@@ -665,13 +665,16 @@ def _do_plan(cfg: vc.DeployConfig) -> int:
     return 0
 
 
-def _run_bootstrap(cfg: vc.DeployConfig) -> None:
+def _run_bootstrap(cfg: vc.DeployConfig):
     """Run the data-plane bootstrap after the stack is up (non-fatal).
 
     Lazy-imported so compose-only commands never pay its import cost, and so a
     bootstrap import error can never block bringing the stack up. A provisioner
     failure is surfaced loudly but does NOT tear the stack down — the operator
     re-runs ``run_bootstrap.py --apply`` once the cause is fixed.
+
+    Returns the BootstrapState (or None if the bootstrap could not run) so the
+    caller can gate the app tier on a required provisioner (see _do_apply).
     """
     print("\n=== Data-plane bootstrap (provisioning) ===")
     sys.path.insert(0, str(PROVIDERS_DIR))
@@ -682,7 +685,7 @@ def _run_bootstrap(cfg: vc.DeployConfig) -> None:
         print(f"[WARN] bootstrap could not run: {e}\n"
               f"       Re-run: python deploy/providers/run_bootstrap.py --apply",
               file=sys.stderr)
-        return
+        return None
     summary = state.redacted_summary()
     print(summary)
     if not state.succeeded:
@@ -696,6 +699,21 @@ def _run_bootstrap(cfg: vc.DeployConfig) -> None:
                   "`docker stop facil_framework-keycloak-1 facil_framework-otel-lgtm-1`, "
                   "and any `--profile ai/mail` containers), then re-run the bootstrap.",
                   file=sys.stderr)
+    return state
+
+
+def _openbao_required_but_failed(cfg: vc.DeployConfig, state) -> bool:
+    """True when secrets.provider=openbao but its provisioner did not succeed.
+
+    In openbao mode the backend authenticates via the AppRole the provisioner
+    mints; a failed/missing step means it would silently fall back to plaintext
+    env secrets. The caller turns this into a hard abort of the app tier — never
+    a silent degrade.
+    """
+    if cfg.secrets.provider != "openbao":
+        return False
+    step = state.step("openbao") if state is not None else None
+    return step is None or step.status != "ok"
 
 
 def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) -> int:
@@ -770,7 +788,17 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
         return 2
 
     if not no_bootstrap:
-        _run_bootstrap(cfg)
+        bstate = _run_bootstrap(cfg)
+        # Fail loud (don't start a backend that silently fell back to env secrets):
+        # in secrets=openbao mode the backend needs the AppRole the provisioner
+        # mints. Abort the app tier; the data-plane stays up for a re-run.
+        if _openbao_required_but_failed(cfg, bstate):
+            print("ERROR: secrets.provider=openbao but the OpenBao provisioner did "
+                  "not succeed — the backend would fall back to plaintext env "
+                  "secrets. App tier ABORTED (data-plane stays up). Fix the cause "
+                  "and re-run: python deploy/providers/run_bootstrap.py --apply",
+                  file=sys.stderr)
+            return 1
     else:
         print("\n[INFO] --no-bootstrap: skipped data-plane provisioning.")
 

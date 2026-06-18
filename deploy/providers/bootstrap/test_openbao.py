@@ -193,6 +193,44 @@ def test_api_error_becomes_failed_step(monkeypatch, ctx):
     assert "OpenBao API error" in step.detail
 
 
+# --- (a) readiness gate: retry the transient RemoteDisconnected at startup ---
+
+def test_api_readiness_retries_then_succeeds(monkeypatch, ctx):
+    """First health probes hit ConnectionError (port not serving yet), then OK."""
+    monkeypatch.setattr(ob.time, "sleep", lambda *_: None)
+    inner = FakeBao(kv_mounted=True, boot_current=None)
+    health_calls = {"n": 0}
+
+    def fake(method, url, token, *, json=None, allow=()):
+        if "/sys/health" in url:
+            health_calls["n"] += 1
+            if health_calls["n"] < 3:
+                raise ob.requests.ConnectionError("RemoteDisconnected")
+            return FakeResp(200, {})
+        return inner(method, url, token, json=json, allow=allow)
+
+    _patch(monkeypatch, fake)
+    step = ob.provision(ctx)
+    assert step.status == "ok"
+    assert health_calls["n"] == 3
+    assert any("API ready after 3 probe(s)" in a for a in step.actions)
+
+
+def test_api_readiness_times_out_becomes_failed_step(monkeypatch, ctx):
+    """If the API never accepts connections, the step fails loudly (not silent)."""
+    monkeypatch.setattr(ob.time, "sleep", lambda *_: None)
+
+    def fake(method, url, token, *, json=None, allow=()):
+        if "/sys/health" in url:
+            raise ob.requests.ConnectionError("RemoteDisconnected")
+        return FakeResp(204, {})
+
+    _patch(monkeypatch, fake)
+    step = ob.provision(ctx)
+    assert step.status == "failed"
+    assert "API not ready" in step.detail
+
+
 # --- H3: runtime secrets mirror ---
 
 def test_runtime_secrets_mirrored(monkeypatch, tmp_path):

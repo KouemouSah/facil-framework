@@ -780,3 +780,45 @@ class TestRedisAuthGeneration:
         # at up via env_extra) — no real secret is ever written to the file.
         out = dl.generate_compose(self._cfg(minimal_config_dict))
         assert "${REDIS_PASSWORD}" in out
+
+
+# ---------------------------------------------------------------------------
+# (a2) App-tier gate: openbao required but failed => hard abort, not silent
+# ---------------------------------------------------------------------------
+
+sys.path.insert(0, str(PROVIDERS_DIR))
+from bootstrap.state import BootstrapState, ProvisionStep  # noqa: E402
+
+
+def _state(status: str | None) -> BootstrapState:
+    steps = [] if status is None else [ProvisionStep(name="openbao", status=status)]
+    return BootstrapState(project="facil", storage_provider="minio",
+                          secrets_provider="openbao", database_mode="local",
+                          steps=steps)
+
+
+class TestOpenbaoRequiredGate:
+    def _openbao_cfg(self, minimal_config_dict):
+        minimal_config_dict["secrets"] = {"provider": "openbao"}
+        return vc.DeployConfig.model_validate(minimal_config_dict)
+
+    def test_env_file_mode_never_gates(self, cfg):
+        # default provider != openbao -> failed/absent state is irrelevant
+        assert dl._openbao_required_but_failed(cfg, _state("failed")) is False
+        assert dl._openbao_required_but_failed(cfg, None) is False
+
+    def test_openbao_ok_passes(self, minimal_config_dict):
+        cfg = self._openbao_cfg(minimal_config_dict)
+        assert dl._openbao_required_but_failed(cfg, _state("ok")) is False
+
+    def test_openbao_failed_aborts(self, minimal_config_dict):
+        cfg = self._openbao_cfg(minimal_config_dict)
+        assert dl._openbao_required_but_failed(cfg, _state("failed")) is True
+
+    def test_openbao_missing_step_aborts(self, minimal_config_dict):
+        cfg = self._openbao_cfg(minimal_config_dict)
+        assert dl._openbao_required_but_failed(cfg, _state(None)) is True
+
+    def test_openbao_no_state_aborts(self, minimal_config_dict):
+        cfg = self._openbao_cfg(minimal_config_dict)
+        assert dl._openbao_required_but_failed(cfg, None) is True
