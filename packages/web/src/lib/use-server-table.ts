@@ -73,6 +73,8 @@ export interface UseServerTable<T> {
   capped: boolean;
   isLoading: boolean;
   error: boolean;
+  /** Re-run the current page query (after a create/delete mutation). */
+  refetch: () => void;
   /** Feed to SavedViews `config` (what to persist) — only query shape, never paging. */
   savedViewConfig: ServerTableSavedConfig;
   /** SavedViews `onApply` — restore a preset and reset paging. */
@@ -132,6 +134,7 @@ export function useServerTable<T>({
     hasPrev: stackHasPrev(paging), hasNext: !!nextCursor, onPrev, onNext,
     count: data?.count ?? 0, capped: data?.capped ?? false,
     isLoading: query.isLoading, error: !!query.error,
+    refetch: () => { void query.refetch(); },
     savedViewConfig, applySavedView,
   };
 }

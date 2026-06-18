@@ -6,7 +6,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Network, Settings, Search, LogOut } from "lucide-react";
+import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Network, Settings, Globe, Search, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import { hasPerm } from "@/lib/perm";
@@ -69,6 +69,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     { href: "/agents", label: t("agents"), icon: Users, perm: "account.read" },
     { href: "/roles", label: t("roles"), icon: ShieldCheck, perm: "rbac.read" },
     { href: "/federation", label: t("federation"), icon: Network, perm: "account.read" },
+    // Configuration area (master data is admin config, not a primary workspace).
+    // TODO(Phase U): data-driven, module-declared, grouped nav with a "Configuration" section.
+    { href: "/reference", label: t("reference"), icon: Globe, perm: "reference.read" },
     { href: "/settings", label: t("settings"), icon: Settings, perm: "branding.manage" },
   ];
   const nav = allNav.filter((i) => !i.perm || hasPerm(granted, i.perm));
