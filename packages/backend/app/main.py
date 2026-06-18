@@ -87,6 +87,18 @@ def _build_verifiers(app: FastAPI, resolver) -> list:
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
+    # S2: in secrets=openbao mode, pull the infra creds (DATABASE_URL + MinIO SA)
+    # from the vault BEFORE settings/DB are built — the vault is the fresher source
+    # (survives a password rotation that left the env stale). No-op in env_file mode
+    # or when SECRETS_VAULT_HYDRATE=0; hard-fails only if SECRETS_VAULT_REQUIRED=1.
+    import app.config as _config
+    from app.core.secrets_bootstrap import hydrate_secrets_from_vault
+    report = await hydrate_secrets_from_vault()
+    app.state.secrets_report = report  # observable post-boot (surfaced in /health)
+    if report.get("mutated"):
+        _config._settings = None  # re-read settings from the hydrated env
+        logger.info("secrets hydrated from vault: %s", ", ".join(report["keys"]))
+
     settings = get_settings()
     db = Database(settings.async_database_url)
     app.state.db = db
@@ -117,11 +129,15 @@ async def lifespan(app: FastAPI):
     # disables it. Same pre-migration guard as the other seeds.
     if os.environ.get("SECRETS_PROVIDER_SEED_ON_BOOT", "1") != "0":
         from app.core.providers.seed import seed_default_secrets_provider
-        with contextlib.suppress(Exception):
+        try:
             async with db.session_factory() as session:
                 if await seed_default_secrets_provider(session):
                     await session.commit()
                     logger.info("enrolled OpenBao as the default 'secrets' provider")
+        except Exception as e:  # pre-migration first boot is benign; never crash boot
+            # …but log it: a silent enroll-failure means resolve_secret quietly
+            # falls back to env — the very failure this work hardens against.
+            logger.warning("secrets provider seed skipped/failed: %s", e)
 
     # RBAC seeding — sync the permission catalog + the active profile's global
     # roles (idempotent). Suppressed pre-migration (schema may be absent on first
@@ -203,5 +219,9 @@ async def health(response: Response) -> dict:
             db_ok = True
     if not db_ok:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    # Surface the secrets posture so a vault fallback is observable post-boot, not
+    # just a one-shot startup log (no secret values — only the source label).
+    secrets_source = getattr(app.state, "secrets_report", {}).get("source", "unknown")
     return {"status": "ok" if db_ok else "degraded",
-            "database": db_ok, "service": "facil-backend"}
+            "database": db_ok, "secrets_source": secrets_source,
+            "service": "facil-backend"}

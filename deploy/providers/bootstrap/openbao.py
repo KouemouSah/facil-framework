@@ -183,7 +183,13 @@ def _ensure_infra_secrets(base, token, ctx, step):
         desired["MINIO_ACCESS_KEY"] = mi["minio_access_key"]
         desired["MINIO_SECRET_KEY"] = mi.get("minio_secret_key", "")
     if not desired:
-        step.actions.append("no infra creds available to mirror (postgres/minio steps)")
+        # Expected to run AFTER postgres/minio (PROVISIONERS order) — empty here
+        # means those steps did not populate ctx.completed (skipped/external mode,
+        # or a single-provisioner re-run without prior state). Flag it clearly so
+        # an unexpectedly-missing mirror is not read as a benign no-op.
+        step.actions.append(
+            "infra mirror SKIPPED — no postgres/minio creds in ctx (external mode "
+            "or partial run); facil/infra not written")
         return 0
     return _put_if_changed(base, token, INFRA_PATH, desired, step, "infra secrets")
 

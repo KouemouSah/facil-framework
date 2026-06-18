@@ -262,7 +262,7 @@ def test_infra_skipped_when_no_sibling_creds(monkeypatch, ctx):
     monkeypatch.setattr(ob, "_request", fake)
     step = ob.provision(ctx)
     assert ("POST", "/facil/data/infra") not in fake.calls
-    assert any("no infra creds" in a for a in step.actions)
+    assert any("infra mirror SKIPPED" in a for a in step.actions)
 
 
 # --- H3: runtime secrets mirror ---

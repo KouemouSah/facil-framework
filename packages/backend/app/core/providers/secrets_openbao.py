@@ -48,12 +48,21 @@ class OpenBaoSecretsProvider(SecretsProvider):
                                      headers=headers)
                 if r.status_code == 200:
                     merged.update(r.json().get("data", {}).get("data", {}))
+                elif r.status_code == 403:
+                    # Policy gap — surface it (fail-fast) instead of silently
+                    # returning a partial set that would mask a misconfiguration.
+                    r.raise_for_status()
+                # 404 (path not written yet) is tolerated: paths are optional.
         return merged
 
-    async def get_secret(self, name: str) -> str | None:
+    async def load_all(self) -> dict[str, str]:
+        """All readable secrets (merged across paths), cached after first load."""
         if self._cache is None:
             self._cache = await self._load()
-        return self._cache.get(name)
+        return dict(self._cache)
+
+    async def get_secret(self, name: str) -> str | None:
+        return (await self.load_all()).get(name)
 
     async def refresh(self) -> None:
         self._cache = None
