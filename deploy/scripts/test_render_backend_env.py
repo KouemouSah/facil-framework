@@ -119,6 +119,31 @@ def test_merge_overrides_stale_secret(tmp_path):
     assert "FOO=keep" in txt
 
 
+def test_oidc_block_from_keycloak_step(tmp_path):
+    """K2: a keycloak step in state emits AUTH_METHODS + AUTH_OIDC_* (no secret)."""
+    state = _write_state(tmp_path, [
+        {"name": "postgres", "secrets": {"pg_app_password": "p"}},
+        {"name": "keycloak", "secrets": {
+            "oidc_issuer": "http://localhost:8088/realms/facil",
+            "oidc_jwks_uri": "http://keycloak:8080/realms/facil/protocol/openid-connect/certs",
+            "oidc_audience": "facil-backend", "oidc_client_id": "facil-backend",
+            "oidc_client_secret": "SEKRET"}}])
+    content, _ = rbe.render(state)
+    assert "AUTH_METHODS=native,keycloak_oidc" in content
+    assert "AUTH_OIDC_ISSUER=http://localhost:8088/realms/facil" in content
+    assert "AUTH_OIDC_JWKS_URI=http://keycloak:8080/realms/facil/" in content
+    assert "AUTH_OIDC_CLIENT_ID=facil-backend" in content
+    assert "SEKRET" not in content              # client_secret never in backend env
+    assert "AUTH_OIDC_CLIENT_SECRET" not in content
+
+
+def test_no_oidc_without_keycloak_step(tmp_path):
+    state = _write_state(tmp_path, [
+        {"name": "postgres", "secrets": {"pg_app_password": "p"}}])
+    content, _ = rbe.render(state)
+    assert "AUTH_METHODS" not in content and "AUTH_OIDC" not in content
+
+
 def test_output_has_no_crlf(tmp_path):
     """#4 fix: env file is LF-only (docker compose env_file stays clean on Windows)."""
     state = _write_state(tmp_path, [

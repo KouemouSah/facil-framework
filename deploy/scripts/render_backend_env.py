@@ -65,6 +65,17 @@ def render(state_path: Path = DEFAULT_STATE, *, project: str = "facil",
                   f"OPENBAO_ROLE_ID={ob.get('openbao_role_id', '')}\n",
                   f"OPENBAO_SECRET_ID={ob.get('openbao_secret_id', '')}\n"]
 
+    # Keycloak OIDC (K) — the verifier needs issuer + jwks + audience; AUTH_METHODS
+    # turns the verifier chain on. The client_secret is NOT here (the backend only
+    # needs it for optional RFC7662 introspection) — it goes to the frontend BFF.
+    kc = s.get("keycloak", {})
+    if kc.get("oidc_issuer"):
+        lines += [f"AUTH_METHODS=native,keycloak_oidc\n",
+                  f"AUTH_OIDC_ISSUER={kc.get('oidc_issuer', '')}\n",
+                  f"AUTH_OIDC_JWKS_URI={kc.get('oidc_jwks_uri', '')}\n",
+                  f"AUTH_OIDC_AUDIENCE={kc.get('oidc_audience', '')}\n",
+                  f"AUTH_OIDC_CLIENT_ID={kc.get('oidc_client_id', '')}\n"]
+
     return "".join(lines), has_url
 
 
@@ -83,7 +94,7 @@ def _managed_lines(content: str) -> list[str]:
     ]
 
 
-def merge_into(existing: str, content: str) -> str:
+def merge_into(existing: str, content: str, marker: str = MANAGED_MARKER) -> str:
     """Merge render()'s managed keys into an existing env file.
 
     render_env.py owns the non-secret config keys (BANGE_*, GEMINI_*, …) and
@@ -91,12 +102,15 @@ def merge_into(existing: str, content: str) -> str:
     bootstrap-derived connection secrets (DATABASE_URL/MINIO_*/OPENBAO_*) without
     clobbering that config — so we preserve every non-managed line and (re)append
     our managed block. Idempotent: re-running drops the prior block first.
+
+    ``marker`` lets a sibling renderer (render_web_env) own a distinct block in a
+    different file. Each file carries exactly ONE managed block.
     """
     managed = _managed_lines(content)
     if not existing.strip():
         return content  # fresh file: keep render()'s own header + lines
 
-    base = existing.split(MANAGED_MARKER, 1)[0].rstrip("\n")
+    base = existing.split(marker, 1)[0].rstrip("\n")
     managed_keys = {ln.split("=", 1)[0] for ln in managed}
     # Defensive: also drop any stray managed keys left loose in the config body.
     kept = [
@@ -107,7 +121,7 @@ def merge_into(existing: str, content: str) -> str:
     base = "\n".join(kept).rstrip("\n")
     if not managed:
         return base + "\n"
-    block = MANAGED_MARKER + "\n" + "".join(managed)
+    block = marker + "\n" + "".join(managed)
     return base + "\n\n" + block
 
 

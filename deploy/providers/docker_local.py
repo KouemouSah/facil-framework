@@ -787,6 +787,19 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
         print(f"ERROR: data-plane up failed (exit {rc})", file=sys.stderr)
         return 2
 
+    # K: bring up the profile-gated Keycloak BEFORE the bootstrap so its realm/
+    # client provisioner (which the bootstrap runs) finds a healthy service. Only
+    # when opt-in + a surface uses keycloak_oidc — otherwise the default apply is
+    # untouched.
+    _kc_methods = set(cfg.auth.citizen_methods) | set(cfg.auth.agent_methods)
+    if cfg.auth.keycloak.enabled and "keycloak_oidc" in _kc_methods:
+        print("\n=== Starting Keycloak (auth profile) ===")
+        rc = run_compose(compose_cmd("--profile", "auth", "up", "-d", "keycloak"),
+                         env_extra=runtime_env)
+        if rc != 0:
+            print(f"[WARN] keycloak up failed (exit {rc}) — OIDC provisioning will "
+                  f"be skipped this run.", file=sys.stderr)
+
     if not no_bootstrap:
         bstate = _run_bootstrap(cfg)
         # Fail loud (don't start a backend that silently fell back to env secrets):
@@ -819,6 +832,14 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
                   "re-run: python deploy/providers/run_bootstrap.py --apply",
                   file=sys.stderr)
             return 1
+        # K2: render the frontend OIDC env from the keycloak state step (no-op if
+        # Keycloak wasn't provisioned). MUST precede the frontend build/up so the
+        # BFF picks up issuer/client/secret + NEXT_PUBLIC_OIDC_ENABLED.
+        if cfg.auth.keycloak.enabled:
+            subprocess.run(
+                [sys.executable, str(SCRIPTS_DIR / "render_web_env.py"),
+                 f"--frontend-url=http://localhost:{cfg.docker_local.frontend_port}"],
+                cwd=REPO_ROOT, check=False)
         # App tier built locally (db-init + backend + frontend) — no registry.
         rc = run_compose(compose_cmd("up", "-d", "--build", "db-init", "backend", "frontend"),
                          env_extra=runtime_env)
