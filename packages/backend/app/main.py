@@ -128,6 +128,15 @@ async def lifespan(app: FastAPI):
             async with db.session_factory() as session:
                 await seed_reference(session)
 
+    # F.3 backfill: link each Company to a Party + Address (legacy text -> pillar).
+    # Runs AFTER the reference seed so country/currency codes resolve; idempotent
+    # (only orgs without party_id). ORG_BACKFILL_ON_BOOT=0 disables it.
+    if os.environ.get("ORG_BACKFILL_ON_BOOT", "1") != "0":
+        from app.modules.organization.backfill import backfill_org_party
+        with contextlib.suppress(Exception):
+            async with db.session_factory() as session:
+                await backfill_org_party(session)
+
     yield
     with contextlib.suppress(Exception):
         await app.state.cache.close()
