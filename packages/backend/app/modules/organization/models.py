@@ -43,6 +43,20 @@ class Organization(UUIDAuditBase):
     document_identity: Mapped[dict] = mapped_column(JSONType, default=dict)
     settings: Mapped[dict] = mapped_column(JSONType, default=dict)
 
+    # ERP Company links (F.3): parent for multi-company consolidation; party_id =
+    # the legal identity in the directory (legal_name/tax_id/address migrate there);
+    # hq_address + currency reference the master data. The text geo/currency columns
+    # above are kept during the transition and backfilled into party/address.
+    parent_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("organization.id", ondelete="SET NULL"),
+        nullable=True, index=True)
+    party_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("party.id", ondelete="SET NULL"), nullable=True)
+    hq_address_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("address.id", ondelete="SET NULL"), nullable=True)
+    currency_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("currency.id", ondelete="SET NULL"), nullable=True)
+
     def as_dict(self) -> dict:
         return {
             "id": self.id, "code": self.code, "legal_name": self.legal_name,
@@ -54,7 +68,10 @@ class Organization(UUIDAuditBase):
             "tax_id": self.tax_id, "registration_number": self.registration_number,
             "default_locale": self.default_locale, "timezone": self.timezone,
             "currency": self.currency, "document_identity": self.document_identity or {},
-            "settings": self.settings or {}, "is_active": self.is_active,
+            "settings": self.settings or {},
+            "parent_id": self.parent_id, "party_id": self.party_id,
+            "hq_address_id": self.hq_address_id, "currency_id": self.currency_id,
+            "is_active": self.is_active,
         }
 
 
