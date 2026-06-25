@@ -199,3 +199,6 @@ packages/web/.playwright/
 
 # Dev admin credentials (created by tools/dev_create_admins.py — never commit)
 .admins.dev.json
+
+# Dev credentials consolidés (jamais committer)
+.dev-credentials.md
