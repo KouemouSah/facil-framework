@@ -11,7 +11,7 @@
     "settings": "Settings"
   },
   "auth": { "login": "Sign in", "logout": "Sign out" },
-  "common": { "search": "Search", "loading": "Loading…", "density": "Density", "skip_to_content": "Skip to content", "close": "Close", "dismiss": "Dismiss" },
+  "common": { "search": "Search", "loading": "Loading…", "density": "Density", "skip_to_content": "Skip to content", "close": "Close", "dismiss": "Dismiss", "open_menu": "Open menu", "resize_panel": "Resize panel" },
   "errors": {
     "title": "Something went wrong",
     "body": "An unexpected error occurred. You can retry, or reload the page.",

@@ -11,7 +11,7 @@
     "settings": "Paramètres"
   },
   "auth": { "login": "Se connecter", "logout": "Se déconnecter" },
-  "common": { "search": "Rechercher", "loading": "Chargement…", "density": "Densité", "skip_to_content": "Aller au contenu", "close": "Fermer", "dismiss": "Masquer" },
+  "common": { "search": "Rechercher", "loading": "Chargement…", "density": "Densité", "skip_to_content": "Aller au contenu", "close": "Fermer", "dismiss": "Masquer", "open_menu": "Ouvrir le menu", "resize_panel": "Redimensionner le panneau" },
   "errors": {
     "title": "Une erreur est survenue",
     "body": "Une erreur inattendue s’est produite. Vous pouvez réessayer ou recharger la page.",

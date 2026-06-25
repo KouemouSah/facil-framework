@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Network, Settings, Globe, Search, LogOut } from "lucide-react";
+import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Network, Settings, Globe, Search, LogOut, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import { hasPerm } from "@/lib/perm";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useSession } from "@/lib/use-session";
 
 /**
@@ -26,6 +27,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const qc = useQueryClient();
+  const [navOpen, setNavOpen] = useState(false);
   const { data: session, isLoading } = useSession();
   const { data: branding } = useQuery<{ app_name: string; logo_url: string }>({
     queryKey: ["branding"],
@@ -76,6 +78,46 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   ];
   const nav = allNav.filter((i) => !i.perm || hasPerm(granted, i.perm));
 
+  // Brand header + nav list are shared by the desktop sidebar and the mobile
+  // drawer (DRY). On mobile, navigating closes the drawer.
+  const brandHeader = (
+    <div className="flex h-14 items-center gap-2 border-b px-5 font-semibold">
+      {branding?.logo_url ? (
+        <Image src={branding.logo_url} alt={appName} width={28} height={28} className="h-7 w-7 rounded-md object-contain" unoptimized />
+      ) : (
+        <span className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground">
+          {appName.charAt(0).toUpperCase()}
+        </span>
+      )}
+      {appName}
+    </div>
+  );
+
+  const navList = (onNavigate?: () => void) => (
+    <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+      {nav.map(({ href, label, icon: Icon }) => {
+        const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+        return (
+          <Link
+            key={href}
+            href={href}
+            onClick={onNavigate}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              active
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+            )}
+          >
+            <Icon className="size-4" />
+            {label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+
   return (
     <div className="grid h-screen grid-cols-1 overflow-hidden md:grid-cols-[260px_1fr]">
       {/* Skip-link (a11y): first focusable element, visible only on focus. */}
@@ -85,43 +127,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         {tc("skip_to_content")}
       </a>
-      {/* Sidebar — fixed, hidden on mobile (drawer comes in D5.1) */}
+      {/* Sidebar — fixed on ≥ md, off-canvas drawer < md */}
       <aside className="hidden flex-col border-r bg-card md:flex">
-        <div className="flex h-14 items-center gap-2 border-b px-5 font-semibold">
-          {branding?.logo_url ? (
-            <Image src={branding.logo_url} alt={appName} width={28} height={28} className="h-7 w-7 rounded-md object-contain" unoptimized />
-          ) : (
-            <span className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground">
-              {appName.charAt(0).toUpperCase()}
-            </span>
-          )}
-          {appName}
-        </div>
-        <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-          {nav.map(({ href, label, icon: Icon }) => {
-            const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                  active
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                )}
-              >
-                <Icon className="size-4" />
-                {label}
-              </Link>
-            );
-          })}
-        </nav>
+        {brandHeader}
+        {navList()}
       </aside>
+
+      {/* Mobile navigation drawer (< md) — Radix Dialog: focus-trap + Esc + backdrop */}
+      <Sheet open={navOpen} onOpenChange={setNavOpen}>
+        <SheetContent side="left" closeLabel={tc("close")} className="p-0 md:hidden">
+          <SheetTitle className="sr-only">{appName}</SheetTitle>
+          {brandHeader}
+          {navList(() => setNavOpen(false))}
+        </SheetContent>
+      </Sheet>
 
       {/* Content column: fixed topbar + the ONLY scrollable region */}
       <div className="grid grid-rows-[56px_1fr] overflow-hidden">
         <header className="flex items-center gap-3 border-b bg-background/80 px-5 backdrop-blur">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            onClick={() => setNavOpen(true)}
+            aria-label={tc("open_menu")}
+          >
+            <Menu className="size-4" />
+          </Button>
           <div className="relative max-w-md flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <input
