@@ -123,6 +123,27 @@ async def test_introspection_active_and_inactive():
 
 
 @pytest.mark.asyncio
+async def test_introspection_fail_closed_denies_on_endpoint_error():
+    # SEC-005: a transient introspection error should DENY when fail-closed (default
+    # fail-open is kept for availability unless the operator opts in).
+    def handler(req):
+        if req.url.path.endswith("/.well-known/openid-configuration"):
+            return httpx.Response(200, json={
+                "issuer": ISS, "jwks_uri": f"{ISS}/certs",
+                "introspection_endpoint": f"{ISS}/introspect"})
+        if req.url.path.endswith("/introspect"):
+            return httpx.Response(503, json={})  # IdP transient error
+        return httpx.Response(200, json=_jwks())
+    base = {"issuer": ISS, "introspection": True, "client_id": "facil-backend",
+            "client_secret": "s3cr3t", "transport": httpx.MockTransport(handler)}
+    # fail-open (default): transient error -> token treated as active (True)
+    assert await KeycloakOIDCProvider(base).introspect("token=x") is True
+    # fail-closed: transient error -> deny (False)
+    closed = KeycloakOIDCProvider({**base, "introspection_fail_closed": True})
+    assert await closed.introspect("token=x") is False
+
+
+@pytest.mark.asyncio
 async def test_issue_and_refresh_not_implemented():
     p = _provider()
     with pytest.raises(NotImplementedError):

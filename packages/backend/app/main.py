@@ -82,6 +82,8 @@ def _build_verifiers(app: FastAPI, resolver) -> list:
                 # RFC 7662 introspection (near-instant IdP offboarding) — opt-in,
                 # needs a confidential client (id + secret from secrets store).
                 "introspection": bool(resolver.resolve("auth.oidc.introspection", False)),
+                "introspection_fail_closed": bool(
+                    resolver.resolve("auth.oidc.introspection_fail_closed", False)),
                 "client_id": resolver.resolve("auth.oidc.client_id", "") or None,
                 "client_secret": resolver.resolve("auth.oidc.client_secret", "") or None,
             }))

@@ -168,7 +168,10 @@ async def fed_app(tmp_path, monkeypatch):
     fake = _FakeOIDC({"agent-tok": {"sub": "kc-agent-1", "email": "agent@x.io",
                                     "email_verified": True, "groups": ["agents"],
                                     "org": "orga", "sid": "sess-1"},
-                      "logout-tok": {"sub": "kc-agent-1", "sid": "sess-1"}})
+                      "logout-tok": {"sub": "kc-agent-1", "sid": "sess-1",
+                                     # genuine back-channel logout token (SEC-003)
+                                     "events": {"http://schemas.openid.net/event/"
+                                                "backchannel-logout": {}}}})
     application.state.auth_verifiers = [application.state.auth, fake]
     from app.core.cache import MemoryCache
     application.state.cache = MemoryCache()
@@ -272,3 +275,12 @@ async def test_backchannel_logout_revokes_session(fed_app):
     assert r.status_code == 200 and r.json()["sid"] == "sess-1"
     # the agent's token (session sess-1) is now rejected
     assert (await ac.get(f"{ORG}/{org_a}", headers=hdr)).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_backchannel_logout_rejects_plain_access_token(fed_app):
+    # SEC-003: a normal access token (no logout `events` claim) must NOT revoke.
+    ac, _ = fed_app
+    r = await ac.post("/api/v1/auth/oidc/backchannel-logout",
+                      data={"logout_token": "agent-tok"})
+    assert r.status_code == 400  # not a genuine back-channel logout token

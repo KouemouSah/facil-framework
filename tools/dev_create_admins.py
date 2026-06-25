@@ -61,7 +61,8 @@ def _req(method: str, path: str, *, token: str | None = None, body: dict | None 
 
 
 def _strong_password() -> str:
-    # Satisfies the policy (>=8, upper+lower+digit); the prefix guarantees classes.
+    # Satisfies the policy (>=12, upper+lower+digit, uncommon); "Aa1" guarantees the
+    # classes and token_urlsafe(12) makes it ~19 chars and unpredictable.
     return "Aa1" + secrets.token_urlsafe(12)
 
 

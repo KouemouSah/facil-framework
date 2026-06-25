@@ -8,6 +8,7 @@ import pytest
 from app.auth import password, totp
 from app.core.providers.auth_native import NativeAuthProvider
 from app.core.providers.registry import default_registry
+from app.security import crypto
 
 
 # --- password ------------------------------------------------------------
@@ -71,11 +72,13 @@ def test_password_over_72_bytes_consistent():
 
 
 def test_password_strength():
-    assert password.check_strength("Abcdef12")[0] is True
-    assert password.check_strength("short1A")[0] is False     # < 8
-    assert password.check_strength("alllower123")[0] is False  # no upper
-    assert password.check_strength("ALLUPPER123")[0] is False  # no lower
-    assert password.check_strength("NoDigitsHere")[0] is False
+    assert password.check_strength("Tr0ub4dourXl")[0] is True    # 12, mixed, uncommon
+    assert password.check_strength("Abcdef12")[0] is False      # < 12 (SEC-009)
+    assert password.check_strength("short1A")[0] is False       # < 12
+    assert password.check_strength("alllowercase1")[0] is False  # no upper (13)
+    assert password.check_strength("ALLUPPERCASE1")[0] is False  # no lower (13)
+    assert password.check_strength("NoDigitsHere!")[0] is False  # no digit (13)
+    assert password.check_strength("Password1234")[0] is False   # too common (core 'password')
 
 
 # --- TOTP ----------------------------------------------------------------
@@ -91,6 +94,31 @@ def test_totp_verify():
 def test_totp_provisioning_uri_uses_issuer():
     uri = totp.provisioning_uri(totp.generate_secret(), "user@x.io", issuer="MyGov")
     assert uri.startswith("otpauth://totp/") and "MyGov" in uri
+
+
+# --- crypto (TOTP secret at rest, AES-GCM) — key separation (SEC-008) ----
+
+def test_crypto_roundtrip_with_distinct_key(monkeypatch):
+    monkeypatch.setenv("TOTP_ENCRYPTION_KEY", "a-distinct-totp-key")
+    token = crypto.encrypt("shared-secret")
+    assert crypto.decrypt(token) == "shared-secret"
+
+
+def test_crypto_jwt_fallback_allowed_in_dev(monkeypatch):
+    monkeypatch.delenv("TOTP_ENCRYPTION_KEY", raising=False)
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    monkeypatch.setenv("JWT_SECRET_KEY", "jwt-signing-secret")
+    assert crypto.decrypt(crypto.encrypt("x")) == "x"  # dev tolerates key reuse
+
+
+def test_crypto_requires_distinct_key_in_prod(monkeypatch):
+    # Reusing the JWT signing secret to encrypt 2FA secrets at rest = no domain
+    # separation; refused in production.
+    monkeypatch.delenv("TOTP_ENCRYPTION_KEY", raising=False)
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("JWT_SECRET_KEY", "jwt-signing-secret")
+    with pytest.raises(RuntimeError, match="TOTP_ENCRYPTION_KEY"):
+        crypto.encrypt("x")
 
 
 # --- NativeAuthProvider (JWT) --------------------------------------------

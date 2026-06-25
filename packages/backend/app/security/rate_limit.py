@@ -5,8 +5,9 @@ public auth endpoints (login, register, password-reset). In-process (per worker)
 — a shared Redis-backed limiter is the scale upgrade; the edge (Caddy/WAF) is the
 complementary network layer.
 
-The store lives on `app.state.rate_limiter`. When it is ABSENT the limiter is a
-no-op — so test fixtures / contexts that don't initialise it are not affected.
+The store is the shared cache on `app.state.cache` (Redis at scale → GLOBAL across
+replicas; in-process otherwise). When it is ABSENT the limiter is a no-op — so test
+fixtures / contexts that don't initialise it are not affected.
 """
 
 from __future__ import annotations

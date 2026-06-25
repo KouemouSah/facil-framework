@@ -32,7 +32,7 @@ from collections.abc import MutableMapping
 
 import httpx
 
-from app.core.env_posture import is_required
+from app.core.env_posture import is_dev, is_required
 from app.core.providers.secrets_openbao import OpenBaoSecretsProvider
 
 logger = logging.getLogger(__name__)
@@ -102,6 +102,18 @@ async def hydrate_secrets_from_vault(
     required = is_required(env, "SECRETS_VAULT_REQUIRED")
 
     addr = env.get("OPENBAO_ADDR", "http://openbao:8200")
+    # SEC-006: in production the AppRole login + every secret (DATABASE_URL, MinIO SA)
+    # would transit in clear over http:// — refuse it (TLS is P7/P8). An operator can
+    # opt out explicitly with OPENBAO_ALLOW_HTTP=1 (e.g. a trusted local network).
+    if addr.startswith("http://") and not is_dev(env):
+        if env.get("OPENBAO_ALLOW_HTTP") != "1":
+            raise RuntimeError(
+                "OpenBao address is plaintext http:// in production — refusing (the "
+                "AppRole login and all secrets would transit in clear). Enable TLS "
+                "(P7/P8) or set OPENBAO_ALLOW_HTTP=1 to override explicitly.")
+        # Override used in prod — leave an audit trail of the deliberate downgrade.
+        logger.warning("OPENBAO_ALLOW_HTTP=1: contacting OpenBao over plaintext http:// "
+                       "in a non-dev environment — secrets transit in clear.")
     if required and addr.startswith("http://"):
         logger.warning("OpenBao address is plaintext http:// under a required "
                        "posture — enable TLS (P7/P8) before production exposure.")

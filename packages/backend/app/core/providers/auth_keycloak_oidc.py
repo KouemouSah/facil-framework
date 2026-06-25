@@ -107,15 +107,21 @@ class KeycloakOIDCProvider(AuthProvider):
     async def introspect(self, token: str) -> bool:
         """RFC 7662 token introspection — returns whether the token is still
         ACTIVE at the IdP (catches Keycloak-side disable/logout near-instantly).
-        Disabled or unconfigured -> returns True (skip). Fail-OPEN on transient
-        endpoint errors (availability) — back-channel logout + local status remain
-        the other safety nets. Requires a confidential client (client_id/secret)."""
+        Disabled or unconfigured -> returns True (skip).
+
+        On a TRANSIENT endpoint error the default is fail-OPEN (availability) —
+        back-channel logout + local status remain the other safety nets. Sensitive
+        deployments can set `introspection_fail_closed` to DENY instead (SEC-005).
+        A genuine 200 'inactive' response always denies regardless. Requires a
+        confidential client (client_id/secret)."""
         if not self.config.get("introspection"):
             return True
         cid = self.config.get("client_id")
         secret = self.config.get("client_secret")
         if not (cid and secret):
             return True
+        # On a transient/endpoint error: fail-open (skip) by default, deny if opted in.
+        on_error = not bool(self.config.get("introspection_fail_closed"))
         try:
             meta = await self._discover()
             endpoint = meta.get("introspection_endpoint")
@@ -124,10 +130,10 @@ class KeycloakOIDCProvider(AuthProvider):
             async with self._client() as c:
                 r = await c.post(endpoint, data={"token": token}, auth=(cid, secret))
                 if r.status_code != 200:
-                    return True
+                    return on_error
                 return bool(r.json().get("active"))
         except (httpx.HTTPError, ValueError):
-            return True
+            return on_error
 
     async def issue(self, subject: str, claims: dict | None = None) -> dict:
         raise NotImplementedError(

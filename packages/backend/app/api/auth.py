@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_session
 from app.auth import audit
 from app.auth import service
+from app.auth.logout_token import is_backchannel_logout_token
 from app.identity import repository as identity_repo
 from app.identity import service as identity_service
 from app.rbac import repository as rbac_repo
@@ -25,6 +26,7 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 _RL_LOGIN = Depends(rate_limited("login", 30, 60))
 _RL_REGISTER = Depends(rate_limited("register", 10, 60))
 _RL_RESET = Depends(rate_limited("pwreset", 10, 60))
+_RL_LOGOUT = Depends(rate_limited("oidc_logout", 30, 60))
 
 
 async def _send_email(request: Request, to: str, subject: str, body: str) -> None:
@@ -234,7 +236,7 @@ async def email_verification_confirm(body: TokenIn,
     return {"email_verified": True}
 
 
-@router.post("/oidc/backchannel-logout")
+@router.post("/oidc/backchannel-logout", dependencies=[_RL_LOGOUT])
 async def oidc_backchannel_logout(request: Request) -> dict:
     """OIDC back-channel logout (D4.9 #5): the IdP posts a signed logout_token
     (application/x-www-form-urlencoded per spec; JSON also accepted). We verify it
@@ -256,6 +258,10 @@ async def oidc_backchannel_logout(request: Request) -> dict:
             continue
         claims = await verifier.verify(logout_token)
         if claims is None:
+            continue
+        # SEC-003: only a genuine back-channel logout token (events claim, no nonce)
+        # may revoke — a normal access token signed by the realm must not.
+        if not is_backchannel_logout_token(claims):
             continue
         sid = claims.get("sid") or claims.get("jti")
         if not sid:

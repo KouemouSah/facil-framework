@@ -3,9 +3,14 @@
 Used to encrypt the TOTP shared secret in the DB (and reusable for any small
 secret at rest). Authenticated encryption (GCM) gives confidentiality + integrity.
 
-Key: derived (SHA-256 -> 32 bytes) from `TOTP_ENCRYPTION_KEY`, falling back to the
-canonical `JWT_SECRET_KEY`. Deriving lets the operator supply any-length secret;
-⚠️ rotating that secret makes existing ciphertexts undecryptable (re-enrol 2FA).
+Key: derived (SHA-256 -> 32 bytes) from `TOTP_ENCRYPTION_KEY`. In dev it may fall
+back to the canonical `JWT_SECRET_KEY`; in PRODUCTION a distinct `TOTP_ENCRYPTION_KEY`
+is REQUIRED (key separation, SEC-008) — the fallback raises. Deriving lets the
+operator supply any-length secret; ⚠️ rotating that secret makes existing ciphertexts
+undecryptable (re-enrol 2FA).
+⚠️ UPGRADE NOTE: a prod deploy that previously encrypted TOTP secrets via the JWT
+fallback (no dedicated key) must set `TOTP_ENCRYPTION_KEY` AND re-enrol TOTP users —
+their old ciphertexts are not decryptable under the new key.
 Token format: urlsafe-base64(nonce[12] || ciphertext||tag).
 """
 
@@ -18,6 +23,8 @@ import os
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
+from app.core.env_posture import is_dev
+
 _NONCE = 12
 
 
@@ -26,13 +33,22 @@ class DecryptionError(Exception):
 
 
 def _key() -> bytes:
-    raw = (os.environ.get("TOTP_ENCRYPTION_KEY")
-           or os.environ.get("JWT_SECRET_KEY")
-           or os.environ.get("JWT_SECRET") or "")
-    if not raw:
+    distinct = os.environ.get("TOTP_ENCRYPTION_KEY")
+    if distinct:
+        return hashlib.sha256(distinct.encode("utf-8")).digest()  # 32 bytes
+    # Fallback to the JWT signing secret — convenient in dev, but reusing one
+    # secret across signing AND at-rest encryption breaks cryptographic domain
+    # separation (a JWT-secret leak/rotation then also compromises 2FA at rest).
+    # Refuse it in production (SEC-008).
+    fallback = os.environ.get("JWT_SECRET_KEY") or os.environ.get("JWT_SECRET") or ""
+    if not fallback:
         raise RuntimeError(
             "no encryption key: set TOTP_ENCRYPTION_KEY (or JWT_SECRET_KEY)")
-    return hashlib.sha256(raw.encode("utf-8")).digest()  # 32 bytes
+    if not is_dev(os.environ):
+        raise RuntimeError(
+            "TOTP_ENCRYPTION_KEY is required in production — refusing to reuse the "
+            "JWT signing secret for at-rest encryption (cryptographic key separation).")
+    return hashlib.sha256(fallback.encode("utf-8")).digest()  # 32 bytes
 
 
 def encrypt(plaintext: str) -> str:

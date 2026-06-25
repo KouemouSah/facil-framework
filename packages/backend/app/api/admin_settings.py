@@ -42,6 +42,11 @@ class SettingIn(BaseModel):
 
 
 async def _refresh_resolver(request: Request, session: AsyncSession) -> None:
+    # Refreshes the resolver's DB layer in-process. NOTE (SEC-010): the OIDC
+    # verifier chain (app.state.auth_verifiers) is built once at boot from
+    # auth.methods/auth.oidc.*; changing those keys here updates the resolver but a
+    # **restart is required** for the verifier chain to pick them up. Tracked as a
+    # follow-up (rebuild verifiers on auth.* change) in the go/no-go plan.
     request.app.state.resolver.set_db(await repo.active_map(session))
 
 

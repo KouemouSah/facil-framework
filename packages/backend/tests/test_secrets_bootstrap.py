@@ -132,11 +132,45 @@ async def test_auth_error_is_not_retried():
 @pytest.mark.asyncio
 async def test_fail_secure_default_in_prod_when_vault_down():
     # No SECRETS_VAULT_REQUIRED knob + non-dev env => required is implied.
-    env = {"OPENBAO_ROLE_ID": "r", "ENVIRONMENT": "production"}
+    # OPENBAO_ALLOW_HTTP=1 so this exercises the vault-down path, not the http guard.
+    env = {"OPENBAO_ROLE_ID": "r", "ENVIRONMENT": "production", "OPENBAO_ALLOW_HTTP": "1"}
     fp = FakeProvider(error=httpx.ConnectError("down"))
     with pytest.raises(RuntimeError, match="SECRETS_VAULT_REQUIRED"):
         await sb.hydrate_secrets_from_vault(
             env=env, provider_factory=_factory(fp), sleep=_noop_sleep, attempts=2)
+
+
+# --- SEC-006: refuse plaintext http:// OpenBao in production ---
+
+@pytest.mark.asyncio
+async def test_http_refused_in_production():
+    # AppRole login + secrets would transit in clear over http:// — refuse in prod.
+    env = {"OPENBAO_ROLE_ID": "r", "ENVIRONMENT": "production",
+           "OPENBAO_ADDR": "http://openbao:8200"}
+
+    def _boom(config):  # must refuse BEFORE building/contacting the provider
+        raise AssertionError("must not contact the vault over refused http")
+
+    with pytest.raises(RuntimeError, match="plaintext http"):
+        await sb.hydrate_secrets_from_vault(env=env, provider_factory=_boom)
+
+
+@pytest.mark.asyncio
+async def test_http_allowed_with_explicit_override():
+    env = {"OPENBAO_ROLE_ID": "r", "ENVIRONMENT": "production",
+           "OPENBAO_ALLOW_HTTP": "1", "OPENBAO_ADDR": "http://openbao:8200"}
+    fp = FakeProvider(secrets={"DATABASE_URL": "fresh"})
+    rep = await sb.hydrate_secrets_from_vault(env=env, provider_factory=_factory(fp))
+    assert rep["source"] == "vault"  # override lets it proceed
+
+
+@pytest.mark.asyncio
+async def test_http_allowed_in_dev():
+    env = {"OPENBAO_ROLE_ID": "r", "ENVIRONMENT": "development",
+           "OPENBAO_ADDR": "http://openbao:8200"}
+    fp = FakeProvider(secrets={"DATABASE_URL": "x"})
+    rep = await sb.hydrate_secrets_from_vault(env=env, provider_factory=_factory(fp))
+    assert rep["source"] == "vault"  # dev tolerates http
 
 
 @pytest.mark.asyncio
@@ -150,9 +184,10 @@ async def test_dev_default_falls_back_when_vault_down():
 
 @pytest.mark.asyncio
 async def test_explicit_relax_overrides_prod():
-    # Operator opt-out wins even in prod.
+    # Operator opt-out wins even in prod. OPENBAO_ALLOW_HTTP isolates this from the
+    # SEC-006 http guard (tested separately).
     env = {"OPENBAO_ROLE_ID": "r", "ENVIRONMENT": "production",
-           "SECRETS_VAULT_REQUIRED": "0"}
+           "SECRETS_VAULT_REQUIRED": "0", "OPENBAO_ALLOW_HTTP": "1"}
     fp = FakeProvider(error=httpx.ConnectError("down"))
     rep = await sb.hydrate_secrets_from_vault(
         env=env, provider_factory=_factory(fp), sleep=_noop_sleep, attempts=2)

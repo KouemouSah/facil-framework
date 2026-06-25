@@ -6,7 +6,7 @@ import pyotp
 import pytest
 
 A = "/api/v1/auth"
-PW = "Str0ngPass"
+PW = "Str0ngPass99"  # ≥12 chars, mixed classes (SEC-009 policy)
 
 
 async def _register(ac, email="u@x.io", password=PW):
