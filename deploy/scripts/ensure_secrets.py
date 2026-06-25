@@ -35,6 +35,11 @@ from pathlib import Path
 # backend signs with the same key the deploy provisions.
 RUNTIME_SECRETS = ("POSTGRES_PASSWORD", "REDIS_PASSWORD", "MINIO_ROOT_PASSWORD",
                    "ADMIN_TOKEN", "JWT_SECRET_KEY",
+                   # TOTP secret-at-rest encryption key. Read by the backend
+                   # (app.security.crypto) and REQUIRED distinct in production
+                   # (SEC-008) — generate it like JWT_SECRET_KEY so a --apply that
+                   # skipped the wizard still satisfies the prod requirement (A3).
+                   "TOTP_ENCRYPTION_KEY",
                    # Keycloak admin bootstrap password (compose interpolates it;
                    # the keycloak provisioner reads it). Auto-generated so prod
                    # never falls back to the weak `:-admin` compose default.

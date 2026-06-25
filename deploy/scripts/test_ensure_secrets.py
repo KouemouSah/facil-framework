@@ -21,10 +21,20 @@ def test_generates_all_when_file_absent(tmp_path):
         assert len(parsed[k]) >= 20            # strong
 
 
+def test_generates_totp_encryption_key(tmp_path):
+    # SEC-008 makes TOTP_ENCRYPTION_KEY required in prod — ensure_secrets must
+    # guarantee a strong one like JWT_SECRET_KEY (A3 env completeness).
+    f = tmp_path / ".env.secrets"
+    gen = es.ensure_secrets(f)
+    assert "TOTP_ENCRYPTION_KEY" in gen
+    assert len(es._parse(f)["TOTP_ENCRYPTION_KEY"]) >= 20
+
+
 def test_idempotent_keeps_existing(tmp_path):
     f = tmp_path / ".env.secrets"
     f.write_text("POSTGRES_PASSWORD=keepme\nREDIS_PASSWORD=alsokeep\n"
                  "MINIO_ROOT_PASSWORD=third\nADMIN_TOKEN=tok\nJWT_SECRET_KEY=jwt\n"
+                 "TOTP_ENCRYPTION_KEY=totp\n"
                  "KEYCLOAK_ADMIN_PASSWORD=kcpw\nOPENBAO_DEV_ROOT_TOKEN=baotok\n",
                  encoding="utf-8")
     gen = es.ensure_secrets(f)
@@ -39,8 +49,8 @@ def test_only_missing_generated(tmp_path):
     f.write_text("POSTGRES_PASSWORD=existing\n", encoding="utf-8")
     gen = es.ensure_secrets(f)
     assert set(gen) == {"REDIS_PASSWORD", "MINIO_ROOT_PASSWORD", "ADMIN_TOKEN",
-                        "JWT_SECRET_KEY", "KEYCLOAK_ADMIN_PASSWORD",
-                        "OPENBAO_DEV_ROOT_TOKEN"}
+                        "JWT_SECRET_KEY", "TOTP_ENCRYPTION_KEY",
+                        "KEYCLOAK_ADMIN_PASSWORD", "OPENBAO_DEV_ROOT_TOKEN"}
     parsed = es._parse(f)
     assert parsed["POSTGRES_PASSWORD"] == "existing"   # preserved
     assert parsed["REDIS_PASSWORD"] and parsed["MINIO_ROOT_PASSWORD"]
