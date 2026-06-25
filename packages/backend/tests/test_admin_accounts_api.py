@@ -16,7 +16,7 @@ async def test_accounts_require_auth(client):
     ac, _ = client
     assert (await ac.get("/api/v1/admin/accounts")).status_code == 401
     assert (await ac.post("/api/v1/admin/accounts",
-                          json={"email": "x@e.com", "password": "Secret123"})
+                          json={"email": "x@e.com", "password": "Sekret123456"})
             ).status_code == 401
 
 
@@ -24,7 +24,7 @@ async def test_accounts_require_auth(client):
 async def test_create_then_list_and_search(client):
     ac, _ = client
     created = await ac.post("/api/v1/admin/accounts", headers=AUTH,
-                            json={"email": "agent@corp.com", "password": "Secret123",
+                            json={"email": "agent@corp.com", "password": "Sekret123456",
                                   "display_name": "Agent One"})
     assert created.status_code == 201
     acc = created.json()
@@ -49,11 +49,11 @@ async def test_list_contract_sort_filter_keyset(client):
     ac, _ = client
     # Seed 3 accounts; suspend one.
     a = (await ac.post("/api/v1/admin/accounts", headers=AUTH,
-                       json={"email": "aaa@corp.com", "password": "Secret123"})).json()
+                       json={"email": "aaa@corp.com", "password": "Sekret123456"})).json()
     await ac.post("/api/v1/admin/accounts", headers=AUTH,
-                  json={"email": "bbb@corp.com", "password": "Secret123"})
+                  json={"email": "bbb@corp.com", "password": "Sekret123456"})
     await ac.post("/api/v1/admin/accounts", headers=AUTH,
-                  json={"email": "ccc@corp.com", "password": "Secret123"})
+                  json={"email": "ccc@corp.com", "password": "Sekret123456"})
     await ac.patch(f"/api/v1/admin/accounts/{a['id']}/status", headers=AUTH,
                    json={"status": "suspended"})
 
@@ -90,7 +90,7 @@ async def test_list_keyset_nullable_sort_no_skip(client):
     seeded = []
     for email, dn in [("n1@corp.com", "Zed"), ("n2@corp.com", None),
                       ("n3@corp.com", "Amy"), ("n4@corp.com", None)]:
-        body = {"email": email, "password": "Secret123"}
+        body = {"email": email, "password": "Sekret123456"}
         if dn is not None:
             body["display_name"] = dn
         seeded.append((await ac.post("/api/v1/admin/accounts", headers=AUTH,
@@ -114,7 +114,7 @@ async def test_list_keyset_nullable_sort_no_skip(client):
 @pytest.mark.asyncio
 async def test_duplicate_email_409(client):
     ac, _ = client
-    body = {"email": "dup@corp.com", "password": "Secret123"}
+    body = {"email": "dup@corp.com", "password": "Sekret123456"}
     assert (await ac.post("/api/v1/admin/accounts", headers=AUTH, json=body)
             ).status_code == 201
     assert (await ac.post("/api/v1/admin/accounts", headers=AUTH, json=body)
@@ -133,7 +133,7 @@ async def test_weak_password_422(client):
 async def test_set_status_transitions(client):
     ac, _ = client
     acc = (await ac.post("/api/v1/admin/accounts", headers=AUTH,
-                         json={"email": "susp@corp.com", "password": "Secret123"})).json()
+                         json={"email": "susp@corp.com", "password": "Sekret123456"})).json()
     aid = acc["id"]
 
     # Suspend -> is_active flips off.
@@ -159,7 +159,7 @@ async def test_set_status_transitions(client):
 async def test_invalid_email_422(client):
     ac, _ = client
     r = await ac.post("/api/v1/admin/accounts", headers=AUTH,
-                      json={"email": "not-an-email", "password": "Secret123"})
+                      json={"email": "not-an-email", "password": "Sekret123456"})
     assert r.status_code == 422
 
 
@@ -168,10 +168,10 @@ async def test_suspended_account_cannot_login(client):
     """S1/S2: native login enforces status, and suspension kills sessions."""
     ac, _ = client
     await ac.post("/api/v1/admin/accounts", headers=AUTH,
-                  json={"email": "agent2@corp.com", "password": "Secret123"})
+                  json={"email": "agent2@corp.com", "password": "Sekret123456"})
     # Fresh account logs in fine.
     ok = await ac.post("/api/v1/auth/login",
-                       json={"identifier": "agent2@corp.com", "password": "Secret123"})
+                       json={"identifier": "agent2@corp.com", "password": "Sekret123456"})
     assert ok.status_code == 200
     aid = ok.json()["account"]["id"]
     # Suspend -> native login is now rejected (uniform 401, no status oracle).
@@ -179,13 +179,13 @@ async def test_suspended_account_cannot_login(client):
                          json={"status": "suspended"})
     assert sus.status_code == 200
     again = await ac.post("/api/v1/auth/login",
-                          json={"identifier": "agent2@corp.com", "password": "Secret123"})
+                          json={"identifier": "agent2@corp.com", "password": "Sekret123456"})
     assert again.status_code == 401
     # Reactivate -> login works again.
     await ac.patch(f"/api/v1/admin/accounts/{aid}/status", headers=AUTH,
                    json={"status": "active"})
     assert (await ac.post("/api/v1/auth/login",
-                          json={"identifier": "agent2@corp.com", "password": "Secret123"})
+                          json={"identifier": "agent2@corp.com", "password": "Sekret123456"})
             ).status_code == 200
 
 
@@ -193,9 +193,9 @@ async def test_suspended_account_cannot_login(client):
 async def test_bulk_status(client):
     ac, _ = client
     a1 = (await ac.post("/api/v1/admin/accounts", headers=AUTH,
-                        json={"email": "blk1@corp.com", "password": "Secret123"})).json()
+                        json={"email": "blk1@corp.com", "password": "Sekret123456"})).json()
     a2 = (await ac.post("/api/v1/admin/accounts", headers=AUTH,
-                        json={"email": "blk2@corp.com", "password": "Secret123"})).json()
+                        json={"email": "blk2@corp.com", "password": "Sekret123456"})).json()
 
     r = await ac.post("/api/v1/admin/accounts/bulk-status", headers=AUTH,
                       json={"account_ids": [a1["id"], a2["id"], "ghost"],
@@ -207,7 +207,7 @@ async def test_bulk_status(client):
 
     # Both suspended -> native login blocked.
     assert (await ac.post("/api/v1/auth/login",
-                          json={"identifier": "blk1@corp.com", "password": "Secret123"})
+                          json={"identifier": "blk1@corp.com", "password": "Sekret123456"})
             ).status_code == 401
 
     # Invalid status / empty -> 422.
@@ -223,7 +223,7 @@ async def test_bulk_status(client):
 async def test_get_and_update_account(client):
     ac, _ = client
     a = (await ac.post("/api/v1/admin/accounts", headers=AUTH,
-                       json={"email": "edit@corp.com", "password": "Secret123"})).json()
+                       json={"email": "edit@corp.com", "password": "Sekret123456"})).json()
     g = (await ac.get(f"/api/v1/admin/accounts/{a['id']}", headers=AUTH)).json()
     etag = g["etag"]
     assert etag and g["email"] == "edit@corp.com"
@@ -245,9 +245,9 @@ async def test_get_and_update_account(client):
 async def test_export_csv(client):
     ac, _ = client
     await ac.post("/api/v1/admin/accounts", headers=AUTH,
-                  json={"email": "exp1@corp.com", "password": "Secret123"})
+                  json={"email": "exp1@corp.com", "password": "Sekret123456"})
     await ac.post("/api/v1/admin/accounts", headers=AUTH,
-                  json={"email": "exp2@corp.com", "password": "Secret123"})
+                  json={"email": "exp2@corp.com", "password": "Sekret123456"})
     r = await ac.get("/api/v1/admin/accounts/export", headers=AUTH)
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/csv")

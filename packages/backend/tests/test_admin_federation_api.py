@@ -35,7 +35,7 @@ async def test_identities_listing_and_search(client):
     ac, db = client
     # Create an account, then link a federated identity directly in the DB.
     acc = (await ac.post("/api/v1/admin/accounts", headers=AUTH,
-                         json={"email": "fed@corp.com", "password": "Secret123",
+                         json={"email": "fed@corp.com", "password": "Sekret123456",
                                "display_name": "Fed User"})).json()
     from app.auth.models import FederatedIdentity
     async with db.session_factory() as s:
