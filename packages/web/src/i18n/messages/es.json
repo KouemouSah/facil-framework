@@ -11,5 +11,16 @@
     "settings": "Ajustes"
   },
   "auth": { "login": "Iniciar sesión", "logout": "Cerrar sesión" },
-  "common": { "search": "Buscar", "loading": "Cargando…", "density": "Densidad" }
+  "common": { "search": "Buscar", "loading": "Cargando…", "density": "Densidad", "skip_to_content": "Ir al contenido", "close": "Cerrar", "dismiss": "Descartar", "open_menu": "Abrir menú", "resize_panel": "Redimensionar el panel" },
+  "errors": {
+    "title": "Algo salió mal",
+    "body": "Se produjo un error inesperado. Puede reintentar o recargar la página.",
+    "retry": "Reintentar",
+    "reload": "Recargar"
+  },
+  "not_found": {
+    "title": "Página no encontrada",
+    "body": "La página que busca no existe o se movió.",
+    "back": "Volver al panel"
+  }
 }

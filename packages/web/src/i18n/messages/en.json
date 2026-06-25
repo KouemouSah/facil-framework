@@ -11,5 +11,16 @@
     "settings": "Settings"
   },
   "auth": { "login": "Sign in", "logout": "Sign out" },
-  "common": { "search": "Search", "loading": "Loading…", "density": "Density" }
+  "common": { "search": "Search", "loading": "Loading…", "density": "Density", "skip_to_content": "Skip to content", "close": "Close", "dismiss": "Dismiss", "open_menu": "Open menu", "resize_panel": "Resize panel" },
+  "errors": {
+    "title": "Something went wrong",
+    "body": "An unexpected error occurred. You can retry, or reload the page.",
+    "retry": "Try again",
+    "reload": "Reload"
+  },
+  "not_found": {
+    "title": "Page not found",
+    "body": "The page you’re looking for doesn’t exist or was moved.",
+    "back": "Back to dashboard"
+  }
 }

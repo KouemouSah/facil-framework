@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { getBranding } from "@/lib/server/backend";
 import { hexToHslTriplet } from "@/lib/color";
+import { Toaster } from "@/components/layout/toaster";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -41,6 +42,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="font-sans">
         <NextIntlClientProvider messages={messages}>
           <Providers>{children}</Providers>
+          <Toaster />
         </NextIntlClientProvider>
       </body>
     </html>
