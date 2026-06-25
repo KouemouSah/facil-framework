@@ -32,6 +32,7 @@ from collections.abc import MutableMapping
 
 import httpx
 
+from app.core.env_posture import is_required
 from app.core.providers.secrets_openbao import OpenBaoSecretsProvider
 
 logger = logging.getLogger(__name__)
@@ -50,11 +51,6 @@ def _safe_detail(exc: Exception) -> str:
     if isinstance(exc, httpx.RequestError):
         return f"{type(exc).__name__} contacting OpenBao"
     return type(exc).__name__
-
-
-def _is_dev(env) -> bool:
-    return env.get("ENVIRONMENT", "development").lower() in {
-        "development", "dev", "test", "local"}
 
 
 async def _load_with_retry(provider, *, attempts: int, delay: float, sleep) -> dict:
@@ -103,8 +99,7 @@ async def hydrate_secrets_from_vault(
     # Fail-secure default: when the AppRole is present the vault is REQUIRED unless
     # the operator explicitly relaxes it (SECRETS_VAULT_REQUIRED=0) or we are in a
     # dev/test env. A prod deploy that forgets the knob fails closed, not open.
-    knob = env.get("SECRETS_VAULT_REQUIRED")
-    required = (knob == "1") if knob is not None else (not _is_dev(env))
+    required = is_required(env, "SECRETS_VAULT_REQUIRED")
 
     addr = env.get("OPENBAO_ADDR", "http://openbao:8200")
     if required and addr.startswith("http://"):

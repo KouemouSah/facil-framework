@@ -32,6 +32,7 @@ from app.branding import resolver_defaults as branding_defaults
 from app.config import get_settings
 from app.config_store import repository as repo
 from app.config_store.resolver import ConfigResolver
+from app.core.boot import run_boot_step
 from app.core.module_registry import enabled_from_env, load_modules
 from app.core.providers.llm_router import LLMRouter
 from app.core.providers.registry import default_registry
@@ -110,10 +111,14 @@ async def lifespan(app: FastAPI):
     app.state.db = db
 
     resolver = ConfigResolver(defaults=_DEFAULTS, file_cfg={}, env=os.environ)
+
     # Load the DB layer if the schema is present (first boot may be pre-migration).
-    with contextlib.suppress(Exception):
+    # A silent failure here would disable OIDC (issuer/audience come from the DB
+    # config) without any signal — so it is logged loud and surfaced in /health.
+    async def _load_config_db():
         async with db.session_factory() as session:
             resolver.set_db(await repo.active_map(session))
+    app.state.config_db_loaded = await run_boot_step("config-store-db-load", _load_config_db)
     app.state.resolver = resolver
     app.state.registry = default_registry()
     app.state.llm_router = LLMRouter(resolver, app.state.registry)
@@ -127,50 +132,49 @@ async def lifespan(app: FastAPI):
     # replicas — required at scale for rate-limit + OIDC revocation correctness),
     # else in-process. Backs the federation cache, rate-limiter and revocation set.
     from app.core.cache import build_cache
-    app.state.cache = build_cache(os.environ.get("REDIS_URL"))
+    app.state.cache = await build_cache(os.environ.get("REDIS_URL"))
 
-    # Secrets provider enrollment — make OpenBao the default `secrets` provider
-    # when its AppRole creds are present, so resolve_secret reads the vault instead
-    # of silently falling back to env. Idempotent; SECRETS_PROVIDER_SEED_ON_BOOT=0
-    # disables it. Same pre-migration guard as the other seeds.
-    if os.environ.get("SECRETS_PROVIDER_SEED_ON_BOOT", "1") != "0":
-        from app.core.providers.seed import seed_default_secrets_provider
-        try:
-            async with db.session_factory() as session:
-                if await seed_default_secrets_provider(session):
-                    await session.commit()
-                    logger.info("enrolled OpenBao as the default 'secrets' provider")
-        except Exception as e:  # pre-migration first boot is benign; never crash boot
-            # …but log it: a silent enroll-failure means resolve_secret quietly
-            # falls back to env — the very failure this work hardens against.
-            logger.warning("secrets provider seed skipped/failed: %s", e)
+    # Secrets provider enrollment — make OpenBao the default `secrets` provider when
+    # its AppRole creds are present, so resolve_secret reads the vault instead of
+    # silently falling back to env. The label is observable in /health; a failed
+    # enrollment is loud (and fail-closed when the vault is required). Idempotent;
+    # SECRETS_PROVIDER_SEED_ON_BOOT=0 disables it.
+    from app.core.providers.secret_enrollment import enroll_secrets_provider
+    app.state.secrets_provider = await enroll_secrets_provider(
+        db, env=os.environ, db_ready=app.state.config_db_loaded)
 
     # RBAC seeding — sync the permission catalog + the active profile's global
-    # roles (idempotent). Suppressed pre-migration (schema may be absent on first
-    # boot); RBAC_SEED_ON_BOOT=0 disables it for operators who seed out-of-band.
+    # roles (idempotent). Loud on failure (benign pre-migration vs real prod error);
+    # RBAC_SEED_ON_BOOT=0 disables it for operators who seed out-of-band.
     if os.environ.get("RBAC_SEED_ON_BOOT", "1") != "0":
         from app.rbac.seed import seed_roles
-        with contextlib.suppress(Exception):
+
+        async def _seed_rbac():
             async with db.session_factory() as session:
                 await seed_roles(session, profile=resolver.resolve("profile", "empty"))
                 await session.commit()
+        await run_boot_step("rbac-seed", _seed_rbac)
 
     # Reference master data (countries/currencies/regions) — idempotent upsert by
     # ISO code. Same guard as RBAC; REFERENCE_SEED_ON_BOOT=0 disables it.
     if os.environ.get("REFERENCE_SEED_ON_BOOT", "1") != "0":
         from app.modules.reference.seed import seed_reference
-        with contextlib.suppress(Exception):
+
+        async def _seed_reference():
             async with db.session_factory() as session:
                 await seed_reference(session)
+        await run_boot_step("reference-seed", _seed_reference)
 
     # F.3 backfill: link each Company to a Party + Address (legacy text -> pillar).
     # Runs AFTER the reference seed so country/currency codes resolve; idempotent
     # (only orgs without party_id). ORG_BACKFILL_ON_BOOT=0 disables it.
     if os.environ.get("ORG_BACKFILL_ON_BOOT", "1") != "0":
         from app.modules.organization.backfill import backfill_org_party
-        with contextlib.suppress(Exception):
+
+        async def _backfill_org():
             async with db.session_factory() as session:
                 await backfill_org_party(session)
+        await run_boot_step("org-party-backfill", _backfill_org)
 
     yield
     with contextlib.suppress(Exception):
@@ -228,6 +232,13 @@ async def health(response: Response) -> dict:
     # Surface the secrets posture so a vault fallback is observable post-boot, not
     # just a one-shot startup log (no secret values — only the source label).
     secrets_source = getattr(app.state, "secrets_report", {}).get("source", "unknown")
+    # secrets_provider = which provider resolve_secret actually uses (enrollment),
+    # distinct from secrets_source (infra-cred hydration). "env-fallback" with a
+    # vault expected = a silent misconfiguration made visible. cache = redis|memory
+    # (memory while REDIS_URL is set + >1 replica ⇒ revocation/rate-limit per-replica).
+    cache = getattr(getattr(app.state, "cache", None), "backend", "unknown")
     return {"status": "ok" if db_ok else "degraded",
             "database": db_ok, "secrets_source": secrets_source,
-            "service": "facil-backend"}
+            "secrets_provider": getattr(app.state, "secrets_provider", "unknown"),
+            "config_db": getattr(app.state, "config_db_loaded", None),
+            "cache": cache, "service": "facil-backend"}

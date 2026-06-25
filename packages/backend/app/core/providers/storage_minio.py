@@ -27,12 +27,21 @@ class MinIOStorageProvider(StorageProvider):
                           or os.environ.get("MINIO_ENDPOINT", "http://minio:9000"))
         self._bucket = (self.config.get("bucket")
                         or os.environ.get("MINIO_BUCKET", "facil-documents"))
-        self._access = os.environ.get("MINIO_ACCESS_KEY", "")
-        self._secret = os.environ.get("MINIO_SECRET_KEY", "")
+        # Creds: injectable via config (a future consumer can pass vault-resolved
+        # values) else the env the deploy layer renders / the vault hydrates (S2).
+        self._access = self.config.get("access_key") or os.environ.get("MINIO_ACCESS_KEY", "")
+        self._secret = self.config.get("secret_key") or os.environ.get("MINIO_SECRET_KEY", "")
         self._client = None
 
     def _s3(self):
         if self._client is None:
+            # Fail loud on absent creds rather than let boto3 surface an opaque
+            # 403 SignatureDoesNotMatch only at the first put/get (F2).
+            if not self._access or not self._secret:
+                raise RuntimeError(
+                    "MinIO credentials are missing (MINIO_ACCESS_KEY/MINIO_SECRET_KEY "
+                    "empty) — refusing to build the S3 client. Ensure the deploy layer "
+                    "rendered the scoped SA creds (or the vault hydrated them).")
             self._client = boto3.client(
                 "s3", endpoint_url=self._endpoint,
                 aws_access_key_id=self._access, aws_secret_access_key=self._secret,

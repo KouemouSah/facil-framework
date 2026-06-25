@@ -9,9 +9,14 @@ concrete providers stay free of session/registry coupling.
 
 from __future__ import annotations
 
+import logging
+import os
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.providers.registry import ProviderRegistry
+
+logger = logging.getLogger(__name__)
 
 
 async def resolve_secret(name: str, session: AsyncSession,
@@ -22,5 +27,13 @@ async def resolve_secret(name: str, session: AsyncSession,
         provider = await registry.get_default("secrets", session)
     except LookupError:
         from app.core.providers.secrets_env import EnvSecretsProvider
+        # The env fallback is normal in dev (no vault). But when an AppRole IS
+        # present, no enrolled provider means OpenBao is provisioned yet unused —
+        # warn so it is not a silent misconfiguration (see F1 / secret_enrollment).
+        if os.environ.get("OPENBAO_ROLE_ID"):
+            logger.warning(
+                "resolve_secret(%s): no default secrets provider enrolled — falling "
+                "back to env although a vault AppRole is present (OpenBao not enrolled?).",
+                name)
         provider = EnvSecretsProvider()
     return await provider.get_secret(name)
