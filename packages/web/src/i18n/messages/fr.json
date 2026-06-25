@@ -11,5 +11,16 @@
     "settings": "Paramètres"
   },
   "auth": { "login": "Se connecter", "logout": "Se déconnecter" },
-  "common": { "search": "Rechercher", "loading": "Chargement…", "density": "Densité" }
+  "common": { "search": "Rechercher", "loading": "Chargement…", "density": "Densité", "skip_to_content": "Aller au contenu", "close": "Fermer", "dismiss": "Masquer" },
+  "errors": {
+    "title": "Une erreur est survenue",
+    "body": "Une erreur inattendue s’est produite. Vous pouvez réessayer ou recharger la page.",
+    "retry": "Réessayer",
+    "reload": "Recharger"
+  },
+  "not_found": {
+    "title": "Page introuvable",
+    "body": "La page que vous cherchez n’existe pas ou a été déplacée.",
+    "back": "Retour au tableau de bord"
+  }
 }

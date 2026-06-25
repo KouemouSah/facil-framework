@@ -78,6 +78,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="grid h-screen grid-cols-1 overflow-hidden md:grid-cols-[260px_1fr]">
+      {/* Skip-link (a11y): first focusable element, visible only on focus. */}
+      <a
+        href="#main-content"
+        className="sr-only z-50 focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground focus:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {tc("skip_to_content")}
+      </a>
       {/* Sidebar — fixed, hidden on mobile (drawer comes in D5.1) */}
       <aside className="hidden flex-col border-r bg-card md:flex">
         <div className="flex h-14 items-center gap-2 border-b px-5 font-semibold">
@@ -125,12 +132,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="ml-auto flex items-center gap-2">
             {who && <span className="text-sm text-muted-foreground">{who}</span>}
-            <Button variant="ghost" size="icon" onClick={logout} title={ta("logout")} aria-label="logout">
+            <Button variant="ghost" size="icon" onClick={logout} title={ta("logout")} aria-label={ta("logout")}>
               <LogOut className="size-4" />
             </Button>
           </div>
         </header>
-        <main className="overflow-auto p-6">{children}</main>
+        <main id="main-content" tabIndex={-1} className="overflow-auto p-6 focus-visible:outline-none">{children}</main>
       </div>
     </div>
   );
