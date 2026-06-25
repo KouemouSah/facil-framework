@@ -413,12 +413,12 @@ services:
   # ---------------------------------------------------------------------
   redis:
     image: {redis_image}
-    command: ["redis-server", "--requirepass", "${{REDIS_PASSWORD}}"]
+    command: ["redis-server", "--requirepass", "${{REDIS_PASSWORD:?REDIS_PASSWORD is required — run via docker_local --apply or export it}}"]
     ports:
       - "6379:6379"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${{REDIS_PASSWORD}}", "--no-auth-warning", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${{REDIS_PASSWORD:?REDIS_PASSWORD is required — run via docker_local --apply or export it}}", "--no-auth-warning", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10

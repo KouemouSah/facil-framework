@@ -189,6 +189,16 @@ def test_secret_passed_via_env_not_argv(monkeypatch, ctx):
         assert "facilminio" in call["env"]["MC_HOST_facil"]
 
 
+def test_warns_when_root_password_falls_back_to_default(monkeypatch, ctx, caplog):
+    # F5: the weak built-in default must not be used silently — warn loudly when
+    # MINIO_ROOT_PASSWORD is absent (ensure_secrets not run).
+    import logging
+    _patch(monkeypatch, FakeMC())
+    with caplog.at_level(logging.WARNING):
+        mn.provision(ctx)  # ctx has no MINIO_ROOT_PASSWORD secret
+    assert any("MINIO_ROOT_PASSWORD" in r.message for r in caplog.records)
+
+
 def test_idempotent_reuse_when_secret_known(monkeypatch, ctx):
     # Pre-seed state as if a prior run created the SA.
     prior = BootstrapState(project="facil", storage_provider="minio",

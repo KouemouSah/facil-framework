@@ -764,12 +764,15 @@ class TestRedisAuthGeneration:
         return vc.DeployConfig.model_validate(minimal_config_dict)
 
     def test_redis_requires_password(self, minimal_config_dict):
+        # SEC-004: required (:?) so a direct `compose up` without the secret fails
+        # loud instead of starting Redis with an empty password (no auth).
         out = dl.generate_compose(self._cfg(minimal_config_dict))
-        assert '"--requirepass", "${REDIS_PASSWORD}"' in out
+        assert '"--requirepass", "${REDIS_PASSWORD:?' in out
+        assert '"${REDIS_PASSWORD}"' not in out  # no bare (defaultless) form left
 
     def test_redis_healthcheck_authenticated(self, minimal_config_dict):
         out = dl.generate_compose(self._cfg(minimal_config_dict))
-        assert '"-a", "${REDIS_PASSWORD}", "--no-auth-warning", "ping"' in out
+        assert '"-a", "${REDIS_PASSWORD:?' in out
 
     def test_backend_redis_url_carries_password(self, minimal_config_dict):
         out = dl.generate_compose(self._cfg(minimal_config_dict))

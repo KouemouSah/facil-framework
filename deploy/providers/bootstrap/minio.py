@@ -26,6 +26,7 @@ it needs boto3 + IAM and lands when cloud provisioning is actually built.
 from __future__ import annotations
 
 import json
+import logging
 import secrets as _secrets
 
 from .context import BootstrapContext, vc
@@ -33,10 +34,15 @@ from .docker_helpers import DockerError, run_oneshot
 from .env_secrets import env_value
 from .state import BootstrapState, ProvisionStep
 
+logger = logging.getLogger(__name__)
+
 NAME = "minio"
 MC_IMAGE = "minio/mc:latest"
 ALIAS = "facil"               # mc alias name (via MC_HOST_<alias> env)
-DEFAULT_ROOT_PASSWORD = "facilminio"   # matches compose ${MINIO_ROOT_PASSWORD:-facilminio}
+# Weak last-resort default used ONLY when MINIO_ROOT_PASSWORD is absent (ensure_secrets
+# not run). The compose now requires the secret (${MINIO_ROOT_PASSWORD:?}), so this is
+# a footgun for an out-of-band run — provision() warns loudly when it falls back (F5).
+DEFAULT_ROOT_PASSWORD = "facilminio"
 
 
 def is_applicable(cfg: vc.DeployConfig) -> bool:
@@ -262,7 +268,13 @@ def provision(ctx: BootstrapContext) -> ProvisionStep:
     m = cfg.storage.minio
     bucket = m.default_bucket
     root_user = m.root_user
-    root_pwd = env_value(ctx.secrets_file, m.root_password_secret, DEFAULT_ROOT_PASSWORD)
+    root_pwd = env_value(ctx.secrets_file, m.root_password_secret, None)
+    if not root_pwd:
+        logger.warning(
+            "MINIO_ROOT_PASSWORD (%s) not found in the secrets file — falling back to "
+            "the weak built-in default. Run via docker_local --apply (ensure_secrets) "
+            "so a strong secret is generated.", m.root_password_secret)
+        root_pwd = DEFAULT_ROOT_PASSWORD
     sa_access = f"{cfg.meta.project_name}-backend"
     target = f"{ALIAS}/{bucket}"
     step = ProvisionStep(name=NAME)
