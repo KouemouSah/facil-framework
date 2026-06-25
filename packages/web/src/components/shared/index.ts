@@ -9,6 +9,7 @@
 
 export { DataGrid } from "@/components/ui/data-grid";
 export { DetailPanel } from "@/components/ui/detail-panel";
+export { RecordSurface } from "@/components/shared/record-surface";
 export { RecordForm } from "@/components/ui/record-form";
 export type { FieldDef, FieldType } from "@/components/ui/record-form";
 export { JsonField } from "@/components/ui/json-field";
