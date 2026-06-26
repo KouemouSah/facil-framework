@@ -14,7 +14,11 @@ What it provisions, all idempotently:
   - a read-only ``facil-backend`` ACL policy,
   - an AppRole the backend authenticates with; its ``role_id`` is stable and its
     ``secret_id`` is generated once and reused from the bootstrap state (so
-    re-runs do not pile up secret-ids).
+    re-runs do not pile up secret-ids) — but only after it is **validated against
+    the live vault**: a dev in-memory vault recreate drops the secret_id, so a
+    blind reuse would 400 the backend's AppRole login and silently fall back to
+    env secrets. When the stored secret_id is no longer known, a fresh one is
+    minted.
 
 In dev mode OpenBao is in-memory, so this whole provisioning is re-applied on
 every ``up`` — which is exactly why each step is idempotent.
@@ -242,12 +246,34 @@ def _role_id(base, token):
                     token).json()["data"]["role_id"]
 
 
+def _secret_id_valid(base, token, sid):
+    """True if ``sid`` is still a live secret_id for the role.
+
+    After a dev (in-memory) vault recreate the stored secret_id is gone, so
+    reusing it blindly makes the backend's AppRole login fail (HTTP 400) and
+    silently fall back to env secrets. OpenBao answers 200+data for a known
+    secret_id and 204 (No Content) for an unknown one; any non-200 ⇒ invalid.
+    """
+    resp = _request(
+        "POST", f"{base}/auth/approle/role/{ROLE_NAME}/secret-id/lookup",
+        token, json={"secret_id": sid}, allow=(204, 404))
+    if resp.status_code != 200:
+        return False
+    try:
+        return bool(resp.json().get("data"))
+    except (ValueError, _json.JSONDecodeError):
+        return False
+
+
 def _ensure_secret_id(base, token, ctx, step):
     prior = BootstrapState.load(ctx.state_file)
     if prior and (ps := prior.step(NAME)):
         if (sid := ps.secrets.get("openbao_secret_id", "")):
-            step.actions.append("approle secret_id reused from state")
-            return sid
+            if _secret_id_valid(base, token, sid):
+                step.actions.append("approle secret_id reused from state")
+                return sid
+            step.actions.append(
+                "stored secret_id unknown to vault (dev recreate?) — regenerating")
     sid = _request("POST", f"{base}/auth/approle/role/{ROLE_NAME}/secret-id",
                    token).json()["data"]["secret_id"]
     step.actions.append("approle secret_id generated")

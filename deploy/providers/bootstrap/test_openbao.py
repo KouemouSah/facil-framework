@@ -58,11 +58,14 @@ class FakeBao:
     """Routes OpenBao API calls by the path after '/v1'."""
 
     def __init__(self, kv_mounted=False, approle_enabled=False, boot_current=None,
-                 raise_on=None):
+                 raise_on=None, secret_id_valid=True):
         self.kv_mounted = kv_mounted
         self.approle_enabled = approle_enabled
         self.boot_current = boot_current  # dict or None (404)
         self.raise_on = raise_on          # path substring -> raise
+        # Whether a stored secret_id is still known to the (live) vault. A dev
+        # in-memory vault recreate drops it -> lookup answers 204 (not found).
+        self.secret_id_valid = secret_id_valid
         self.calls: list[tuple[str, str]] = []
 
     def __call__(self, method, url, token, *, json=None, allow=()):
@@ -82,6 +85,11 @@ class FakeBao:
             return FakeResp(200, {"data": {"data": self.boot_current}})
         if path.endswith("/role-id"):
             return FakeResp(200, {"data": {"role_id": "RID-123"}})
+        if path.endswith("/secret-id/lookup"):
+            # 200 + data => the secret_id is live; 204 => unknown (vault recreated).
+            if self.secret_id_valid:
+                return FakeResp(200, {"data": {"cidr_list": [], "ttl": 3600}})
+            return FakeResp(204, {})
         if path.endswith("/secret-id"):
             return FakeResp(200, {"data": {"secret_id": "SID-456"}})
         return FakeResp(204, {})
@@ -162,18 +170,42 @@ def test_boot_secrets_idempotent_when_unchanged(monkeypatch, ctx):
     assert any("up to date" in a for a in step.actions)
 
 
-def test_secret_id_reused_from_state(monkeypatch, ctx):
+def test_secret_id_reused_when_still_valid(monkeypatch, ctx):
+    """A stored secret_id the live vault still knows (lookup 200) is reused —
+    validated first, never blindly re-minted."""
     prior = BootstrapState(project="facil", storage_provider="minio",
                            secrets_provider="openbao", database_mode="local",
                            steps=[ProvisionStep(name="openbao", status="ok",
                                                 secrets={"openbao_secret_id": "OLD-SID"})])
     prior.save(ctx.state_file)
-    fake = FakeBao(kv_mounted=True, approle_enabled=True, boot_current=None)
+    fake = FakeBao(kv_mounted=True, approle_enabled=True, boot_current=None,
+                   secret_id_valid=True)
     _patch(monkeypatch, fake)
     step = ob.provision(ctx)
     assert step.secrets["openbao_secret_id"] == "OLD-SID"
-    assert not fake.methods_to("/secret-id")     # never generated a new one
+    # validated via lookup; the generation endpoint is never hit.
+    assert ("POST", "/auth/approle/role/facil-backend/secret-id/lookup") in fake.calls
+    assert ("POST", "/auth/approle/role/facil-backend/secret-id") not in fake.calls
     assert any("reused" in a for a in step.actions)
+
+
+def test_secret_id_regenerated_when_stale(monkeypatch, ctx):
+    """Dev in-memory vault recreate: the stored secret_id is unknown to the live
+    vault (lookup 204). Reusing it blindly would 400 the backend's AppRole login
+    and silently fall back to env secrets — so a fresh secret_id must be minted."""
+    prior = BootstrapState(project="facil", storage_provider="minio",
+                           secrets_provider="openbao", database_mode="local",
+                           steps=[ProvisionStep(name="openbao", status="ok",
+                                                secrets={"openbao_secret_id": "STALE-SID"})])
+    prior.save(ctx.state_file)
+    fake = FakeBao(kv_mounted=True, approle_enabled=True, boot_current=None,
+                   secret_id_valid=False)
+    _patch(monkeypatch, fake)
+    step = ob.provision(ctx)
+    assert step.secrets["openbao_secret_id"] == "SID-456"   # freshly minted
+    assert ("POST", "/auth/approle/role/facil-backend/secret-id/lookup") in fake.calls
+    assert ("POST", "/auth/approle/role/facil-backend/secret-id") in fake.calls
+    assert any("regenerat" in a.lower() for a in step.actions)
 
 
 def test_dry_run_mutates_nothing(monkeypatch, tmp_path):

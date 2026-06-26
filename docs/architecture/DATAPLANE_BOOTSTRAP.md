@@ -192,6 +192,75 @@ l'**admin/dev** (et n'existe qu'en dev in-memory ; en prod = unseal SOPS+age, P7
 token réel/OIDC). Les mots de passe runtime sont aussi lisibles centralement dans
 OpenBao `facil/runtime` via cet AppRole.
 
+## 6ter. Réhydratation du vault OpenBao (runbook ops)
+
+> **Quand** : après tout redémarrage du conteneur `openbao` en **dev** (recreate
+> compose, `wsl --shutdown`, redémarrage Docker Desktop, **maintenance disque /
+> compaction du vhdx**). OpenBao dev tourne `server -dev` **en mémoire** ⇒ le vault
+> est **vidé** à chaque restart (cf. §1, §7). Le backend retombe alors proprement
+> sur `.env.secrets` (dégradation par design — la stack reste fonctionnelle).
+
+### Symptôme
+
+`GET http://localhost:8080/health` renvoie `"secrets_source":"env-fallback"`
+(au lieu de `"vault"`). Les logs backend montrent :
+
+```text
+OpenBao unreachable (HTTP 400 from OpenBao)  FALLING BACK to env secrets…
+```
+
+### Procédure
+
+```powershell
+# Réhydrate kv-v2 'facil/' + boot/runtime/infra secrets + policy + AppRole,
+# re-rend l'env backend depuis l'état, recrée le backend.
+python deploy/providers/docker_local.py --config=deploy/config.yaml --apply --yes
+```
+
+`--yes` saute le prompt (n'effectue **pas** de `--down`, volumes préservés). Le
+bootstrap tourne automatiquement (sauf `--no-bootstrap`).
+
+### `secret_id` périmé après recréation du vault dev — auto-soigné
+
+Le provisioner OpenBao **réutilise** `openbao_secret_id` depuis
+`deploy/.bootstrap-state.json` (`_ensure_secret_id`, design idempotent §4). Quand
+le vault **dev in-memory** a été **recréé**, ce credential d'une instance
+*précédente* n'existe plus dans le nouveau vault — le réutiliser aveuglément ferait
+échouer le login AppRole du backend (**HTTP 400**) et le laisserait en
+`env-fallback` *malgré* un vault hydraté.
+
+**Depuis le correctif (2026-06-26)** `_ensure_secret_id` **valide** d'abord le
+`secret_id` stocké contre le vault vivant (`POST …/secret-id/lookup`) : s'il est
+inconnu (lookup `204`, ex. vault dev recréé) il en **régénère un frais
+automatiquement**. ⇒ La réhydratation est **auto-soignante** : `--apply` suffit,
+aucune édition manuelle de l'état requise. Le log du bootstrap montre alors :
+
+```text
+- stored secret_id unknown to vault (dev recreate?) — regenerating
+- approle secret_id generated
+```
+
+> En prod (`dev_mode=false`, stockage persistant, P7) le vault ne se vide pas, donc
+> le `secret_id` reste valide et est réutilisé normalement.
+>
+> *Dépannage manuel (rare — si jamais un `secret_id` corrompu survivait à la
+> validation)* : retirer `openbao_role_id`/`openbao_secret_id` du step openbao dans
+> `deploy/.bootstrap-state.json`, puis re-`--apply`.
+
+### Vérification (preuve d'acceptation)
+
+```powershell
+curl -s http://localhost:8080/health
+# Attendu : {"status":"ok","database":true,"secrets_source":"vault",
+#            "secrets_provider":"openbao","config_db":true,"cache":"redis",…}
+```
+
+`secrets_source` **doit** passer à `"vault"`. Le bootstrap doit logguer
+`approle secret_id generated` (et non `reused from state`).
+
+> Procédure de récupération disque associée (compaction du vhdx Docker, qui force ce
+> redémarrage de vault) : voir la mémoire `reference_docker_disk_reclaim`.
+
 ## 7. Scope actuel & limitations (honnête)
 
 - **Docker-local uniquement** pour l'instant : `mc` sur le réseau de la stack,
@@ -206,8 +275,13 @@ OpenBao `facil/runtime` via cet AppRole.
 
 ## 8. Tests
 
-`102 tests` verts (`deploy/providers/bootstrap/` 45 + `test_docker_local.py` 57),
+`146 tests` verts (`deploy/providers/bootstrap/` + `test_docker_local.py`),
 runner = `.venv` du repo. Couverture : mécanique d'état + idempotence du merge,
 dispatch par mode, gate de santé, chaque provisioner (création / reuse / rotation
 / dry-run / erreur), intégration docker-local (auto-run / opt-out / non-fatal).
-Validation **live** sur la stack réelle pour MinIO, OpenBao et Postgres.
+Le `secret_id` AppRole est couvert pour les 3 cas : **réutilisation validée**
+(`test_secret_id_reused_when_still_valid`), **régénération auto** quand le vault a
+oublié le credential (`test_secret_id_regenerated_when_stale`), et génération à
+froid. Validation **live** sur la stack réelle pour MinIO, OpenBao et Postgres
+(dont la preuve d'auto-soin : restart openbao ⇒ `--apply` régénère seul ⇒
+`secrets_source:vault`).
