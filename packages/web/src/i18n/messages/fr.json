@@ -29,6 +29,13 @@
     "working": "En cours…",
     "type_to_confirm": "Saisissez {value} pour confirmer"
   },
+  "secret": {
+    "reveal": "Afficher",
+    "hide": "Masquer",
+    "copy": "Copier dans le presse-papiers",
+    "copied": "Copié",
+    "regenerate": "Régénérer"
+  },
   "upload": {
     "browse": "Cliquer pour téléverser",
     "drop": "ou glisser-déposer",

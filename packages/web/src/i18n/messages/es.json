@@ -29,6 +29,13 @@
     "working": "Procesando…",
     "type_to_confirm": "Escriba {value} para confirmar"
   },
+  "secret": {
+    "reveal": "Mostrar",
+    "hide": "Ocultar",
+    "copy": "Copiar al portapapeles",
+    "copied": "Copiado",
+    "regenerate": "Regenerar"
+  },
   "upload": {
     "browse": "Haga clic para subir",
     "drop": "o arrastre y suelte",

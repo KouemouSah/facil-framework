@@ -29,6 +29,13 @@
     "working": "Working…",
     "type_to_confirm": "Type {value} to confirm"
   },
+  "secret": {
+    "reveal": "Reveal",
+    "hide": "Hide",
+    "copy": "Copy to clipboard",
+    "copied": "Copied",
+    "regenerate": "Regenerate"
+  },
   "upload": {
     "browse": "Click to upload",
     "drop": "or drag and drop",

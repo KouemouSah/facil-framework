@@ -32,10 +32,33 @@ export const emailField = z
   .min(1, "Email is required")
   .regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter a valid email address");
 
-// Mirrors app.auth.password.check_strength: >=8 chars + upper + lower + digit.
+// Mirrors app.auth.password.check_strength (SEC-009): >=12 chars + upper + lower
+// + digit. The server also rejects common bases (a blocklist) — left to the
+// backend (422 → field) rather than duplicating a drifting list on the client.
 export const passwordField = z
   .string()
-  .min(8, "At least 8 characters")
+  .min(12, "At least 12 characters")
   .regex(/[a-z]/, "Needs a lowercase letter")
   .regex(/[A-Z]/, "Needs an uppercase letter")
   .regex(/[0-9]/, "Needs a digit");
+
+// Exactly N characters (ISO referential codes: country=2/3, currency=3).
+export function exactLen(n: number, label = "Value") {
+  return z.string().trim().length(n, `${label} must be exactly ${n} characters`);
+}
+
+// Numeric input bounded to mirror a backend field. Values arrive as strings from
+// the form, so coerce; `int` forbids fractions, min/max mirror the pydantic bounds.
+export function numericField(opts: { min?: number; max?: number; int?: boolean }) {
+  let s = z.coerce.number({ invalid_type_error: "Must be a number" });
+  if (opts.int) s = s.int("Must be a whole number");
+  if (opts.min !== undefined) s = s.min(opts.min, `Min ${opts.min}`);
+  if (opts.max !== undefined) s = s.max(opts.max, `Max ${opts.max}`);
+  return s;
+}
+
+// #RRGGBB — mirrors the branding color fields (backend max_length 7).
+export const hexColor = z
+  .string()
+  .trim()
+  .regex(/^#[0-9a-fA-F]{6}$/, "Enter a 6-digit hex color like #2563eb");
