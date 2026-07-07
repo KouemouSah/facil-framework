@@ -12,7 +12,8 @@
     "federation": "Fédération & SCIM",
     "reference": "Données de référence",
     "providers": "Fournisseurs",
-    "settings": "Paramètres"
+    "settings": "Paramètres",
+    "configuration": "Configuration"
   },
   "auth": {
     "login": "Se connecter",
@@ -325,5 +326,53 @@
     },
     "unregistered_type": "Ce type de fournisseur n'est plus enregistré — sa configuration ne peut pas être modifiée ici.",
     "registry_error": "Impossible de charger le registre des fournisseurs — types disponibles et Ajouter indisponibles. Réessayez."
+  },
+  "configuration": {
+    "title": "Configuration",
+    "subtitle": "Le config-store — réglages runtime par scope. Le backend tranche ; les secrets vivent dans le coffre.",
+    "search_placeholder": "Rechercher clé / nom",
+    "all_scopes": "Tous les scopes",
+    "new": "Nouveau réglage",
+    "loading": "Chargement…",
+    "load_error": "Échec du chargement.",
+    "empty": "Aucun réglage.",
+    "inactive": "inactif",
+    "new_title": "Nouveau réglage",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "conflict": "Modifié ailleurs — rechargement.",
+    "toast_save_failed": "Échec de l’enregistrement.",
+    "secret_ref_hint": "Référence dans le coffre (optionnel) — pas la valeur.",
+    "curated_note": "Cette clé a un éditeur dédié (Branding / Fournisseurs). L’éditer brut ici fonctionne mais est risqué.",
+    "delete": {
+      "title": "Supprimer le réglage ?",
+      "body": "Ceci supprime définitivement {key}. Saisissez sa clé pour confirmer.",
+      "confirm": "Supprimer"
+    },
+    "toast": {
+      "saved": "Réglage enregistré.",
+      "deleted": "Réglage supprimé.",
+      "delete_failed": "Échec de la suppression.",
+      "save_failed": "Échec de l’enregistrement."
+    },
+    "err": {
+      "key_required": "La clé est requise.",
+      "number_invalid": "Saisissez un nombre valide.",
+      "json_invalid": "JSON invalide.",
+      "key_exists": "Cette clé existe déjà — modifiez-la plutôt."
+    },
+    "labels": {
+      "key": "Clé",
+      "scope": "Scope",
+      "value_type": "Type",
+      "value": "Valeur",
+      "secret_ref": "Référence secret",
+      "name_en": "Nom (EN)",
+      "name_fr": "Nom (FR)",
+      "name_es": "Nom (ES)",
+      "description": "Description",
+      "is_active": "Actif"
+    }
   }
 }
