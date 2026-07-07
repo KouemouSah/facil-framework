@@ -41,6 +41,32 @@ def secret_keys_in(config: dict | None) -> set[str]:
     return SECRET_CONFIG_KEYS & set(config or {})
 
 
+def public_provider_map(value):
+    """Strip secret-bearing keys from each entry of a provider map — the
+    `ai.providers` settings value (`name -> {kind, endpoint, model,
+    api_key_secret, …}`). Same secrets discipline as `public_config`, applied on
+    read to the LLM-routing map (defence in depth for legacy/env-seeded rows).
+    Credential references like `api_key_secret` are NOT secrets (exact-match
+    denylist) and are preserved. Non-dict values pass through unchanged."""
+    if not isinstance(value, dict):
+        return value
+    return {name: (public_config(entry) if isinstance(entry, dict) else entry)
+            for name, entry in value.items()}
+
+
+def provider_map_secret_keys(value) -> set[str]:
+    """Secret-bearing keys present in any entry of a provider map (empty = clean).
+    Used to reject a plaintext credential in an `ai.providers` write at the
+    authority (mirrors `secret_keys_in` for provider rows)."""
+    if not isinstance(value, dict):
+        return set()
+    found: set[str] = set()
+    for entry in value.values():
+        if isinstance(entry, dict):
+            found |= secret_keys_in(entry)
+    return found
+
+
 class ProviderSetting(Base):
     __tablename__ = "provider_settings"
     __table_args__ = (
