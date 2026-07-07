@@ -8,6 +8,7 @@
     "roles": "Roles y acceso",
     "federation": "Federación y SCIM",
     "reference": "Datos de referencia",
+    "providers": "Proveedores",
     "settings": "Ajustes"
   },
   "auth": {
@@ -217,6 +218,35 @@
       "bulk_done": "{count} cuenta(s) puesta(s) en {status}.",
       "bulk_partial": "{ok} actualizada(s), {failed} con error (sin permiso o no encontrada).",
       "bulk_failed": "Error al cambiar el estado en masa."
+    }
+  },
+  "providers": {
+    "title": "Proveedores",
+    "subtitle": "Backends conectables por capacidad — el backend decide; las credenciales viven en el almacén de secretos.",
+    "loading": "Cargando…",
+    "load_error": "Error al cargar.",
+    "empty": "Ningún proveedor configurado.",
+    "types_available": "{count} tipo(s) disponible(s)",
+    "check": "Probar",
+    "cap": {
+      "storage": "Almacenamiento",
+      "llm": "LLM",
+      "email": "Correo",
+      "secrets": "Secretos",
+      "auth": "Autenticación",
+      "payment": "Pago"
+    },
+    "badge": { "default": "predeterminado", "inactive": "inactivo" },
+    "routing": {
+      "title": "Enrutamiento LLM",
+      "subtitle": "Qué proveedor con nombre sirve cada rol.",
+      "check": "Probar el enrutamiento",
+      "none": "no enrutado",
+      "role": {
+        "public_chat": "Chat público",
+        "agent_backend": "Backend de agentes",
+        "embedding": "Embedding"
+      }
     }
   }
 }

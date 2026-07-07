@@ -8,6 +8,7 @@
     "roles": "Roles & access",
     "federation": "Federation & SCIM",
     "reference": "Reference data",
+    "providers": "Providers",
     "settings": "Settings"
   },
   "auth": {
@@ -217,6 +218,35 @@
       "bulk_done": "{count} account(s) set to {status}.",
       "bulk_partial": "{ok} updated, {failed} failed (no permission or not found).",
       "bulk_failed": "Bulk status change failed."
+    }
+  },
+  "providers": {
+    "title": "Providers",
+    "subtitle": "Pluggable backends per capability — the backend enforces; credentials live in the secret store.",
+    "loading": "Loading…",
+    "load_error": "Failed to load.",
+    "empty": "No provider configured.",
+    "types_available": "{count} type(s) available",
+    "check": "Check",
+    "cap": {
+      "storage": "Storage",
+      "llm": "LLM",
+      "email": "Email",
+      "secrets": "Secrets",
+      "auth": "Authentication",
+      "payment": "Payment"
+    },
+    "badge": { "default": "default", "inactive": "inactive" },
+    "routing": {
+      "title": "LLM routing",
+      "subtitle": "Which named provider serves each role.",
+      "check": "Check routing",
+      "none": "not routed",
+      "role": {
+        "public_chat": "Public chat",
+        "agent_backend": "Agent backend",
+        "embedding": "Embedding"
+      }
     }
   }
 }

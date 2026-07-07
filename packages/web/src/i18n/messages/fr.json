@@ -8,6 +8,7 @@
     "roles": "Rôles & accès",
     "federation": "Fédération & SCIM",
     "reference": "Données de référence",
+    "providers": "Fournisseurs",
     "settings": "Paramètres"
   },
   "auth": {
@@ -217,6 +218,35 @@
       "bulk_done": "{count} compte(s) passé(s) à {status}.",
       "bulk_partial": "{ok} mis à jour, {failed} en échec (droits insuffisants ou introuvable).",
       "bulk_failed": "Échec du changement de statut en masse."
+    }
+  },
+  "providers": {
+    "title": "Fournisseurs",
+    "subtitle": "Backends enfichables par capacité — le backend tranche ; les identifiants vivent dans le coffre.",
+    "loading": "Chargement…",
+    "load_error": "Échec du chargement.",
+    "empty": "Aucun fournisseur configuré.",
+    "types_available": "{count} type(s) disponible(s)",
+    "check": "Tester",
+    "cap": {
+      "storage": "Stockage",
+      "llm": "LLM",
+      "email": "E-mail",
+      "secrets": "Secrets",
+      "auth": "Authentification",
+      "payment": "Paiement"
+    },
+    "badge": { "default": "défaut", "inactive": "inactif" },
+    "routing": {
+      "title": "Routage LLM",
+      "subtitle": "Quel fournisseur nommé sert chaque rôle.",
+      "check": "Tester le routage",
+      "none": "non routé",
+      "role": {
+        "public_chat": "Chat public",
+        "agent_backend": "Backend agents",
+        "embedding": "Embedding"
+      }
     }
   }
 }
