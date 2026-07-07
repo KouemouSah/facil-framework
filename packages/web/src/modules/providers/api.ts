@@ -63,3 +63,16 @@ export const getRouting = () =>
 
 export const checkRouting = () =>
   apiFetch<RoutingCheck>(`${PROVIDERS_BASE}/llm/routing/check`, { method: "POST" });
+
+export const putProvider = (cap: string, code: string, body: Record<string, unknown>, etag?: string) =>
+  apiFetch<Provider>(`${PROVIDERS_BASE}/${cap}/${code}`, {
+    method: "PUT",
+    headers: etag ? { "If-Match": etag } : undefined,
+    body: JSON.stringify(body),
+  });
+
+export const deleteProvider = (cap: string, code: string) =>
+  apiFetch(`${PROVIDERS_BASE}/${cap}/${code}`, { method: "DELETE" });
+
+export const setDefaultProvider = (cap: string, code: string) =>
+  apiFetch(`${PROVIDERS_BASE}/${cap}/${code}/default`, { method: "POST" });

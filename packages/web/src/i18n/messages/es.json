@@ -1,5 +1,8 @@
 {
-  "app": { "name": "Facil", "tagline": "Plataforma de servicios digitales" },
+  "app": {
+    "name": "Facil",
+    "tagline": "Plataforma de servicios digitales"
+  },
   "nav": {
     "dashboard": "Panel",
     "organizations": "Organizaciones",
@@ -80,7 +83,16 @@
       "dismiss": "Ocultar"
     }
   },
-  "common": { "search": "Buscar", "loading": "Cargando…", "density": "Densidad", "skip_to_content": "Ir al contenido", "close": "Cerrar", "dismiss": "Descartar", "open_menu": "Abrir menú", "resize_panel": "Redimensionar el panel" },
+  "common": {
+    "search": "Buscar",
+    "loading": "Cargando…",
+    "density": "Densidad",
+    "skip_to_content": "Ir al contenido",
+    "close": "Cerrar",
+    "dismiss": "Descartar",
+    "open_menu": "Abrir menú",
+    "resize_panel": "Redimensionar el panel"
+  },
   "errors": {
     "title": "Algo salió mal",
     "body": "Se produjo un error inesperado. Puede reintentar o recargar la página.",
@@ -129,7 +141,11 @@
     "loading": "Cargando…",
     "load_error": "Error al cargar la organización.",
     "empty": "No hay organizaciones.",
-    "col": { "code": "Código", "name": "Razón social", "actions": "Acciones" },
+    "col": {
+      "code": "Código",
+      "name": "Razón social",
+      "actions": "Acciones"
+    },
     "delete": {
       "title": "¿Eliminar la organización?",
       "body": "Esto elimina permanentemente {name}. Escriba su código para confirmar.",
@@ -154,7 +170,13 @@
     "empty_no_org": "Seleccione una organización.",
     "org_load_error": "No se pudieron cargar las organizaciones. Inténtelo de nuevo.",
     "primary": "principal",
-    "col": { "code": "Código", "name": "Nombre", "type": "Tipo", "city": "Ciudad", "actions": "Acciones" },
+    "col": {
+      "code": "Código",
+      "name": "Nombre",
+      "type": "Tipo",
+      "city": "Ciudad",
+      "actions": "Acciones"
+    },
     "delete": {
       "title": "¿Eliminar la sede?",
       "body": "Esto elimina permanentemente {name}.",
@@ -178,7 +200,11 @@
     "empty": "No hay cuentas.",
     "save": "Guardar",
     "cancel": "Cancelar",
-    "col": { "identifier": "Identificador", "name": "Nombre", "status": "Estado" },
+    "col": {
+      "identifier": "Identificador",
+      "name": "Nombre",
+      "status": "Estado"
+    },
     "bulk": {
       "selected": "{count} seleccionada(s)",
       "assign_role": "Asignar rol",
@@ -192,7 +218,10 @@
       "bulk_confirm_body": "Esto pone {count} cuenta(s) en {status} y revoca sus sesiones activas.",
       "confirm_label": "Cambiar estado"
     },
-    "meta": { "status": "Estado", "niu": "NIU" },
+    "meta": {
+      "status": "Estado",
+      "niu": "NIU"
+    },
     "roles": {
       "title": "Roles",
       "none": "Sin roles asignados.",
@@ -209,7 +238,9 @@
       "revoke_failed": "Error al revocar.",
       "load_error": "Error al cargar los roles."
     },
-    "assign_dialog": { "title": "Asignar rol a {count} cuenta(s)" },
+    "assign_dialog": {
+      "title": "Asignar rol a {count} cuenta(s)"
+    },
     "toast": {
       "created": "Cuenta creada.",
       "saved": "Cuenta actualizada.",
@@ -228,6 +259,15 @@
     "empty": "Ningún proveedor configurado.",
     "types_available": "{count} tipo(s) disponible(s)",
     "check": "Probar",
+    "add": "Añadir",
+    "create": "Crear",
+    "save": "Guardar",
+    "set_default": "Definir por defecto",
+    "new_title": "Nuevo proveedor {capability}",
+    "pick_type": "Tipo de proveedor",
+    "pick_type_placeholder": "— seleccionar un tipo —",
+    "all_configured": "Todos los tipos ya están configurados.",
+    "secret_note": "Las credenciales viven en el almacén de secretos — introduzca solo una referencia (secret_ref), nunca el secreto.",
     "cap": {
       "storage": "Almacenamiento",
       "llm": "LLM",
@@ -236,7 +276,23 @@
       "auth": "Autenticación",
       "payment": "Pago"
     },
-    "badge": { "default": "predeterminado", "inactive": "inactivo" },
+    "badge": {
+      "default": "predeterminado",
+      "inactive": "inactivo"
+    },
+    "delete": {
+      "title": "¿Eliminar el proveedor?",
+      "body": "Esto elimina la configuración del proveedor {name}.",
+      "confirm": "Eliminar"
+    },
+    "toast": {
+      "saved": "Proveedor guardado.",
+      "deleted": "Proveedor eliminado.",
+      "default_set": "Proveedor por defecto definido.",
+      "delete_failed": "Error al eliminar.",
+      "default_failed": "No se pudo definir por defecto.",
+      "check_failed": "Error en la comprobación de estado."
+    },
     "routing": {
       "title": "Enrutamiento LLM",
       "subtitle": "Qué proveedor con nombre sirve cada rol.",
@@ -247,6 +303,8 @@
         "agent_backend": "Backend de agentes",
         "embedding": "Embedding"
       }
-    }
+    },
+    "unregistered_type": "Este tipo de proveedor ya no está registrado — su configuración no puede editarse aquí.",
+    "registry_error": "No se pudo cargar el registro de proveedores — tipos disponibles y Añadir no disponibles. Reintente."
   }
 }
