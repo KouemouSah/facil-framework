@@ -13,7 +13,8 @@
     "reference": "Reference data",
     "providers": "Providers",
     "settings": "Settings",
-    "configuration": "Configuration"
+    "configuration": "Configuration",
+    "org_units": "Org units"
   },
   "auth": {
     "login": "Sign in",
@@ -373,6 +374,41 @@
       "name_es": "Name (ES)",
       "description": "Description",
       "is_active": "Active"
+    }
+  },
+  "org_units": {
+    "title": "Org units",
+    "subtitle": "The internal unit hierarchy of an organization.",
+    "org_placeholder": "Search organization…",
+    "new": "New unit",
+    "new_title": "New unit",
+    "edit_title": "Unit",
+    "loading": "Loading…",
+    "load_error": "Failed to load.",
+    "empty": "No unit.",
+    "empty_no_org": "Select an organization.",
+    "inactive": "inactive",
+    "add_child": "Add child unit",
+    "delete": {
+      "title": "Delete unit?",
+      "body": "This permanently removes {name} (and orphans its children).",
+      "confirm": "Delete"
+    },
+    "toast": {
+      "created": "Unit created.",
+      "saved": "Unit saved.",
+      "deleted": "Unit deleted.",
+      "delete_failed": "Delete failed."
+    },
+    "f": {
+      "code": "Code",
+      "code_hint": "Immutable identifier.",
+      "name": "Name",
+      "unit_type": "Type",
+      "parent": "Parent unit",
+      "description": "Description",
+      "external_ref": "External reference",
+      "metadata": "Metadata (JSON)"
     }
   }
 }

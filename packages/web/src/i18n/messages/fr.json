@@ -13,7 +13,8 @@
     "reference": "Données de référence",
     "providers": "Fournisseurs",
     "settings": "Paramètres",
-    "configuration": "Configuration"
+    "configuration": "Configuration",
+    "org_units": "Unités org."
   },
   "auth": {
     "login": "Se connecter",
@@ -373,6 +374,41 @@
       "name_es": "Nom (ES)",
       "description": "Description",
       "is_active": "Actif"
+    }
+  },
+  "org_units": {
+    "title": "Unités d’organisation",
+    "subtitle": "La hiérarchie interne des unités d’une organisation.",
+    "org_placeholder": "Rechercher une organisation…",
+    "new": "Nouvelle unité",
+    "new_title": "Nouvelle unité",
+    "edit_title": "Unité",
+    "loading": "Chargement…",
+    "load_error": "Échec du chargement.",
+    "empty": "Aucune unité.",
+    "empty_no_org": "Sélectionnez une organisation.",
+    "inactive": "inactif",
+    "add_child": "Ajouter une sous-unité",
+    "delete": {
+      "title": "Supprimer l’unité ?",
+      "body": "Ceci supprime définitivement {name} (et orpheline ses enfants).",
+      "confirm": "Supprimer"
+    },
+    "toast": {
+      "created": "Unité créée.",
+      "saved": "Unité enregistrée.",
+      "deleted": "Unité supprimée.",
+      "delete_failed": "Échec de la suppression."
+    },
+    "f": {
+      "code": "Code",
+      "code_hint": "Identifiant immuable.",
+      "name": "Nom",
+      "unit_type": "Type",
+      "parent": "Unité parente",
+      "description": "Description",
+      "external_ref": "Référence externe",
+      "metadata": "Métadonnées (JSON)"
     }
   }
 }
