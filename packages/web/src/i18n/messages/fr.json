@@ -10,7 +10,75 @@
     "reference": "Données de référence",
     "settings": "Paramètres"
   },
-  "auth": { "login": "Se connecter", "logout": "Se déconnecter" },
+  "auth": {
+    "login": "Se connecter",
+    "logout": "Se déconnecter",
+    "sign_in_title": "Connexion à Facil",
+    "sign_in_subtitle": "Utilisez votre e-mail ou votre identifiant",
+    "identifier": "E-mail ou identifiant",
+    "password": "Mot de passe",
+    "show_password": "Afficher le mot de passe",
+    "hide_password": "Masquer le mot de passe",
+    "totp": "Code à deux facteurs",
+    "totp_placeholder": "123456 ou code de secours",
+    "signing_in": "Connexion…",
+    "session_expired": "Votre session a expiré — veuillez vous reconnecter.",
+    "invalid_credentials": "Identifiants invalides.",
+    "locked": "Compte temporairement verrouillé. Réessayez plus tard.",
+    "network_error": "Erreur réseau. Veuillez réessayer.",
+    "service_unavailable": "Service indisponible. Veuillez réessayer bientôt.",
+    "sso": "Se connecter avec votre organisation (SSO)",
+    "forgot": "Mot de passe oublié ?",
+    "create_account": "Créer un compte",
+    "register": {
+      "title": "Créer votre compte",
+      "subtitle": "Inscrivez-vous pour accéder à la plateforme.",
+      "email": "E-mail",
+      "password": "Mot de passe",
+      "display_name": "Nom affiché",
+      "submit": "Créer le compte",
+      "creating": "Création…",
+      "have_account": "Vous avez déjà un compte ?",
+      "sign_in": "Se connecter",
+      "success": "Compte créé — vous pouvez vous connecter.",
+      "failed": "Échec de l’inscription.",
+      "email_taken": "Cet e-mail est déjà enregistré."
+    },
+    "forgot_page": {
+      "title": "Réinitialiser le mot de passe",
+      "subtitle": "Nous vous enverrons un lien de réinitialisation si le compte existe.",
+      "email": "E-mail",
+      "submit": "Envoyer le lien",
+      "sending": "Envoi…",
+      "sent": "Si un compte existe pour {email}, un lien de réinitialisation est en route.",
+      "back": "Retour à la connexion"
+    },
+    "reset": {
+      "title": "Choisir un nouveau mot de passe",
+      "subtitle": "Vos autres sessions seront déconnectées.",
+      "new_password": "Nouveau mot de passe",
+      "submit": "Définir le mot de passe",
+      "saving": "Enregistrement…",
+      "invalid": "Lien de réinitialisation invalide ou expiré.",
+      "weak": "Ce mot de passe n’est pas autorisé. Choisissez-en un plus robuste."
+    },
+    "verify": {
+      "title": "Vérification de l’e-mail",
+      "open_link": "Ouvrez le lien reçu dans votre e-mail de vérification.",
+      "ok": "Votre e-mail est vérifié.",
+      "error": "Lien de vérification invalide ou expiré.",
+      "verifying": "Vérification…",
+      "continue": "Continuer vers la connexion"
+    },
+    "banner": {
+      "message": "Vérifiez votre e-mail pour sécuriser votre compte.",
+      "resend": "Renvoyer le lien",
+      "sending": "Envoi…",
+      "sent": "E-mail de vérification envoyé.",
+      "error": "Envoi impossible — réessayez.",
+      "dismiss": "Masquer"
+    }
+  },
   "common": { "search": "Rechercher", "loading": "Chargement…", "density": "Densité", "skip_to_content": "Aller au contenu", "close": "Fermer", "dismiss": "Masquer", "open_menu": "Ouvrir le menu", "resize_panel": "Redimensionner le panneau" },
   "errors": {
     "title": "Une erreur est survenue",

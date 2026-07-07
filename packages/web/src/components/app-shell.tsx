@@ -14,6 +14,7 @@ import { isSameOriginAsset } from "@/lib/upload";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useSession } from "@/lib/use-session";
+import { EmailVerifyBanner } from "@/components/layout/email-verify-banner";
 
 /**
  * Fixed application shell (ergonomics doctrine, D5): the sidebar + topbar NEVER
@@ -172,6 +173,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Button>
           </div>
         </header>
+        <EmailVerifyBanner />
         <main id="main-content" tabIndex={-1} className="overflow-auto p-6 focus-visible:outline-none">{children}</main>
       </div>
     </div>

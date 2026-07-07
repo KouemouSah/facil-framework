@@ -37,7 +37,12 @@ async def client(tmp_path, monkeypatch):
     async with db.engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     app.state.db = db
-    resolver = ConfigResolver(defaults={"branding.app_name": "Facil"}, env={})
+    # Self-registration is off by default in prod (opt-in); the test harness is an
+    # opted-in tenant so the many suites that seed accounts via POST /auth/register
+    # keep working. The default-off gating is covered explicitly in test_system_api.
+    resolver = ConfigResolver(
+        defaults={"branding.app_name": "Facil", "auth.self_registration_enabled": True},
+        env={})
     async with db.session_factory() as s:
         resolver.set_db(await repo.active_map(s))
     app.state.resolver = resolver

@@ -41,6 +41,25 @@ def resolver_defaults() -> dict[str, object]:
     return {f"branding.{k}": v for k, v in BRANDING_DEFAULTS.items()}
 
 
+_TRUTHY = {"1", "true", "yes", "on"}
+
+
+def _as_bool(value: object, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    return str(value).strip().lower() in _TRUTHY
+
+
+def self_registration_enabled(resolver) -> bool:
+    """Public feature flag: may an anonymous visitor self-register an account?
+    Default **False** (safe: an on-prem tenant opts in explicitly). Coerced to
+    bool because an env override (`AUTH_SELF_REGISTRATION_ENABLED`) arrives as a
+    string ("false" would otherwise be truthy)."""
+    return _as_bool(resolver.resolve("auth.self_registration_enabled", False))
+
+
 def branding_snapshot(resolver) -> dict:
     """The full public branding payload, resolved through the layered config
     (defaults -> file -> DB -> env), falling back to the baked default per field

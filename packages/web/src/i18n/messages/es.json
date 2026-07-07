@@ -10,7 +10,75 @@
     "reference": "Datos de referencia",
     "settings": "Ajustes"
   },
-  "auth": { "login": "Iniciar sesión", "logout": "Cerrar sesión" },
+  "auth": {
+    "login": "Iniciar sesión",
+    "logout": "Cerrar sesión",
+    "sign_in_title": "Iniciar sesión en Facil",
+    "sign_in_subtitle": "Use su correo o su identificador",
+    "identifier": "Correo o identificador",
+    "password": "Contraseña",
+    "show_password": "Mostrar la contraseña",
+    "hide_password": "Ocultar la contraseña",
+    "totp": "Código de dos factores",
+    "totp_placeholder": "123456 o código de respaldo",
+    "signing_in": "Iniciando sesión…",
+    "session_expired": "Su sesión expiró — inicie sesión de nuevo.",
+    "invalid_credentials": "Credenciales no válidas.",
+    "locked": "Cuenta bloqueada temporalmente. Inténtelo más tarde.",
+    "network_error": "Error de red. Inténtelo de nuevo.",
+    "service_unavailable": "Servicio no disponible. Inténtelo en unos momentos.",
+    "sso": "Iniciar sesión con su organización (SSO)",
+    "forgot": "¿Olvidó su contraseña?",
+    "create_account": "Crear cuenta",
+    "register": {
+      "title": "Cree su cuenta",
+      "subtitle": "Regístrese para acceder a la plataforma.",
+      "email": "Correo",
+      "password": "Contraseña",
+      "display_name": "Nombre visible",
+      "submit": "Crear cuenta",
+      "creating": "Creando…",
+      "have_account": "¿Ya tiene una cuenta?",
+      "sign_in": "Iniciar sesión",
+      "success": "Cuenta creada — ya puede iniciar sesión.",
+      "failed": "Error en el registro.",
+      "email_taken": "Ese correo ya está registrado."
+    },
+    "forgot_page": {
+      "title": "Restablecer la contraseña",
+      "subtitle": "Le enviaremos un enlace de restablecimiento si la cuenta existe.",
+      "email": "Correo",
+      "submit": "Enviar el enlace",
+      "sending": "Enviando…",
+      "sent": "Si existe una cuenta para {email}, un enlace de restablecimiento está en camino.",
+      "back": "Volver a iniciar sesión"
+    },
+    "reset": {
+      "title": "Elija una nueva contraseña",
+      "subtitle": "Sus otras sesiones se cerrarán.",
+      "new_password": "Nueva contraseña",
+      "submit": "Establecer contraseña",
+      "saving": "Guardando…",
+      "invalid": "Enlace de restablecimiento no válido o expirado.",
+      "weak": "Esa contraseña no está permitida. Elija una más segura."
+    },
+    "verify": {
+      "title": "Verificación de correo",
+      "open_link": "Abra el enlace de su correo de verificación.",
+      "ok": "Su correo está verificado.",
+      "error": "Enlace de verificación no válido o expirado.",
+      "verifying": "Verificando…",
+      "continue": "Continuar a iniciar sesión"
+    },
+    "banner": {
+      "message": "Verifique su correo para proteger su cuenta.",
+      "resend": "Reenviar el enlace",
+      "sending": "Enviando…",
+      "sent": "Correo de verificación enviado.",
+      "error": "No se pudo enviar — inténtelo de nuevo.",
+      "dismiss": "Ocultar"
+    }
+  },
   "common": { "search": "Buscar", "loading": "Cargando…", "density": "Densidad", "skip_to_content": "Ir al contenido", "close": "Cerrar", "dismiss": "Descartar", "open_menu": "Abrir menú", "resize_panel": "Redimensionar el panel" },
   "errors": {
     "title": "Algo salió mal",
