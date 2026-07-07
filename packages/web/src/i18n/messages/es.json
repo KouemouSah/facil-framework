@@ -126,6 +126,7 @@
     "new_title": "Nueva organización",
     "edit_title": "Organización",
     "loading": "Cargando…",
+    "load_error": "Error al cargar la organización.",
     "empty": "No hay organizaciones.",
     "col": { "code": "Código", "name": "Razón social", "actions": "Acciones" },
     "delete": {
@@ -147,8 +148,10 @@
     "new_title": "Nueva sede",
     "edit_title": "Sede",
     "loading": "Cargando…",
+    "load_error": "Error al cargar la sede.",
     "empty": "No hay sedes.",
     "empty_no_org": "Seleccione una organización.",
+    "org_load_error": "No se pudieron cargar las organizaciones. Inténtelo de nuevo.",
     "primary": "principal",
     "col": { "code": "Código", "name": "Nombre", "type": "Tipo", "city": "Ciudad", "actions": "Acciones" },
     "delete": {

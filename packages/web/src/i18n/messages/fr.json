@@ -126,6 +126,7 @@
     "new_title": "Nouvelle organisation",
     "edit_title": "Organisation",
     "loading": "Chargement…",
+    "load_error": "Échec du chargement de l'organisation.",
     "empty": "Aucune organisation.",
     "col": { "code": "Code", "name": "Raison sociale", "actions": "Actions" },
     "delete": {
@@ -147,8 +148,10 @@
     "new_title": "Nouveau site",
     "edit_title": "Site",
     "loading": "Chargement…",
+    "load_error": "Échec du chargement du site.",
     "empty": "Aucun site.",
     "empty_no_org": "Sélectionnez une organisation.",
+    "org_load_error": "Échec du chargement des organisations. Veuillez réessayer.",
     "primary": "principal",
     "col": { "code": "Code", "name": "Nom", "type": "Type", "city": "Ville", "actions": "Actions" },
     "delete": {

@@ -42,10 +42,10 @@ export default function LocationsPage() {
   const closeSurface = () => router.replace(pathname, { scroll: false });
 
   // Sites are org-scoped at the API, so a chosen org gates listing/creating.
-  const firstOrgId = useFirstOrg();
+  const firstOrg = useFirstOrg();
   useEffect(() => {
-    if (!orgId && firstOrgId) setOrgId(firstOrgId);
-  }, [firstOrgId, orgId]);
+    if (!orgId && firstOrg.id) setOrgId(firstOrg.id);
+  }, [firstOrg.id, orgId]);
 
   const table = useServerTable<Site>({
     resource: "sites",
@@ -154,7 +154,7 @@ export default function LocationsPage() {
             error={table.error}
             onRowClick={(s) => select(s.id)}
             selectedId={sel}
-            emptyLabel={orgId ? t("empty") : t("empty_no_org")}
+            emptyLabel={orgId ? t("empty") : firstOrg.isError ? t("org_load_error") : t("empty_no_org")}
           />
         </div>
         {surfaceOpen && (
@@ -212,7 +212,7 @@ function SiteCreateSurface({ orgId, onClose, onCreated }: {
 function SiteEditSurface({ siteId, onClose, readOnly }: { siteId: string; onClose: () => void; readOnly: boolean }) {
   const t = useTranslations("sites");
   const qc = useQueryClient();
-  const { data } = useQuery<Record<string, unknown>>({
+  const { data, isError } = useQuery<Record<string, unknown>>({
     queryKey: ["site", siteId],
     queryFn: () => getSite(siteId),
   });
@@ -224,7 +224,8 @@ function SiteEditSurface({ siteId, onClose, readOnly }: { siteId: string; onClos
       resourceKey="sites"
       onClose={onClose}
     >
-      {!data && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
+      {isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
+      {!data && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
       {data && (
         <RecordForm
           key={String(data.etag ?? siteId)}

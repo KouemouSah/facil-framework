@@ -352,3 +352,19 @@ async def test_labels_empty_and_unknown(org_client):
 @pytest.mark.asyncio
 async def test_labels_requires_auth(org_client):
     assert (await org_client.get(f"{BASE}/labels?ids=x")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_labels_over_cap_truncates_observably(org_client, monkeypatch, caplog):
+    # Over-cap requests still degrade gracefully (partial map, id fallback) but the
+    # truncation is LOGGED — not silent (CLAUDE.md: no silent cap). Patch the cap
+    # low instead of seeding 500 orgs.
+    import app.modules.organization.api as org_api
+    monkeypatch.setattr(org_api, "_LABELS_CAP", 1)
+    a = await _mk_org(org_client, code="delta")
+    b = await _mk_org(org_client, code="epsilon")
+    with caplog.at_level("WARNING"):
+        r = await org_client.get(f"{BASE}/labels?ids={a},{b}", headers=AUTH)
+    assert r.status_code == 200
+    assert len(r.json()) == 1  # 2 requested, capped to 1 (deterministic, sorted)
+    assert any("truncated to cap" in rec.message for rec in caplog.records)

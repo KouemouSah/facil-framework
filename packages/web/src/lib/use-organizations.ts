@@ -38,13 +38,16 @@ export function useOrgLabels(ids: (string | null | undefined)[]): Record<string,
 }
 
 /** The first organization the caller can access (for defaulting a picker).
- * Fetches a single row server-side — never the whole list. */
-export function useFirstOrg(): string {
+ * Fetches a single row server-side — never the whole list. Returns `isError` so
+ * the caller can tell a failed fetch apart from a genuine "no organizations"
+ * (otherwise a backend hiccup silently reads as an empty tenant). */
+export function useFirstOrg(): { id: string; isError: boolean } {
   const q = useQuery<{ items: Org[] }>({
     queryKey: ["org", "first"],
     queryFn: () => apiFetch<{ items: Org[] }>(
       `/api/v1/modules/organization/?limit=1&offset=0`),
     staleTime: 60 * 1000,
+    retry: false,
   });
-  return q.data?.items?.[0]?.id ?? "";
+  return { id: q.data?.items?.[0]?.id ?? "", isError: q.isError };
 }

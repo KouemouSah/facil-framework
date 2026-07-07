@@ -84,6 +84,13 @@ export function DataGrid<T>({
   const [dense, setDense] = useState(false);
   const span = columns.length + (selection ? 1 : 0);
   const hasFilters = columns.some((c) => c.filter);
+  // Mobile (< md): the sortable headers and the column-filter row live only in the
+  // table, so surface equivalents in a compact toolbar above the cards (else sort
+  // and column filters — e.g. the agents status filter — are unreachable on phones).
+  const sortableCols = columns.filter((c) => c.sortable);
+  const filterCols = columns.filter((c) => c.filter);
+  const sortKey = sort.replace(/^-/, "");
+  const sortDesc = sort.startsWith("-");
 
   function nextSort(key: string): string {
     if (sort === key) return `-${key}`;        // asc -> desc
@@ -194,6 +201,43 @@ export function DataGrid<T>({
           </TableBody>
         </Table>
       </div>
+
+      {/* Mobile controls (< md): sort + column filters, which desktop shows in the
+          table header. Keeps parity with the "column filters + responsive" mandate. */}
+      {(sortableCols.length > 0 || hasFilters) && (
+        <div className="flex flex-col gap-2 md:hidden">
+          {sortableCols.length > 0 && (
+            <div className="flex items-center gap-2">
+              <Select aria-label="Sort by" className="h-8 flex-1 text-xs" value={sortKey}
+                onChange={(e) => onSortChange(e.target.value)}>
+                <option value="">Sort by…</option>
+                {sortableCols.map((c) => <option key={c.key} value={c.key}>{c.header}</option>)}
+              </Select>
+              <Button type="button" variant="outline" size="icon" disabled={!sortKey}
+                title="Toggle sort direction" aria-label="Toggle sort direction"
+                onClick={() => onSortChange(sortDesc ? sortKey : `-${sortKey}`)}>
+                {sortDesc ? <ArrowDown className="size-4" /> : <ArrowUp className="size-4" />}
+              </Button>
+            </div>
+          )}
+          {filterCols.map((c) => (
+            <div key={c.key} className="flex items-center gap-2">
+              <span className="w-24 shrink-0 truncate text-xs text-muted-foreground">{c.header}</span>
+              {c.filter?.type === "text" && (
+                <Input className="h-8 flex-1 text-xs" placeholder={c.filter.placeholder || "Filter…"}
+                  value={filters[c.key] ?? ""} onChange={(e) => onFilterChange(c.key, e.target.value)} />
+              )}
+              {c.filter?.type === "select" && (
+                <Select className="h-8 flex-1 text-xs" value={filters[c.key] ?? ""}
+                  onChange={(e) => onFilterChange(c.key, e.target.value)}>
+                  <option value="">All</option>
+                  {c.filter.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </Select>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Cards (< md) — the same rows stacked; no horizontal scroll on phones
           (responsive by default). Row click + selection preserved. */}

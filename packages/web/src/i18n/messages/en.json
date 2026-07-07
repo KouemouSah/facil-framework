@@ -126,6 +126,7 @@
     "new_title": "New organization",
     "edit_title": "Organization",
     "loading": "Loading…",
+    "load_error": "Failed to load the organization.",
     "empty": "No organizations.",
     "col": { "code": "Code", "name": "Legal name", "actions": "Actions" },
     "delete": {
@@ -147,8 +148,10 @@
     "new_title": "New site",
     "edit_title": "Site",
     "loading": "Loading…",
+    "load_error": "Failed to load the site.",
     "empty": "No sites.",
     "empty_no_org": "Select an organization.",
+    "org_load_error": "Couldn't load organizations. Please retry.",
     "primary": "primary",
     "col": { "code": "Code", "name": "Name", "type": "Type", "city": "City", "actions": "Actions" },
     "delete": {
