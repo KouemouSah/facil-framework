@@ -368,3 +368,48 @@ async def test_labels_over_cap_truncates_observably(org_client, monkeypatch, cap
     assert r.status_code == 200
     assert len(r.json()) == 1  # 2 requested, capped to 1 (deterministic, sorted)
     assert any("truncated to cap" in rec.message for rec in caplog.records)
+
+
+# --- C0: org-unit If-Match parity + export ----------------------------------
+
+@pytest.mark.asyncio
+async def test_unit_if_match_optimistic_concurrency(org_client):
+    org = await _mk_org(org_client, code="cunit")
+    uid = (await _mk_unit(org_client, org, "u1"))["id"]
+    etag = (await org_client.get(f"{BASE}/units/{uid}", headers=AUTH)).json()["etag"]
+    assert etag
+    stale = await org_client.put(f"{BASE}/units/{uid}",
+                                 headers={**AUTH, "If-Match": "nope"}, json={"name": "X"})
+    assert stale.status_code == 409
+    ok = await org_client.put(f"{BASE}/units/{uid}",
+                              headers={**AUTH, "If-Match": etag}, json={"name": "X"})
+    assert ok.status_code == 200 and ok.json()["etag"] != etag
+    # the list carries an etag per unit too
+    lst = await org_client.get(f"{BASE}/{org}/units", headers=AUTH)
+    assert all(u.get("etag") for u in lst.json())
+
+
+@pytest.mark.asyncio
+async def test_units_export(org_client):
+    org = await _mk_org(org_client, code="cexport")
+    await _mk_unit(org_client, org, "alpha")
+    await _mk_unit(org_client, org, "beta")
+    r = await org_client.get(f"{BASE}/{org}/units/export", headers=AUTH)
+    assert r.status_code == 200, r.text
+    assert "alpha" in r.text and "beta" in r.text
+    assert "org-units" in r.headers.get("content-disposition", "")
+
+
+@pytest.mark.asyncio
+async def test_delete_non_leaf_unit_rejected(org_client):
+    org = await _mk_org(org_client, code="cdel")
+    parent = await _mk_unit(org_client, org, "p")
+    await _mk_unit(org_client, org, "c", parent_id=parent["id"])
+    # A non-leaf delete is refused (409), not a 500 or a silent orphan.
+    r = await org_client.delete(f"{BASE}/units/{parent['id']}", headers=AUTH)
+    assert r.status_code == 409, r.text
+    # Delete the leaf, then the parent becomes deletable.
+    kids = (await org_client.get(f"{BASE}/{org}/units", headers=AUTH)).json()
+    child = next(u for u in kids if u["code"] == "c")
+    assert (await org_client.delete(f"{BASE}/units/{child['id']}", headers=AUTH)).status_code == 200
+    assert (await org_client.delete(f"{BASE}/units/{parent['id']}", headers=AUTH)).status_code == 200

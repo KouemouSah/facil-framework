@@ -150,25 +150,35 @@ async def get_unit(unit_id: str, session: AsyncSession = Depends(get_session)) -
     unit = await repo.get_unit(session, unit_id)
     if unit is None:
         raise HTTPException(404, f"unit '{unit_id}' not found")
-    return unit.as_dict()
+    return {**unit.as_dict(), "etag": row_etag(unit)}
 
 
 @router.put("/units/{unit_id}", dependencies=[_UPDATE])
-async def update_unit(unit_id: str, body: OrgUnitUpdate,
+async def update_unit(unit_id: str, body: OrgUnitUpdate, request: Request,
                       session: AsyncSession = Depends(get_session)) -> dict:
+    # Optimistic concurrency (parity with organization PUT): reject a stale write.
+    existing = await repo.get_unit(session, unit_id)
+    if existing is None:
+        raise HTTPException(404, f"unit '{unit_id}' not found")
+    enforce_if_match(request, row_etag(existing))
     try:
         unit = await service.update_unit(session, unit_id, body)
     except service.OrgError as e:
         raise _http(e) from e
     await session.commit()
-    return unit.as_dict()
+    return {**unit.as_dict(), "etag": row_etag(unit)}
 
 
 @router.delete("/units/{unit_id}", dependencies=[_DELETE])
 async def delete_unit(unit_id: str,
                       session: AsyncSession = Depends(get_session)) -> dict:
-    if not await repo.delete_unit(session, unit_id):
+    if await repo.get_unit(session, unit_id) is None:
         raise HTTPException(404, f"unit '{unit_id}' not found")
+    # Refuse to delete a non-leaf (the self-FK has no cascade — a silent subtree
+    # delete is dangerous). The admin deletes/reparents children first.
+    if await repo.has_children(session, unit_id):
+        raise HTTPException(409, "unit has child units; delete or reparent them first")
+    await repo.delete_unit(session, unit_id)
     await session.commit()
     return {"deleted": unit_id}
 
@@ -218,7 +228,20 @@ async def list_units(org_id: str, limit: int = 50, offset: int = 0,
         raise HTTPException(404, f"organization '{org_id}' not found")
     limit, offset = _page(limit, offset)
     units = await repo.list_units(session, org_id, limit=limit, offset=offset)
-    return [u.as_dict() for u in units]
+    return [{**u.as_dict(), "etag": row_etag(u)} for u in units]
+
+
+_UNIT_EXPORT_COLS = ("id", "code", "name", "unit_type", "parent_id", "depth", "is_active")
+
+
+@router.get("/{org_id}/units/export", dependencies=[_READ])
+async def export_units(org_id: str, format: str = "csv",
+                       session: AsyncSession = Depends(get_session)):
+    """Export an organization's units (flat) — unblocks the deferred org-units export."""
+    if await repo.get_organization(session, org_id) is None:
+        raise HTTPException(404, f"organization '{org_id}' not found")
+    units = await repo.list_units(session, org_id, limit=EXPORT_CAP, offset=0)
+    return export_response(units, _UNIT_EXPORT_COLS, "org-units", format, total=len(units))
 
 
 @router.post("/{org_id}/units", status_code=201, dependencies=[_CREATE])

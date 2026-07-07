@@ -66,6 +66,11 @@ async def subtree(session: AsyncSession, unit: OrgUnit) -> list[OrgUnit]:
         .order_by(OrgUnit.path))).all())
 
 
+async def has_children(session: AsyncSession, unit_id: str) -> bool:
+    return (await session.scalar(
+        select(OrgUnit.id).where(OrgUnit.parent_id == unit_id).limit(1))) is not None
+
+
 async def delete_unit(session: AsyncSession, unit_id: str) -> bool:
     res = await session.execute(delete(OrgUnit).where(OrgUnit.id == unit_id))
     return res.rowcount > 0
