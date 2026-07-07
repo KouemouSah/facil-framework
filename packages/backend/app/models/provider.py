@@ -24,6 +24,9 @@ CAPABILITIES = ("storage", "llm", "email", "secrets", "auth", "payment")
 # echoed to `provider.read`). Credentials travel via `secret_ref` / env only.
 # Enforced server-side on write (422) and stripped from read responses — the
 # secrets discipline is guaranteed at the authority, not just the UI.
+# NOTE (SEC-F2, docs/SECURITY_FOLLOWUPS.md): matching below is exact + case-
+# sensitive + top-level, so variants (API_KEY, smtp_password, nested) bypass it.
+# Durable fix = allowlist config keys to each provider's config_schema(). Deferred.
 SECRET_CONFIG_KEYS = frozenset({
     "access_key", "secret_key", "api_key", "password", "secret", "client_secret",
     "role_id", "secret_id", "token", "private_key", "passwd", "pwd",
@@ -94,6 +97,9 @@ class ProviderSetting(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     def as_dict(self) -> dict:
+        # NOTE (SEC-F4, docs/SECURITY_FOLLOWUPS.md): returns RAW config. The API
+        # must wrap this in _public() (admin_providers.py) to strip secrets; the
+        # only caller does today. Deferred: make as_dict() strip + add as_dict_raw().
         return {
             "capability": self.capability, "provider_code": self.provider_code,
             "config": self.config or {}, "secret_ref": self.secret_ref,
