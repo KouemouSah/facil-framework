@@ -22,5 +22,19 @@
     "title": "Page not found",
     "body": "The page you’re looking for doesn’t exist or was moved.",
     "back": "Back to dashboard"
+  },
+  "upload": {
+    "browse": "Click to upload",
+    "drop": "or drag and drop",
+    "hint": "PNG, JPG, GIF, WEBP or ICO · up to 5 MB",
+    "uploading": "Uploading…",
+    "replace": "Replace",
+    "remove": "Remove image",
+    "preview_alt": "Uploaded image preview",
+    "errors": {
+      "type": "Unsupported file type. Use PNG, JPG, GIF, WEBP or ICO (SVG is not allowed).",
+      "size": "File is too large (max 5 MB).",
+      "failed": "Upload failed. Please try again."
+    }
   }
 }

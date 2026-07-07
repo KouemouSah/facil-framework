@@ -12,6 +12,7 @@ import { RefSelect } from "@/components/ui/ref-select";
 import { OrgCombobox } from "@/components/ui/org-combobox";
 import { PartyCombobox } from "@/components/ui/party-combobox";
 import { AddressField } from "@/components/ui/address-field";
+import { FileUpload } from "@/components/ui/file-upload";
 
 /**
  * Generic, schema-driven create/edit form (ENGINEERING_STANDARDS §11bis). One
@@ -27,7 +28,7 @@ import { AddressField } from "@/components/ui/address-field";
  */
 export type FieldType =
   | "text" | "textarea" | "number" | "checkbox"
-  | "ref" | "org" | "party" | "address" | "json" | "select";
+  | "ref" | "org" | "party" | "address" | "json" | "select" | "image";
 
 export interface FieldDef {
   name: string;
@@ -218,6 +219,12 @@ export function RecordForm({
       case "address":
         return <AddressField label={f.label} value={values[f.name] ?? ""}
           onChange={(v) => setField(f.name, v)} />;
+      case "image":
+        // Stores the uploaded asset URL (same-origin) as a plain string value,
+        // exactly like ref/address store an id — buildPayload/validate handle it.
+        return <FileUpload value={values[f.name] ?? ""} disabled={readOnly}
+          onUploaded={(url) => setField(f.name, url)}
+          onRemove={() => setField(f.name, "")} />;
       case "checkbox":
         return (
           <label className="flex items-center gap-2 text-sm">

@@ -22,5 +22,19 @@
     "title": "Página no encontrada",
     "body": "La página que busca no existe o se movió.",
     "back": "Volver al panel"
+  },
+  "upload": {
+    "browse": "Haga clic para subir",
+    "drop": "o arrastre y suelte",
+    "hint": "PNG, JPG, GIF, WEBP o ICO · hasta 5 MB",
+    "uploading": "Subiendo…",
+    "replace": "Reemplazar",
+    "remove": "Eliminar imagen",
+    "preview_alt": "Vista previa de la imagen subida",
+    "errors": {
+      "type": "Tipo de archivo no admitido. Use PNG, JPG, GIF, WEBP o ICO (SVG no permitido).",
+      "size": "El archivo es demasiado grande (máx. 5 MB).",
+      "failed": "Error al subir. Inténtelo de nuevo."
+    }
   }
 }
