@@ -31,9 +31,10 @@ _URL_FIELDS = ("logo_url", "logo_dark_url", "favicon_url",
 
 
 class BrandingIn(BaseModel):
-    """All optional — only provided (non-null) fields are written. URL fields are
-    constrained to http(s) (or empty) to avoid stored `javascript:`/`data:` URIs
-    landing in `<img>`/`<link>`; strings are length-bounded (storage abuse)."""
+    """All optional — only provided (non-null) fields are written. URL fields accept
+    http(s), a same-origin absolute path (`/api/v1/assets/<id>` from the binary asset
+    pipeline), or empty — but never `javascript:`/`data:` (XSS) nor protocol-relative
+    `//host` (would leave the origin). Strings are length-bounded (storage abuse)."""
     app_name: str | None = Field(default=None, max_length=120)
     tagline: str | None = Field(default=None, max_length=255)
     logo_url: str | None = Field(default=None, max_length=2048)
@@ -50,9 +51,15 @@ class BrandingIn(BaseModel):
     @field_validator(*_URL_FIELDS)
     @classmethod
     def _safe_url(cls, v: str | None) -> str | None:
-        if v and not (v.startswith("http://") or v.startswith("https://")):
-            raise ValueError("URL must start with http:// or https://")
-        return v
+        if not v:
+            return v
+        # Same-origin absolute path (e.g. /api/v1/assets/<id>) is safe in <img>/<link>;
+        # reject protocol-relative //host, which would point off-origin.
+        if v.startswith("/") and not v.startswith("//"):
+            return v
+        if v.startswith("http://") or v.startswith("https://"):
+            return v
+        raise ValueError("URL must be http(s):// or a same-origin path starting with /")
 
 
 @router.get("", dependencies=[_MANAGE])

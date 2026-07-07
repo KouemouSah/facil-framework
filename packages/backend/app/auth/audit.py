@@ -29,6 +29,7 @@ ROLE_ASSIGNED = "role_assigned"
 ROLE_REVOKED = "role_revoked"
 ROLE_GRANTS_CHANGED = "role_grants_changed"
 BRANDING_CHANGED = "branding_changed"
+ASSET_UPLOADED = "asset_uploaded"
 
 
 async def record(db: AsyncSession, action: str, *, account_id: str | None = None,

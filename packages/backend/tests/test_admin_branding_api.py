@@ -76,6 +76,23 @@ async def test_invalid_theme_mode_422(client):
 
 
 @pytest.mark.asyncio
+async def test_logo_url_accepts_same_origin_asset_path(client):
+    """A branding URL field accepts a same-origin absolute path — this is how the
+    binary asset pipeline wires an uploaded logo (branding.logo_url = /api/v1/assets/<id>).
+    Protocol-relative //host and XSS scheme URIs must still be rejected."""
+    ac, _ = client
+    ok = await ac.put("/api/v1/admin/branding", headers=AUTH,
+                      json={"logo_url": "/api/v1/assets/" + ("a" * 32) + ".png"})
+    assert ok.status_code == 200
+    pub = (await ac.get("/api/v1/system/branding")).json()
+    assert pub["logo_url"] == "/api/v1/assets/" + ("a" * 32) + ".png"
+
+    for bad in ("//evil.example/logo.png", "javascript:alert(1)", "data:image/png;base64,x"):
+        r = await ac.put("/api/v1/admin/branding", headers=AUTH, json={"logo_url": bad})
+        assert r.status_code == 422, f"expected 422 for {bad!r}"
+
+
+@pytest.mark.asyncio
 async def test_partial_update_leaves_others(client):
     ac, _ = client
     await ac.put("/api/v1/admin/branding", headers=AUTH, json={"tagline": "Only this"})

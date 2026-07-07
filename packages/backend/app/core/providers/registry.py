@@ -59,12 +59,14 @@ def default_registry() -> ProviderRegistry:
     from app.core.providers.llm_openai_compat import OpenAICompatLLMProvider
     from app.core.providers.secrets_env import EnvSecretsProvider
     from app.core.providers.secrets_openbao import OpenBaoSecretsProvider
+    from app.core.providers.storage_memory import MemoryStorageProvider
     from app.core.providers.storage_minio import MinIOStorageProvider
 
     r = ProviderRegistry()
     r.register("secrets", "env", lambda config: EnvSecretsProvider(config))
     r.register("secrets", "openbao", lambda config: OpenBaoSecretsProvider(config))
     r.register("storage", "minio", lambda config: MinIOStorageProvider(config))
+    r.register("storage", "memory", lambda config: MemoryStorageProvider(config))
     r.register("llm", "ollama", lambda config: OllamaLLMProvider(config))
     r.register("llm", "openai_compat", lambda config: OpenAICompatLLMProvider(config))
     r.register("email", "smtp", lambda config: SMTPEmailProvider(config))
