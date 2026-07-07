@@ -22,14 +22,37 @@ const nextConfig = {
       { source: "/api/v1/assets/:path*", destination: `${internal}/api/v1/assets/:path*` },
     ];
   },
-  // Lean, secure defaults; full CSP is enforced at the edge (Caddy) + here.
+  // Defence-in-depth security headers (audit E2); the edge (Caddy) may add more.
+  // The CSP allows 'unsafe-inline' scripts/styles because Next's hydration and
+  // Tailwind inject inline content without a nonce — but it still locks default-,
+  // connect-, frame-ancestors, object-, base-uri and form-action, which block
+  // off-origin exfiltration, clickjacking, base-tag hijack and plugin injection.
   async headers() {
+    const dev = process.env.NODE_ENV !== "production";
+    const csp = [
+      "default-src 'self'",
+      `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""}`,
+      "style-src 'self' 'unsafe-inline'",
+      // https: allows admin-configured EXTERNAL branding images (logo/favicon/
+      // login background can be off-origin URLs); same-origin uploads are covered
+      // by 'self'. http: stays disallowed (mixed content). Images can't execute.
+      "img-src 'self' data: https:",
+      "font-src 'self' data:",
+      "connect-src 'self'",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "object-src 'none'",
+    ].join("; ");
     return [{
       source: "/:path*",
       headers: [
         { key: "X-Content-Type-Options", value: "nosniff" },
         { key: "X-Frame-Options", value: "DENY" },
         { key: "Referrer-Policy", value: "no-referrer" },
+        { key: "Content-Security-Policy", value: csp },
+        { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+        { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), interest-cohort=()" },
       ],
     }];
   },

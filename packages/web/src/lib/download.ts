@@ -1,4 +1,5 @@
 import { ApiError } from "@/lib/api";
+import { sanitizeFilename } from "@/lib/sanitize";
 
 /**
  * Download a backend file (e.g. CSV export) through the BFF as a blob, then
@@ -13,13 +14,24 @@ export async function downloadFile(path: string, filename: string): Promise<void
     throw new ApiError(401, "session expired");
   }
   if (!res.ok) throw new ApiError(res.status, "export failed");
+
+  // Never save an active-content type as a file (an exfil/XSS-on-open risk if the
+  // backend or a proxy mislabels the body). Exports are csv/xlsx/octet-stream.
+  const ct = (res.headers.get("content-type") || "").toLowerCase();
+  if (/text\/html|javascript|xml/.test(ct)) {
+    throw new ApiError(415, "unexpected export content type");
+  }
+
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  try {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = sanitizeFilename(filename); // anti-traversal / illegal chars
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } finally {
+    URL.revokeObjectURL(url); // always release, even if the click throws
+  }
 }

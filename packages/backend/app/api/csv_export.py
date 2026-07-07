@@ -20,14 +20,23 @@ _CSV_MEDIA = "text/csv"
 _XLSX_MEDIA = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
+#: Leading characters that trigger formula evaluation in Excel/Sheets (CWE-1236).
+_FORMULA_TRIGGERS = ("=", "+", "-", "@", "\t", "\r")
+
+
 def _cell(value: object) -> object:
-    """Normalise a cell for export: None -> "", primitives pass through (so
-    xlsx keeps typed numbers/bools), everything else is stringified."""
+    """Normalise a cell for export: None -> "", numeric/bool primitives pass
+    through (so xlsx keeps typed cells), everything else is stringified. A string
+    beginning with a formula-trigger character is prefixed with a single quote so
+    it opens as inert text, not an executed formula (CWE-1236 CSV injection)."""
     if value is None:
         return ""
-    if isinstance(value, (str, int, float, bool)):
+    if isinstance(value, bool) or isinstance(value, (int, float)):
         return value
-    return str(value)
+    text = value if isinstance(value, str) else str(value)
+    if text[:1] in _FORMULA_TRIGGERS:
+        return "'" + text
+    return text
 
 
 def _truncation_headers(filename: str, rows_len: int, total: int | None) -> dict:
