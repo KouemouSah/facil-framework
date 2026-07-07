@@ -10,6 +10,7 @@ import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Network, Settin
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import { hasPerm } from "@/lib/perm";
+import { isSameOriginAsset } from "@/lib/upload";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useSession } from "@/lib/use-session";
@@ -83,7 +84,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const brandHeader = (
     <div className="flex h-14 items-center gap-2 border-b px-5 font-semibold">
       {branding?.logo_url ? (
-        <Image src={branding.logo_url} alt={appName} width={28} height={28} className="h-7 w-7 rounded-md object-contain" unoptimized />
+        // Same-origin assets (uploaded via the pipeline, `/api/...`) are optimized;
+        // an external URL stays unoptimized so it renders without a host allowlist.
+        <Image src={branding.logo_url} alt={appName} width={28} height={28} className="h-7 w-7 rounded-md object-contain" unoptimized={!isSameOriginAsset(branding.logo_url)} />
       ) : (
         <span className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground">
           {appName.charAt(0).toUpperCase()}

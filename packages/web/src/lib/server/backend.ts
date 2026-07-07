@@ -81,7 +81,10 @@ export async function getBranding(): Promise<Branding> {
 
 async function rawCall(path: string, init: RequestInit, token?: string) {
   const headers = new Headers(init.headers);
-  headers.set("Content-Type", "application/json");
+  // Only force JSON for string bodies. A FormData body (binary upload) must keep
+  // its fetch-generated multipart Content-Type with boundary — overriding it here
+  // would corrupt the stream. This lets the upload route reuse the 401-refresh.
+  if (typeof init.body === "string") headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
   return fetch(`${BACKEND}${path}`, { ...init, headers, cache: "no-store" });
 }

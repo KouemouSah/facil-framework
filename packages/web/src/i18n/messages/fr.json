@@ -22,5 +22,19 @@
     "title": "Page introuvable",
     "body": "La page que vous cherchez n’existe pas ou a été déplacée.",
     "back": "Retour au tableau de bord"
+  },
+  "upload": {
+    "browse": "Cliquer pour téléverser",
+    "drop": "ou glisser-déposer",
+    "hint": "PNG, JPG, GIF, WEBP ou ICO · jusqu’à 5 Mo",
+    "uploading": "Téléversement…",
+    "replace": "Remplacer",
+    "remove": "Supprimer l’image",
+    "preview_alt": "Aperçu de l’image téléversée",
+    "errors": {
+      "type": "Type de fichier non pris en charge. Utilisez PNG, JPG, GIF, WEBP ou ICO (SVG interdit).",
+      "size": "Fichier trop volumineux (max 5 Mo).",
+      "failed": "Échec du téléversement. Veuillez réessayer."
+    }
   }
 }
