@@ -23,6 +23,19 @@
     "body": "La página que busca no existe o se movió.",
     "back": "Volver al panel"
   },
+  "confirm": {
+    "confirm": "Confirmar",
+    "cancel": "Cancelar",
+    "working": "Procesando…",
+    "type_to_confirm": "Escriba {value} para confirmar"
+  },
+  "secret": {
+    "reveal": "Mostrar",
+    "hide": "Ocultar",
+    "copy": "Copiar al portapapeles",
+    "copied": "Copiado",
+    "regenerate": "Regenerar"
+  },
   "upload": {
     "browse": "Haga clic para subir",
     "drop": "o arrastre y suelte",

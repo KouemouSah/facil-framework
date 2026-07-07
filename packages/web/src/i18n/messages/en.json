@@ -23,6 +23,19 @@
     "body": "The page you’re looking for doesn’t exist or was moved.",
     "back": "Back to dashboard"
   },
+  "confirm": {
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "working": "Working…",
+    "type_to_confirm": "Type {value} to confirm"
+  },
+  "secret": {
+    "reveal": "Reveal",
+    "hide": "Hide",
+    "copy": "Copy to clipboard",
+    "copied": "Copied",
+    "regenerate": "Regenerate"
+  },
   "upload": {
     "browse": "Click to upload",
     "drop": "or drag and drop",

@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { codeField, requiredText, optionalText, emailField, passwordField } from "./form-schemas";
+import {
+  codeField, requiredText, optionalText, emailField, passwordField,
+  exactLen, numericField, hexColor,
+} from "./form-schemas";
 
 describe("codeField (mirrors backend _CODE)", () => {
   it("accepts valid codes", () => {
@@ -37,11 +40,51 @@ describe("emailField (mirrors backend _EMAIL_RE)", () => {
   });
 });
 
-describe("passwordField (mirrors check_strength)", () => {
-  it("requires >=8 chars with upper, lower and digit", () => {
-    expect(passwordField.safeParse("Secret123").success).toBe(true);
-    for (const bad of ["short1A", "alllower1", "ALLUPPER1", "NoDigitsHere"]) {
+describe("passwordField (mirrors check_strength: min 12 + classes)", () => {
+  it("requires >=12 chars with upper, lower and digit", () => {
+    expect(passwordField.safeParse("Coralreef8892").success).toBe(true);
+    for (const bad of [
+      "Secret123",        // 9 chars — was valid under the stale min-8 rule
+      "Short1Aaaaa",       // 11 chars, still under 12
+      "alllowercase1",     // no uppercase
+      "ALLUPPERCASE1",     // no lowercase
+      "NoDigitsHereAtAll",  // no digit
+    ]) {
       expect(passwordField.safeParse(bad).success).toBe(false);
+    }
+  });
+});
+
+describe("exactLen (referential codes: ISO country/currency)", () => {
+  it("accepts exactly N chars, rejects shorter/longer/blank", () => {
+    expect(exactLen(3).safeParse("USD").success).toBe(true);
+    for (const bad of ["US", "USDD", "", "  "]) {
+      expect(exactLen(3).safeParse(bad).success).toBe(false);
+    }
+  });
+});
+
+describe("numericField (mirrors backend numeric bounds)", () => {
+  const s = numericField({ min: 0, max: 4, int: true });
+  it("accepts an in-range integer", () => {
+    expect(s.safeParse("3").success).toBe(true);
+    expect(s.safeParse("0").success).toBe(true);
+  });
+  it("rejects out-of-range, negative, and non-integer", () => {
+    for (const bad of ["5", "-1", "2.5", "abc"]) {
+      expect(s.safeParse(bad).success).toBe(false);
+    }
+  });
+  it("allows floats when int is not set", () => {
+    expect(numericField({ min: 0 }).safeParse("2.5").success).toBe(true);
+  });
+});
+
+describe("hexColor (mirrors branding color, max_length 7)", () => {
+  it("accepts #RRGGBB, rejects short/long/non-hex", () => {
+    expect(hexColor.safeParse("#2563eb").success).toBe(true);
+    for (const bad of ["2563eb", "#fff", "#12345g", "#1234567", "red"]) {
+      expect(hexColor.safeParse(bad).success).toBe(false);
     }
   });
 });
