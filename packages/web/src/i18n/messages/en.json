@@ -93,5 +93,59 @@
       "deleted": "Site deleted.",
       "delete_failed": "Delete failed. The site was restored."
     }
+  },
+  "agents": {
+    "title": "Agents & accounts",
+    "subtitle": "Create accounts, set status, assign roles.",
+    "search_placeholder": "Search email / name / NIU",
+    "new": "New account",
+    "new_title": "New account",
+    "edit_title": "Account",
+    "loading": "Loading…",
+    "load_error": "Failed to load the account.",
+    "empty": "No accounts.",
+    "save": "Save details",
+    "cancel": "Cancel",
+    "col": { "identifier": "Identifier", "name": "Name", "status": "Status" },
+    "bulk": {
+      "selected": "{count} selected",
+      "assign_role": "Assign role",
+      "activate": "Activate",
+      "suspend": "Suspend",
+      "clear": "Clear"
+    },
+    "status": {
+      "confirm_title": "Change status to {status}?",
+      "confirm_body": "This sets {name} to {status} and revokes its active sessions.",
+      "bulk_confirm_body": "This sets {count} account(s) to {status} and revokes their active sessions.",
+      "confirm_label": "Change status"
+    },
+    "meta": { "status": "Status", "niu": "NIU" },
+    "roles": {
+      "title": "Roles",
+      "none": "No roles assigned.",
+      "revoke": "Revoke",
+      "global": "Global",
+      "role": "Role",
+      "scope": "Scope",
+      "select": "— select —",
+      "assign": "Assign role",
+      "assigning": "Assigning…",
+      "assigned": "Role assigned.",
+      "assign_failed": "Assign failed.",
+      "assign_partial": "{ok} assigned, {failed} failed (no permission or not found).",
+      "revoke_failed": "Revoke failed.",
+      "load_error": "Failed to load roles."
+    },
+    "assign_dialog": { "title": "Assign role to {count} account(s)" },
+    "toast": {
+      "created": "Account created.",
+      "saved": "Account updated.",
+      "status_changed": "Status changed.",
+      "status_failed": "Status change failed.",
+      "bulk_done": "{count} account(s) set to {status}.",
+      "bulk_partial": "{ok} updated, {failed} failed (no permission or not found).",
+      "bulk_failed": "Bulk status change failed."
+    }
   }
 }

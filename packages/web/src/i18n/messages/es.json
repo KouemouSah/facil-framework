@@ -93,5 +93,59 @@
       "deleted": "Sede eliminada.",
       "delete_failed": "Error al eliminar. La sede fue restaurada."
     }
+  },
+  "agents": {
+    "title": "Agentes y cuentas",
+    "subtitle": "Crear cuentas, definir estado, asignar roles.",
+    "search_placeholder": "Buscar correo / nombre / NIU",
+    "new": "Nueva cuenta",
+    "new_title": "Nueva cuenta",
+    "edit_title": "Cuenta",
+    "loading": "Cargando…",
+    "load_error": "Error al cargar la cuenta.",
+    "empty": "No hay cuentas.",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "col": { "identifier": "Identificador", "name": "Nombre", "status": "Estado" },
+    "bulk": {
+      "selected": "{count} seleccionada(s)",
+      "assign_role": "Asignar rol",
+      "activate": "Activar",
+      "suspend": "Suspender",
+      "clear": "Limpiar"
+    },
+    "status": {
+      "confirm_title": "¿Cambiar el estado a {status}?",
+      "confirm_body": "Esto pone {name} en {status} y revoca sus sesiones activas.",
+      "bulk_confirm_body": "Esto pone {count} cuenta(s) en {status} y revoca sus sesiones activas.",
+      "confirm_label": "Cambiar estado"
+    },
+    "meta": { "status": "Estado", "niu": "NIU" },
+    "roles": {
+      "title": "Roles",
+      "none": "Sin roles asignados.",
+      "revoke": "Revocar",
+      "global": "Global",
+      "role": "Rol",
+      "scope": "Alcance",
+      "select": "— seleccionar —",
+      "assign": "Asignar rol",
+      "assigning": "Asignando…",
+      "assigned": "Rol asignado.",
+      "assign_failed": "Error al asignar.",
+      "assign_partial": "{ok} asignada(s), {failed} con error (sin permiso o no encontrada).",
+      "revoke_failed": "Error al revocar.",
+      "load_error": "Error al cargar los roles."
+    },
+    "assign_dialog": { "title": "Asignar rol a {count} cuenta(s)" },
+    "toast": {
+      "created": "Cuenta creada.",
+      "saved": "Cuenta actualizada.",
+      "status_changed": "Estado cambiado.",
+      "status_failed": "Error al cambiar el estado.",
+      "bulk_done": "{count} cuenta(s) puesta(s) en {status}.",
+      "bulk_partial": "{ok} actualizada(s), {failed} con error (sin permiso o no encontrada).",
+      "bulk_failed": "Error al cambiar el estado en masa."
+    }
   }
 }

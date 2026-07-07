@@ -96,6 +96,33 @@ async def export_organizations(q: str | None = None, sort: str = "code",
     return export_response(items, _ORG_EXPORT_COLS, "organizations", format, total=total)
 
 
+_LABELS_CAP = 500
+
+
+@router.get("/labels")
+async def organization_labels(ids: str = "",
+                              principal: dict = Depends(require_auth),
+                              session: AsyncSession = Depends(get_session)) -> dict:
+    """Resolve many org ids → display label in ONE call (kills the client-side
+    N+1 when rendering role-assignment scopes). Scope-filtered like the list:
+    ids the principal can't read are simply absent from the map (same graceful
+    degradation as the per-id path). Literal route registered before `/{org_id}`.
+    Contract: {id: label}. Bounded to _LABELS_CAP ids."""
+    requested = {i for i in ids.split(",") if i}
+    if not requested:
+        return {}
+    # Deterministic truncation if a caller ever exceeds the cap (a set's iteration
+    # order is unspecified, so sort before slicing).
+    requested = set(sorted(requested)[:_LABELS_CAP])
+    visible = await visible_orgs(session, principal, "organization.read")
+    org_ids = requested if visible is None else (requested & visible)
+    if not org_ids:
+        return {}
+    stmt = repo.organizations_select(org_ids=org_ids)
+    rows = (await session.execute(stmt)).scalars().all()
+    return {o.id: (o.display_name or o.legal_name) for o in rows}
+
+
 @router.post("/", status_code=201, dependencies=[_CREATE])
 async def create_organization(body: OrganizationCreate,
                               session: AsyncSession = Depends(get_session)) -> dict:

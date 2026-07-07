@@ -93,5 +93,59 @@
       "deleted": "Site supprimé.",
       "delete_failed": "Échec de la suppression. Le site a été restauré."
     }
+  },
+  "agents": {
+    "title": "Agents & comptes",
+    "subtitle": "Créer des comptes, définir le statut, attribuer des rôles.",
+    "search_placeholder": "Rechercher e-mail / nom / NIU",
+    "new": "Nouveau compte",
+    "new_title": "Nouveau compte",
+    "edit_title": "Compte",
+    "loading": "Chargement…",
+    "load_error": "Échec du chargement du compte.",
+    "empty": "Aucun compte.",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "col": { "identifier": "Identifiant", "name": "Nom", "status": "Statut" },
+    "bulk": {
+      "selected": "{count} sélectionné(s)",
+      "assign_role": "Attribuer un rôle",
+      "activate": "Activer",
+      "suspend": "Suspendre",
+      "clear": "Effacer"
+    },
+    "status": {
+      "confirm_title": "Passer le statut à {status} ?",
+      "confirm_body": "Ceci passe {name} à {status} et révoque ses sessions actives.",
+      "bulk_confirm_body": "Ceci passe {count} compte(s) à {status} et révoque leurs sessions actives.",
+      "confirm_label": "Changer le statut"
+    },
+    "meta": { "status": "Statut", "niu": "NIU" },
+    "roles": {
+      "title": "Rôles",
+      "none": "Aucun rôle attribué.",
+      "revoke": "Révoquer",
+      "global": "Global",
+      "role": "Rôle",
+      "scope": "Portée",
+      "select": "— sélectionner —",
+      "assign": "Attribuer le rôle",
+      "assigning": "Attribution…",
+      "assigned": "Rôle attribué.",
+      "assign_failed": "Échec de l’attribution.",
+      "assign_partial": "{ok} attribué(s), {failed} en échec (droits insuffisants ou introuvable).",
+      "revoke_failed": "Échec de la révocation.",
+      "load_error": "Échec du chargement des rôles."
+    },
+    "assign_dialog": { "title": "Attribuer un rôle à {count} compte(s)" },
+    "toast": {
+      "created": "Compte créé.",
+      "saved": "Compte mis à jour.",
+      "status_changed": "Statut modifié.",
+      "status_failed": "Échec du changement de statut.",
+      "bulk_done": "{count} compte(s) passé(s) à {status}.",
+      "bulk_partial": "{ok} mis à jour, {failed} en échec (droits insuffisants ou introuvable).",
+      "bulk_failed": "Échec du changement de statut en masse."
+    }
   }
 }

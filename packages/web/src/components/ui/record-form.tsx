@@ -27,7 +27,7 @@ import { FileUpload } from "@/components/ui/file-upload";
  * error-prone here while meeting every §11bis behaviour.
  */
 export type FieldType =
-  | "text" | "textarea" | "number" | "checkbox"
+  | "text" | "email" | "password" | "textarea" | "number" | "checkbox"
   | "ref" | "org" | "party" | "address" | "json" | "select" | "image";
 
 export interface FieldDef {
@@ -64,7 +64,7 @@ export interface RecordFormProps {
   layout?: "compact" | "rich";
 }
 
-const SCALAR = new Set<FieldType>(["text", "textarea", "number", "select"]);
+const SCALAR = new Set<FieldType>(["text", "email", "password", "textarea", "number", "select"]);
 
 function initialValue(f: FieldDef, initial?: Record<string, unknown>): string {
   const v = initial?.[f.name];
@@ -252,12 +252,20 @@ export function RecordForm({
             onChange={(e) => setField(f.name, e.target.value)}
             className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50" />
         );
-      default:
+      default: {
+        // text (default) + number/email/password map straight to the native input
+        // type — email gives the right mobile keyboard, password masks entry.
+        const htmlType =
+          f.type === "number" ? "number"
+            : f.type === "email" ? "email"
+              : f.type === "password" ? "password"
+                : "text";
         return (
-          <Input id={id} type={f.type === "number" ? "number" : "text"}
+          <Input id={id} type={htmlType} autoComplete={f.type === "password" ? "new-password" : undefined}
             value={values[f.name] ?? ""} disabled={readOnly} placeholder={f.placeholder}
             onChange={(e) => setField(f.name, e.target.value)} />
         );
+      }
     }
   }
 
