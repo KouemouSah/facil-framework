@@ -12,11 +12,21 @@ import os
 
 import httpx
 
-from app.core.providers.base import SecretsProvider
+from app.core.providers.base import SecretsProvider, cfg
 
 
 class OpenBaoSecretsProvider(SecretsProvider):
     code = "openbao"
+
+    @classmethod
+    def config_schema(cls):
+        # role_id / secret_id (AppRole creds) come from env, never from config.
+        return [
+            cfg("addr", "Address", hint="http://openbao:8200"),
+            cfg("kv_path", "KV mount path", default="facil"),
+            cfg("paths", "Secret paths", type="json", default=["boot", "runtime"],
+                hint='e.g. ["boot", "runtime"]'),
+        ]
 
     def __init__(self, config=None) -> None:
         super().__init__(config)

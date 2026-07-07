@@ -18,7 +18,70 @@ async def test_registered_lists_builtin(client):
     ac, _ = client
     r = await ac.get("/api/v1/admin/providers/registered", headers=AUTH)
     assert r.status_code == 200
-    assert {"capability": "secrets", "provider_code": "env"} in r.json()
+    pairs = {(e["capability"], e["provider_code"]) for e in r.json()}
+    assert ("secrets", "env") in pairs
+    assert ("storage", "minio") in pairs
+
+
+# --- A0: config schema (backend = source of truth for the admin form) + etag ---
+
+_SECRET_KEYS = {"access_key", "secret_key", "api_key", "password", "secret",
+                "client_secret", "role_id", "secret_id"}
+
+
+@pytest.mark.asyncio
+async def test_registered_exposes_config_schema_without_secrets(client):
+    ac, _ = client
+    entries = (await ac.get("/api/v1/admin/providers/registered", headers=AUTH)).json()
+    by = {(e["capability"], e["provider_code"]): e for e in entries}
+
+    # Every registered type carries a (possibly empty) config_schema list.
+    for e in entries:
+        assert isinstance(e.get("config_schema"), list)
+
+    # A known schema exposes the real, non-secret keys.
+    minio = by[("storage", "minio")]["config_schema"]
+    keys = {f["key"] for f in minio}
+    assert keys == {"endpoint", "bucket"}
+    assert all({"key", "label", "type"} <= set(f) for f in minio)
+
+    # CRITICAL: no schema may declare a secret-bearing field (creds go via
+    # secret_ref / env, never the config form).
+    for e in entries:
+        for f in e["config_schema"]:
+            assert f["key"] not in _SECRET_KEYS, f"{e['provider_code']}.{f['key']} is a secret"
+
+
+@pytest.mark.asyncio
+async def test_get_and_list_return_etag(client):
+    ac, _ = client
+    await ac.put("/api/v1/admin/providers/llm/ollama", headers=AUTH,
+                 json={"config": {"model": "gemma4:e4b"}})
+    one = await ac.get("/api/v1/admin/providers/llm/ollama", headers=AUTH)
+    assert one.json().get("etag")
+    lst = await ac.get("/api/v1/admin/providers/?capability=llm", headers=AUTH)
+    assert all(p.get("etag") for p in lst.json())
+
+
+@pytest.mark.asyncio
+async def test_put_if_match_optimistic_concurrency(client):
+    ac, _ = client
+    await ac.put("/api/v1/admin/providers/llm/ollama", headers=AUTH,
+                 json={"config": {"model": "gemma4:e4b"}})
+    etag = (await ac.get("/api/v1/admin/providers/llm/ollama", headers=AUTH)).json()["etag"]
+
+    # Stale If-Match → 409.
+    stale = await ac.put("/api/v1/admin/providers/llm/ollama",
+                         headers={**AUTH, "If-Match": "deadbeef"},
+                         json={"config": {"model": "gemma4:12b"}})
+    assert stale.status_code == 409
+
+    # Correct If-Match → 200, and the etag rotates.
+    ok = await ac.put("/api/v1/admin/providers/llm/ollama",
+                      headers={**AUTH, "If-Match": etag},
+                      json={"config": {"model": "gemma4:12b"}})
+    assert ok.status_code == 200
+    assert ok.json()["etag"] != etag
 
 
 @pytest.mark.asyncio

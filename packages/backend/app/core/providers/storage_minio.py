@@ -15,11 +15,19 @@ import os
 import boto3
 from botocore.config import Config
 
-from app.core.providers.base import StorageProvider
+from app.core.providers.base import StorageProvider, cfg
 
 
 class MinIOStorageProvider(StorageProvider):
     code = "minio"
+
+    @classmethod
+    def config_schema(cls):
+        # Credentials (access_key/secret_key) travel via secret_ref/env — not here.
+        return [
+            cfg("endpoint", "Endpoint", hint="http://minio:9000"),
+            cfg("bucket", "Bucket", hint="facil-documents"),
+        ]
 
     def __init__(self, config=None) -> None:
         super().__init__(config)

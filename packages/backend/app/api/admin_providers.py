@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.concurrency import enforce_if_match, row_etag
 from app.api.deps import get_session
 from app.core.providers import repository as repo
 from app.models.provider import CAPABILITIES
@@ -39,9 +40,9 @@ def _check_capability(capability: str) -> None:
 
 @router.get("/registered")
 async def list_registered(request: Request) -> list[dict]:
-    """What the running registry can instantiate (capability/code pairs)."""
-    return [{"capability": c, "provider_code": k}
-            for c, k in request.app.state.registry.registered]
+    """What the running registry can instantiate (capability/code pairs) plus each
+    type's declarative, non-secret `config_schema` — drives the admin form."""
+    return request.app.state.registry.registered_detailed
 
 
 @router.get("/llm/routing")
@@ -63,7 +64,8 @@ async def check_llm_routing(request: Request,
 @router.get("/")
 async def list_providers(capability: str | None = None,
                          session: AsyncSession = Depends(get_session)) -> list[dict]:
-    return [p.as_dict() for p in await repo.list_providers(session, capability)]
+    return [{**p.as_dict(), "etag": row_etag(p)}
+            for p in await repo.list_providers(session, capability)]
 
 
 @router.get("/{capability}/{code}")
@@ -72,20 +74,25 @@ async def get_provider(capability: str, code: str,
     obj = await repo.get_provider(session, capability, code)
     if obj is None:
         raise HTTPException(404, f"provider {capability}/{code} not found")
-    return obj.as_dict()
+    return {**obj.as_dict(), "etag": row_etag(obj)}
 
 
 @router.put("/{capability}/{code}", dependencies=[_MANAGE])
-async def put_provider(capability: str, code: str, body: ProviderIn,
+async def put_provider(capability: str, code: str, body: ProviderIn, request: Request,
                        session: AsyncSession = Depends(get_session)) -> dict:
     _check_capability(capability)
+    # Optimistic concurrency: if the client sent If-Match, reject a stale write
+    # (409). Absent header = no check (create path / API clients).
+    existing = await repo.get_provider(session, capability, code)
+    if existing is not None:
+        enforce_if_match(request, row_etag(existing))
     obj = await repo.upsert_provider(
         session, capability, code, config=body.config, secret_ref=body.secret_ref,
         is_active=body.is_active, updated_by=body.updated_by,
         rate_limit_per_minute=body.rate_limit_per_minute,
         retry_attempts=body.retry_attempts, timeout_seconds=body.timeout_seconds)
     await session.commit()
-    return obj.as_dict()
+    return {**obj.as_dict(), "etag": row_etag(obj)}
 
 
 @router.post("/{capability}/{code}/check")

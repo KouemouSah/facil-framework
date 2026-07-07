@@ -16,7 +16,7 @@ from typing import Any
 
 import httpx
 
-from app.core.providers.base import LLMProvider
+from app.core.providers.base import LLMProvider, cfg
 
 
 class OllamaLLMProvider(LLMProvider):
@@ -24,6 +24,14 @@ class OllamaLLMProvider(LLMProvider):
 
     # Ollama option keys we forward from chat(**kw) when present.
     _OPTION_KEYS = ("temperature", "top_p", "top_k", "num_predict", "num_ctx", "seed")
+
+    @classmethod
+    def config_schema(cls):
+        return [
+            cfg("endpoint", "Endpoint", hint="http://ollama:11434"),
+            cfg("model", "Model", default="gemma4:e4b"),
+            cfg("timeout_seconds", "Timeout (s)", type="number", default=120),
+        ]
 
     def __init__(self, config=None) -> None:
         super().__init__(config)

@@ -18,11 +18,20 @@ from typing import Any
 
 import httpx
 
-from app.core.providers.base import LLMProvider
+from app.core.providers.base import LLMProvider, cfg
 
 
 class OpenAICompatLLMProvider(LLMProvider):
     code = "openai_compat"
+
+    @classmethod
+    def config_schema(cls):
+        # api_key travels via secret_ref/env (OPENAI_API_KEY), never in config.
+        return [
+            cfg("endpoint", "Endpoint (OpenAI-compatible)", hint="https://api.openai.com/v1"),
+            cfg("model", "Model", hint="gpt-4o / mistral-large / …"),
+            cfg("timeout_seconds", "Timeout (s)", type="number", default=120),
+        ]
 
     def __init__(self, config=None) -> None:
         super().__init__(config)

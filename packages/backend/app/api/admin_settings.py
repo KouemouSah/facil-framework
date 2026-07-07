@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.concurrency import enforce_if_match, row_etag
 from app.api.deps import get_session
 from app.config_store import repository as repo
 from app.models.setting import VALUE_TYPES
@@ -61,7 +62,7 @@ async def get_setting(key: str, session: AsyncSession = Depends(get_session)) ->
     obj = await repo.get_setting(session, key)
     if obj is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"setting '{key}' not found")
-    return obj.as_dict()
+    return {**obj.as_dict(), "etag": row_etag(obj)}
 
 
 @router.put("/{key}", dependencies=[_MANAGE])
@@ -69,6 +70,11 @@ async def put_setting(key: str, body: SettingIn, request: Request,
                       session: AsyncSession = Depends(get_session)) -> dict:
     if body.value_type not in VALUE_TYPES:
         raise HTTPException(422, f"value_type must be one of {VALUE_TYPES}")
+    # Optimistic concurrency (routing edits ai.routing/ai.providers): reject a
+    # stale write if If-Match is sent. Absent header = no check (backwards compat).
+    existing = await repo.get_setting(session, key)
+    if existing is not None:
+        enforce_if_match(request, row_etag(existing))
     obj = await repo.upsert_setting(
         session, key, body.value, value_type=body.value_type, scope=body.scope,
         secret_ref=body.secret_ref, updated_by=body.updated_by,
@@ -76,7 +82,7 @@ async def put_setting(key: str, body: SettingIn, request: Request,
         description=body.description, is_active=body.is_active)
     await session.commit()
     await _refresh_resolver(request, session)
-    return obj.as_dict()
+    return {**obj.as_dict(), "etag": row_etag(obj)}
 
 
 @router.delete("/{key}", dependencies=[_MANAGE])

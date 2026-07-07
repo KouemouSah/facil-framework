@@ -82,3 +82,23 @@ async def test_delete_missing_404(client):
     ac, _ = client
     assert (await ac.delete("/api/v1/admin/settings/ghost",
                             headers=AUTH)).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_setting_if_match_optimistic_concurrency(client):
+    """A0: routing edits (ai.routing / ai.providers) are concurrency-safe."""
+    ac, _ = client
+    await ac.put("/api/v1/admin/settings/ai.routing", headers=AUTH,
+                 json={"value": {"public_chat": "ollama_public"}, "value_type": "json"})
+    etag = (await ac.get("/api/v1/admin/settings/ai.routing", headers=AUTH)).json()["etag"]
+    assert etag
+
+    stale = await ac.put("/api/v1/admin/settings/ai.routing",
+                         headers={**AUTH, "If-Match": "stale123"},
+                         json={"value": {"public_chat": "cloud_x"}, "value_type": "json"})
+    assert stale.status_code == 409
+
+    ok = await ac.put("/api/v1/admin/settings/ai.routing",
+                      headers={**AUTH, "If-Match": etag},
+                      json={"value": {"public_chat": "cloud_x"}, "value_type": "json"})
+    assert ok.status_code == 200 and ok.json()["etag"] != etag

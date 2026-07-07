@@ -11,6 +11,17 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from typing import Any
 
+# Field types the admin config form understands (mirrors the web RecordForm).
+ConfigFieldType = str  # "text" | "number" | "boolean" | "json"
+
+
+def cfg(key: str, label: str, *, type: str = "text", required: bool = False,
+        default: Any = None, hint: str = "") -> dict[str, Any]:
+    """One declarative config field for a provider's admin form. NON-SECRET only —
+    credentials travel via `secret_ref` / env and must never be declared here."""
+    return {"key": key, "label": label, "type": type, "required": required,
+            "default": default, "hint": hint}
+
 
 class Provider(ABC):
     capability: str = ""
@@ -22,6 +33,14 @@ class Provider(ABC):
     async def healthcheck(self) -> dict[str, Any]:
         """Lightweight connectivity probe. Override per provider."""
         return {"ok": True, "detail": "no check implemented"}
+
+    @classmethod
+    def config_schema(cls) -> list[dict[str, Any]]:
+        """Declarative, **non-secret** config fields this provider reads from
+        `config` — the single source of truth that drives the admin UI form (no
+        client-side drift). Credentials are provided through `secret_ref` / env
+        and MUST NOT appear here. Override per concrete provider; default: none."""
+        return []
 
 
 class SecretsProvider(Provider):
