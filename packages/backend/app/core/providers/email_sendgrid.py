@@ -12,13 +12,22 @@ import os
 
 import httpx
 
-from app.core.providers.base import EmailProvider
+from app.core.providers.base import EmailProvider, cfg
 
 _BASE = "https://api.sendgrid.com/v3"
 
 
 class SendgridProvider(EmailProvider):
     code = "sendgrid"
+
+    @classmethod
+    def config_schema(cls):
+        # api_key travels via secret_ref/env (SENDGRID_API_KEY), never in config.
+        return [
+            cfg("from_email", "From address", hint="no-reply@example.com"),
+            cfg("from_name", "From name", default="Facil"),
+            cfg("timeout_seconds", "Timeout (s)", type="number", default=15),
+        ]
 
     def __init__(self, config=None) -> None:
         super().__init__(config)

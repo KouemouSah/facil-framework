@@ -20,6 +20,26 @@ from app.db.base import Base, JSONType
 
 CAPABILITIES = ("storage", "llm", "email", "secrets", "auth", "payment")
 
+# Credential-bearing keys that must NEVER live in `config` (plaintext jsonb,
+# echoed to `provider.read`). Credentials travel via `secret_ref` / env only.
+# Enforced server-side on write (422) and stripped from read responses — the
+# secrets discipline is guaranteed at the authority, not just the UI.
+SECRET_CONFIG_KEYS = frozenset({
+    "access_key", "secret_key", "api_key", "password", "secret", "client_secret",
+    "role_id", "secret_id", "token", "private_key", "passwd", "pwd",
+})
+
+
+def public_config(config: dict | None) -> dict:
+    """A config dict with any secret-bearing key removed (defence in depth for
+    legacy/env-injected rows) — used for every API response."""
+    return {k: v for k, v in (config or {}).items() if k not in SECRET_CONFIG_KEYS}
+
+
+def secret_keys_in(config: dict | None) -> set[str]:
+    """Secret-bearing keys present in a config dict (empty = clean)."""
+    return SECRET_CONFIG_KEYS & set(config or {})
+
 
 class ProviderSetting(Base):
     __tablename__ = "provider_settings"

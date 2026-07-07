@@ -16,11 +16,20 @@ import os
 
 import jwt
 
-from app.core.providers.base import AuthProvider
+from app.core.providers.base import AuthProvider, cfg
 
 
 class NativeAuthProvider(AuthProvider):
     code = "native"
+
+    @classmethod
+    def config_schema(cls):
+        # JWT signing secret travels via secret_ref/env (JWT_SECRET), never here.
+        return [
+            cfg("issuer", "Issuer", default="facil"),
+            cfg("access_ttl_seconds", "Access token TTL (s)", type="number", default=3600),
+            cfg("refresh_ttl_seconds", "Refresh token TTL (s)", type="number", default=604800),
+        ]
 
     def __init__(self, config=None) -> None:
         super().__init__(config)

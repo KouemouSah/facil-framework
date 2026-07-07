@@ -1,5 +1,8 @@
 {
-  "app": { "name": "Facil", "tagline": "Digital services platform" },
+  "app": {
+    "name": "Facil",
+    "tagline": "Digital services platform"
+  },
   "nav": {
     "dashboard": "Dashboard",
     "organizations": "Organizations",
@@ -8,6 +11,7 @@
     "roles": "Roles & access",
     "federation": "Federation & SCIM",
     "reference": "Reference data",
+    "providers": "Providers",
     "settings": "Settings"
   },
   "auth": {
@@ -79,7 +83,16 @@
       "dismiss": "Dismiss"
     }
   },
-  "common": { "search": "Search", "loading": "Loading…", "density": "Density", "skip_to_content": "Skip to content", "close": "Close", "dismiss": "Dismiss", "open_menu": "Open menu", "resize_panel": "Resize panel" },
+  "common": {
+    "search": "Search",
+    "loading": "Loading…",
+    "density": "Density",
+    "skip_to_content": "Skip to content",
+    "close": "Close",
+    "dismiss": "Dismiss",
+    "open_menu": "Open menu",
+    "resize_panel": "Resize panel"
+  },
   "errors": {
     "title": "Something went wrong",
     "body": "An unexpected error occurred. You can retry, or reload the page.",
@@ -128,7 +141,11 @@
     "loading": "Loading…",
     "load_error": "Failed to load the organization.",
     "empty": "No organizations.",
-    "col": { "code": "Code", "name": "Legal name", "actions": "Actions" },
+    "col": {
+      "code": "Code",
+      "name": "Legal name",
+      "actions": "Actions"
+    },
     "delete": {
       "title": "Delete organization?",
       "body": "This permanently removes {name}. Type its code to confirm.",
@@ -153,7 +170,13 @@
     "empty_no_org": "Select an organization.",
     "org_load_error": "Couldn't load organizations. Please retry.",
     "primary": "primary",
-    "col": { "code": "Code", "name": "Name", "type": "Type", "city": "City", "actions": "Actions" },
+    "col": {
+      "code": "Code",
+      "name": "Name",
+      "type": "Type",
+      "city": "City",
+      "actions": "Actions"
+    },
     "delete": {
       "title": "Delete site?",
       "body": "This permanently removes {name}.",
@@ -177,7 +200,11 @@
     "empty": "No accounts.",
     "save": "Save details",
     "cancel": "Cancel",
-    "col": { "identifier": "Identifier", "name": "Name", "status": "Status" },
+    "col": {
+      "identifier": "Identifier",
+      "name": "Name",
+      "status": "Status"
+    },
     "bulk": {
       "selected": "{count} selected",
       "assign_role": "Assign role",
@@ -191,7 +218,10 @@
       "bulk_confirm_body": "This sets {count} account(s) to {status} and revokes their active sessions.",
       "confirm_label": "Change status"
     },
-    "meta": { "status": "Status", "niu": "NIU" },
+    "meta": {
+      "status": "Status",
+      "niu": "NIU"
+    },
     "roles": {
       "title": "Roles",
       "none": "No roles assigned.",
@@ -208,7 +238,9 @@
       "revoke_failed": "Revoke failed.",
       "load_error": "Failed to load roles."
     },
-    "assign_dialog": { "title": "Assign role to {count} account(s)" },
+    "assign_dialog": {
+      "title": "Assign role to {count} account(s)"
+    },
     "toast": {
       "created": "Account created.",
       "saved": "Account updated.",
@@ -218,5 +250,80 @@
       "bulk_partial": "{ok} updated, {failed} failed (no permission or not found).",
       "bulk_failed": "Bulk status change failed."
     }
+  },
+  "providers": {
+    "title": "Providers",
+    "subtitle": "Pluggable backends per capability — the backend enforces; credentials live in the secret store.",
+    "loading": "Loading…",
+    "load_error": "Failed to load.",
+    "empty": "No provider configured.",
+    "types_available": "{count} type(s) available",
+    "check": "Check",
+    "add": "Add",
+    "create": "Create",
+    "save": "Save",
+    "set_default": "Set as default",
+    "new_title": "New {capability} provider",
+    "pick_type": "Provider type",
+    "pick_type_placeholder": "— select a type —",
+    "all_configured": "All types are already configured.",
+    "secret_note": "Credentials live in the secret store — enter only a reference (secret_ref), never the secret itself.",
+    "cap": {
+      "storage": "Storage",
+      "llm": "LLM",
+      "email": "Email",
+      "secrets": "Secrets",
+      "auth": "Authentication",
+      "payment": "Payment"
+    },
+    "badge": {
+      "default": "default",
+      "inactive": "inactive"
+    },
+    "delete": {
+      "title": "Delete provider?",
+      "body": "This removes the {name} provider configuration.",
+      "confirm": "Delete"
+    },
+    "toast": {
+      "saved": "Provider saved.",
+      "deleted": "Provider deleted.",
+      "default_set": "Default provider set.",
+      "delete_failed": "Delete failed.",
+      "default_failed": "Could not set default.",
+      "check_failed": "Health check failed."
+    },
+    "routing": {
+      "title": "LLM routing",
+      "subtitle": "Which named provider serves each role.",
+      "check": "Check routing",
+      "none": "not routed",
+      "role": {
+        "public_chat": "Public chat",
+        "agent_backend": "Agent backend",
+        "embedding": "Embedding"
+      },
+      "edit": "Edit",
+      "save": "Save routing",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "saved": "Routing saved.",
+      "save_failed": "Save failed.",
+      "conflict": "Routing changed elsewhere — your edits were not applied. Reopen to see the current routing.",
+      "providers": "Named providers",
+      "no_providers": "No named provider yet.",
+      "assignment": "Role assignment",
+      "name": "Name",
+      "endpoint": "Endpoint",
+      "model": "Model",
+      "api_key_secret": "API key reference (secret name)",
+      "remove": "Remove",
+      "secret_note": "API key reference is a name in the secret store — never the key itself.",
+      "err_duplicate_name": "Provider names must be unique.",
+      "err_unknown_ref": "A role points at a provider that no longer exists.",
+      "etags_error": "Couldn't load the current routing version. Retry before editing."
+    },
+    "unregistered_type": "This provider type is no longer registered — its config can't be edited here.",
+    "registry_error": "Couldn't load the provider registry — available types and Add are unavailable. Retry."
   }
 }

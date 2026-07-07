@@ -1,5 +1,8 @@
 {
-  "app": { "name": "Facil", "tagline": "Plateforme de services digitaux" },
+  "app": {
+    "name": "Facil",
+    "tagline": "Plateforme de services digitaux"
+  },
   "nav": {
     "dashboard": "Tableau de bord",
     "organizations": "Organisations",
@@ -8,6 +11,7 @@
     "roles": "Rôles & accès",
     "federation": "Fédération & SCIM",
     "reference": "Données de référence",
+    "providers": "Fournisseurs",
     "settings": "Paramètres"
   },
   "auth": {
@@ -79,7 +83,16 @@
       "dismiss": "Masquer"
     }
   },
-  "common": { "search": "Rechercher", "loading": "Chargement…", "density": "Densité", "skip_to_content": "Aller au contenu", "close": "Fermer", "dismiss": "Masquer", "open_menu": "Ouvrir le menu", "resize_panel": "Redimensionner le panneau" },
+  "common": {
+    "search": "Rechercher",
+    "loading": "Chargement…",
+    "density": "Densité",
+    "skip_to_content": "Aller au contenu",
+    "close": "Fermer",
+    "dismiss": "Masquer",
+    "open_menu": "Ouvrir le menu",
+    "resize_panel": "Redimensionner le panneau"
+  },
   "errors": {
     "title": "Une erreur est survenue",
     "body": "Une erreur inattendue s’est produite. Vous pouvez réessayer ou recharger la page.",
@@ -128,7 +141,11 @@
     "loading": "Chargement…",
     "load_error": "Échec du chargement de l'organisation.",
     "empty": "Aucune organisation.",
-    "col": { "code": "Code", "name": "Raison sociale", "actions": "Actions" },
+    "col": {
+      "code": "Code",
+      "name": "Raison sociale",
+      "actions": "Actions"
+    },
     "delete": {
       "title": "Supprimer l’organisation ?",
       "body": "Ceci supprime définitivement {name}. Saisissez son code pour confirmer.",
@@ -153,7 +170,13 @@
     "empty_no_org": "Sélectionnez une organisation.",
     "org_load_error": "Échec du chargement des organisations. Veuillez réessayer.",
     "primary": "principal",
-    "col": { "code": "Code", "name": "Nom", "type": "Type", "city": "Ville", "actions": "Actions" },
+    "col": {
+      "code": "Code",
+      "name": "Nom",
+      "type": "Type",
+      "city": "Ville",
+      "actions": "Actions"
+    },
     "delete": {
       "title": "Supprimer le site ?",
       "body": "Ceci supprime définitivement {name}.",
@@ -177,7 +200,11 @@
     "empty": "Aucun compte.",
     "save": "Enregistrer",
     "cancel": "Annuler",
-    "col": { "identifier": "Identifiant", "name": "Nom", "status": "Statut" },
+    "col": {
+      "identifier": "Identifiant",
+      "name": "Nom",
+      "status": "Statut"
+    },
     "bulk": {
       "selected": "{count} sélectionné(s)",
       "assign_role": "Attribuer un rôle",
@@ -191,7 +218,10 @@
       "bulk_confirm_body": "Ceci passe {count} compte(s) à {status} et révoque leurs sessions actives.",
       "confirm_label": "Changer le statut"
     },
-    "meta": { "status": "Statut", "niu": "NIU" },
+    "meta": {
+      "status": "Statut",
+      "niu": "NIU"
+    },
     "roles": {
       "title": "Rôles",
       "none": "Aucun rôle attribué.",
@@ -208,7 +238,9 @@
       "revoke_failed": "Échec de la révocation.",
       "load_error": "Échec du chargement des rôles."
     },
-    "assign_dialog": { "title": "Attribuer un rôle à {count} compte(s)" },
+    "assign_dialog": {
+      "title": "Attribuer un rôle à {count} compte(s)"
+    },
     "toast": {
       "created": "Compte créé.",
       "saved": "Compte mis à jour.",
@@ -218,5 +250,80 @@
       "bulk_partial": "{ok} mis à jour, {failed} en échec (droits insuffisants ou introuvable).",
       "bulk_failed": "Échec du changement de statut en masse."
     }
+  },
+  "providers": {
+    "title": "Fournisseurs",
+    "subtitle": "Backends enfichables par capacité — le backend tranche ; les identifiants vivent dans le coffre.",
+    "loading": "Chargement…",
+    "load_error": "Échec du chargement.",
+    "empty": "Aucun fournisseur configuré.",
+    "types_available": "{count} type(s) disponible(s)",
+    "check": "Tester",
+    "add": "Ajouter",
+    "create": "Créer",
+    "save": "Enregistrer",
+    "set_default": "Définir par défaut",
+    "new_title": "Nouveau fournisseur {capability}",
+    "pick_type": "Type de fournisseur",
+    "pick_type_placeholder": "— choisir un type —",
+    "all_configured": "Tous les types sont déjà configurés.",
+    "secret_note": "Les identifiants vivent dans le coffre — saisissez seulement une référence (secret_ref), jamais le secret lui-même.",
+    "cap": {
+      "storage": "Stockage",
+      "llm": "LLM",
+      "email": "E-mail",
+      "secrets": "Secrets",
+      "auth": "Authentification",
+      "payment": "Paiement"
+    },
+    "badge": {
+      "default": "défaut",
+      "inactive": "inactif"
+    },
+    "delete": {
+      "title": "Supprimer le fournisseur ?",
+      "body": "Ceci supprime la configuration du fournisseur {name}.",
+      "confirm": "Supprimer"
+    },
+    "toast": {
+      "saved": "Fournisseur enregistré.",
+      "deleted": "Fournisseur supprimé.",
+      "default_set": "Fournisseur par défaut défini.",
+      "delete_failed": "Échec de la suppression.",
+      "default_failed": "Impossible de définir par défaut.",
+      "check_failed": "Échec du test de santé."
+    },
+    "routing": {
+      "title": "Routage LLM",
+      "subtitle": "Quel fournisseur nommé sert chaque rôle.",
+      "check": "Tester le routage",
+      "none": "non routé",
+      "role": {
+        "public_chat": "Chat public",
+        "agent_backend": "Backend agents",
+        "embedding": "Embedding"
+      },
+      "edit": "Modifier",
+      "save": "Enregistrer le routage",
+      "saving": "Enregistrement…",
+      "cancel": "Annuler",
+      "saved": "Routage enregistré.",
+      "save_failed": "Échec de l’enregistrement.",
+      "conflict": "Le routage a changé ailleurs — vos modifications n'ont pas été appliquées. Rouvrez pour voir le routage actuel.",
+      "providers": "Fournisseurs nommés",
+      "no_providers": "Aucun fournisseur nommé.",
+      "assignment": "Affectation des rôles",
+      "name": "Nom",
+      "endpoint": "Endpoint",
+      "model": "Modèle",
+      "api_key_secret": "Référence clé API (nom du secret)",
+      "remove": "Supprimer",
+      "secret_note": "La référence de clé API est un nom dans le coffre — jamais la clé elle-même.",
+      "err_duplicate_name": "Les noms de fournisseurs doivent être uniques.",
+      "err_unknown_ref": "Un rôle pointe vers un fournisseur qui n’existe plus.",
+      "etags_error": "Impossible de charger la version actuelle du routage. Réessayez avant de modifier."
+    },
+    "unregistered_type": "Ce type de fournisseur n'est plus enregistré — sa configuration ne peut pas être modifiée ici.",
+    "registry_error": "Impossible de charger le registre des fournisseurs — types disponibles et Ajouter indisponibles. Réessayez."
   }
 }

@@ -22,9 +22,12 @@ Factory = Callable[[Mapping[str, Any]], Provider]
 class ProviderRegistry:
     def __init__(self) -> None:
         self._factories: dict[tuple[str, str], Factory] = {}
+        self._schemas: dict[tuple[str, str], list[dict[str, Any]]] = {}
 
-    def register(self, capability: str, code: str, factory: Factory) -> None:
+    def register(self, capability: str, code: str, factory: Factory,
+                 schema: list[dict[str, Any]] | None = None) -> None:
         self._factories[(capability, code)] = factory
+        self._schemas[(capability, code)] = schema or []
 
     def is_registered(self, capability: str, code: str) -> bool:
         return (capability, code) in self._factories
@@ -32,6 +35,14 @@ class ProviderRegistry:
     @property
     def registered(self) -> list[tuple[str, str]]:
         return sorted(self._factories)
+
+    @property
+    def registered_detailed(self) -> list[dict[str, Any]]:
+        """Instantiable types + their declarative config schema (drives the admin
+        UI form; the backend is the single source of truth, no client drift)."""
+        return [{"capability": c, "provider_code": k,
+                 "config_schema": self._schemas.get((c, k), [])}
+                for c, k in self.registered]
 
     def build(self, capability: str, code: str,
               config: Mapping[str, Any] | None = None) -> Provider:
@@ -63,15 +74,26 @@ def default_registry() -> ProviderRegistry:
     from app.core.providers.storage_minio import MinIOStorageProvider
 
     r = ProviderRegistry()
-    r.register("secrets", "env", lambda config: EnvSecretsProvider(config))
-    r.register("secrets", "openbao", lambda config: OpenBaoSecretsProvider(config))
-    r.register("storage", "minio", lambda config: MinIOStorageProvider(config))
-    r.register("storage", "memory", lambda config: MemoryStorageProvider(config))
-    r.register("llm", "ollama", lambda config: OllamaLLMProvider(config))
-    r.register("llm", "openai_compat", lambda config: OpenAICompatLLMProvider(config))
-    r.register("email", "smtp", lambda config: SMTPEmailProvider(config))
-    r.register("email", "sendgrid", lambda config: SendgridProvider(config))
-    r.register("email", "resend", lambda config: ResendProvider(config))
-    r.register("auth", "native", lambda config: NativeAuthProvider(config))
-    r.register("auth", "keycloak_oidc", lambda config: KeycloakOIDCProvider(config))
+    r.register("secrets", "env", lambda config: EnvSecretsProvider(config),
+               EnvSecretsProvider.config_schema())
+    r.register("secrets", "openbao", lambda config: OpenBaoSecretsProvider(config),
+               OpenBaoSecretsProvider.config_schema())
+    r.register("storage", "minio", lambda config: MinIOStorageProvider(config),
+               MinIOStorageProvider.config_schema())
+    r.register("storage", "memory", lambda config: MemoryStorageProvider(config),
+               MemoryStorageProvider.config_schema())
+    r.register("llm", "ollama", lambda config: OllamaLLMProvider(config),
+               OllamaLLMProvider.config_schema())
+    r.register("llm", "openai_compat", lambda config: OpenAICompatLLMProvider(config),
+               OpenAICompatLLMProvider.config_schema())
+    r.register("email", "smtp", lambda config: SMTPEmailProvider(config),
+               SMTPEmailProvider.config_schema())
+    r.register("email", "sendgrid", lambda config: SendgridProvider(config),
+               SendgridProvider.config_schema())
+    r.register("email", "resend", lambda config: ResendProvider(config),
+               ResendProvider.config_schema())
+    r.register("auth", "native", lambda config: NativeAuthProvider(config),
+               NativeAuthProvider.config_schema())
+    r.register("auth", "keycloak_oidc", lambda config: KeycloakOIDCProvider(config),
+               KeycloakOIDCProvider.config_schema())
     return r

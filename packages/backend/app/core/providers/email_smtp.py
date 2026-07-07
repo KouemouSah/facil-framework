@@ -17,11 +17,24 @@ import os
 import smtplib
 from email.message import EmailMessage
 
-from app.core.providers.base import EmailProvider
+from app.core.providers.base import EmailProvider, cfg
 
 
 class SMTPEmailProvider(EmailProvider):
     code = "smtp"
+
+    @classmethod
+    def config_schema(cls):
+        # password travels via secret_ref/env (SMTP_PASSWORD), never in config.
+        return [
+            cfg("host", "SMTP host", required=True, hint="smtp.example.com"),
+            cfg("port", "Port", type="number", default=587),
+            cfg("username", "Username"),
+            cfg("use_tls", "Use STARTTLS", type="boolean", default=True),
+            cfg("from_email", "From address", hint="no-reply@example.com"),
+            cfg("from_name", "From name", default="Facil"),
+            cfg("timeout_seconds", "Timeout (s)", type="number", default=15),
+        ]
 
     def __init__(self, config=None) -> None:
         super().__init__(config)

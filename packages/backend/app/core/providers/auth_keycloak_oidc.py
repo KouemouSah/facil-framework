@@ -21,11 +21,27 @@ import json
 import httpx
 import jwt
 
-from app.core.providers.base import AuthProvider
+from app.core.providers.base import AuthProvider, cfg
 
 
 class KeycloakOIDCProvider(AuthProvider):
     code = "keycloak_oidc"
+
+    @classmethod
+    def config_schema(cls):
+        # client_secret (confidential introspection) travels via secret_ref/env.
+        return [
+            cfg("issuer", "Issuer URL", hint="https://kc.example.com/realms/facil"),
+            cfg("jwks_uri", "JWKS URI"),
+            cfg("discovery_url", "Discovery URL (optional)"),
+            cfg("audience", "Audience"),
+            cfg("algorithms", "Allowed algorithms", type="json", default=["RS256"]),
+            cfg("introspection", "Enable token introspection", type="boolean", default=False),
+            cfg("introspection_fail_closed", "Introspection fail-closed (SEC-005)",
+                type="boolean", default=False,
+                hint="Reject tokens if the introspection call fails."),
+            cfg("client_id", "Client ID"),
+        ]
 
     def __init__(self, config=None) -> None:
         super().__init__(config)
