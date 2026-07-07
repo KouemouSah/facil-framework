@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { ArrowUp, ArrowDown, ChevronsUpDown, Rows2, Rows3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -99,9 +99,19 @@ export function DataGrid<T>({
   const from = total === 0 ? 0 : page * pageSize + 1;
   const to = Math.min((page + 1) * pageSize, total);
 
+  const stateMessage = isLoading ? "Loading…" : error ? "Failed to load." : rows.length === 0 ? emptyLabel : null;
+  // Card layout (< md): title = first column, interactive columns (actions) go to
+  // the top-right, the rest render as label/value pairs.
+  const [titleCol, ...restCols] = columns;
+  const actionCols = restCols.filter((c) => c.stopClick);
+  const fieldCols = restCols.filter((c) => !c.stopClick);
+  const cellValue = (c: DataGridColumn<T>, row: T) =>
+    c.cell ? c.cell(row) : String((row as Record<string, unknown>)[c.key] ?? "");
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
+      {/* Table (≥ md) — the full grid with sticky header + column filters. */}
+      <div className="hidden min-h-0 flex-1 overflow-auto rounded-lg border md:block">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
@@ -183,6 +193,50 @@ export function DataGrid<T>({
             })}
           </TableBody>
         </Table>
+      </div>
+
+      {/* Cards (< md) — the same rows stacked; no horizontal scroll on phones
+          (responsive by default). Row click + selection preserved. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto md:hidden">
+        {stateMessage ? (
+          <div className={cn("rounded-lg border px-3 py-8 text-center text-sm",
+            !isLoading && error ? "text-destructive" : "text-muted-foreground")}>{stateMessage}</div>
+        ) : rows.map((row) => {
+          const id = rowKey(row);
+          const active = selectedId === id;
+          return (
+            <div key={id}
+              className={cn("rounded-lg border p-3 text-sm", onRowClick && "cursor-pointer",
+                active && "bg-primary/10")}
+              data-state={selection?.selected.has(id) ? "selected" : undefined}
+              onClick={onRowClick ? () => onRowClick(row) : undefined}>
+              <div className="flex items-center gap-2">
+                {selection && (
+                  <input type="checkbox" className="size-4 shrink-0 accent-[hsl(var(--primary))]"
+                    aria-label={`Select row ${id}`} checked={selection.selected.has(id)}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={() => selection.onToggle(id)} />
+                )}
+                {titleCol && <div className="min-w-0 flex-1 font-medium">{cellValue(titleCol, row)}</div>}
+                {actionCols.map((c) => (
+                  <span key={c.key} onClick={(e) => e.stopPropagation()}>{cellValue(c, row)}</span>
+                ))}
+              </div>
+              {fieldCols.length > 0 && (
+                <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                  {fieldCols.map((c) => (
+                    <Fragment key={c.key}>
+                      <dt className="text-muted-foreground">{c.header}</dt>
+                      <dd className={cn("min-w-0 truncate", c.className)}>
+                        {cellValue(c, row)}
+                      </dd>
+                    </Fragment>
+                  ))}
+                </dl>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Footer — density + server pagination with total */}
