@@ -22,6 +22,7 @@ import {
 import { type Scope, EMPTY_SCOPE } from "@/components/ui/scope-picker";
 import { useOrgLabels } from "@/lib/use-organizations";
 import { useServerTable, type ServerPage } from "@/lib/use-server-table";
+import { usePermissions } from "@/lib/use-permissions";
 import { ACCOUNT_CREATE_FIELDS, ACCOUNT_EDIT_FIELDS } from "./fields";
 import {
   ACCOUNT_STATUSES, BLOCKING_STATUSES, accountsExportPath,
@@ -61,6 +62,9 @@ export default function AgentsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkRole, setBulkRole] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<PendingStatus | null>(null);
+  const { can } = usePermissions();
+  const canManageAccounts = can("account.manage");
+  const canManageRbac = can("rbac.manage");
 
   const openCreate = () => router.replace(`${pathname}?new=1`, { scroll: false });
   const selectRow = (id: string) => router.replace(`${pathname}?sel=${id}`, { scroll: false });
@@ -164,7 +168,8 @@ export default function AgentsPage() {
     {
       key: "status", header: t("col.status"), sortable: true, stopClick: true,
       filter: { type: "select", options: ACCOUNT_STATUSES.map((s) => ({ value: s, label: s })) },
-      cell: (a) => (
+      // Editable status only with account.manage; otherwise a read-only badge.
+      cell: (a) => canManageAccounts ? (
         <Select
           className={`h-8 w-auto px-2 text-xs ${STATUS_STYLE[a.status] ?? ""}`}
           value={a.status}
@@ -178,6 +183,8 @@ export default function AgentsPage() {
         >
           {ACCOUNT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
         </Select>
+      ) : (
+        <span className={`rounded px-1.5 py-0.5 text-xs ${STATUS_STYLE[a.status] ?? ""}`}>{a.status}</span>
       ),
     },
   ];
@@ -201,7 +208,9 @@ export default function AgentsPage() {
           <SavedViews resource="accounts" config={table.savedViewConfig} onApply={table.applySavedView} />
           <ExportMenu filename="accounts"
             path={accountsExportPath(table.q, table.filters.status ?? "", table.sort)} />
-          <Button size="sm" onClick={openCreate}><Plus className="size-4" /> {t("new")}</Button>
+          {canManageAccounts && (
+            <Button size="sm" onClick={openCreate}><Plus className="size-4" /> {t("new")}</Button>
+          )}
         </div>
       </div>
 
@@ -211,11 +220,17 @@ export default function AgentsPage() {
         <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-accent/40 px-3 py-2 text-sm">
           <span className="font-medium">{t("bulk.selected", { count: selected.size })}</span>
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => setBulkRole(true)}>{t("bulk.assign_role")}</Button>
-            <Button size="sm" variant="outline" disabled={bulkStatus.isPending}
-              onClick={() => requestBulk("active")}>{t("bulk.activate")}</Button>
-            <Button size="sm" variant="outline" disabled={bulkStatus.isPending}
-              onClick={() => requestBulk("suspended")}>{t("bulk.suspend")}</Button>
+            {canManageRbac && (
+              <Button size="sm" variant="outline" onClick={() => setBulkRole(true)}>{t("bulk.assign_role")}</Button>
+            )}
+            {canManageAccounts && (
+              <>
+                <Button size="sm" variant="outline" disabled={bulkStatus.isPending}
+                  onClick={() => requestBulk("active")}>{t("bulk.activate")}</Button>
+                <Button size="sm" variant="outline" disabled={bulkStatus.isPending}
+                  onClick={() => requestBulk("suspended")}>{t("bulk.suspend")}</Button>
+              </>
+            )}
             <Button size="sm" variant="ghost" onClick={clearSelection}>{t("bulk.clear")}</Button>
           </div>
         </div>
@@ -244,15 +259,19 @@ export default function AgentsPage() {
             isLoading={table.isLoading}
             error={table.error}
             emptyLabel={t("empty")}
-            selection={{ selected, onToggle: toggleRow, onToggleAll: toggleAll, allOnPage }}
+            // Selection (→ bulk bar) only when the user can act on a selection.
+            selection={(canManageAccounts || canManageRbac)
+              ? { selected, onToggle: toggleRow, onToggleAll: toggleAll, allOnPage }
+              : undefined}
             onRowClick={(a) => selectRow(a.id)}
             selectedId={sel}
           />
         </div>
         {surfaceOpen && (
           isNew
-            ? <AccountCreateSurface onClose={closeSurface} onCreated={() => table.refetch()} />
-            : <AccountDetailSurface key={sel} accountId={sel} onClose={closeSurface} />
+            ? (canManageAccounts && <AccountCreateSurface onClose={closeSurface} onCreated={() => table.refetch()} />)
+            : <AccountDetailSurface key={sel} accountId={sel} onClose={closeSurface}
+                canManageAccounts={canManageAccounts} canManageRbac={canManageRbac} />
         )}
       </div>
 
@@ -310,7 +329,9 @@ function AccountCreateSurface({ onClose, onCreated }: { onClose: () => void; onC
   );
 }
 
-function AccountDetailSurface({ accountId, onClose }: { accountId: string; onClose: () => void }) {
+function AccountDetailSurface({ accountId, onClose, canManageAccounts, canManageRbac }: {
+  accountId: string; onClose: () => void; canManageAccounts: boolean; canManageRbac: boolean;
+}) {
   const t = useTranslations("agents");
   const qc = useQueryClient();
   const { data: detail, isError } = useQuery<Record<string, unknown>>({
@@ -350,6 +371,7 @@ function AccountDetailSurface({ accountId, onClose }: { accountId: string; onClo
             fields={ACCOUNT_EDIT_FIELDS}
             mode="edit"
             layout="compact"
+            readOnly={!canManageAccounts}
             initial={detail}
             etag={detail.etag ? String(detail.etag) : undefined}
             submitLabel={t("save")}
@@ -362,14 +384,14 @@ function AccountDetailSurface({ accountId, onClose }: { accountId: string; onClo
             onConflict={() => qc.invalidateQueries({ queryKey: ["account", accountId] })}
           />
 
-          <RolesSection accountId={accountId} />
+          <RolesSection accountId={accountId} canManage={canManageRbac} />
         </div>
       )}
     </RecordSurface>
   );
 }
 
-function RolesSection({ accountId }: { accountId: string }) {
+function RolesSection({ accountId, canManage }: { accountId: string; canManage: boolean }) {
   const t = useTranslations("agents");
   const qc = useQueryClient();
   const [roleId, setRoleId] = useState("");
@@ -420,13 +442,16 @@ function RolesSection({ accountId }: { accountId: string }) {
                 {a.site_id ? " · site" : a.org_unit_id ? " · unit" : ""}
               </span>
             </span>
-            <Button variant="ghost" size="sm" disabled={revoke.isPending} onClick={() => revoke.mutate(a.id)}>
-              {t("roles.revoke")}
-            </Button>
+            {canManage && (
+              <Button variant="ghost" size="sm" disabled={revoke.isPending} onClick={() => revoke.mutate(a.id)}>
+                {t("roles.revoke")}
+              </Button>
+            )}
           </div>
         ))}
       </div>
 
+      {canManage && (
       <form className="mt-3 space-y-3" onSubmit={(e) => { e.preventDefault(); if (roleId) assign.mutate(); }}>
         <div className="space-y-1.5">
           <Label htmlFor="role">{t("roles.role")}</Label>
@@ -443,7 +468,8 @@ function RolesSection({ accountId }: { accountId: string }) {
           {assign.isPending ? t("roles.assigning") : t("roles.assign")}
         </Button>
       </form>
-      {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+      )}
+      {canManage && error && <p className="mt-2 text-sm text-destructive">{error}</p>}
     </div>
   );
 }

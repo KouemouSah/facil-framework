@@ -9,7 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Network, Settings, Globe, Search, LogOut, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
-import { hasPerm } from "@/lib/perm";
+import { usePermissions } from "@/lib/use-permissions";
 import { isSameOriginAsset } from "@/lib/upload";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -39,12 +39,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const appName = branding?.app_name || "Facil";
 
   // Effective permissions -> hide nav the user can't use (backend still enforces).
-  const { data: perms } = useQuery<{ permissions: string[] }>({
-    queryKey: ["my-permissions"],
-    queryFn: () => apiFetch(`/api/v1/auth/me/permissions`),
-    staleTime: 5 * 60 * 1000,
-  });
-  const granted = perms?.permissions ?? [];
+  const { can } = usePermissions();
 
   // Client guard: if the session check resolves unauthenticated (e.g. refresh
   // failed server-side), leave the protected area.
@@ -78,7 +73,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     { href: "/reference", label: t("reference"), icon: Globe, perm: "reference.read" },
     { href: "/settings", label: t("settings"), icon: Settings, perm: "branding.manage" },
   ];
-  const nav = allNav.filter((i) => !i.perm || hasPerm(granted, i.perm));
+  const nav = allNav.filter((i) => !i.perm || can(i.perm));
 
   // Brand header + nav list are shared by the desktop sidebar and the mobile
   // drawer (DRY). On mobile, navigating closes the drawer.

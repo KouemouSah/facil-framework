@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useServerTable, type ServerPage } from "@/lib/use-server-table";
+import { usePermissions } from "@/lib/use-permissions";
 import { useState } from "react";
 import { ORG_FIELDS } from "./fields";
 import {
@@ -29,6 +30,11 @@ export default function OrganizationsPage() {
   const sel = searchParams.get("sel") ?? "";
   const isNew = searchParams.get("new") === "1";
   const [pendingDelete, setPendingDelete] = useState<Org | null>(null);
+  // Permission-driven actions (backend still enforces + scope-checks).
+  const { can } = usePermissions();
+  const canCreate = can("organization.create");
+  const canUpdate = can("organization.update");
+  const canDelete = can("organization.delete");
 
   // `?new` (create) and `?sel` (edit) are mutually exclusive: opening one clears
   // the other so a single RecordSurface is docked at a time.
@@ -73,15 +79,16 @@ export default function OrganizationsPage() {
       key: "legal_name", header: t("col.name"), sortable: true,
       cell: (o) => o.display_name || o.legal_name,
     },
-    {
-      key: "actions", header: t("col.actions"), align: "right", headClassName: "w-16", stopClick: true,
-      cell: (o) => (
+    // Row delete only when the user may delete (backend still enforces).
+    ...(canDelete ? [{
+      key: "actions", header: t("col.actions"), align: "right" as const, headClassName: "w-16", stopClick: true,
+      cell: (o: Org) => (
         <Button variant="ghost" size="icon" title={t("delete.confirm")}
           onClick={() => setPendingDelete(o)} disabled={del.isPending}>
           <Trash2 className="size-4" />
         </Button>
       ),
-    },
+    }] : []),
   ];
 
   const surfaceOpen = isNew || !!sel;
@@ -102,7 +109,9 @@ export default function OrganizationsPage() {
           </div>
           <ExportMenu filename="organizations"
             path={`${ORG_BASE}/export?q=${encodeURIComponent(table.q)}&sort=${table.sort}`} />
-          <Button size="sm" onClick={openCreate}><Plus className="size-4" /> {t("new")}</Button>
+          {canCreate && (
+            <Button size="sm" onClick={openCreate}><Plus className="size-4" /> {t("new")}</Button>
+          )}
         </div>
       </div>
 
@@ -135,8 +144,8 @@ export default function OrganizationsPage() {
         </div>
         {surfaceOpen && (
           isNew
-            ? <OrgCreateSurface onClose={closeSurface} onCreated={() => { table.refetch(); }} />
-            : <OrgEditSurface key={sel} orgId={sel} onClose={closeSurface} />
+            ? (canCreate && <OrgCreateSurface onClose={closeSurface} onCreated={() => { table.refetch(); }} />)
+            : <OrgEditSurface key={sel} orgId={sel} onClose={closeSurface} readOnly={!canUpdate} />
         )}
       </div>
 
@@ -183,7 +192,7 @@ function OrgCreateSurface({ onClose, onCreated }: { onClose: () => void; onCreat
   );
 }
 
-function OrgEditSurface({ orgId, onClose }: { orgId: string; onClose: () => void }) {
+function OrgEditSurface({ orgId, onClose, readOnly }: { orgId: string; onClose: () => void; readOnly: boolean }) {
   const t = useTranslations("organizations");
   const qc = useQueryClient();
   const { data } = useQuery<Record<string, unknown>>({
@@ -208,6 +217,7 @@ function OrgEditSurface({ orgId, onClose }: { orgId: string; onClose: () => void
           fields={ORG_FIELDS}
           mode="edit"
           layout="rich"
+          readOnly={readOnly}
           initial={data}
           etag={data.etag ? String(data.etag) : undefined}
           onSubmit={(payload, etag) => updateOrg(orgId, payload, etag)}

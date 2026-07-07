@@ -14,6 +14,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { OrgCombobox } from "@/components/ui/org-combobox";
 import { useFirstOrg } from "@/lib/use-organizations";
 import { useServerTable, type ServerPage } from "@/lib/use-server-table";
+import { usePermissions } from "@/lib/use-permissions";
 import { SITE_FIELDS } from "./fields";
 import {
   SITE_BASE, createSite, deleteSite, getSite, listSites, updateSite, type Site,
@@ -31,6 +32,10 @@ export default function LocationsPage() {
   const isNew = searchParams.get("new") === "1";
   const [orgId, setOrgId] = useState("");
   const [pendingDelete, setPendingDelete] = useState<Site | null>(null);
+  const { can } = usePermissions();
+  const canCreate = can("location.create");
+  const canUpdate = can("location.update");
+  const canDelete = can("location.delete");
 
   const openCreate = () => router.replace(`${pathname}?new=1`, { scroll: false });
   const select = (id: string) => router.replace(`${pathname}?sel=${id}`, { scroll: false });
@@ -88,15 +93,15 @@ export default function LocationsPage() {
       key: "city", header: t("col.city"), sortable: true, className: "text-muted-foreground",
       cell: (s) => [s.city, s.country_code].filter(Boolean).join(", "),
     },
-    {
-      key: "actions", header: t("col.actions"), align: "right", headClassName: "w-16", stopClick: true,
-      cell: (s) => (
+    ...(canDelete ? [{
+      key: "actions", header: t("col.actions"), align: "right" as const, headClassName: "w-16", stopClick: true,
+      cell: (s: Site) => (
         <Button variant="ghost" size="icon" title={t("delete.confirm")}
           onClick={() => setPendingDelete(s)} disabled={del.isPending}>
           <Trash2 className="size-4" />
         </Button>
       ),
-    },
+    }] : []),
   ];
 
   const surfaceOpen = (isNew && !!orgId) || !!sel;
@@ -117,9 +122,11 @@ export default function LocationsPage() {
           </div>
           <ExportMenu filename="sites" disabled={!orgId}
             path={`${SITE_BASE}/export?organization_id=${orgId}&sort=${table.sort}`} />
-          <Button size="sm" disabled={!orgId} onClick={openCreate}>
-            <Plus className="size-4" /> {t("new")}
-          </Button>
+          {canCreate && (
+            <Button size="sm" disabled={!orgId} onClick={openCreate}>
+              <Plus className="size-4" /> {t("new")}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -152,8 +159,8 @@ export default function LocationsPage() {
         </div>
         {surfaceOpen && (
           isNew
-            ? <SiteCreateSurface orgId={orgId} onClose={closeSurface} onCreated={() => { table.refetch(); }} />
-            : <SiteEditSurface key={sel} siteId={sel} onClose={closeSurface} />
+            ? (canCreate && <SiteCreateSurface orgId={orgId} onClose={closeSurface} onCreated={() => { table.refetch(); }} />)
+            : <SiteEditSurface key={sel} siteId={sel} onClose={closeSurface} readOnly={!canUpdate} />
         )}
       </div>
 
@@ -202,7 +209,7 @@ function SiteCreateSurface({ orgId, onClose, onCreated }: {
   );
 }
 
-function SiteEditSurface({ siteId, onClose }: { siteId: string; onClose: () => void }) {
+function SiteEditSurface({ siteId, onClose, readOnly }: { siteId: string; onClose: () => void; readOnly: boolean }) {
   const t = useTranslations("sites");
   const qc = useQueryClient();
   const { data } = useQuery<Record<string, unknown>>({
@@ -224,6 +231,7 @@ function SiteEditSurface({ siteId, onClose }: { siteId: string; onClose: () => v
           fields={SITE_FIELDS}
           mode="edit"
           layout="rich"
+          readOnly={readOnly}
           initial={data}
           etag={data.etag ? String(data.etag) : undefined}
           onSubmit={(payload, etag) => updateSite(siteId, payload, etag)}
