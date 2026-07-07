@@ -21,7 +21,16 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
   }
   const body = method === "GET" || method === "HEAD" ? undefined : await req.text();
 
-  const res = await backendProxy(`/${path.join("/")}${search}`, { method, body });
+  // Forward the optimistic-concurrency headers (allowlist only — never arbitrary
+  // client headers). Without this, `If-Match` is dropped and every admin write's
+  // 409 lost-update guard is silently inert end-to-end (SEC-001).
+  const headers: Record<string, string> = {};
+  for (const h of ["if-match", "if-none-match"]) {
+    const v = req.headers.get(h);
+    if (v) headers[h] = v;
+  }
+
+  const res = await backendProxy(`/${path.join("/")}${search}`, { method, body, headers });
   const text = await res.text();
   return new Response(text, {
     status: res.status,

@@ -245,3 +245,14 @@ def test_as_dict_strips_config_but_raw_keeps_it():
 
 def test_ai_provider_allowlist_constant():
     assert AI_PROVIDER_ALLOWED == {"kind", "endpoint", "model", "api_key_secret"}
+
+
+def test_no_registered_schema_declares_a_secret_key():
+    """SEC-005 invariant: the allowlist trusts config_schema, so no registered
+    provider may ever declare a secret-bearing key (that would reopen SEC-001)."""
+    from app.core.providers.registry import default_registry
+    from app.models.provider import SECRET_CONFIG_KEYS
+    r = default_registry()
+    for cap, code in r.registered:
+        keys = r.schema_keys(cap, code) or set()
+        assert keys & SECRET_CONFIG_KEYS == set(), f"{cap}/{code} declares a secret key"

@@ -52,18 +52,27 @@ def public_provider_map(value):
     (kind/endpoint/model/api_key_secret) — any other key (a raw credential or a
     denylist-bypassing variant) is dropped on read. `/llm/routing` is only
     `provider.read`-gated, so it must never echo a plaintext credential a legacy
-    row might carry. Non-dict values pass through unchanged."""
+    row might carry. A malformed (non-dict) top-level value or entry is collapsed
+    to an empty map/object rather than echoed raw (SEC-002)."""
     if not isinstance(value, dict):
-        return value
+        return {}
     return {name: ({k: v for k, v in entry.items() if k in AI_PROVIDER_ALLOWED}
-                   if isinstance(entry, dict) else entry)
+                   if isinstance(entry, dict) else {})
             for name, entry in value.items()}
+
+
+def provider_map_shape_ok(value) -> bool:
+    """True iff `value` is a name -> object map (the required `ai.providers` shape).
+    A non-dict top-level or any non-dict entry is rejected on write (SEC-002) —
+    otherwise those shapes would bypass the entry-key allowlist below."""
+    return isinstance(value, dict) and all(isinstance(e, dict) for e in value.values())
 
 
 def provider_map_unknown_keys(value) -> set[str]:
     """Entry keys NOT in `AI_PROVIDER_ALLOWED` — used to reject an `ai.providers`
     write carrying a raw credential (e.g. `api_key`) or any unexpected key at the
-    authority. Allowlist, so it closes case/variant gaps that a denylist misses."""
+    authority. Allowlist, so it closes case/variant gaps that a denylist misses.
+    (Call `provider_map_shape_ok` first to reject non-dict shapes.)"""
     if not isinstance(value, dict):
         return set()
     bad: set[str] = set()

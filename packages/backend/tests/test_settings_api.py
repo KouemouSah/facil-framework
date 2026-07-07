@@ -119,7 +119,10 @@ def test_provider_map_helpers_unit():
     stripped = public_provider_map(m)
     assert "api_key" not in stripped["openai"]
     assert stripped["openai"]["api_key_secret"] == "ref/openai"  # reference kept
-    assert public_provider_map(None) is None  # non-dict passes through
+    # SEC-002: a malformed (non-dict) shape is collapsed, never echoed raw.
+    assert public_provider_map(None) == {}
+    assert public_provider_map({"a": "sk-RAW"}) == {"a": {}}
+    assert public_provider_map([{"api_key": "sk"}]) == {}
 
 
 @pytest.mark.asyncio
@@ -163,3 +166,14 @@ async def test_setting_mutation_audited(client):
     async with db.session_factory() as s:
         actions = {r.action for r in (await s.scalars(select(AuthAudit))).all()}
     assert "setting_changed" in actions
+
+
+@pytest.mark.asyncio
+async def test_ai_providers_rejects_malformed_shape(client):
+    """SEC-002: a non-dict top-level value or entry must be rejected on write
+    (else it would bypass the entry-key allowlist and leak a raw secret on read)."""
+    ac, _ = client
+    for bad_value in ([{"api_key": "sk"}], "sk-RAW", {"openai": "sk-RAW"}):
+        r = await ac.put("/api/v1/admin/settings/ai.providers", headers=AUTH,
+                         json={"value": bad_value, "value_type": "json"})
+        assert r.status_code == 422, (bad_value, r.text)

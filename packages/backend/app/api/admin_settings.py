@@ -18,7 +18,9 @@ from app.api.concurrency import enforce_if_match, row_etag
 from app.api.deps import get_session
 from app.auth import audit
 from app.config_store import repository as repo
-from app.models.provider import provider_map_unknown_keys, public_provider_map
+from app.models.provider import (
+    provider_map_shape_ok, provider_map_unknown_keys, public_provider_map,
+)
 from app.models.setting import VALUE_TYPES
 from app.security.auth_dep import require_auth
 from app.security.permission_dep import require_permission
@@ -93,6 +95,12 @@ async def put_setting(key: str, body: SettingIn, request: Request,
     # api_key_secret — any other key (a raw credential, a case/variant) is rejected
     # before it is persisted / leaked. Credentials travel via api_key_secret (a name).
     if key == _PROVIDER_MAP_KEY:
+        # Reject a malformed shape first (a non-dict value/entry would otherwise
+        # slip past the entry-key allowlist and leak a raw credential on read).
+        if not provider_map_shape_ok(body.value):
+            raise HTTPException(
+                422, "ai.providers must be a map of name -> "
+                     "{kind, endpoint, model, api_key_secret}")
         bad = provider_map_unknown_keys(body.value)
         if bad:
             raise HTTPException(
