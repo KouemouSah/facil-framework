@@ -42,9 +42,14 @@ def _check_capability(capability: str) -> None:
         raise HTTPException(422, f"capability must be one of {CAPABILITIES}")
 
 
-def _public(obj) -> dict:
-    """Row → API dict: config stripped of any secret-bearing key + etag."""
-    return {**obj.as_dict(), "config": public_config(obj.config), "etag": row_etag(obj)}
+def _public(obj, registry) -> dict:
+    """Row → API dict: `config` restricted to the provider's DECLARED schema keys
+    (SEC-F2 allowlist) — or denylist-stripped if the type isn't registered — + etag.
+    Never returns `as_dict_raw()` (which carries raw config) to a client."""
+    allowed = registry.schema_keys(obj.capability, obj.provider_code)
+    cfg = ({k: v for k, v in (obj.config or {}).items() if k in allowed}
+           if allowed is not None else public_config(obj.config))
+    return {**obj.as_dict_raw(), "config": cfg, "etag": row_etag(obj)}
 
 
 @router.get("/registered")
@@ -75,18 +80,19 @@ async def check_llm_routing(request: Request,
 
 
 @router.get("/")
-async def list_providers(capability: str | None = None,
+async def list_providers(request: Request, capability: str | None = None,
                          session: AsyncSession = Depends(get_session)) -> list[dict]:
-    return [_public(p) for p in await repo.list_providers(session, capability)]
+    registry = request.app.state.registry
+    return [_public(p, registry) for p in await repo.list_providers(session, capability)]
 
 
 @router.get("/{capability}/{code}")
-async def get_provider(capability: str, code: str,
+async def get_provider(capability: str, code: str, request: Request,
                        session: AsyncSession = Depends(get_session)) -> dict:
     obj = await repo.get_provider(session, capability, code)
     if obj is None:
         raise HTTPException(404, f"provider {capability}/{code} not found")
-    return _public(obj)
+    return _public(obj, request.app.state.registry)
 
 
 @router.put("/{capability}/{code}", dependencies=[_MANAGE])
@@ -94,12 +100,23 @@ async def put_provider(capability: str, code: str, body: ProviderIn, request: Re
                        principal: dict = Depends(require_auth),
                        session: AsyncSession = Depends(get_session)) -> dict:
     _check_capability(capability)
-    # Secrets discipline enforced at the authority (not just the UI): credentials
-    # must never be stored in plaintext `config` — they travel via secret_ref/env.
-    leaked = secret_keys_in(body.config)
-    if leaked:
-        raise HTTPException(
-            422, f"config must not contain secret keys {sorted(leaked)}; use secret_ref")
+    # Secrets discipline enforced at the authority (SEC-F2 durable fix): a registered
+    # provider's `config` is ALLOWLISTED to its declared schema keys — any other key
+    # (a credential, a case/variant, a nested blob) is rejected. Unregistered code →
+    # denylist fallback. Credentials always travel via secret_ref / env.
+    registry = request.app.state.registry
+    allowed = registry.schema_keys(capability, code)
+    if allowed is not None:
+        extra = sorted(set(body.config) - allowed)
+        if extra:
+            raise HTTPException(
+                422, f"config keys not allowed for {capability}/{code}: {extra} "
+                     f"(declared: {sorted(allowed)}); credentials go via secret_ref")
+    else:
+        leaked = secret_keys_in(body.config)
+        if leaked:
+            raise HTTPException(
+                422, f"config must not contain secret keys {sorted(leaked)}; use secret_ref")
     # Optimistic concurrency: if the client sent If-Match, reject a stale write
     # (409). Absent header = no check (create path / API clients).
     existing = await repo.get_provider(session, capability, code)
@@ -115,7 +132,7 @@ async def put_provider(capability: str, code: str, body: ProviderIn, request: Re
     await audit.record(session, audit.PROVIDER_CHANGED, account_id=actor,
                        detail={"capability": capability, "code": code})
     await session.commit()
-    return _public(obj)
+    return _public(obj, registry)
 
 
 @router.post("/{capability}/{code}/check")

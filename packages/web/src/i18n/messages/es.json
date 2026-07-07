@@ -12,7 +12,8 @@
     "federation": "Federación y SCIM",
     "reference": "Datos de referencia",
     "providers": "Proveedores",
-    "settings": "Ajustes"
+    "settings": "Ajustes",
+    "configuration": "Configuración"
   },
   "auth": {
     "login": "Iniciar sesión",
@@ -325,5 +326,53 @@
     },
     "unregistered_type": "Este tipo de proveedor ya no está registrado — su configuración no puede editarse aquí.",
     "registry_error": "No se pudo cargar el registro de proveedores — tipos disponibles y Añadir no disponibles. Reintente."
+  },
+  "configuration": {
+    "title": "Configuración",
+    "subtitle": "El config-store — ajustes en tiempo real por scope. El backend decide; los secretos viven en el almacén.",
+    "search_placeholder": "Buscar clave / nombre",
+    "all_scopes": "Todos los scopes",
+    "new": "Nuevo ajuste",
+    "loading": "Cargando…",
+    "load_error": "Error al cargar.",
+    "empty": "Ningún ajuste.",
+    "inactive": "inactivo",
+    "new_title": "Nuevo ajuste",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "conflict": "Cambiado en otro lugar — recargando.",
+    "toast_save_failed": "Error al guardar.",
+    "secret_ref_hint": "Referencia al almacén de secretos (opcional) — no el valor.",
+    "curated_note": "Esta clave tiene un editor dedicado (Branding / Proveedores). Editarla en bruto aquí funciona pero es propenso a errores.",
+    "delete": {
+      "title": "¿Eliminar el ajuste?",
+      "body": "Esto elimina permanentemente {key}. Escriba su clave para confirmar.",
+      "confirm": "Eliminar"
+    },
+    "toast": {
+      "saved": "Ajuste guardado.",
+      "deleted": "Ajuste eliminado.",
+      "delete_failed": "Error al eliminar.",
+      "save_failed": "Error al guardar."
+    },
+    "err": {
+      "key_required": "La clave es obligatoria.",
+      "number_invalid": "Introduzca un número válido.",
+      "json_invalid": "JSON no válido.",
+      "key_exists": "Esa clave ya existe — edítela en su lugar."
+    },
+    "labels": {
+      "key": "Clave",
+      "scope": "Scope",
+      "value_type": "Tipo",
+      "value": "Valor",
+      "secret_ref": "Referencia de secreto",
+      "name_en": "Nombre (EN)",
+      "name_fr": "Nombre (FR)",
+      "name_es": "Nombre (ES)",
+      "description": "Descripción",
+      "is_active": "Activo"
+    }
   }
 }

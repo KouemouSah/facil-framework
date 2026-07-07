@@ -36,6 +36,13 @@ class ProviderRegistry:
     def registered(self) -> list[tuple[str, str]]:
         return sorted(self._factories)
 
+    def schema_keys(self, capability: str, code: str) -> set[str] | None:
+        """Declared config keys for a registered type (SEC-F2 allowlist source);
+        None if `(capability, code)` isn't registered (no schema to allowlist)."""
+        if (capability, code) not in self._factories:
+            return None
+        return {f["key"] for f in self._schemas.get((capability, code), [])}
+
     @property
     def registered_detailed(self) -> list[dict[str, Any]]:
         """Instantiable types + their declarative config schema (drives the admin

@@ -10,45 +10,49 @@ implementing it + deleting its entry here (and its inline `NOTE (SEC-Fx)` marker
 
 ---
 
-## SEC-F2 — provider secret denylist is exact-match + case-sensitive + top-level-only  ·  MED
+## SEC-F5 — `settings.read` exposes every config-store value (potential plaintext secret)  ·  LOW
 
-- **Where:** `packages/backend/app/models/provider.py` — `SECRET_CONFIG_KEYS`,
-  `public_config()`, `secret_keys_in()` (and their `ai.providers` cousins
-  `public_provider_map()` / `provider_map_secret_keys()`).
-- **Risk (leak-half only):** the write-reject (422) and read-strip match secret
-  keys by **exact, case-sensitive, top-level** membership. Variants bypass both —
-  `API_KEY`, `apikey`, `smtp_password`, `Password`, `aws_secret_access_key`,
-  `connection_string`, `dsn`, or a **nested** `config: {extra: {api_key: …}}`.
-  A human/script that stores a real secret under such a key persists it plaintext
-  and it is echoed to a lower-privileged `provider.read` / `/llm/routing` reader.
-  Not a *live* credential injection today (providers read the exact canonical
-  lowercase keys), so severity is MED, but it defeats the control with a
-  one-character change — the classic denylist weakness.
-- **Recommended fix (durable):** **allowlist by `config_schema`.** The backend
-  already owns each provider's declared non-secret keys (`Provider.config_schema()`);
-  on PUT, reject any `config` key not in the provider's schema for `(capability,
-  code)`. Unknown key → reject inverts the risk and closes the case/variant/nested
-  gaps structurally. For `ai.providers` (a generic settings blob with no per-entry
-  schema), keep the denylist but make it **case-insensitive + substring-aware**
-  (careful: `api_key_secret` is a *reference*, must stay allowed).
-- **Surfaced by:** independent verification of sub-project A — commit `0662958`,
-  PR #32 (F1/F3 fixed; F2 deferred by decision — criticals only).
+- **Where:** `packages/backend/app/api/admin_settings.py` — `_public_setting` strips
+  only the `ai.providers` map; every other setting `value` is returned verbatim to
+  any `settings.read` principal.
+- **Risk (admin-gated):** an operator who stores a credential as an ordinary string
+  value (`smtp.password = "…"`) instead of using `secret_ref` leaks it to all
+  `settings.read` holders. Mitigation by design = `secret_ref`; `settings.read` is a
+  high-trust admin permission. Frontend rendering is XSS-safe (React-escaped).
+- **Recommended fix:** either scan/reject nested-object values for secret-bearing
+  keys on write (like the provider path), or formally document `settings.read` as a
+  secret-bearing permission and keep it tightly scoped.
+- **Surfaced by:** sub-project B security review.
 
-## SEC-F4 — `ProviderSetting.as_dict()` returns raw `config`  ·  LOW
+## SEC-F6 — `settings.manage` is a single super-permission over security-critical keys  ·  LOW
 
-- **Where:** `packages/backend/app/models/provider.py` — `ProviderSetting.as_dict()`.
-- **Risk (fragility, not a live bug):** the "no plaintext secret echoed" invariant
-  is enforced by every API caller remembering to wrap the row in `_public()`
-  (`admin_providers.py`). Today the only `as_dict()` caller is `_public()` (verified),
-  so it is correct — but any future endpoint that returns `as_dict()` directly
-  reopens SEC-001.
-- **Recommended fix:** make `as_dict()` itself emit `public_config(self.config)`,
-  and add an explicit raw accessor (e.g. `as_dict_raw()`) for the legitimate
-  internal callers that need real values (`registry.build()`, `check_provider()` —
-  which currently read `row.config` directly, not via `as_dict()`).
-- **Surfaced by:** commit `0662958`, PR #32 (deferred — LOW).
+- **Where:** `admin_settings.py` (`auth.*`, `ai.routing`, `rbac`, `branding` all
+  behind one `settings.manage`); `admin_providers.py` `/check` + `/llm/routing/check`
+  trigger outbound requests gated only at router-level `provider.read`.
+- **Risk (bounded, all high-perm):** (a) no per-namespace authorization — the
+  config-store editor is a privilege-concentration point; (b) SSRF-by-config: a
+  `provider.read` user can trigger a probe of a `manage`-configured internal URL; (c)
+  `put_setting` validates `value_type ∈ VALUE_TYPES` but not that `value` matches the
+  declared type (a JSON object can be stored under a scalar key).
+- **Recommended fix:** a protected-key allowlist behind a stronger permission;
+  gate `/check` on `provider.manage`; server-side value/type coercion.
+- **Surfaced by:** sub-project B security review (design observation, no new bug).
 
 ---
 
-**Next natural window:** sub-project **B (Settings / config-store)** touches the
-same config-store zone — fold F2 (schema-allowlist) + F4 in there.
+Closed:
+- **SEC-F2** (provider secret denylist was exact/case-sensitive/top-level) — fixed in
+  sub-project B: provider `config` is ALLOWLISTED to the type's `config_schema()` keys
+  on write + read (`admin_providers._public` + `registry.schema_keys`), and
+  `ai.providers` entries to `AI_PROVIDER_ALLOWED`. Denylist kept only as the
+  UNREGISTERED-code fallback (bounded: writing needs `provider.manage`, an
+  unregistered row can never be built). A `test_no_registered_schema_declares_a_secret_key`
+  invariant guards against a future schema re-opening the gap (SEC-005).
+- **SEC-F4** (`ProviderSetting.as_dict()` returned raw `config`) — fixed: `as_dict()`
+  strips via `public_config()`; `as_dict_raw()` for internal raw callers.
+- **BFF dropped `If-Match`** (SEC-001, sub-project B review) — the BFF proxy forwarded
+  only `{method, body}`, silently voiding optimistic concurrency for every admin write
+  end-to-end. Fixed: the BFF now forwards the `If-Match`/`If-None-Match` allowlist.
+- **`ai.providers` non-dict shape bypass** (SEC-002) — fixed: `provider_map_shape_ok`
+  rejects a non-dict value/entry on write; `public_provider_map` collapses malformed
+  shapes to `{}` on read instead of echoing raw.

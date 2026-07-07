@@ -191,3 +191,68 @@ async def test_put_provider_is_audited(client):
     async with db.session_factory() as s:
         actions = {x.action for x in (await s.scalars(select(AuthAudit))).all()}
     assert "provider_changed" in actions
+
+
+# --- SEC-F2 (allowlist by config_schema) + SEC-F4 (as_dict strips) ------------
+
+from app.models.provider import AI_PROVIDER_ALLOWED, ProviderSetting  # noqa: E402
+
+
+@pytest.mark.asyncio
+async def test_put_allowlists_config_by_schema(client):
+    ac, _ = client
+    # minio schema = {endpoint, bucket}. Anything else is rejected (case/variant/
+    # nested/non-secret-but-undeclared) — allowlist, not denylist.
+    for bad_cfg in ({"endpoint": "x", "region": "eu"},          # undeclared key
+                    {"endpoint": "x", "API_KEY": "v"},          # case variant
+                    {"endpoint": "x", "extra": {"api_key": 1}}):  # nested blob
+        r = await ac.put("/api/v1/admin/providers/storage/minio", headers=AUTH,
+                         json={"config": bad_cfg})
+        assert r.status_code == 422, (bad_cfg, r.text)
+    # Declared keys only → OK.
+    ok = await ac.put("/api/v1/admin/providers/storage/minio", headers=AUTH,
+                      json={"config": {"endpoint": "http://minio:9000", "bucket": "b"}})
+    assert ok.status_code == 200, ok.text
+
+
+@pytest.mark.asyncio
+async def test_unregistered_code_falls_back_to_denylist(client):
+    ac, _ = client
+    # s3 is not registered → no schema to allowlist → denylist fallback.
+    ok = await ac.put("/api/v1/admin/providers/storage/s3", headers=AUTH,
+                      json={"config": {"region": "eu-west-1"}})  # non-secret → allowed
+    assert ok.status_code == 200, ok.text
+    bad = await ac.put("/api/v1/admin/providers/storage/s3", headers=AUTH,
+                       json={"config": {"secret_key": "leak"}})
+    assert bad.status_code == 422, bad.text
+
+
+def test_registry_schema_keys():
+    from app.core.providers.registry import default_registry
+    r = default_registry()
+    assert r.schema_keys("storage", "minio") == {"endpoint", "bucket"}
+    assert r.schema_keys("storage", "memory") == set()   # registered, empty schema
+    assert r.schema_keys("storage", "s3") is None        # not registered
+
+
+def test_as_dict_strips_config_but_raw_keeps_it():
+    row = ProviderSetting(capability="storage", provider_code="minio",
+                          config={"endpoint": "x", "access_key": "AKIA"}, secret_ref="ref")
+    assert "access_key" not in row.as_dict()["config"]     # SEC-F4: stripped
+    assert row.as_dict()["config"] == {"endpoint": "x"}
+    assert row.as_dict_raw()["config"]["access_key"] == "AKIA"  # internal raw kept
+
+
+def test_ai_provider_allowlist_constant():
+    assert AI_PROVIDER_ALLOWED == {"kind", "endpoint", "model", "api_key_secret"}
+
+
+def test_no_registered_schema_declares_a_secret_key():
+    """SEC-005 invariant: the allowlist trusts config_schema, so no registered
+    provider may ever declare a secret-bearing key (that would reopen SEC-001)."""
+    from app.core.providers.registry import default_registry
+    from app.models.provider import SECRET_CONFIG_KEYS
+    r = default_registry()
+    for cap, code in r.registered:
+        keys = r.schema_keys(cap, code) or set()
+        assert keys & SECRET_CONFIG_KEYS == set(), f"{cap}/{code} declares a secret key"

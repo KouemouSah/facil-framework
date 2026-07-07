@@ -12,7 +12,8 @@
     "federation": "Federation & SCIM",
     "reference": "Reference data",
     "providers": "Providers",
-    "settings": "Settings"
+    "settings": "Settings",
+    "configuration": "Configuration"
   },
   "auth": {
     "login": "Sign in",
@@ -325,5 +326,53 @@
     },
     "unregistered_type": "This provider type is no longer registered — its config can't be edited here.",
     "registry_error": "Couldn't load the provider registry — available types and Add are unavailable. Retry."
+  },
+  "configuration": {
+    "title": "Configuration",
+    "subtitle": "The config-store — runtime settings by scope. The backend enforces; secrets live in the secret store.",
+    "search_placeholder": "Search key / name",
+    "all_scopes": "All scopes",
+    "new": "New setting",
+    "loading": "Loading…",
+    "load_error": "Failed to load.",
+    "empty": "No setting.",
+    "inactive": "inactive",
+    "new_title": "New setting",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving…",
+    "conflict": "Changed elsewhere — reloading.",
+    "toast_save_failed": "Save failed.",
+    "secret_ref_hint": "Reference into the secret store (optional) — not the value.",
+    "curated_note": "This key has a dedicated editor (Branding / Providers). Editing it raw here works but is easy to get wrong.",
+    "delete": {
+      "title": "Delete setting?",
+      "body": "This permanently removes {key}. Type its key to confirm.",
+      "confirm": "Delete"
+    },
+    "toast": {
+      "saved": "Setting saved.",
+      "deleted": "Setting deleted.",
+      "delete_failed": "Delete failed.",
+      "save_failed": "Save failed."
+    },
+    "err": {
+      "key_required": "Key is required.",
+      "number_invalid": "Enter a valid number.",
+      "json_invalid": "Invalid JSON.",
+      "key_exists": "That key already exists — edit it instead."
+    },
+    "labels": {
+      "key": "Key",
+      "scope": "Scope",
+      "value_type": "Type",
+      "value": "Value",
+      "secret_ref": "Secret reference",
+      "name_en": "Name (EN)",
+      "name_fr": "Name (FR)",
+      "name_es": "Name (ES)",
+      "description": "Description",
+      "is_active": "Active"
+    }
   }
 }

@@ -20,17 +20,20 @@ from app.db.base import Base, JSONType
 
 CAPABILITIES = ("storage", "llm", "email", "secrets", "auth", "payment")
 
-# Credential-bearing keys that must NEVER live in `config` (plaintext jsonb,
-# echoed to `provider.read`). Credentials travel via `secret_ref` / env only.
-# Enforced server-side on write (422) and stripped from read responses — the
-# secrets discipline is guaranteed at the authority, not just the UI.
-# NOTE (SEC-F2, docs/SECURITY_FOLLOWUPS.md): matching below is exact + case-
-# sensitive + top-level, so variants (API_KEY, smtp_password, nested) bypass it.
-# Durable fix = allowlist config keys to each provider's config_schema(). Deferred.
+# Credential-bearing keys that must NEVER live in `config`. The DURABLE control
+# (SEC-F2) is an ALLOWLIST: a registered provider's config is restricted to the
+# keys it declares in `config_schema()` (enforced in admin_providers on write, and
+# used to strip on read) — this closes the case/variant/nested denylist gaps
+# structurally. This denylist remains only as the FALLBACK for an UNREGISTERED
+# `(capability, code)` where no schema exists to allowlist against.
 SECRET_CONFIG_KEYS = frozenset({
     "access_key", "secret_key", "api_key", "password", "secret", "client_secret",
     "role_id", "secret_id", "token", "private_key", "passwd", "pwd",
 })
+
+# The `ai.providers` map has a fixed entry shape (no per-entry schema), so it gets
+# its own allowlist. `api_key_secret` is a REFERENCE (a secret name), allowed.
+AI_PROVIDER_ALLOWED = frozenset({"kind", "endpoint", "model", "api_key_secret"})
 
 
 def public_config(config: dict | None) -> dict:
@@ -45,29 +48,38 @@ def secret_keys_in(config: dict | None) -> set[str]:
 
 
 def public_provider_map(value):
-    """Strip secret-bearing keys from each entry of a provider map — the
-    `ai.providers` settings value (`name -> {kind, endpoint, model,
-    api_key_secret, …}`). Same secrets discipline as `public_config`, applied on
-    read to the LLM-routing map (defence in depth for legacy/env-seeded rows).
-    Credential references like `api_key_secret` are NOT secrets (exact-match
-    denylist) and are preserved. Non-dict values pass through unchanged."""
+    """The `ai.providers` map with each entry ALLOWLISTED to `AI_PROVIDER_ALLOWED`
+    (kind/endpoint/model/api_key_secret) — any other key (a raw credential or a
+    denylist-bypassing variant) is dropped on read. `/llm/routing` is only
+    `provider.read`-gated, so it must never echo a plaintext credential a legacy
+    row might carry. A malformed (non-dict) top-level value or entry is collapsed
+    to an empty map/object rather than echoed raw (SEC-002)."""
     if not isinstance(value, dict):
-        return value
-    return {name: (public_config(entry) if isinstance(entry, dict) else entry)
+        return {}
+    return {name: ({k: v for k, v in entry.items() if k in AI_PROVIDER_ALLOWED}
+                   if isinstance(entry, dict) else {})
             for name, entry in value.items()}
 
 
-def provider_map_secret_keys(value) -> set[str]:
-    """Secret-bearing keys present in any entry of a provider map (empty = clean).
-    Used to reject a plaintext credential in an `ai.providers` write at the
-    authority (mirrors `secret_keys_in` for provider rows)."""
+def provider_map_shape_ok(value) -> bool:
+    """True iff `value` is a name -> object map (the required `ai.providers` shape).
+    A non-dict top-level or any non-dict entry is rejected on write (SEC-002) —
+    otherwise those shapes would bypass the entry-key allowlist below."""
+    return isinstance(value, dict) and all(isinstance(e, dict) for e in value.values())
+
+
+def provider_map_unknown_keys(value) -> set[str]:
+    """Entry keys NOT in `AI_PROVIDER_ALLOWED` — used to reject an `ai.providers`
+    write carrying a raw credential (e.g. `api_key`) or any unexpected key at the
+    authority. Allowlist, so it closes case/variant gaps that a denylist misses.
+    (Call `provider_map_shape_ok` first to reject non-dict shapes.)"""
     if not isinstance(value, dict):
         return set()
-    found: set[str] = set()
+    bad: set[str] = set()
     for entry in value.values():
         if isinstance(entry, dict):
-            found |= secret_keys_in(entry)
-    return found
+            bad |= (set(entry) - AI_PROVIDER_ALLOWED)
+    return bad
 
 
 class ProviderSetting(Base):
@@ -96,10 +108,10 @@ class ProviderSetting(Base):
     updated_at: Mapped[_dt.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    def as_dict(self) -> dict:
-        # NOTE (SEC-F4, docs/SECURITY_FOLLOWUPS.md): returns RAW config. The API
-        # must wrap this in _public() (admin_providers.py) to strip secrets; the
-        # only caller does today. Deferred: make as_dict() strip + add as_dict_raw().
+    def as_dict_raw(self) -> dict:
+        """Full row INCLUDING raw `config` (may contain secrets). Internal use only
+        (never returned by an endpoint directly — the API strips via the registry
+        schema allowlist / `public_config`)."""
         return {
             "capability": self.capability, "provider_code": self.provider_code,
             "config": self.config or {}, "secret_ref": self.secret_ref,
@@ -108,3 +120,9 @@ class ProviderSetting(Base):
             "retry_attempts": self.retry_attempts, "timeout_seconds": self.timeout_seconds,
             "updated_by": self.updated_by,
         }
+
+    def as_dict(self) -> dict:
+        # SEC-F4: strip secret-bearing config keys by default (denylist baseline),
+        # so any future caller that returns as_dict() directly can't reopen SEC-001.
+        # The providers API strips more strictly (schema allowlist) in _public().
+        return {**self.as_dict_raw(), "config": public_config(self.config)}
