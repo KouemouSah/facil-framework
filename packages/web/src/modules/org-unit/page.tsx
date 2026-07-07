@@ -30,6 +30,7 @@ function useUnitFields(parents: OrgUnit[]): FieldDef[] {
       selectOptions: parents.map((p) => ({ value: p.id, label: p.name })) },
     { name: "description", label: t("f.description"), type: "textarea", colSpan: 2 },
     { name: "external_ref", label: t("f.external_ref") },
+    { name: "is_active", label: t("f.is_active"), type: "checkbox" },
     { name: "metadata", label: t("f.metadata"), type: "json" },
   ];
 }
@@ -58,6 +59,8 @@ export default function OrgUnitsPage() {
     queryKey: ["org-units", orgId], queryFn: () => listUnits(orgId), enabled: !!orgId,
   });
   const all = units.data ?? [];
+  // A parent can't be deleted while it has children (backend 409, no cascade).
+  const parentIds = new Set(all.map((u) => u.parent_id).filter((p): p is string => !!p));
   const tree = orderForTree(all);
 
   const openCreate = (parent?: string) =>
@@ -103,7 +106,7 @@ export default function OrgUnitsPage() {
           {orgId && units.data && tree.length === 0 && <p className="text-sm text-muted-foreground">{t("empty")}</p>}
           {tree.map(({ unit, level }) => (
             <UnitRow key={unit.id} unit={unit} level={level} selected={sel === unit.id}
-              canCreate={canCreate} canDelete={canDelete}
+              canCreate={canCreate} canDelete={canDelete} hasChildren={parentIds.has(unit.id)}
               onEdit={() => openEdit(unit.id)}
               onAddChild={() => openCreate(unit.id)}
               onDelete={() => setPendingDelete(unit)}
@@ -135,9 +138,9 @@ export default function OrgUnitsPage() {
   );
 }
 
-function UnitRow({ unit, level, selected, canCreate, canDelete, onEdit, onAddChild, onDelete, busy }: {
+function UnitRow({ unit, level, selected, canCreate, canDelete, hasChildren, onEdit, onAddChild, onDelete, busy }: {
   unit: OrgUnit; level: number; selected: boolean; canCreate: boolean; canDelete: boolean;
-  onEdit: () => void; onAddChild: () => void; onDelete: () => void; busy: boolean;
+  hasChildren: boolean; onEdit: () => void; onAddChild: () => void; onDelete: () => void; busy: boolean;
 }) {
   const t = useTranslations("org_units");
   return (
@@ -157,7 +160,8 @@ function UnitRow({ unit, level, selected, canCreate, canDelete, onEdit, onAddChi
           </Button>
         )}
         {canDelete && (
-          <Button variant="ghost" size="icon" disabled={busy} onClick={onDelete} title={t("delete.confirm")}>
+          <Button variant="ghost" size="icon" disabled={busy || hasChildren} onClick={onDelete}
+            title={hasChildren ? t("delete_parent_hint") : t("delete.confirm")}>
             <Trash2 className="size-3.5" />
           </Button>
         )}
@@ -180,7 +184,7 @@ function UnitCreateSurface({ orgId, units, presetParent, onClose, onSaved }: {
         layout="rich"
         enableSaveNew
         submitLabel={t("new")}
-        initial={{ unit_type: "department", parent_id: presetParent }}
+        initial={{ unit_type: "department", parent_id: presetParent, is_active: true }}
         onSubmit={(payload) => createUnit(orgId, payload)}
         onSuccess={({ again }) => {
           qc.invalidateQueries({ queryKey: ["org-units", orgId] });

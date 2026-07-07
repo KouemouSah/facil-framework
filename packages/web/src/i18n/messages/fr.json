@@ -391,7 +391,7 @@
     "add_child": "Ajouter une sous-unité",
     "delete": {
       "title": "Supprimer l’unité ?",
-      "body": "Ceci supprime définitivement {name} (et orpheline ses enfants).",
+      "body": "Ceci supprime définitivement {name}.",
       "confirm": "Supprimer"
     },
     "toast": {
@@ -408,7 +408,9 @@
       "parent": "Unité parente",
       "description": "Description",
       "external_ref": "Référence externe",
-      "metadata": "Métadonnées (JSON)"
-    }
+      "metadata": "Métadonnées (JSON)",
+      "is_active": "Actif"
+    },
+    "delete_parent_hint": "Supprimez ou déplacez d’abord ses sous-unités."
   }
 }

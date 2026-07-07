@@ -391,7 +391,7 @@
     "add_child": "Add child unit",
     "delete": {
       "title": "Delete unit?",
-      "body": "This permanently removes {name} (and orphans its children).",
+      "body": "This permanently removes {name}.",
       "confirm": "Delete"
     },
     "toast": {
@@ -408,7 +408,9 @@
       "parent": "Parent unit",
       "description": "Description",
       "external_ref": "External reference",
-      "metadata": "Metadata (JSON)"
-    }
+      "metadata": "Metadata (JSON)",
+      "is_active": "Active"
+    },
+    "delete_parent_hint": "Delete or reparent its child units first."
   }
 }
