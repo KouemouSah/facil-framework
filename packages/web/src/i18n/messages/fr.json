@@ -23,6 +23,12 @@
     "body": "La page que vous cherchez n’existe pas ou a été déplacée.",
     "back": "Retour au tableau de bord"
   },
+  "confirm": {
+    "confirm": "Confirmer",
+    "cancel": "Annuler",
+    "working": "En cours…",
+    "type_to_confirm": "Saisissez {value} pour confirmer"
+  },
   "upload": {
     "browse": "Cliquer pour téléverser",
     "drop": "ou glisser-déposer",
