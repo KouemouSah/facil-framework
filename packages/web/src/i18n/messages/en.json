@@ -49,5 +49,49 @@
       "size": "File is too large (max 5 MB).",
       "failed": "Upload failed. Please try again."
     }
+  },
+  "organizations": {
+    "title": "Organizations",
+    "subtitle": "Tenants you can access.",
+    "search_placeholder": "Search code / name",
+    "new": "New",
+    "new_title": "New organization",
+    "edit_title": "Organization",
+    "loading": "Loading…",
+    "empty": "No organizations.",
+    "col": { "code": "Code", "name": "Legal name", "actions": "Actions" },
+    "delete": {
+      "title": "Delete organization?",
+      "body": "This permanently removes {name}. Type its code to confirm.",
+      "confirm": "Delete"
+    },
+    "toast": {
+      "created": "Organization created.",
+      "deleted": "Organization deleted.",
+      "delete_failed": "Delete failed. The organization was restored."
+    }
+  },
+  "sites": {
+    "title": "Sites",
+    "subtitle": "Physical sites and branches per organization.",
+    "org_placeholder": "Search organization…",
+    "new": "New",
+    "new_title": "New site",
+    "edit_title": "Site",
+    "loading": "Loading…",
+    "empty": "No sites.",
+    "empty_no_org": "Select an organization.",
+    "primary": "primary",
+    "col": { "code": "Code", "name": "Name", "type": "Type", "city": "City", "actions": "Actions" },
+    "delete": {
+      "title": "Delete site?",
+      "body": "This permanently removes {name}.",
+      "confirm": "Delete"
+    },
+    "toast": {
+      "created": "Site created.",
+      "deleted": "Site deleted.",
+      "delete_failed": "Delete failed. The site was restored."
+    }
   }
 }

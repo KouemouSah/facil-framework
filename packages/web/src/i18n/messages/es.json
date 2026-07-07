@@ -49,5 +49,49 @@
       "size": "El archivo es demasiado grande (máx. 5 MB).",
       "failed": "Error al subir. Inténtelo de nuevo."
     }
+  },
+  "organizations": {
+    "title": "Organizaciones",
+    "subtitle": "Organizaciones a las que tiene acceso.",
+    "search_placeholder": "Buscar código / nombre",
+    "new": "Nuevo",
+    "new_title": "Nueva organización",
+    "edit_title": "Organización",
+    "loading": "Cargando…",
+    "empty": "No hay organizaciones.",
+    "col": { "code": "Código", "name": "Razón social", "actions": "Acciones" },
+    "delete": {
+      "title": "¿Eliminar la organización?",
+      "body": "Esto elimina permanentemente {name}. Escriba su código para confirmar.",
+      "confirm": "Eliminar"
+    },
+    "toast": {
+      "created": "Organización creada.",
+      "deleted": "Organización eliminada.",
+      "delete_failed": "Error al eliminar. La organización fue restaurada."
+    }
+  },
+  "sites": {
+    "title": "Sedes",
+    "subtitle": "Sedes físicas y sucursales por organización.",
+    "org_placeholder": "Buscar organización…",
+    "new": "Nuevo",
+    "new_title": "Nueva sede",
+    "edit_title": "Sede",
+    "loading": "Cargando…",
+    "empty": "No hay sedes.",
+    "empty_no_org": "Seleccione una organización.",
+    "primary": "principal",
+    "col": { "code": "Código", "name": "Nombre", "type": "Tipo", "city": "Ciudad", "actions": "Acciones" },
+    "delete": {
+      "title": "¿Eliminar la sede?",
+      "body": "Esto elimina permanentemente {name}.",
+      "confirm": "Eliminar"
+    },
+    "toast": {
+      "created": "Sede creada.",
+      "deleted": "Sede eliminada.",
+      "delete_failed": "Error al eliminar. La sede fue restaurada."
+    }
   }
 }

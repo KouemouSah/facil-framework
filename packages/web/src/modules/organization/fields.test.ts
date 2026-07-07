@@ -1,0 +1,38 @@
+import { describe, it, expect } from "vitest";
+import { ORG_FIELDS } from "./fields";
+
+const byName = (n: string) => ORG_FIELDS.find((f) => f.name === n);
+
+describe("ORG_FIELDS (pilot 1 — Company canonical form)", () => {
+  it("uploads the logo as an image, never a free-text URL input", () => {
+    const logo = byName("logo_url");
+    expect(logo).toBeDefined();
+    // The audit finding: an asset field must be a FileUpload (type "image"),
+    // not a raw text/URL field the operator pastes into.
+    expect(logo?.type).toBe("image");
+  });
+
+  it("keeps `code` an immutable, required identifier", () => {
+    const code = byName("code");
+    expect(code?.required).toBe(true);
+    expect(code?.immutable).toBe(true);
+  });
+
+  it("requires the legal name", () => {
+    expect(byName("legal_name")?.required).toBe(true);
+  });
+
+  it("links canonical master data through FK pickers (no flat free-text geo/tax)", () => {
+    expect(byName("party_id")?.type).toBe("party");
+    expect(byName("parent_id")?.type).toBe("org");
+    expect(byName("hq_address_id")?.type).toBe("address");
+    expect(byName("currency_id")?.type).toBe("ref");
+  });
+
+  it("carries no raw text field pointing at an asset URL", () => {
+    const textUrlAsset = ORG_FIELDS.find(
+      (f) => /url$/i.test(f.name) && (f.type === undefined || f.type === "text"),
+    );
+    expect(textUrlAsset).toBeUndefined();
+  });
+});

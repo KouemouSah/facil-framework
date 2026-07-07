@@ -49,5 +49,49 @@
       "size": "Fichier trop volumineux (max 5 Mo).",
       "failed": "Échec du téléversement. Veuillez réessayer."
     }
+  },
+  "organizations": {
+    "title": "Organisations",
+    "subtitle": "Les organisations auxquelles vous avez accès.",
+    "search_placeholder": "Rechercher code / nom",
+    "new": "Nouveau",
+    "new_title": "Nouvelle organisation",
+    "edit_title": "Organisation",
+    "loading": "Chargement…",
+    "empty": "Aucune organisation.",
+    "col": { "code": "Code", "name": "Raison sociale", "actions": "Actions" },
+    "delete": {
+      "title": "Supprimer l’organisation ?",
+      "body": "Ceci supprime définitivement {name}. Saisissez son code pour confirmer.",
+      "confirm": "Supprimer"
+    },
+    "toast": {
+      "created": "Organisation créée.",
+      "deleted": "Organisation supprimée.",
+      "delete_failed": "Échec de la suppression. L’organisation a été restaurée."
+    }
+  },
+  "sites": {
+    "title": "Sites",
+    "subtitle": "Sites physiques et agences par organisation.",
+    "org_placeholder": "Rechercher une organisation…",
+    "new": "Nouveau",
+    "new_title": "Nouveau site",
+    "edit_title": "Site",
+    "loading": "Chargement…",
+    "empty": "Aucun site.",
+    "empty_no_org": "Sélectionnez une organisation.",
+    "primary": "principal",
+    "col": { "code": "Code", "name": "Nom", "type": "Type", "city": "Ville", "actions": "Actions" },
+    "delete": {
+      "title": "Supprimer le site ?",
+      "body": "Ceci supprime définitivement {name}.",
+      "confirm": "Supprimer"
+    },
+    "toast": {
+      "created": "Site créé.",
+      "deleted": "Site supprimé.",
+      "delete_failed": "Échec de la suppression. Le site a été restauré."
+    }
   }
 }
