@@ -31,10 +31,21 @@ function parseRows(text: string): string[][] {
   return rows;
 }
 
-export function parseCsv(text: string): Record<string, string>[] {
+/** Bulk-import row ceiling (audit 6, anti-DoS). Reference imports are small
+ *  (hundreds of rows); a file beyond this bounds the emitted rows / POST size. */
+export const MAX_IMPORT_ROWS = 10_000;
+
+export function parseCsv(text: string, opts?: { maxRows?: number }): Record<string, string>[] {
   const rows = parseRows(text).filter((r) => r.some((c) => c.trim() !== ""));
   if (rows.length === 0) return [];
+  const cap = opts?.maxRows ?? MAX_IMPORT_ROWS;
+  if (rows.length - 1 > cap) {
+    throw new Error(`CSV has too many rows (max ${cap})`);
+  }
   const header = rows[0].map((h) => h.trim());
+  // Values are stored verbatim (fidelity): CSV formula-injection (CWE-1236) is an
+  // export-time threat, neutralized on the way OUT by the backend csv_export._cell
+  // — mutating on import would corrupt legit values like "+240…" phone numbers.
   return rows.slice(1).map((r) =>
     Object.fromEntries(header.map((h, i) => [h, (r[i] ?? "").trim()])));
 }

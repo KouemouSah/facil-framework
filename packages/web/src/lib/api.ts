@@ -8,6 +8,8 @@
  * gone (idle/absolute expiry, revocation, or unauthenticated), we redirect to
  * the login page instead of surfacing a raw error.
  */
+import { sanitizeErrorMessage } from "@/lib/sanitize";
+
 export class ApiError extends Error {
   /** `detail` is the raw parsed error body. For a 422 it is FastAPI's
    * validation array (`[{loc:["body","field"], msg, type}]`), which lets a form
@@ -63,7 +65,7 @@ export async function apiFetch<T = unknown>(
         ?? (raw as { message?: unknown })?.message;
       // A 422 `detail` is an array (per-field) — keep a readable message but
       // hand the structured body to ApiError for field mapping.
-      message = typeof d === "string" ? d
+      message = typeof d === "string" ? sanitizeErrorMessage(d)
         : Array.isArray(d) ? "Validation failed" : message;
     } catch {
       /* non-JSON error body */
