@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.concurrency import enforce_if_match, row_etag
 from app.api.deps import get_session
 from app.core.providers import repository as repo
-from app.models.provider import CAPABILITIES
+from app.models.provider import CAPABILITIES, public_config, secret_keys_in
 from app.security.permission_dep import require_permission
 
 _MANAGE = Depends(require_permission("provider.manage"))
@@ -36,6 +36,11 @@ class ProviderIn(BaseModel):
 def _check_capability(capability: str) -> None:
     if capability not in CAPABILITIES:
         raise HTTPException(422, f"capability must be one of {CAPABILITIES}")
+
+
+def _public(obj) -> dict:
+    """Row → API dict: config stripped of any secret-bearing key + etag."""
+    return {**obj.as_dict(), "config": public_config(obj.config), "etag": row_etag(obj)}
 
 
 @router.get("/registered")
@@ -64,8 +69,7 @@ async def check_llm_routing(request: Request,
 @router.get("/")
 async def list_providers(capability: str | None = None,
                          session: AsyncSession = Depends(get_session)) -> list[dict]:
-    return [{**p.as_dict(), "etag": row_etag(p)}
-            for p in await repo.list_providers(session, capability)]
+    return [_public(p) for p in await repo.list_providers(session, capability)]
 
 
 @router.get("/{capability}/{code}")
@@ -74,13 +78,19 @@ async def get_provider(capability: str, code: str,
     obj = await repo.get_provider(session, capability, code)
     if obj is None:
         raise HTTPException(404, f"provider {capability}/{code} not found")
-    return {**obj.as_dict(), "etag": row_etag(obj)}
+    return _public(obj)
 
 
 @router.put("/{capability}/{code}", dependencies=[_MANAGE])
 async def put_provider(capability: str, code: str, body: ProviderIn, request: Request,
                        session: AsyncSession = Depends(get_session)) -> dict:
     _check_capability(capability)
+    # Secrets discipline enforced at the authority (not just the UI): credentials
+    # must never be stored in plaintext `config` — they travel via secret_ref/env.
+    leaked = secret_keys_in(body.config)
+    if leaked:
+        raise HTTPException(
+            422, f"config must not contain secret keys {sorted(leaked)}; use secret_ref")
     # Optimistic concurrency: if the client sent If-Match, reject a stale write
     # (409). Absent header = no check (create path / API clients).
     existing = await repo.get_provider(session, capability, code)
@@ -92,7 +102,7 @@ async def put_provider(capability: str, code: str, body: ProviderIn, request: Re
         rate_limit_per_minute=body.rate_limit_per_minute,
         retry_attempts=body.retry_attempts, timeout_seconds=body.timeout_seconds)
     await session.commit()
-    return {**obj.as_dict(), "etag": row_etag(obj)}
+    return _public(obj)
 
 
 @router.post("/{capability}/{code}/check")

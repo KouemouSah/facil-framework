@@ -136,3 +136,44 @@ async def test_check_unregistered_404(client):
     ac, _ = client
     r = await ac.post("/api/v1/admin/providers/storage/ftp/check", headers=AUTH)
     assert r.status_code == 404
+
+
+# --- Secrets discipline enforced at the backend (SEC-001) --------------------
+
+from app.models.provider import public_config, secret_keys_in  # noqa: E402
+
+
+def test_public_config_strips_secret_keys():
+    cfg = {"endpoint": "http://x", "access_key": "AKIA", "secret_key": "s", "bucket": "b"}
+    assert public_config(cfg) == {"endpoint": "http://x", "bucket": "b"}
+    assert secret_keys_in(cfg) == {"access_key", "secret_key"}
+    assert secret_keys_in({"endpoint": "x"}) == set()
+    assert public_config(None) == {}
+
+
+@pytest.mark.asyncio
+async def test_put_rejects_secret_keys_in_config(client):
+    ac, _ = client
+    r = await ac.put("/api/v1/admin/providers/storage/minio", headers=AUTH,
+                     json={"config": {"endpoint": "http://minio:9000", "secret_key": "leak"},
+                           "secret_ref": "minio_sa"})
+    assert r.status_code == 422, r.text
+    assert "secret" in r.text.lower()
+
+
+@pytest.mark.asyncio
+async def test_get_strips_secret_from_legacy_config(client):
+    ac, _ = client
+    # Simulate a legacy/env-injected row that already carries a secret in config
+    # (bypassing the API guard) — the READ response must not echo it.
+    from app.core.providers import repository as repo
+    from app.db.engine import Database  # noqa: F401
+    _, db = client
+    async with db.session_factory() as s:
+        await repo.upsert_provider(s, "storage", "minio",
+                                   config={"endpoint": "http://x", "access_key": "AKIA"},
+                                   secret_ref="minio_sa")
+        await s.commit()
+    got = await ac.get("/api/v1/admin/providers/storage/minio", headers=AUTH)
+    assert "access_key" not in got.json()["config"]
+    assert got.json()["config"] == {"endpoint": "http://x"}
