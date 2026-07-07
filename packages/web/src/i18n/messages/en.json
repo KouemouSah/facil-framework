@@ -126,6 +126,7 @@
     "new_title": "New organization",
     "edit_title": "Organization",
     "loading": "Loading…",
+    "load_error": "Failed to load the organization.",
     "empty": "No organizations.",
     "col": { "code": "Code", "name": "Legal name", "actions": "Actions" },
     "delete": {
@@ -147,6 +148,7 @@
     "new_title": "New site",
     "edit_title": "Site",
     "loading": "Loading…",
+    "load_error": "Failed to load the site.",
     "empty": "No sites.",
     "empty_no_org": "Select an organization.",
     "primary": "primary",

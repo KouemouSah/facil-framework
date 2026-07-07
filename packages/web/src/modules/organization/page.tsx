@@ -195,7 +195,7 @@ function OrgCreateSurface({ onClose, onCreated }: { onClose: () => void; onCreat
 function OrgEditSurface({ orgId, onClose, readOnly }: { orgId: string; onClose: () => void; readOnly: boolean }) {
   const t = useTranslations("organizations");
   const qc = useQueryClient();
-  const { data } = useQuery<Record<string, unknown>>({
+  const { data, isError } = useQuery<Record<string, unknown>>({
     queryKey: ["org", orgId],
     queryFn: () => getOrg(orgId),
   });
@@ -209,7 +209,8 @@ function OrgEditSurface({ orgId, onClose, readOnly }: { orgId: string; onClose: 
       resourceKey="orgs"
       onClose={onClose}
     >
-      {!data && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
+      {isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
+      {!data && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
       {data && (
         <RecordForm
           // Remount on a fresh load (post-save / post-conflict) to reseed initial + etag.

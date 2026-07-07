@@ -212,7 +212,7 @@ function SiteCreateSurface({ orgId, onClose, onCreated }: {
 function SiteEditSurface({ siteId, onClose, readOnly }: { siteId: string; onClose: () => void; readOnly: boolean }) {
   const t = useTranslations("sites");
   const qc = useQueryClient();
-  const { data } = useQuery<Record<string, unknown>>({
+  const { data, isError } = useQuery<Record<string, unknown>>({
     queryKey: ["site", siteId],
     queryFn: () => getSite(siteId),
   });
@@ -224,7 +224,8 @@ function SiteEditSurface({ siteId, onClose, readOnly }: { siteId: string; onClos
       resourceKey="sites"
       onClose={onClose}
     >
-      {!data && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
+      {isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
+      {!data && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
       {data && (
         <RecordForm
           key={String(data.etag ?? siteId)}
