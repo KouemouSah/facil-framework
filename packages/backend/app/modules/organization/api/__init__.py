@@ -8,6 +8,8 @@ subtree cannot reach another. The bootstrap admin-token still works (break-glass
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -96,6 +98,8 @@ async def export_organizations(q: str | None = None, sort: str = "code",
     return export_response(items, _ORG_EXPORT_COLS, "organizations", format, total=total)
 
 
+logger = logging.getLogger(__name__)
+
 _LABELS_CAP = 500
 
 
@@ -112,8 +116,13 @@ async def organization_labels(ids: str = "",
     if not requested:
         return {}
     # Deterministic truncation if a caller ever exceeds the cap (a set's iteration
-    # order is unspecified, so sort before slicing).
-    requested = set(sorted(requested)[:_LABELS_CAP])
+    # order is unspecified, so sort before slicing). Log it — a caller sending >cap
+    # ids means some labels silently fall back to the id, so the cap must be visible
+    # (no silent truncation) even though the UI never requests this many in practice.
+    if len(requested) > _LABELS_CAP:
+        logger.warning("organization_labels: %d ids requested, truncated to cap %d",
+                       len(requested), _LABELS_CAP)
+        requested = set(sorted(requested)[:_LABELS_CAP])
     visible = await visible_orgs(session, principal, "organization.read")
     org_ids = requested if visible is None else (requested & visible)
     if not org_ids:

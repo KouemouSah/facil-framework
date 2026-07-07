@@ -151,6 +151,7 @@
     "load_error": "Échec du chargement du site.",
     "empty": "Aucun site.",
     "empty_no_org": "Sélectionnez une organisation.",
+    "org_load_error": "Échec du chargement des organisations. Veuillez réessayer.",
     "primary": "principal",
     "col": { "code": "Code", "name": "Nom", "type": "Type", "city": "Ville", "actions": "Actions" },
     "delete": {

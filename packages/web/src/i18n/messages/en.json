@@ -151,6 +151,7 @@
     "load_error": "Failed to load the site.",
     "empty": "No sites.",
     "empty_no_org": "Select an organization.",
+    "org_load_error": "Couldn't load organizations. Please retry.",
     "primary": "primary",
     "col": { "code": "Code", "name": "Name", "type": "Type", "city": "City", "actions": "Actions" },
     "delete": {

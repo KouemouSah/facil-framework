@@ -151,6 +151,7 @@
     "load_error": "Error al cargar la sede.",
     "empty": "No hay sedes.",
     "empty_no_org": "Seleccione una organización.",
+    "org_load_error": "No se pudieron cargar las organizaciones. Inténtelo de nuevo.",
     "primary": "principal",
     "col": { "code": "Código", "name": "Nombre", "type": "Tipo", "city": "Ciudad", "actions": "Acciones" },
     "delete": {
