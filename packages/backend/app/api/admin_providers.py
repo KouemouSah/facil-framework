@@ -10,8 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.concurrency import enforce_if_match, row_etag
 from app.api.deps import get_session
+from app.auth import audit
 from app.core.providers import repository as repo
-from app.models.provider import CAPABILITIES, public_config, secret_keys_in
+from app.models.provider import (
+    CAPABILITIES, public_config, public_provider_map, secret_keys_in,
+)
+from app.security.auth_dep import require_auth
 from app.security.permission_dep import require_permission
 
 _MANAGE = Depends(require_permission("provider.manage"))
@@ -55,7 +59,11 @@ async def get_llm_routing(request: Request) -> dict:
     """Resolved role->provider routing + named providers (W6 ai.routing /
     ai.providers, with the sovereign split defaults when unset)."""
     router_ = request.app.state.llm_router
-    return {"routing": router_.routing(), "providers": router_.providers()}
+    # Strip any secret-bearing key from the provider map: /llm/routing is only
+    # `provider.read`-gated (lower than settings.read), so it must not echo a
+    # plaintext credential a legacy `ai.providers` row might carry (SEC-001).
+    return {"routing": router_.routing(),
+            "providers": public_provider_map(router_.providers())}
 
 
 @router.post("/llm/routing/check")
@@ -83,6 +91,7 @@ async def get_provider(capability: str, code: str,
 
 @router.put("/{capability}/{code}", dependencies=[_MANAGE])
 async def put_provider(capability: str, code: str, body: ProviderIn, request: Request,
+                       principal: dict = Depends(require_auth),
                        session: AsyncSession = Depends(get_session)) -> dict:
     _check_capability(capability)
     # Secrets discipline enforced at the authority (not just the UI): credentials
@@ -96,11 +105,15 @@ async def put_provider(capability: str, code: str, body: ProviderIn, request: Re
     existing = await repo.get_provider(session, capability, code)
     if existing is not None:
         enforce_if_match(request, row_etag(existing))
+    # Actor is server-derived (authenticated principal), never trusted from the body.
+    actor = principal.get("sub")
     obj = await repo.upsert_provider(
         session, capability, code, config=body.config, secret_ref=body.secret_ref,
-        is_active=body.is_active, updated_by=body.updated_by,
+        is_active=body.is_active, updated_by=actor,
         rate_limit_per_minute=body.rate_limit_per_minute,
         retry_attempts=body.retry_attempts, timeout_seconds=body.timeout_seconds)
+    await audit.record(session, audit.PROVIDER_CHANGED, account_id=actor,
+                       detail={"capability": capability, "code": code})
     await session.commit()
     return _public(obj)
 
@@ -121,19 +134,27 @@ async def check_provider(capability: str, code: str, request: Request,
 
 @router.post("/{capability}/{code}/default", dependencies=[_MANAGE])
 async def set_default(capability: str, code: str,
+                      principal: dict = Depends(require_auth),
                       session: AsyncSession = Depends(get_session)) -> dict:
     ok = await repo.set_default(session, capability, code)
-    await session.commit()
     if not ok:
         raise HTTPException(404, f"provider {capability}/{code} not found")
+    await audit.record(session, audit.PROVIDER_DEFAULT_SET,
+                       account_id=principal.get("sub"),
+                       detail={"capability": capability, "code": code})
+    await session.commit()
     return {"capability": capability, "default": code}
 
 
 @router.delete("/{capability}/{code}", dependencies=[_MANAGE])
 async def delete_provider(capability: str, code: str,
+                          principal: dict = Depends(require_auth),
                           session: AsyncSession = Depends(get_session)) -> dict:
     ok = await repo.delete_provider(session, capability, code)
-    await session.commit()
     if not ok:
         raise HTTPException(404, f"provider {capability}/{code} not found")
+    await audit.record(session, audit.PROVIDER_DELETED,
+                       account_id=principal.get("sub"),
+                       detail={"capability": capability, "code": code})
+    await session.commit()
     return {"deleted": f"{capability}/{code}"}

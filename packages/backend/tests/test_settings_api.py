@@ -102,3 +102,61 @@ async def test_setting_if_match_optimistic_concurrency(client):
                       headers={**AUTH, "If-Match": etag},
                       json={"value": {"public_chat": "cloud_x"}, "value_type": "json"})
     assert ok.status_code == 200 and ok.json()["etag"] != etag
+
+
+# --- SEC-001 (sub-project A verification): ai.providers secrets discipline ---
+
+from app.models.provider import provider_map_secret_keys, public_provider_map  # noqa: E402
+
+
+def test_provider_map_helpers_unit():
+    m = {"openai": {"kind": "openai_compat", "model": "m",
+                    "api_key": "sk-REAL", "api_key_secret": "ref/openai"}}
+    # A raw credential is a secret; the *reference* (api_key_secret) is not.
+    assert provider_map_secret_keys(m) == {"api_key"}
+    stripped = public_provider_map(m)
+    assert "api_key" not in stripped["openai"]
+    assert stripped["openai"]["api_key_secret"] == "ref/openai"  # reference kept
+    assert public_provider_map(None) is None  # non-dict passes through
+
+
+@pytest.mark.asyncio
+async def test_ai_providers_rejects_plaintext_secret(client):
+    ac, _ = client
+    ref = {"openai": {"kind": "openai_compat", "endpoint": "https://x/v1",
+                      "model": "m", "api_key_secret": "ref/openai"}}
+    ok = await ac.put("/api/v1/admin/settings/ai.providers", headers=AUTH,
+                      json={"value": ref, "value_type": "json"})
+    assert ok.status_code == 200, ok.text
+    bad = await ac.put("/api/v1/admin/settings/ai.providers", headers=AUTH,
+                       json={"value": {"openai": {"api_key": "sk-REAL"}},
+                             "value_type": "json"})
+    assert bad.status_code == 422 and "secret" in bad.text.lower()
+
+
+@pytest.mark.asyncio
+async def test_ai_providers_stripped_on_read(client):
+    ac, db = client
+    # Seed a LEGACY row directly (bypass the API guard) carrying a raw secret.
+    from app.config_store import repository as repo
+    async with db.session_factory() as s:
+        await repo.upsert_setting(s, "ai.providers",
+            {"openai": {"kind": "openai_compat", "model": "m", "api_key": "sk-LEGACY"}},
+            value_type="json")
+        await s.commit()
+    got = (await ac.get("/api/v1/admin/settings/ai.providers", headers=AUTH)).json()
+    assert "api_key" not in got["value"]["openai"]  # stripped on read
+    assert any(s["key"] == "ai.providers" and "api_key" not in s["value"]["openai"]
+               for s in (await ac.get("/api/v1/admin/settings/", headers=AUTH)).json())
+
+
+@pytest.mark.asyncio
+async def test_setting_mutation_audited(client):
+    ac, db = client
+    await ac.put("/api/v1/admin/settings/email.provider", headers=AUTH,
+                 json={"value": "smtp", "value_type": "string"})
+    from sqlalchemy import select
+    from app.auth.models import AuthAudit
+    async with db.session_factory() as s:
+        actions = {r.action for r in (await s.scalars(select(AuthAudit))).all()}
+    assert "setting_changed" in actions

@@ -30,6 +30,13 @@ ROLE_REVOKED = "role_revoked"
 ROLE_GRANTS_CHANGED = "role_grants_changed"
 BRANDING_CHANGED = "branding_changed"
 ASSET_UPLOADED = "asset_uploaded"
+# Provider registry + config-store mutations (sub-project A) — changing which
+# provider serves auth/storage/llm or an endpoint is highly sensitive.
+PROVIDER_CHANGED = "provider_changed"
+PROVIDER_DELETED = "provider_deleted"
+PROVIDER_DEFAULT_SET = "provider_default_set"
+SETTING_CHANGED = "setting_changed"
+SETTING_DELETED = "setting_deleted"
 
 
 async def record(db: AsyncSession, action: str, *, account_id: str | None = None,

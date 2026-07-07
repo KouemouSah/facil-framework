@@ -177,3 +177,17 @@ async def test_get_strips_secret_from_legacy_config(client):
     got = await ac.get("/api/v1/admin/providers/storage/minio", headers=AUTH)
     assert "access_key" not in got.json()["config"]
     assert got.json()["config"] == {"endpoint": "http://x"}
+
+
+@pytest.mark.asyncio
+async def test_put_provider_is_audited(client):
+    ac, db = client
+    r = await ac.put("/api/v1/admin/providers/llm/ollama", headers=AUTH,
+                     json={"config": {"endpoint": "http://ollama:11434", "model": "m"},
+                           "is_active": True})
+    assert r.status_code == 200, r.text
+    from sqlalchemy import select
+    from app.auth.models import AuthAudit
+    async with db.session_factory() as s:
+        actions = {x.action for x in (await s.scalars(select(AuthAudit))).all()}
+    assert "provider_changed" in actions
