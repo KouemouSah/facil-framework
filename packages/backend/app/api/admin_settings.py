@@ -18,7 +18,7 @@ from app.api.concurrency import enforce_if_match, row_etag
 from app.api.deps import get_session
 from app.auth import audit
 from app.config_store import repository as repo
-from app.models.provider import provider_map_secret_keys, public_provider_map
+from app.models.provider import provider_map_unknown_keys, public_provider_map
 from app.models.setting import VALUE_TYPES
 from app.security.auth_dep import require_auth
 from app.security.permission_dep import require_permission
@@ -88,15 +88,16 @@ async def put_setting(key: str, body: SettingIn, request: Request,
                       session: AsyncSession = Depends(get_session)) -> dict:
     if body.value_type not in VALUE_TYPES:
         raise HTTPException(422, f"value_type must be one of {VALUE_TYPES}")
-    # Secrets discipline on the LLM-routing map (SEC-001, authority-enforced): a
-    # provider entry must carry a secret REFERENCE (api_key_secret), never a raw
-    # credential — reject a plaintext secret before it is persisted / leaked.
+    # Secrets discipline on the LLM-routing map (SEC-001 / SEC-F2, authority-
+    # enforced): each `ai.providers` entry is ALLOWLISTED to kind/endpoint/model/
+    # api_key_secret — any other key (a raw credential, a case/variant) is rejected
+    # before it is persisted / leaked. Credentials travel via api_key_secret (a name).
     if key == _PROVIDER_MAP_KEY:
-        leaked = provider_map_secret_keys(body.value)
-        if leaked:
+        bad = provider_map_unknown_keys(body.value)
+        if bad:
             raise HTTPException(
-                422, f"ai.providers entries must not contain secret keys {sorted(leaked)}; "
-                     "use a secret reference (api_key_secret)")
+                422, "ai.providers entries only allow kind/endpoint/model/api_key_secret; "
+                     f"unexpected keys {sorted(bad)}")
     # Optimistic concurrency (routing edits ai.routing/ai.providers): reject a
     # stale write if If-Match is sent. Absent header = no check (backwards compat).
     existing = await repo.get_setting(session, key)
