@@ -10,6 +10,7 @@ import { ApiError } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -17,9 +18,12 @@ import { RecordForm, RecordSurface } from "@/components/shared";
 import { usePermissions } from "@/lib/use-permissions";
 import { buildProviderFields, createInitial, flattenProvider, splitPayload } from "./fields";
 import {
+  LLM_KINDS, ROUTING_ROLES, providersToMap, routingToProviders, validateRouting, type NamedProvider,
+} from "./routing";
+import {
   CAPABILITIES, checkProvider, checkRouting, deleteProvider, getProvider, getRouting,
-  listProviders, listRegistered, putProvider, setDefaultProvider,
-  type ConfigField, type HealthResult, type Provider, type RegisteredType, type RoutingCheck,
+  getSettingOrNull, listProviders, listRegistered, putProvider, putSetting, setDefaultProvider,
+  type ConfigField, type HealthResult, type Provider, type RegisteredType, type RoutingCheck, type RoutingView,
 } from "./api";
 
 const schemaFor = (registered: RegisteredType[] | undefined, cap: string, code: string): ConfigField[] =>
@@ -305,10 +309,11 @@ function EditSurface({ capability, code, readOnly, onClose }: {
   );
 }
 
-const ROUTING_ROLES = ["public_chat", "agent_backend", "embedding"] as const;
-
 function RoutingCard() {
   const t = useTranslations("providers");
+  const { can } = usePermissions();
+  const canEdit = can("settings.manage");
+  const [editing, setEditing] = useState(false);
   const routing = useQuery({ queryKey: ["llm-routing"], queryFn: getRouting });
   const probe = useMutation<RoutingCheck, Error>({
     mutationFn: checkRouting,
@@ -321,18 +326,27 @@ function RoutingCard() {
       <CardHeader>
         <div className="flex items-center gap-2">
           <CardTitle className="text-base">{t("routing.title")}</CardTitle>
-          <Button variant="outline" size="sm" className="ml-auto" disabled={probe.isPending}
-            onClick={() => probe.mutate()}>
-            {probe.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Activity className="size-3.5" />}
-            {t("routing.check")}
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            {canEdit && !editing && (
+              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>{t("routing.edit")}</Button>
+            )}
+            {!editing && (
+              <Button variant="outline" size="sm" disabled={probe.isPending} onClick={() => probe.mutate()}>
+                {probe.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Activity className="size-3.5" />}
+                {t("routing.check")}
+              </Button>
+            )}
+          </div>
         </div>
         <CardDescription>{t("routing.subtitle")}</CardDescription>
       </CardHeader>
       <CardContent>
         {routing.isLoading && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
         {routing.isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
-        {routing.data && (
+        {routing.data && editing && (
+          <RoutingEditor view={routing.data} onDone={() => setEditing(false)} onCancel={() => setEditing(false)} />
+        )}
+        {routing.data && !editing && (
           <dl className="grid gap-2 sm:grid-cols-3">
             {ROUTING_ROLES.map((role) => {
               const name = routing.data.routing[role];
@@ -354,5 +368,129 @@ function RoutingCard() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function RoutingEditor({ view, onDone, onCancel }: {
+  view: RoutingView; onDone: () => void; onCancel: () => void;
+}) {
+  const t = useTranslations("providers");
+  const qc = useQueryClient();
+  const [list, setList] = useState<NamedProvider[]>(() => routingToProviders(view));
+  const [routing, setRouting] = useState<Record<string, string>>(() => ({ ...view.routing }));
+  const [error, setError] = useState("");
+
+  // Raw settings carry the etags for optimistic concurrency (unset → null → create).
+  const routingSetting = useQuery({ queryKey: ["setting", "ai.routing"], queryFn: () => getSettingOrNull("ai.routing") });
+  const providersSetting = useQuery({ queryKey: ["setting", "ai.providers"], queryFn: () => getSettingOrNull("ai.providers") });
+  // Don't allow a save until BOTH etag lookups have settled — a blind PUT (no
+  // If-Match) would silently defeat the concurrency guard. isSuccess covers the
+  // unset (404→null) case too.
+  const etagsReady = routingSetting.isSuccess && providersSetting.isSuccess;
+  const etagsError = routingSetting.isError || providersSetting.isError;
+
+  const setProvider = (i: number, patch: Partial<NamedProvider>) =>
+    setList((l) => l.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
+  const addProvider = () =>
+    setList((l) => [...l, { name: "", kind: "ollama", endpoint: "", model: "", api_key_secret: "" }]);
+  const removeProvider = (i: number) => setList((l) => l.filter((_, idx) => idx !== i));
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const problem = validateRouting(list, routing);
+      if (problem) throw new Error(problem);
+      // Providers first (so routing references resolve), then the routing map.
+      await putSetting("ai.providers", providersToMap(list), providersSetting.data?.etag);
+      await putSetting("ai.routing", routing, routingSetting.data?.etag);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["llm-routing"] });
+      qc.invalidateQueries({ queryKey: ["setting"] });
+      toast({ variant: "success", title: t("routing.saved") });
+      onDone();
+    },
+    onError: (e: unknown) => {
+      if (e instanceof Error && (e.message === "duplicate_name" || e.message === "unknown_ref")) {
+        setError(t(`routing.err_${e.message}`)); // pre-PUT validation → nothing written
+      } else if (e instanceof ApiError && e.status === 409) {
+        // Lost update: reload the current routing and DISCARD local edits (never
+        // silently overwrite the concurrent change). The operator re-opens to redo.
+        qc.invalidateQueries({ queryKey: ["llm-routing"] });
+        qc.invalidateQueries({ queryKey: ["setting"] });
+        toast({ variant: "error", title: t("routing.conflict") });
+        onCancel();
+      } else {
+        // Non-atomic: providers may already be saved. Refresh etags + reload so the
+        // read view reflects the half-applied state; keep the editor open to retry.
+        qc.invalidateQueries({ queryKey: ["llm-routing"] });
+        qc.invalidateQueries({ queryKey: ["setting"] });
+        setError(e instanceof ApiError ? e.message : t("routing.save_failed"));
+      }
+    },
+  });
+
+  const names = list.map((p) => p.name.trim()).filter(Boolean);
+
+  return (
+    <div className="space-y-4">
+      <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+        {t("routing.secret_note")}
+      </p>
+
+      {/* Named providers */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">{t("routing.providers")}</span>
+          <Button variant="ghost" size="sm" className="ml-auto" onClick={addProvider}>
+            <Plus className="size-3.5" /> {t("add")}
+          </Button>
+        </div>
+        {list.length === 0 && <p className="text-xs text-muted-foreground">{t("routing.no_providers")}</p>}
+        {list.map((p, i) => (
+          <div key={i} className="grid gap-2 rounded-md border p-2 sm:grid-cols-[1fr_auto]">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Input placeholder={t("routing.name")} value={p.name} onChange={(e) => setProvider(i, { name: e.target.value })} />
+              <Select value={p.kind} onChange={(e) => setProvider(i, { kind: e.target.value })}>
+                {LLM_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
+              </Select>
+              <Input placeholder={t("routing.endpoint")} value={p.endpoint} onChange={(e) => setProvider(i, { endpoint: e.target.value })} />
+              <Input placeholder={t("routing.model")} value={p.model} onChange={(e) => setProvider(i, { model: e.target.value })} />
+              <Input className="sm:col-span-2" placeholder={t("routing.api_key_secret")} value={p.api_key_secret}
+                onChange={(e) => setProvider(i, { api_key_secret: e.target.value })} />
+            </div>
+            <Button variant="ghost" size="icon" onClick={() => removeProvider(i)} title={t("routing.remove")}>
+              <Trash2 className="size-3.5" />
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      {/* Role assignment */}
+      <div className="space-y-2">
+        <span className="text-sm font-medium">{t("routing.assignment")}</span>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {ROUTING_ROLES.map((role) => (
+            <div key={role} className="space-y-1">
+              <Label htmlFor={`rt-${role}`}>{t(`routing.role.${role}`)}</Label>
+              <Select id={`rt-${role}`} value={routing[role] ?? ""}
+                onChange={(e) => setRouting((r) => ({ ...r, [role]: e.target.value }))}>
+                <option value="">{t("routing.none")}</option>
+                {names.map((n) => <option key={n} value={n}>{n}</option>)}
+              </Select>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {etagsError && <p className="text-sm text-destructive">{t("routing.etags_error")}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <div className="flex items-center justify-end gap-2">
+        <Button variant="ghost" size="sm" onClick={onCancel}>{t("routing.cancel")}</Button>
+        <Button size="sm" disabled={save.isPending || !etagsReady}
+          onClick={() => { setError(""); save.mutate(); }}>
+          {save.isPending ? t("routing.saving") : t("routing.save")}
+        </Button>
+      </div>
+    </div>
   );
 }

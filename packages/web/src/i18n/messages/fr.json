@@ -302,7 +302,26 @@
         "public_chat": "Chat public",
         "agent_backend": "Backend agents",
         "embedding": "Embedding"
-      }
+      },
+      "edit": "Modifier",
+      "save": "Enregistrer le routage",
+      "saving": "Enregistrement…",
+      "cancel": "Annuler",
+      "saved": "Routage enregistré.",
+      "save_failed": "Échec de l’enregistrement.",
+      "conflict": "Le routage a changé ailleurs — vos modifications n'ont pas été appliquées. Rouvrez pour voir le routage actuel.",
+      "providers": "Fournisseurs nommés",
+      "no_providers": "Aucun fournisseur nommé.",
+      "assignment": "Affectation des rôles",
+      "name": "Nom",
+      "endpoint": "Endpoint",
+      "model": "Modèle",
+      "api_key_secret": "Référence clé API (nom du secret)",
+      "remove": "Supprimer",
+      "secret_note": "La référence de clé API est un nom dans le coffre — jamais la clé elle-même.",
+      "err_duplicate_name": "Les noms de fournisseurs doivent être uniques.",
+      "err_unknown_ref": "Un rôle pointe vers un fournisseur qui n’existe plus.",
+      "etags_error": "Impossible de charger la version actuelle du routage. Réessayez avant de modifier."
     },
     "unregistered_type": "Ce type de fournisseur n'est plus enregistré — sa configuration ne peut pas être modifiée ici.",
     "registry_error": "Impossible de charger le registre des fournisseurs — types disponibles et Ajouter indisponibles. Réessayez."

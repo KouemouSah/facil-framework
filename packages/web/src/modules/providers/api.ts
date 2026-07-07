@@ -1,4 +1,4 @@
-import { apiFetch } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
 
 export const PROVIDERS_BASE = "/api/v1/admin/providers";
 export const SETTINGS_BASE = "/api/v1/admin/settings";
@@ -76,3 +76,29 @@ export const deleteProvider = (cap: string, code: string) =>
 
 export const setDefaultProvider = (cap: string, code: string) =>
   apiFetch(`${PROVIDERS_BASE}/${cap}/${code}/default`, { method: "POST" });
+
+// --- Config-store settings (LLM routing is edited here: ai.routing / ai.providers) ---
+export interface Setting {
+  key: string;
+  value: unknown;
+  value_type: string;
+  etag?: string;
+}
+
+export const getSetting = (key: string) =>
+  apiFetch<Setting>(`${SETTINGS_BASE}/${key}`);
+
+/** GET a setting, treating "unset" (404) as null so the editor can start from the
+ *  resolved defaults and CREATE it on first save. Other errors still propagate. */
+export const getSettingOrNull = (key: string): Promise<Setting | null> =>
+  getSetting(key).catch((e) => {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  });
+
+export const putSetting = (key: string, value: unknown, etag?: string) =>
+  apiFetch<Setting>(`${SETTINGS_BASE}/${key}`, {
+    method: "PUT",
+    headers: etag ? { "If-Match": etag } : undefined,
+    body: JSON.stringify({ value, value_type: "json" }),
+  });

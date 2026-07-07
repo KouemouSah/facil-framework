@@ -302,7 +302,26 @@
         "public_chat": "Public chat",
         "agent_backend": "Agent backend",
         "embedding": "Embedding"
-      }
+      },
+      "edit": "Edit",
+      "save": "Save routing",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "saved": "Routing saved.",
+      "save_failed": "Save failed.",
+      "conflict": "Routing changed elsewhere — your edits were not applied. Reopen to see the current routing.",
+      "providers": "Named providers",
+      "no_providers": "No named provider yet.",
+      "assignment": "Role assignment",
+      "name": "Name",
+      "endpoint": "Endpoint",
+      "model": "Model",
+      "api_key_secret": "API key reference (secret name)",
+      "remove": "Remove",
+      "secret_note": "API key reference is a name in the secret store — never the key itself.",
+      "err_duplicate_name": "Provider names must be unique.",
+      "err_unknown_ref": "A role points at a provider that no longer exists.",
+      "etags_error": "Couldn't load the current routing version. Retry before editing."
     },
     "unregistered_type": "This provider type is no longer registered — its config can't be edited here.",
     "registry_error": "Couldn't load the provider registry — available types and Add are unavailable. Retry."

@@ -302,7 +302,26 @@
         "public_chat": "Chat público",
         "agent_backend": "Backend de agentes",
         "embedding": "Embedding"
-      }
+      },
+      "edit": "Editar",
+      "save": "Guardar enrutamiento",
+      "saving": "Guardando…",
+      "cancel": "Cancelar",
+      "saved": "Enrutamiento guardado.",
+      "save_failed": "Error al guardar.",
+      "conflict": "El enrutamiento cambió en otro lugar — sus cambios no se aplicaron. Vuelva a abrir para ver el enrutamiento actual.",
+      "providers": "Proveedores con nombre",
+      "no_providers": "Aún no hay proveedores con nombre.",
+      "assignment": "Asignación de roles",
+      "name": "Nombre",
+      "endpoint": "Endpoint",
+      "model": "Modelo",
+      "api_key_secret": "Referencia de clave API (nombre del secreto)",
+      "remove": "Eliminar",
+      "secret_note": "La referencia de la clave API es un nombre en el almacén de secretos — nunca la clave.",
+      "err_duplicate_name": "Los nombres de proveedores deben ser únicos.",
+      "err_unknown_ref": "Un rol apunta a un proveedor que ya no existe.",
+      "etags_error": "No se pudo cargar la versión actual del enrutamiento. Reintente antes de editar."
     },
     "unregistered_type": "Este tipo de proveedor ya no está registrado — su configuración no puede editarse aquí.",
     "registry_error": "No se pudo cargar el registro de proveedores — tipos disponibles y Añadir no disponibles. Reintente."
