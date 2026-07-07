@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_session
 from app.auth import audit
 from app.auth import service
+from app.branding import self_registration_enabled
 from app.auth.logout_token import is_backchannel_logout_token
 from app.identity import repository as identity_repo
 from app.identity import service as identity_service
@@ -78,8 +79,12 @@ class TokenIn(BaseModel):
 
 
 @router.post("/register", status_code=201, dependencies=[_RL_REGISTER])
-async def register(body: RegisterIn,
+async def register(body: RegisterIn, request: Request,
                    session: AsyncSession = Depends(get_session)) -> dict:
+    # Self-service registration is opt-in per tenant (default off). Admins always
+    # create accounts via the RBAC-gated POST /admin/accounts regardless.
+    if not self_registration_enabled(request.app.state.resolver):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "self-registration is disabled")
     try:
         account = await service.register(
             session, password=body.password, email=body.email,

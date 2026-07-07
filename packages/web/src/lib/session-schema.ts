@@ -23,6 +23,7 @@ export const SessionSchema = z.object({
       email: z.string().optional(),
       display_name: z.string().optional(),
       account_number: z.string().optional(),
+      email_verified: z.boolean().optional(),
     })
     .optional(),
   roles: z.array(AccountRoleSchema).optional(),
@@ -35,4 +36,15 @@ export type Session = z.infer<typeof SessionSchema>;
 export function parseSession(raw: unknown): Session {
   const r = SessionSchema.safeParse(raw);
   return r.success ? r.data : { authenticated: false };
+}
+
+/**
+ * Whether to nudge the signed-in user to verify their email (P7 in-app banner).
+ * True only for a real authenticated account that HAS an email and is explicitly
+ * unverified. Fail-safe: break-glass, NIU-only accounts (no email), and an
+ * unknown/absent `email_verified` never trigger the nag.
+ */
+export function needsEmailVerification(s: Session): boolean {
+  return !!s.authenticated && !s.break_glass
+    && !!s.account?.email && s.account?.email_verified === false;
 }

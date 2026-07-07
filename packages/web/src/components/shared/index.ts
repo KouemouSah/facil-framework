@@ -20,3 +20,4 @@ export { AddressField } from "@/components/ui/address-field";
 export { ScopePicker } from "@/components/ui/scope-picker";
 export { ExportMenu } from "@/components/export-menu";
 export { SavedViews } from "@/components/saved-views";
+export { AuthCard } from "@/components/shared/auth-card";

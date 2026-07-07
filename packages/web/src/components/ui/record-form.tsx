@@ -27,7 +27,7 @@ import { FileUpload } from "@/components/ui/file-upload";
  * error-prone here while meeting every §11bis behaviour.
  */
 export type FieldType =
-  | "text" | "textarea" | "number" | "checkbox"
+  | "text" | "email" | "password" | "textarea" | "number" | "checkbox"
   | "ref" | "org" | "party" | "address" | "json" | "select" | "image";
 
 export interface FieldDef {
@@ -62,9 +62,12 @@ export interface RecordFormProps {
   /** Offer "Save & New" (create mode only). */
   enableSaveNew?: boolean;
   layout?: "compact" | "rich";
+  /** Permission-driven: render every field disabled and hide the save actions
+   *  (the user may read but not write). The backend still enforces. */
+  readOnly?: boolean;
 }
 
-const SCALAR = new Set<FieldType>(["text", "textarea", "number", "select"]);
+const SCALAR = new Set<FieldType>(["text", "email", "password", "textarea", "number", "select"]);
 
 function initialValue(f: FieldDef, initial?: Record<string, unknown>): string {
   const v = initial?.[f.name];
@@ -73,7 +76,7 @@ function initialValue(f: FieldDef, initial?: Record<string, unknown>): string {
 
 export function RecordForm({
   fields, mode, initial, etag, onSubmit, onSuccess, onCancel, onConflict,
-  submitLabel = "Save", enableSaveNew = false, layout = "compact",
+  submitLabel = "Save", enableSaveNew = false, layout = "compact", readOnly = false,
 }: RecordFormProps) {
   const jsonFields = useMemo(() => fields.filter((f) => f.type === "json"), [fields]);
 
@@ -148,6 +151,9 @@ export function RecordForm({
   }
 
   async function submit(again: boolean) {
+    // No write permission → never fire (guards the implicit Enter-key submit even
+    // though the buttons are hidden). The backend still enforces regardless.
+    if (readOnly) return;
     setFormError("");
     if (!validate()) return;
     setSubmitting(true);
@@ -192,7 +198,9 @@ export function RecordForm({
   }
 
   function renderControl(f: FieldDef) {
-    const readOnly = f.immutable && mode === "edit";
+    // Disabled when the form is read-only (no write permission) or this is an
+    // immutable field in edit mode.
+    const fieldRO = readOnly || (f.immutable && mode === "edit");
     const id = `rf-${f.name}`;
     switch (f.type) {
       case "json":
@@ -209,34 +217,36 @@ export function RecordForm({
       case "ref":
         return (
           <RefSelect resource={f.refResource ?? "countries"} value={values[f.name] ?? ""}
-            filter={f.refFilter} disabled={readOnly}
+            filter={f.refFilter} disabled={fieldRO}
             onChange={(v) => setField(f.name, v)} />
         );
       case "org":
-        return <OrgCombobox value={values[f.name] ?? ""} onChange={(v) => setField(f.name, v)} />;
+        return <OrgCombobox value={values[f.name] ?? ""} disabled={fieldRO}
+          onChange={(v) => setField(f.name, v)} />;
       case "party":
-        return <PartyCombobox value={values[f.name] ?? ""} onChange={(v) => setField(f.name, v)} />;
+        return <PartyCombobox value={values[f.name] ?? ""} disabled={fieldRO}
+          onChange={(v) => setField(f.name, v)} />;
       case "address":
-        return <AddressField label={f.label} value={values[f.name] ?? ""}
+        return <AddressField label={f.label} value={values[f.name] ?? ""} disabled={fieldRO}
           onChange={(v) => setField(f.name, v)} />;
       case "image":
         // Stores the uploaded asset URL (same-origin) as a plain string value,
         // exactly like ref/address store an id — buildPayload/validate handle it.
-        return <FileUpload value={values[f.name] ?? ""} disabled={readOnly}
+        return <FileUpload value={values[f.name] ?? ""} disabled={fieldRO}
           onUploaded={(url) => setField(f.name, url)}
           onRemove={() => setField(f.name, "")} />;
       case "checkbox":
         return (
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" className="size-4 accent-[hsl(var(--primary))]"
-              checked={values[f.name] === "true"} disabled={readOnly}
+              checked={values[f.name] === "true"} disabled={fieldRO}
               onChange={(e) => setField(f.name, e.target.checked ? "true" : "")} />
             {f.label}
           </label>
         );
       case "select":
         return (
-          <select id={id} value={values[f.name] ?? ""} disabled={readOnly}
+          <select id={id} value={values[f.name] ?? ""} disabled={fieldRO}
             onChange={(e) => setField(f.name, e.target.value)}
             className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
             {!f.required && <option value="">— none —</option>}
@@ -247,17 +257,25 @@ export function RecordForm({
         );
       case "textarea":
         return (
-          <textarea id={id} value={values[f.name] ?? ""} rows={3} disabled={readOnly}
+          <textarea id={id} value={values[f.name] ?? ""} rows={3} disabled={fieldRO}
             placeholder={f.placeholder}
             onChange={(e) => setField(f.name, e.target.value)}
             className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50" />
         );
-      default:
+      default: {
+        // text (default) + number/email/password map straight to the native input
+        // type — email gives the right mobile keyboard, password masks entry.
+        const htmlType =
+          f.type === "number" ? "number"
+            : f.type === "email" ? "email"
+              : f.type === "password" ? "password"
+                : "text";
         return (
-          <Input id={id} type={f.type === "number" ? "number" : "text"}
-            value={values[f.name] ?? ""} disabled={readOnly} placeholder={f.placeholder}
+          <Input id={id} type={htmlType} autoComplete={f.type === "password" ? "new-password" : undefined}
+            value={values[f.name] ?? ""} disabled={fieldRO} placeholder={f.placeholder}
             onChange={(e) => setField(f.name, e.target.value)} />
         );
+      }
     }
   }
 
@@ -300,13 +318,16 @@ export function RecordForm({
           {onCancel && (
             <Button type="button" variant="ghost" size="sm" onClick={cancel}>Cancel</Button>
           )}
-          {mode === "create" && enableSaveNew && (
+          {/* No write permission → no save actions (the fields are disabled too). */}
+          {!readOnly && mode === "create" && enableSaveNew && (
             <Button type="button" variant="secondary" size="sm" disabled={submitting}
               onClick={() => submit(true)}>Save &amp; New</Button>
           )}
-          <Button type="submit" size="sm" disabled={submitting}>
-            {submitting ? "Saving…" : submitLabel}
-          </Button>
+          {!readOnly && (
+            <Button type="submit" size="sm" disabled={submitting}>
+              {submitting ? "Saving…" : submitLabel}
+            </Button>
+          )}
         </div>
       </div>
     </form>

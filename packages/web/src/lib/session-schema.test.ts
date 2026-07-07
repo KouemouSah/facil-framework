@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseSession } from "@/lib/session-schema";
+import { needsEmailVerification, parseSession, type Session } from "@/lib/session-schema";
 
 // Audit 9: the /session response is validated at the trust boundary. A malformed
 // or unexpected body must fail SAFE to an unauthenticated session (never crash a
@@ -26,5 +26,32 @@ describe("parseSession", () => {
 
   it("accepts a minimal unauthenticated session", () => {
     expect(parseSession({ authenticated: false })).toEqual({ authenticated: false });
+  });
+
+  it("parses email_verified on the account", () => {
+    const s = parseSession({ authenticated: true, account: { id: "a", email: "x@y.z", email_verified: false } });
+    expect(s.account?.email_verified).toBe(false);
+  });
+});
+
+describe("needsEmailVerification", () => {
+  const base = (over: Partial<Session["account"] & object> = {}, s: Partial<Session> = {}): Session => ({
+    authenticated: true,
+    account: { id: "a", email: "x@y.z", email_verified: false, ...over },
+    ...s,
+  });
+
+  it("nudges an authenticated account with an unverified email", () => {
+    expect(needsEmailVerification(base())).toBe(true);
+  });
+
+  it("stays quiet when verified, break-glass, unauthenticated, or email absent/unknown", () => {
+    expect(needsEmailVerification(base({ email_verified: true }))).toBe(false);
+    expect(needsEmailVerification(base({}, { break_glass: true }))).toBe(false);
+    expect(needsEmailVerification({ authenticated: false })).toBe(false);
+    // NIU-only account: no email to verify.
+    expect(needsEmailVerification(base({ email: undefined }))).toBe(false);
+    // Unknown verification state (backend omitted the field) → don't nag.
+    expect(needsEmailVerification(base({ email_verified: undefined }))).toBe(false);
   });
 });

@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
-from app.branding import branding_snapshot
+from app.branding import branding_snapshot, self_registration_enabled
 from app.rbac.models import AccountRole, RolePermission
 
 router = APIRouter(prefix="/api/v1/system", tags=["system"])
@@ -39,5 +39,11 @@ async def install_status(request: Request,
 @router.get("/branding")
 async def branding(request: Request) -> dict:
     """Public theme payload — consumed by the web layer to brand the whole app
-    (including the unauthenticated login/installer screens)."""
-    return branding_snapshot(request.app.state.resolver)
+    (including the unauthenticated login/installer screens). Also carries the
+    public `self_registration_enabled` feature flag (default false) so the login
+    screen can conditionally offer a "Create account" link."""
+    resolver = request.app.state.resolver
+    return {
+        **branding_snapshot(resolver),
+        "self_registration_enabled": self_registration_enabled(resolver),
+    }

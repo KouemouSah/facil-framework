@@ -10,7 +10,75 @@
     "reference": "Datos de referencia",
     "settings": "Ajustes"
   },
-  "auth": { "login": "Iniciar sesión", "logout": "Cerrar sesión" },
+  "auth": {
+    "login": "Iniciar sesión",
+    "logout": "Cerrar sesión",
+    "sign_in_title": "Iniciar sesión en Facil",
+    "sign_in_subtitle": "Use su correo o su identificador",
+    "identifier": "Correo o identificador",
+    "password": "Contraseña",
+    "show_password": "Mostrar la contraseña",
+    "hide_password": "Ocultar la contraseña",
+    "totp": "Código de dos factores",
+    "totp_placeholder": "123456 o código de respaldo",
+    "signing_in": "Iniciando sesión…",
+    "session_expired": "Su sesión expiró — inicie sesión de nuevo.",
+    "invalid_credentials": "Credenciales no válidas.",
+    "locked": "Cuenta bloqueada temporalmente. Inténtelo más tarde.",
+    "network_error": "Error de red. Inténtelo de nuevo.",
+    "service_unavailable": "Servicio no disponible. Inténtelo en unos momentos.",
+    "sso": "Iniciar sesión con su organización (SSO)",
+    "forgot": "¿Olvidó su contraseña?",
+    "create_account": "Crear cuenta",
+    "register": {
+      "title": "Cree su cuenta",
+      "subtitle": "Regístrese para acceder a la plataforma.",
+      "email": "Correo",
+      "password": "Contraseña",
+      "display_name": "Nombre visible",
+      "submit": "Crear cuenta",
+      "creating": "Creando…",
+      "have_account": "¿Ya tiene una cuenta?",
+      "sign_in": "Iniciar sesión",
+      "success": "Cuenta creada — ya puede iniciar sesión.",
+      "failed": "Error en el registro.",
+      "email_taken": "Ese correo ya está registrado."
+    },
+    "forgot_page": {
+      "title": "Restablecer la contraseña",
+      "subtitle": "Le enviaremos un enlace de restablecimiento si la cuenta existe.",
+      "email": "Correo",
+      "submit": "Enviar el enlace",
+      "sending": "Enviando…",
+      "sent": "Si existe una cuenta para {email}, un enlace de restablecimiento está en camino.",
+      "back": "Volver a iniciar sesión"
+    },
+    "reset": {
+      "title": "Elija una nueva contraseña",
+      "subtitle": "Sus otras sesiones se cerrarán.",
+      "new_password": "Nueva contraseña",
+      "submit": "Establecer contraseña",
+      "saving": "Guardando…",
+      "invalid": "Enlace de restablecimiento no válido o expirado.",
+      "weak": "Esa contraseña no está permitida. Elija una más segura."
+    },
+    "verify": {
+      "title": "Verificación de correo",
+      "open_link": "Abra el enlace de su correo de verificación.",
+      "ok": "Su correo está verificado.",
+      "error": "Enlace de verificación no válido o expirado.",
+      "verifying": "Verificando…",
+      "continue": "Continuar a iniciar sesión"
+    },
+    "banner": {
+      "message": "Verifique su correo para proteger su cuenta.",
+      "resend": "Reenviar el enlace",
+      "sending": "Enviando…",
+      "sent": "Correo de verificación enviado.",
+      "error": "No se pudo enviar — inténtelo de nuevo.",
+      "dismiss": "Ocultar"
+    }
+  },
   "common": { "search": "Buscar", "loading": "Cargando…", "density": "Densidad", "skip_to_content": "Ir al contenido", "close": "Cerrar", "dismiss": "Descartar", "open_menu": "Abrir menú", "resize_panel": "Redimensionar el panel" },
   "errors": {
     "title": "Algo salió mal",
@@ -48,6 +116,104 @@
       "type": "Tipo de archivo no admitido. Use PNG, JPG, GIF, WEBP o ICO (SVG no permitido).",
       "size": "El archivo es demasiado grande (máx. 5 MB).",
       "failed": "Error al subir. Inténtelo de nuevo."
+    }
+  },
+  "organizations": {
+    "title": "Organizaciones",
+    "subtitle": "Organizaciones a las que tiene acceso.",
+    "search_placeholder": "Buscar código / nombre",
+    "new": "Nuevo",
+    "new_title": "Nueva organización",
+    "edit_title": "Organización",
+    "loading": "Cargando…",
+    "empty": "No hay organizaciones.",
+    "col": { "code": "Código", "name": "Razón social", "actions": "Acciones" },
+    "delete": {
+      "title": "¿Eliminar la organización?",
+      "body": "Esto elimina permanentemente {name}. Escriba su código para confirmar.",
+      "confirm": "Eliminar"
+    },
+    "toast": {
+      "created": "Organización creada.",
+      "deleted": "Organización eliminada.",
+      "delete_failed": "Error al eliminar. La organización fue restaurada."
+    }
+  },
+  "sites": {
+    "title": "Sedes",
+    "subtitle": "Sedes físicas y sucursales por organización.",
+    "org_placeholder": "Buscar organización…",
+    "new": "Nuevo",
+    "new_title": "Nueva sede",
+    "edit_title": "Sede",
+    "loading": "Cargando…",
+    "empty": "No hay sedes.",
+    "empty_no_org": "Seleccione una organización.",
+    "primary": "principal",
+    "col": { "code": "Código", "name": "Nombre", "type": "Tipo", "city": "Ciudad", "actions": "Acciones" },
+    "delete": {
+      "title": "¿Eliminar la sede?",
+      "body": "Esto elimina permanentemente {name}.",
+      "confirm": "Eliminar"
+    },
+    "toast": {
+      "created": "Sede creada.",
+      "deleted": "Sede eliminada.",
+      "delete_failed": "Error al eliminar. La sede fue restaurada."
+    }
+  },
+  "agents": {
+    "title": "Agentes y cuentas",
+    "subtitle": "Crear cuentas, definir estado, asignar roles.",
+    "search_placeholder": "Buscar correo / nombre / NIU",
+    "new": "Nueva cuenta",
+    "new_title": "Nueva cuenta",
+    "edit_title": "Cuenta",
+    "loading": "Cargando…",
+    "load_error": "Error al cargar la cuenta.",
+    "empty": "No hay cuentas.",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "col": { "identifier": "Identificador", "name": "Nombre", "status": "Estado" },
+    "bulk": {
+      "selected": "{count} seleccionada(s)",
+      "assign_role": "Asignar rol",
+      "activate": "Activar",
+      "suspend": "Suspender",
+      "clear": "Limpiar"
+    },
+    "status": {
+      "confirm_title": "¿Cambiar el estado a {status}?",
+      "confirm_body": "Esto pone {name} en {status} y revoca sus sesiones activas.",
+      "bulk_confirm_body": "Esto pone {count} cuenta(s) en {status} y revoca sus sesiones activas.",
+      "confirm_label": "Cambiar estado"
+    },
+    "meta": { "status": "Estado", "niu": "NIU" },
+    "roles": {
+      "title": "Roles",
+      "none": "Sin roles asignados.",
+      "revoke": "Revocar",
+      "global": "Global",
+      "role": "Rol",
+      "scope": "Alcance",
+      "select": "— seleccionar —",
+      "assign": "Asignar rol",
+      "assigning": "Asignando…",
+      "assigned": "Rol asignado.",
+      "assign_failed": "Error al asignar.",
+      "assign_partial": "{ok} asignada(s), {failed} con error (sin permiso o no encontrada).",
+      "revoke_failed": "Error al revocar.",
+      "load_error": "Error al cargar los roles."
+    },
+    "assign_dialog": { "title": "Asignar rol a {count} cuenta(s)" },
+    "toast": {
+      "created": "Cuenta creada.",
+      "saved": "Cuenta actualizada.",
+      "status_changed": "Estado cambiado.",
+      "status_failed": "Error al cambiar el estado.",
+      "bulk_done": "{count} cuenta(s) puesta(s) en {status}.",
+      "bulk_partial": "{ok} actualizada(s), {failed} con error (sin permiso o no encontrada).",
+      "bulk_failed": "Error al cambiar el estado en masa."
     }
   }
 }

@@ -47,7 +47,9 @@ async def e2e(tmp_path, monkeypatch):
     application = FastAPI()
     application.state.db = db
     application.state.resolver = ConfigResolver(
-        defaults={"branding.app_name": "Facil", "profile": "empty"}, env={})
+        defaults={"branding.app_name": "Facil", "profile": "empty",
+                  # This e2e seeds accounts via POST /auth/register (opt-in flag).
+                  "auth.self_registration_enabled": True}, env={})
     application.state.registry = default_registry()
     application.state.auth = application.state.registry.build(
         "auth", "native", {"issuer": "facil"})

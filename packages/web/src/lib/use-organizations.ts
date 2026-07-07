@@ -1,6 +1,6 @@
 "use client";
 
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 
 export interface Org {
@@ -15,30 +15,26 @@ export function orgLabel(o: Org): string {
 }
 
 /**
- * Resolve org labels by id (server-side, cached per id). Used to render an org
- * name where we only hold the id (e.g. role-assignment scopes) — without ever
- * fetching the whole org list. Picking is done by OrgCombobox (server search);
- * this is the read-side counterpart, so neither path relies on a client-side cap.
+ * Resolve org labels by id in ONE request (backend batch endpoint
+ * `GET /modules/organization/labels?ids=`), instead of the former N `useQueries`
+ * fan-out (E6, N+1 removal). Used to render an org name where we only hold the id
+ * (e.g. role-assignment scopes) — without ever fetching the whole org list.
  *
- * Degrades gracefully: if an id can't be resolved (org module disabled, deleted
- * org…), it's simply absent from the map and the caller falls back to the id.
+ * Degrades gracefully: ids the caller can't read (scope) or that don't exist are
+ * simply absent from the map, and the caller falls back to the id. Keyed on the
+ * sorted id set so the same set hits the cache regardless of order.
  */
 export function useOrgLabels(ids: (string | null | undefined)[]): Record<string, string> {
-  const unique = Array.from(new Set(ids.filter((x): x is string => !!x)));
-  const results = useQueries({
-    queries: unique.map((id) => ({
-      queryKey: ["org-label", id],
-      queryFn: () => apiFetch<Org>(`/api/v1/modules/organization/${id}`),
-      staleTime: 5 * 60 * 1000,
-      retry: false,
-    })),
+  const unique = Array.from(new Set(ids.filter((x): x is string => !!x))).sort();
+  const q = useQuery<Record<string, string>>({
+    queryKey: ["org-labels", unique.join(",")],
+    queryFn: () => apiFetch<Record<string, string>>(
+      `/api/v1/modules/organization/labels?ids=${unique.map(encodeURIComponent).join(",")}`),
+    enabled: unique.length > 0,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
   });
-  const labels: Record<string, string> = {};
-  unique.forEach((id, i) => {
-    const data = results[i]?.data;
-    if (data) labels[id] = orgLabel(data);
-  });
-  return labels;
+  return q.data ?? {};
 }
 
 /** The first organization the caller can access (for defaulting a picker).

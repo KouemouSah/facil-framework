@@ -325,3 +325,30 @@ async def test_blank_fk_clears_link(links_client):
                        json={"currency_id": ""})
     assert clr.status_code == 200, clr.text
     assert clr.json()["currency_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_labels_batch_resolves_many_in_one_call(org_client):
+    a = await _mk_org(org_client, code="alpha")
+    b = await _mk_org(org_client, code="beta")
+    r = await org_client.get(f"{BASE}/labels?ids={a},{b}", headers=AUTH)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body == {a: "Acme Corp", b: "Acme Corp"}
+
+
+@pytest.mark.asyncio
+async def test_labels_empty_and_unknown(org_client):
+    a = await _mk_org(org_client, code="gamma")
+    # No ids → empty map.
+    assert (await org_client.get(f"{BASE}/labels", headers=AUTH)).json() == {}
+    assert (await org_client.get(f"{BASE}/labels?ids=", headers=AUTH)).json() == {}
+    # Unknown ids are simply absent (graceful degradation, no 404).
+    r = await org_client.get(f"{BASE}/labels?ids={a},does-not-exist", headers=AUTH)
+    assert r.status_code == 200
+    assert r.json() == {a: "Acme Corp"}
+
+
+@pytest.mark.asyncio
+async def test_labels_requires_auth(org_client):
+    assert (await org_client.get(f"{BASE}/labels?ids=x")).status_code == 401

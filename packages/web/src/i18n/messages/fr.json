@@ -10,7 +10,75 @@
     "reference": "Données de référence",
     "settings": "Paramètres"
   },
-  "auth": { "login": "Se connecter", "logout": "Se déconnecter" },
+  "auth": {
+    "login": "Se connecter",
+    "logout": "Se déconnecter",
+    "sign_in_title": "Connexion à Facil",
+    "sign_in_subtitle": "Utilisez votre e-mail ou votre identifiant",
+    "identifier": "E-mail ou identifiant",
+    "password": "Mot de passe",
+    "show_password": "Afficher le mot de passe",
+    "hide_password": "Masquer le mot de passe",
+    "totp": "Code à deux facteurs",
+    "totp_placeholder": "123456 ou code de secours",
+    "signing_in": "Connexion…",
+    "session_expired": "Votre session a expiré — veuillez vous reconnecter.",
+    "invalid_credentials": "Identifiants invalides.",
+    "locked": "Compte temporairement verrouillé. Réessayez plus tard.",
+    "network_error": "Erreur réseau. Veuillez réessayer.",
+    "service_unavailable": "Service indisponible. Veuillez réessayer bientôt.",
+    "sso": "Se connecter avec votre organisation (SSO)",
+    "forgot": "Mot de passe oublié ?",
+    "create_account": "Créer un compte",
+    "register": {
+      "title": "Créer votre compte",
+      "subtitle": "Inscrivez-vous pour accéder à la plateforme.",
+      "email": "E-mail",
+      "password": "Mot de passe",
+      "display_name": "Nom affiché",
+      "submit": "Créer le compte",
+      "creating": "Création…",
+      "have_account": "Vous avez déjà un compte ?",
+      "sign_in": "Se connecter",
+      "success": "Compte créé — vous pouvez vous connecter.",
+      "failed": "Échec de l’inscription.",
+      "email_taken": "Cet e-mail est déjà enregistré."
+    },
+    "forgot_page": {
+      "title": "Réinitialiser le mot de passe",
+      "subtitle": "Nous vous enverrons un lien de réinitialisation si le compte existe.",
+      "email": "E-mail",
+      "submit": "Envoyer le lien",
+      "sending": "Envoi…",
+      "sent": "Si un compte existe pour {email}, un lien de réinitialisation est en route.",
+      "back": "Retour à la connexion"
+    },
+    "reset": {
+      "title": "Choisir un nouveau mot de passe",
+      "subtitle": "Vos autres sessions seront déconnectées.",
+      "new_password": "Nouveau mot de passe",
+      "submit": "Définir le mot de passe",
+      "saving": "Enregistrement…",
+      "invalid": "Lien de réinitialisation invalide ou expiré.",
+      "weak": "Ce mot de passe n’est pas autorisé. Choisissez-en un plus robuste."
+    },
+    "verify": {
+      "title": "Vérification de l’e-mail",
+      "open_link": "Ouvrez le lien reçu dans votre e-mail de vérification.",
+      "ok": "Votre e-mail est vérifié.",
+      "error": "Lien de vérification invalide ou expiré.",
+      "verifying": "Vérification…",
+      "continue": "Continuer vers la connexion"
+    },
+    "banner": {
+      "message": "Vérifiez votre e-mail pour sécuriser votre compte.",
+      "resend": "Renvoyer le lien",
+      "sending": "Envoi…",
+      "sent": "E-mail de vérification envoyé.",
+      "error": "Envoi impossible — réessayez.",
+      "dismiss": "Masquer"
+    }
+  },
   "common": { "search": "Rechercher", "loading": "Chargement…", "density": "Densité", "skip_to_content": "Aller au contenu", "close": "Fermer", "dismiss": "Masquer", "open_menu": "Ouvrir le menu", "resize_panel": "Redimensionner le panneau" },
   "errors": {
     "title": "Une erreur est survenue",
@@ -48,6 +116,104 @@
       "type": "Type de fichier non pris en charge. Utilisez PNG, JPG, GIF, WEBP ou ICO (SVG interdit).",
       "size": "Fichier trop volumineux (max 5 Mo).",
       "failed": "Échec du téléversement. Veuillez réessayer."
+    }
+  },
+  "organizations": {
+    "title": "Organisations",
+    "subtitle": "Les organisations auxquelles vous avez accès.",
+    "search_placeholder": "Rechercher code / nom",
+    "new": "Nouveau",
+    "new_title": "Nouvelle organisation",
+    "edit_title": "Organisation",
+    "loading": "Chargement…",
+    "empty": "Aucune organisation.",
+    "col": { "code": "Code", "name": "Raison sociale", "actions": "Actions" },
+    "delete": {
+      "title": "Supprimer l’organisation ?",
+      "body": "Ceci supprime définitivement {name}. Saisissez son code pour confirmer.",
+      "confirm": "Supprimer"
+    },
+    "toast": {
+      "created": "Organisation créée.",
+      "deleted": "Organisation supprimée.",
+      "delete_failed": "Échec de la suppression. L’organisation a été restaurée."
+    }
+  },
+  "sites": {
+    "title": "Sites",
+    "subtitle": "Sites physiques et agences par organisation.",
+    "org_placeholder": "Rechercher une organisation…",
+    "new": "Nouveau",
+    "new_title": "Nouveau site",
+    "edit_title": "Site",
+    "loading": "Chargement…",
+    "empty": "Aucun site.",
+    "empty_no_org": "Sélectionnez une organisation.",
+    "primary": "principal",
+    "col": { "code": "Code", "name": "Nom", "type": "Type", "city": "Ville", "actions": "Actions" },
+    "delete": {
+      "title": "Supprimer le site ?",
+      "body": "Ceci supprime définitivement {name}.",
+      "confirm": "Supprimer"
+    },
+    "toast": {
+      "created": "Site créé.",
+      "deleted": "Site supprimé.",
+      "delete_failed": "Échec de la suppression. Le site a été restauré."
+    }
+  },
+  "agents": {
+    "title": "Agents & comptes",
+    "subtitle": "Créer des comptes, définir le statut, attribuer des rôles.",
+    "search_placeholder": "Rechercher e-mail / nom / NIU",
+    "new": "Nouveau compte",
+    "new_title": "Nouveau compte",
+    "edit_title": "Compte",
+    "loading": "Chargement…",
+    "load_error": "Échec du chargement du compte.",
+    "empty": "Aucun compte.",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "col": { "identifier": "Identifiant", "name": "Nom", "status": "Statut" },
+    "bulk": {
+      "selected": "{count} sélectionné(s)",
+      "assign_role": "Attribuer un rôle",
+      "activate": "Activer",
+      "suspend": "Suspendre",
+      "clear": "Effacer"
+    },
+    "status": {
+      "confirm_title": "Passer le statut à {status} ?",
+      "confirm_body": "Ceci passe {name} à {status} et révoque ses sessions actives.",
+      "bulk_confirm_body": "Ceci passe {count} compte(s) à {status} et révoque leurs sessions actives.",
+      "confirm_label": "Changer le statut"
+    },
+    "meta": { "status": "Statut", "niu": "NIU" },
+    "roles": {
+      "title": "Rôles",
+      "none": "Aucun rôle attribué.",
+      "revoke": "Révoquer",
+      "global": "Global",
+      "role": "Rôle",
+      "scope": "Portée",
+      "select": "— sélectionner —",
+      "assign": "Attribuer le rôle",
+      "assigning": "Attribution…",
+      "assigned": "Rôle attribué.",
+      "assign_failed": "Échec de l’attribution.",
+      "assign_partial": "{ok} attribué(s), {failed} en échec (droits insuffisants ou introuvable).",
+      "revoke_failed": "Échec de la révocation.",
+      "load_error": "Échec du chargement des rôles."
+    },
+    "assign_dialog": { "title": "Attribuer un rôle à {count} compte(s)" },
+    "toast": {
+      "created": "Compte créé.",
+      "saved": "Compte mis à jour.",
+      "status_changed": "Statut modifié.",
+      "status_failed": "Échec du changement de statut.",
+      "bulk_done": "{count} compte(s) passé(s) à {status}.",
+      "bulk_partial": "{ok} mis à jour, {failed} en échec (droits insuffisants ou introuvable).",
+      "bulk_failed": "Échec du changement de statut en masse."
     }
   }
 }

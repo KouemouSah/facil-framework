@@ -46,6 +46,10 @@
   }
   * { @apply border-border; }
   body { @apply bg-background text-foreground antialiased; }
+  /* Global keyboard-focus fallback (a11y AA / E7): any focusable element that
+     doesn't set its own focus style still shows a visible ring. Component-level
+     `focus-visible:ring-2 focus-visible:outline-none` (utilities layer) wins. */
+  :focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
   /* App is a fixed-shell SPA: the page never scrolls — only data regions do. */
   html, body { height: 100%; }
 }

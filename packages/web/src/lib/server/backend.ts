@@ -54,13 +54,15 @@ export interface Branding {
   support_email: string;
   support_url: string;
   supported_locales: string[];
+  /** Public feature flag from the backend (default false) — gates self-service registration. */
+  self_registration_enabled: boolean;
 }
 
 const DEFAULT_BRANDING: Branding = {
   app_name: "Facil", tagline: "", logo_url: "", logo_dark_url: "", favicon_url: "",
   login_background_url: "", primary_color: "#2563eb", secondary_color: "#7c3aed",
   theme_mode: "light", default_locale: "en", support_email: "", support_url: "",
-  supported_locales: ["en", "fr", "es"],
+  supported_locales: ["en", "fr", "es"], self_registration_enabled: false,
 };
 
 /** Public theme payload for SSR theming. Cached (revalidate 60s, tag "branding")

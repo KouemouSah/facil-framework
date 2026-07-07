@@ -13,12 +13,13 @@ import { type Org, orgLabel } from "@/lib/use-organizations";
  * count. Lightweight (no combobox dependency): debounced search, click-to-select,
  * click-outside to close. `value` is the org id ("" = none).
  */
-export function OrgCombobox({ value, onChange, placeholder = "Search organization…", allowNone = true, noneLabel = "— none —" }: {
+export function OrgCombobox({ value, onChange, placeholder = "Search organization…", allowNone = true, noneLabel = "— none —", disabled = false }: {
   value: string;
   onChange: (id: string) => void;
   placeholder?: string;
   allowNone?: boolean;
   noneLabel?: string;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState("");
@@ -58,14 +59,14 @@ export function OrgCombobox({ value, onChange, placeholder = "Search organizatio
 
   return (
     <div className="relative" ref={boxRef}>
-      <button type="button"
-        className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      <button type="button" disabled={disabled}
+        className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
         onClick={() => setOpen((o) => !o)}>
         <span className={cn("truncate", !value && "text-muted-foreground")}>
           {value ? selectedLabel : (allowNone ? noneLabel : placeholder)}
         </span>
         <span className="flex items-center gap-1">
-          {value && (
+          {value && !disabled && (
             <X className="size-3.5 text-muted-foreground hover:text-foreground"
               onClick={(e) => { e.stopPropagation(); onChange(""); }} />
           )}

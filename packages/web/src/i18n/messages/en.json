@@ -10,7 +10,75 @@
     "reference": "Reference data",
     "settings": "Settings"
   },
-  "auth": { "login": "Sign in", "logout": "Sign out" },
+  "auth": {
+    "login": "Sign in",
+    "logout": "Sign out",
+    "sign_in_title": "Sign in to Facil",
+    "sign_in_subtitle": "Use your email or ID number",
+    "identifier": "Email or ID",
+    "password": "Password",
+    "show_password": "Show password",
+    "hide_password": "Hide password",
+    "totp": "Two-factor code",
+    "totp_placeholder": "123456 or backup code",
+    "signing_in": "Signing in…",
+    "session_expired": "Your session expired — please sign in again.",
+    "invalid_credentials": "Invalid credentials.",
+    "locked": "Account temporarily locked. Try again later.",
+    "network_error": "Network error. Please try again.",
+    "service_unavailable": "Service unavailable. Please try again shortly.",
+    "sso": "Sign in with your organization (SSO)",
+    "forgot": "Forgot password?",
+    "create_account": "Create account",
+    "register": {
+      "title": "Create your account",
+      "subtitle": "Register to access the platform.",
+      "email": "Email",
+      "password": "Password",
+      "display_name": "Display name",
+      "submit": "Create account",
+      "creating": "Creating…",
+      "have_account": "Already have an account?",
+      "sign_in": "Sign in",
+      "success": "Account created — you can sign in now.",
+      "failed": "Registration failed.",
+      "email_taken": "That email is already registered."
+    },
+    "forgot_page": {
+      "title": "Reset your password",
+      "subtitle": "We'll email you a reset link if the account exists.",
+      "email": "Email",
+      "submit": "Send reset link",
+      "sending": "Sending…",
+      "sent": "If an account exists for {email}, a reset link is on its way.",
+      "back": "Back to sign in"
+    },
+    "reset": {
+      "title": "Choose a new password",
+      "subtitle": "Your other sessions will be signed out.",
+      "new_password": "New password",
+      "submit": "Set password",
+      "saving": "Saving…",
+      "invalid": "Invalid or expired reset link.",
+      "weak": "That password isn't allowed. Choose a stronger one."
+    },
+    "verify": {
+      "title": "Email verification",
+      "open_link": "Open the link from your verification email.",
+      "ok": "Your email is verified.",
+      "error": "Invalid or expired verification link.",
+      "verifying": "Verifying…",
+      "continue": "Continue to sign in"
+    },
+    "banner": {
+      "message": "Verify your email to secure your account.",
+      "resend": "Resend link",
+      "sending": "Sending…",
+      "sent": "Verification email sent.",
+      "error": "Couldn't send — try again.",
+      "dismiss": "Dismiss"
+    }
+  },
   "common": { "search": "Search", "loading": "Loading…", "density": "Density", "skip_to_content": "Skip to content", "close": "Close", "dismiss": "Dismiss", "open_menu": "Open menu", "resize_panel": "Resize panel" },
   "errors": {
     "title": "Something went wrong",
@@ -48,6 +116,104 @@
       "type": "Unsupported file type. Use PNG, JPG, GIF, WEBP or ICO (SVG is not allowed).",
       "size": "File is too large (max 5 MB).",
       "failed": "Upload failed. Please try again."
+    }
+  },
+  "organizations": {
+    "title": "Organizations",
+    "subtitle": "Tenants you can access.",
+    "search_placeholder": "Search code / name",
+    "new": "New",
+    "new_title": "New organization",
+    "edit_title": "Organization",
+    "loading": "Loading…",
+    "empty": "No organizations.",
+    "col": { "code": "Code", "name": "Legal name", "actions": "Actions" },
+    "delete": {
+      "title": "Delete organization?",
+      "body": "This permanently removes {name}. Type its code to confirm.",
+      "confirm": "Delete"
+    },
+    "toast": {
+      "created": "Organization created.",
+      "deleted": "Organization deleted.",
+      "delete_failed": "Delete failed. The organization was restored."
+    }
+  },
+  "sites": {
+    "title": "Sites",
+    "subtitle": "Physical sites and branches per organization.",
+    "org_placeholder": "Search organization…",
+    "new": "New",
+    "new_title": "New site",
+    "edit_title": "Site",
+    "loading": "Loading…",
+    "empty": "No sites.",
+    "empty_no_org": "Select an organization.",
+    "primary": "primary",
+    "col": { "code": "Code", "name": "Name", "type": "Type", "city": "City", "actions": "Actions" },
+    "delete": {
+      "title": "Delete site?",
+      "body": "This permanently removes {name}.",
+      "confirm": "Delete"
+    },
+    "toast": {
+      "created": "Site created.",
+      "deleted": "Site deleted.",
+      "delete_failed": "Delete failed. The site was restored."
+    }
+  },
+  "agents": {
+    "title": "Agents & accounts",
+    "subtitle": "Create accounts, set status, assign roles.",
+    "search_placeholder": "Search email / name / NIU",
+    "new": "New account",
+    "new_title": "New account",
+    "edit_title": "Account",
+    "loading": "Loading…",
+    "load_error": "Failed to load the account.",
+    "empty": "No accounts.",
+    "save": "Save details",
+    "cancel": "Cancel",
+    "col": { "identifier": "Identifier", "name": "Name", "status": "Status" },
+    "bulk": {
+      "selected": "{count} selected",
+      "assign_role": "Assign role",
+      "activate": "Activate",
+      "suspend": "Suspend",
+      "clear": "Clear"
+    },
+    "status": {
+      "confirm_title": "Change status to {status}?",
+      "confirm_body": "This sets {name} to {status} and revokes its active sessions.",
+      "bulk_confirm_body": "This sets {count} account(s) to {status} and revokes their active sessions.",
+      "confirm_label": "Change status"
+    },
+    "meta": { "status": "Status", "niu": "NIU" },
+    "roles": {
+      "title": "Roles",
+      "none": "No roles assigned.",
+      "revoke": "Revoke",
+      "global": "Global",
+      "role": "Role",
+      "scope": "Scope",
+      "select": "— select —",
+      "assign": "Assign role",
+      "assigning": "Assigning…",
+      "assigned": "Role assigned.",
+      "assign_failed": "Assign failed.",
+      "assign_partial": "{ok} assigned, {failed} failed (no permission or not found).",
+      "revoke_failed": "Revoke failed.",
+      "load_error": "Failed to load roles."
+    },
+    "assign_dialog": { "title": "Assign role to {count} account(s)" },
+    "toast": {
+      "created": "Account created.",
+      "saved": "Account updated.",
+      "status_changed": "Status changed.",
+      "status_failed": "Status change failed.",
+      "bulk_done": "{count} account(s) set to {status}.",
+      "bulk_partial": "{ok} updated, {failed} failed (no permission or not found).",
+      "bulk_failed": "Bulk status change failed."
     }
   }
 }
