@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { Check, Languages } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { LOCALE_COOKIE } from "@/i18n/request";
+import { LOCALE_COOKIE } from "@/i18n/config";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 // Language names are shown in their OWN language (convention — never translated).

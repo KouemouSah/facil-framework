@@ -1,17 +1,10 @@
 import { getRequestConfig } from "next-intl/server";
 import { cookies } from "next/headers";
 import { getBranding } from "@/lib/server/backend";
+import { defaultLocale, isLocale, LOCALE_COOKIE, type Locale } from "./config";
 
-// Supported locales (catalogues under ./messages). The deployment picks a default
-// via branding.default_locale; a signed-in user overrides it with the switcher.
-export const locales = ["en", "fr", "es"] as const;
-export const defaultLocale = "en";
-export const LOCALE_COOKIE = "NEXT_LOCALE";
-
-type Locale = (typeof locales)[number];
-function isLocale(v: string | undefined | null): v is Locale {
-  return !!v && (locales as readonly string[]).includes(v);
-}
+// Re-export the client-safe constants so existing importers keep working.
+export { locales, defaultLocale, LOCALE_COOKIE } from "./config";
 
 /**
  * Locale resolution (P2.3), highest precedence first:
