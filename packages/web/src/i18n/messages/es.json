@@ -102,7 +102,8 @@
     "open_menu": "Abrir menú",
     "resize_panel": "Redimensionar el panel",
     "collapse_sidebar": "Contraer menú",
-    "expand_sidebar": "Expandir menú"
+    "expand_sidebar": "Expandir menú",
+    "language": "Idioma"
   },
   "errors": {
     "title": "Algo salió mal",

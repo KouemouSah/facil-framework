@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useSession } from "@/lib/use-session";
 import { EmailVerifyBanner } from "@/components/layout/email-verify-banner";
+import { LocaleSwitcher } from "@/components/layout/locale-switcher";
 
 const COLLAPSE_KEY = "nav:collapsed";
 
@@ -37,7 +38,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [navOpen, setNavOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const { data: session, isLoading } = useSession();
-  const { data: branding } = useQuery<{ app_name: string; logo_url: string }>({
+  const { data: branding } = useQuery<{ app_name: string; logo_url: string; supported_locales: string[] }>({
     queryKey: ["branding"],
     queryFn: () => apiFetch(`/api/v1/system/branding`),
     staleTime: 5 * 60 * 1000,
@@ -222,6 +223,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             />
           </div>
           <div className="ml-auto flex items-center gap-2">
+            <LocaleSwitcher supported={branding?.supported_locales ?? ["en", "fr", "es"]} />
             {who && <span className="text-sm text-muted-foreground">{who}</span>}
             <Button variant="ghost" size="icon" onClick={logout} title={ta("logout")} aria-label={ta("logout")}>
               <LogOut className="size-4" />

@@ -102,7 +102,8 @@
     "open_menu": "Ouvrir le menu",
     "resize_panel": "Redimensionner le panneau",
     "collapse_sidebar": "Réduire le menu",
-    "expand_sidebar": "Développer le menu"
+    "expand_sidebar": "Développer le menu",
+    "language": "Langue"
   },
   "errors": {
     "title": "Une erreur est survenue",
