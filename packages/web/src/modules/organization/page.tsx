@@ -14,7 +14,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useServerTable, type ServerPage } from "@/lib/use-server-table";
 import { usePermissions } from "@/lib/use-permissions";
 import { useState } from "react";
-import { ORG_FIELDS } from "./fields";
+import { useOrgFields } from "./fields";
 import {
   ORG_BASE, createOrg, deleteOrg, getOrg, listOrgs, updateOrg, type Org,
 } from "./api";
@@ -175,10 +175,11 @@ export default function OrganizationsPage() {
 function OrgCreateSurface({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const t = useTranslations("organizations");
   const qc = useQueryClient();
+  const fields = useOrgFields();
   return (
     <RecordSurface title={t("new_title")} resourceKey="orgs" mode="page" onClose={onClose}>
       <RecordForm
-        fields={ORG_FIELDS}
+        fields={fields}
         mode="create"
         layout="rich"
         enableSaveNew
@@ -199,6 +200,7 @@ function OrgCreateSurface({ onClose, onCreated }: { onClose: () => void; onCreat
 function OrgEditSurface({ orgId, onClose, readOnly }: { orgId: string; onClose: () => void; readOnly: boolean }) {
   const t = useTranslations("organizations");
   const qc = useQueryClient();
+  const fields = useOrgFields();
   const { data, isError } = useQuery<Record<string, unknown>>({
     queryKey: ["org", orgId],
     queryFn: () => getOrg(orgId),
@@ -219,7 +221,7 @@ function OrgEditSurface({ orgId, onClose, readOnly }: { orgId: string; onClose: 
         <RecordForm
           // Remount on a fresh load (post-save / post-conflict) to reseed initial + etag.
           key={String(data.etag ?? orgId)}
-          fields={ORG_FIELDS}
+          fields={fields}
           mode="edit"
           layout="rich"
           readOnly={readOnly}

@@ -233,6 +233,28 @@
       "created": "Organización creada.",
       "deleted": "Organización eliminada.",
       "delete_failed": "Error al eliminar. La organización fue restaurada."
+    },
+    "f": {
+      "code": "Código",
+      "legal_name": "Razón social",
+      "display_name": "Nombre visible",
+      "party_id": "Identidad legal (directorio)",
+      "parent_id": "Empresa de consolidación",
+      "currency_id": "Moneda",
+      "email": "Correo",
+      "phone": "Teléfono",
+      "website": "Sitio web",
+      "logo_url": "Logo",
+      "default_locale": "Idioma predeterminado",
+      "timezone": "Zona horaria",
+      "hq_address_id": "Dirección de la sede",
+      "document_identity": "Identidad documental (JSON)",
+      "settings": "Ajustes (JSON)",
+      "code_hint": "Identificador inmutable.",
+      "party_id_hint": "Tercero con NIF / registro / contactos.",
+      "parent_id_hint": "Empresa matriz para grupos multiempresa.",
+      "document_identity_hint": "Identificadores mostrados en los documentos generados (registro, IVA…).",
+      "settings_hint": "Ajustes libres de la organización."
     }
   },
   "sites": {

@@ -233,6 +233,28 @@
       "created": "Organization created.",
       "deleted": "Organization deleted.",
       "delete_failed": "Delete failed. The organization was restored."
+    },
+    "f": {
+      "code": "Code",
+      "legal_name": "Legal name",
+      "display_name": "Display name",
+      "party_id": "Legal identity (directory)",
+      "parent_id": "Consolidation parent",
+      "currency_id": "Currency",
+      "email": "Email",
+      "phone": "Phone",
+      "website": "Website",
+      "logo_url": "Logo",
+      "default_locale": "Default locale",
+      "timezone": "Timezone",
+      "hq_address_id": "Head office address",
+      "document_identity": "Document identity (JSON)",
+      "settings": "Settings (JSON)",
+      "code_hint": "Immutable identifier.",
+      "party_id_hint": "Party holding tax id / registration / contacts.",
+      "parent_id_hint": "Owning company for multi-company groups.",
+      "document_identity_hint": "Identifiers shown on generated documents (registry, VAT…).",
+      "settings_hint": "Free-form organization settings."
     }
   },
   "sites": {
