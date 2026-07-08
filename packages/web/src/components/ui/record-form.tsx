@@ -28,7 +28,7 @@ import { FileUpload } from "@/components/ui/file-upload";
  */
 export type FieldType =
   | "text" | "email" | "password" | "textarea" | "number" | "checkbox"
-  | "ref" | "org" | "party" | "address" | "json" | "select" | "image";
+  | "ref" | "org" | "party" | "address" | "json" | "select" | "image" | "color";
 
 export interface FieldDef {
   name: string;
@@ -235,6 +235,21 @@ export function RecordForm({
         return <FileUpload value={values[f.name] ?? ""} disabled={fieldRO}
           onUploaded={(url) => setField(f.name, url)}
           onRemove={() => setField(f.name, "")} />;
+      case "color": {
+        // Swatch picker + hex input, both bound to the same string value.
+        const hex = values[f.name] ?? "";
+        const valid = /^#[0-9a-fA-F]{6}$/.test(hex);
+        return (
+          <div className="flex items-center gap-2">
+            <input type="color" aria-label={f.label} disabled={fieldRO}
+              className="h-9 w-12 shrink-0 cursor-pointer rounded-md border border-input bg-background p-1 disabled:opacity-50"
+              value={valid ? hex : "#000000"}
+              onChange={(e) => setField(f.name, e.target.value)} />
+            <Input id={id} className="font-mono" value={hex} disabled={fieldRO} placeholder={f.placeholder}
+              onChange={(e) => setField(f.name, e.target.value)} />
+          </div>
+        );
+      }
       case "checkbox":
         return (
           <label className="flex items-center gap-2 text-sm">

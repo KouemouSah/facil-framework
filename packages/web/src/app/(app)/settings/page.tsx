@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { apiFetch } from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
+import { toast } from "@/lib/toast";
+import { requiredText } from "@/lib/form-schemas";
+import { usePermissions } from "@/lib/use-permissions";
+import { RecordForm } from "@/components/shared";
+import type { FieldDef } from "@/components/ui/record-form";
 
 interface Branding {
   app_name: string;
@@ -27,161 +27,94 @@ interface Branding {
   etag?: string;
 }
 
+/**
+ * Branding (white-label) settings. Modernized to the §11bis `RecordForm` (was a
+ * hand-rolled useState form with paste-a-URL asset inputs and English-only
+ * strings): localized labels, assets via `FileUpload` (type "image", never a raw
+ * URL), colours via the new `color` field, and optimistic concurrency (`If-Match`
+ * → 409 reload) handled by RecordForm. Applies live on save (revalidate + refresh).
+ */
+function useBrandingFields(locales: string[]): FieldDef[] {
+  const t = useTranslations("branding.f");
+  const th = useTranslations("branding.theme");
+  return [
+    { name: "app_name", label: t("app_name"), required: true, zod: requiredText(t("app_name")), placeholder: "Facil" },
+    { name: "tagline", label: t("tagline") },
+    { name: "primary_color", label: t("primary_color"), type: "color", placeholder: "#2563eb" },
+    { name: "secondary_color", label: t("secondary_color"), type: "color", placeholder: "#7c3aed" },
+    { name: "logo_url", label: t("logo_url"), type: "image" },
+    { name: "logo_dark_url", label: t("logo_dark_url"), type: "image" },
+    { name: "favicon_url", label: t("favicon_url"), type: "image" },
+    { name: "login_background_url", label: t("login_background_url"), type: "image", colSpan: 2 },
+    { name: "default_locale", label: t("default_locale"), type: "select", required: true,
+      selectOptions: locales.map((l) => ({ value: l, label: l })) },
+    { name: "theme_mode", label: t("theme_mode"), type: "select", required: true,
+      selectOptions: [
+        { value: "light", label: th("light") },
+        { value: "dark", label: th("dark") },
+        { value: "auto", label: th("auto") },
+      ] },
+    { name: "support_email", label: t("support_email"), type: "email" },
+    { name: "support_url", label: t("support_url") },
+  ];
+}
+
 export default function SettingsPage() {
+  const t = useTranslations("branding");
   const qc = useQueryClient();
   const router = useRouter();
-  const [form, setForm] = useState<Branding | null>(null);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState("");
+  const { can } = usePermissions();
+  const readOnly = !can("branding.manage");
 
-  const { data } = useQuery<Branding>({
+  const { data, isError } = useQuery<Branding>({
     queryKey: ["admin-branding"],
     queryFn: () => apiFetch<Branding>(`/api/v1/admin/branding`),
   });
 
-  useEffect(() => { if (data && !form) setForm(data); }, [data, form]);
-
-  function set<K extends keyof Branding>(k: K, v: Branding[K]) {
-    setForm((f) => (f ? { ...f, [k]: v } : f));
-    setSaved(false);
-  }
-
-  const save = useMutation({
-    mutationFn: () => {
-      const { supported_locales: _omit, etag: _e, ...payload } = form as Branding;
-      // Optimistic concurrency: echo the loaded etag; the backend 409s if branding
-      // changed since we loaded it.
-      return apiFetch("/api/v1/admin/branding", {
-        method: "PUT",
-        headers: data?.etag ? { "If-Match": data.etag } : undefined,
-        body: JSON.stringify(payload),
-      });
-    },
-    onSuccess: async () => {
-      qc.invalidateQueries({ queryKey: ["admin-branding"] });
-      qc.invalidateQueries({ queryKey: ["branding"] }); // app-shell name/logo
-      setSaved(true);
-      setError("");
-      // Bust the cached server-side branding, then re-run the layout to re-theme.
-      await fetch("/api/branding/revalidate", { method: "POST" }).catch(() => undefined);
-      router.refresh();
-    },
-    onError: (e: { status?: number; message?: string }) => {
-      if (e.status === 409) {
-        setError("Branding was changed elsewhere — reloading the latest.");
-        setForm(null);  // let the refetched data repopulate the form
-        qc.invalidateQueries({ queryKey: ["admin-branding"] });
-      } else {
-        setError(e.message || "Save failed");
-      }
-    },
-  });
-
-  if (!form) {
-    return <p className="text-sm text-muted-foreground">Loading…</p>;
-  }
-
-  const locales = form.supported_locales?.length ? form.supported_locales : ["en", "fr", "es"];
+  const locales = data?.supported_locales?.length ? data.supported_locales : ["en", "fr", "es"];
+  const fields = useBrandingFields(locales);
 
   return (
     <div className="flex h-full flex-col gap-4">
-      {/* Toolbar — fixed */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Branding</h1>
-          <p className="text-sm text-muted-foreground">White-label the platform — applies live on save.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {saved && <span className="flex items-center gap-1 text-sm text-emerald-600"><Check className="size-4" /> Saved</span>}
-          <Button size="sm" disabled={save.isPending} onClick={() => save.mutate()}>
-            {save.isPending ? "Saving…" : "Save changes"}
-          </Button>
-        </div>
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight">{t("title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
       </div>
 
-      {/* Form region — the scrollable part */}
       <div className="min-h-0 flex-1 overflow-auto">
-        <div className="grid max-w-3xl gap-6 pb-4">
-          <Section title="Identity">
-            <Field label="Application name">
-              <Input value={form.app_name} onChange={(e) => set("app_name", e.target.value)} placeholder="Facil" />
-            </Field>
-            <Field label="Tagline">
-              <Input value={form.tagline} onChange={(e) => set("tagline", e.target.value)} placeholder="Digital services platform" />
-            </Field>
-          </Section>
-
-          <Section title="Colours">
-            <ColorField label="Primary" value={form.primary_color} onChange={(v) => set("primary_color", v)} />
-            <ColorField label="Secondary" value={form.secondary_color} onChange={(v) => set("secondary_color", v)} />
-          </Section>
-
-          <Section title="Assets (URLs)">
-            <Field label="Logo"><Input value={form.logo_url} onChange={(e) => set("logo_url", e.target.value)} placeholder="https://…/logo.svg" /></Field>
-            <Field label="Logo (dark)"><Input value={form.logo_dark_url} onChange={(e) => set("logo_dark_url", e.target.value)} placeholder="https://…/logo-dark.svg" /></Field>
-            <Field label="Favicon"><Input value={form.favicon_url} onChange={(e) => set("favicon_url", e.target.value)} placeholder="https://…/favicon.ico" /></Field>
-            <Field label="Login background"><Input value={form.login_background_url} onChange={(e) => set("login_background_url", e.target.value)} placeholder="https://…/bg.jpg" /></Field>
-          </Section>
-
-          <Section title="Locale & theme">
-            <Field label="Default locale">
-              <Select value={form.default_locale} onChange={(e) => set("default_locale", e.target.value)}>
-                {locales.map((l) => <option key={l} value={l}>{l}</option>)}
-              </Select>
-            </Field>
-            <Field label="Theme mode">
-              <Select value={form.theme_mode} onChange={(e) => set("theme_mode", e.target.value)}>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-                <option value="auto">Auto</option>
-              </Select>
-            </Field>
-          </Section>
-
-          <Section title="Support">
-            <Field label="Support email"><Input type="email" value={form.support_email} onChange={(e) => set("support_email", e.target.value)} placeholder="support@org.com" /></Field>
-            <Field label="Support URL"><Input value={form.support_url} onChange={(e) => set("support_url", e.target.value)} placeholder="https://help.org.com" /></Field>
-          </Section>
-
-          {error && <p className="text-sm text-destructive">{error}</p>}
+        <div className="max-w-3xl">
+          {isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
+          {!data && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
+          {data && (
+            <RecordForm
+              // Remount on a fresh load (post-save / post-conflict) to reseed initial + etag.
+              key={String(data.etag)}
+              fields={fields}
+              mode="edit"
+              layout="rich"
+              readOnly={readOnly}
+              initial={data as unknown as Record<string, unknown>}
+              etag={data.etag}
+              submitLabel={t("save")}
+              onSubmit={(payload, etag) =>
+                apiFetch("/api/v1/admin/branding", {
+                  method: "PUT",
+                  headers: etag ? { "If-Match": etag } : undefined,
+                  body: JSON.stringify(payload),
+                })
+              }
+              onSuccess={async () => {
+                qc.invalidateQueries({ queryKey: ["admin-branding"] });
+                qc.invalidateQueries({ queryKey: ["branding"] }); // app-shell name/logo/locales
+                toast({ variant: "success", title: t("toast.saved") });
+                // Bust the cached server-side branding, then re-run the layout to re-theme.
+                await fetch("/api/branding/revalidate", { method: "POST" }).catch(() => undefined);
+                router.refresh();
+              }}
+              onConflict={() => qc.invalidateQueries({ queryKey: ["admin-branding"] })}
+            />
+          )}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-lg border p-4">
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
-      <div className="grid gap-3 sm:grid-cols-2">{children}</div>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1.5">
-      <Label>{label}</Label>
-      {children}
-    </div>
-  );
-}
-
-function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  const valid = /^#[0-9a-fA-F]{6}$/.test(value);
-  return (
-    <div className="space-y-1.5">
-      <Label>{label}</Label>
-      <div className="flex items-center gap-2">
-        <input
-          type="color"
-          aria-label={`${label} colour`}
-          className="h-9 w-12 cursor-pointer rounded-md border border-input bg-background p-1"
-          value={valid ? value : "#000000"}
-          onChange={(e) => onChange(e.target.value)}
-        />
-        <Input className="font-mono" value={value} onChange={(e) => onChange(e.target.value)} placeholder="#2563eb" />
       </div>
     </div>
   );

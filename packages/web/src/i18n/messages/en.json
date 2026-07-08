@@ -642,5 +642,34 @@
       "unlink_failed": "Could not unlink address.",
       "unavailable": "Address unavailable (#{id})"
     }
+  },
+  "branding": {
+    "title": "Branding",
+    "subtitle": "White-label the platform — applies live on save.",
+    "save": "Save changes",
+    "loading": "Loading…",
+    "load_error": "Failed to load branding.",
+    "toast": {
+      "saved": "Branding saved"
+    },
+    "f": {
+      "app_name": "Application name",
+      "tagline": "Tagline",
+      "primary_color": "Primary colour",
+      "secondary_color": "Secondary colour",
+      "logo_url": "Logo",
+      "logo_dark_url": "Logo (dark)",
+      "favicon_url": "Favicon",
+      "login_background_url": "Login background",
+      "default_locale": "Default language",
+      "theme_mode": "Theme mode",
+      "support_email": "Support email",
+      "support_url": "Support URL"
+    },
+    "theme": {
+      "light": "Light",
+      "dark": "Dark",
+      "auto": "Auto"
+    }
   }
 }
