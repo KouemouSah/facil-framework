@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { ORG_FIELDS } from "./fields";
+import { ORG_FIELD_SPECS } from "./fields";
 
-const byName = (n: string) => ORG_FIELDS.find((f) => f.name === n);
+const byName = (n: string) => ORG_FIELD_SPECS.find((f) => f.name === n);
 
-describe("ORG_FIELDS (pilot 1 — Company canonical form)", () => {
+describe("ORG_FIELD_SPECS (pilot 1 — Company canonical form)", () => {
   it("uploads the logo as an image, never a free-text URL input", () => {
     const logo = byName("logo_url");
     expect(logo).toBeDefined();
@@ -30,7 +30,7 @@ describe("ORG_FIELDS (pilot 1 — Company canonical form)", () => {
   });
 
   it("carries no raw text field pointing at an asset URL", () => {
-    const textUrlAsset = ORG_FIELDS.find(
+    const textUrlAsset = ORG_FIELD_SPECS.find(
       (f) => /url$/i.test(f.name) && (f.type === undefined || f.type === "text"),
     );
     expect(textUrlAsset).toBeUndefined();
