@@ -75,20 +75,26 @@ def default_registry() -> ProviderRegistry:
     from app.core.providers.email_smtp import SMTPEmailProvider
     from app.core.providers.llm_ollama import OllamaLLMProvider
     from app.core.providers.llm_openai_compat import OpenAICompatLLMProvider
+    from app.core.providers.secrets_aws import AwsSecretsManagerProvider
     from app.core.providers.secrets_env import EnvSecretsProvider
     from app.core.providers.secrets_openbao import OpenBaoSecretsProvider
     from app.core.providers.storage_memory import MemoryStorageProvider
     from app.core.providers.storage_minio import MinIOStorageProvider
+    from app.core.providers.storage_s3 import S3StorageProvider
 
     r = ProviderRegistry()
     r.register("secrets", "env", lambda config: EnvSecretsProvider(config),
                EnvSecretsProvider.config_schema())
     r.register("secrets", "openbao", lambda config: OpenBaoSecretsProvider(config),
                OpenBaoSecretsProvider.config_schema())
+    r.register("secrets", "aws_secretsmanager", lambda config: AwsSecretsManagerProvider(config),
+               AwsSecretsManagerProvider.config_schema())
     r.register("storage", "minio", lambda config: MinIOStorageProvider(config),
                MinIOStorageProvider.config_schema())
     r.register("storage", "memory", lambda config: MemoryStorageProvider(config),
                MemoryStorageProvider.config_schema())
+    r.register("storage", "s3", lambda config: S3StorageProvider(config),
+               S3StorageProvider.config_schema())
     r.register("llm", "ollama", lambda config: OllamaLLMProvider(config),
                OllamaLLMProvider.config_schema())
     r.register("llm", "openai_compat", lambda config: OpenAICompatLLMProvider(config),
