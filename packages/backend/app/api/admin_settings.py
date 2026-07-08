@@ -19,11 +19,14 @@ from app.api.deps import get_session
 from app.auth import audit
 from app.config_store import repository as repo
 from app.models.provider import (
-    provider_map_shape_ok, provider_map_unknown_keys, public_provider_map,
+    SECRET_CONFIG_KEYS, provider_map_shape_ok, provider_map_unknown_keys,
+    public_config, public_provider_map, secret_keys_in,
 )
 from app.models.setting import VALUE_TYPES
+from app.rbac import repository as rbac_repo
+from app.rbac.scope import raw_scope_ids
 from app.security.auth_dep import require_auth
-from app.security.permission_dep import require_permission
+from app.security.permission_dep import enforce, require_permission
 
 _MANAGE = Depends(require_permission("settings.manage"))
 
@@ -32,13 +35,55 @@ _MANAGE = Depends(require_permission("settings.manage"))
 # on write (422) and stripped on read, mirroring the provider_settings discipline.
 _PROVIDER_MAP_KEY = "ai.providers"
 
+# SEC-F6: security-critical namespaces need an ELEVATED permission beyond the
+# generic settings.manage (changing the auth provider or an rbac key is a
+# compromise-grade action, not routine config editing).
+_PROTECTED_MANAGE = "settings.manage_protected"
+_PROTECTED_PREFIXES = ("auth.", "rbac.", "security.")
+
+_MASK = "••••••"  # shown instead of a legacy plaintext secret value on read
+
+
+def _is_protected_key(key: str) -> bool:
+    return key == "rbac" or key.startswith(_PROTECTED_PREFIXES)
+
+
+def _is_secret_scalar_key(key: str) -> bool:
+    """The last dotted segment is EXACTLY a canonical credential name (e.g.
+    `smtp.password`, `auth.oidc.client_secret`) — a scalar stored under it is a
+    plaintext secret, not a knob. Exact-segment (not substring) avoids flagging
+    legit knobs like `auth.password_policy` / `token_ttl_seconds`."""
+    return key.rsplit(".", 1)[-1] in SECRET_CONFIG_KEYS
+
+
+def _type_ok(value, value_type: str) -> bool:
+    """The value must match its declared type — no JSON object under a scalar key."""
+    if value is None:
+        return True
+    if value_type == "string":
+        return isinstance(value, str)
+    if value_type == "number":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if value_type == "boolean":
+        return isinstance(value, bool)
+    if value_type == "json":
+        return isinstance(value, (dict, list))
+    return True
+
 
 def _public_setting(obj) -> dict:
-    """Setting row → API dict (+etag), with the ai.providers map stripped of any
-    secret-bearing key (defence in depth for legacy rows)."""
+    """Setting row → API dict (+etag). SEC-F5 read-side: the ai.providers map keeps
+    its own allowlist; a dict value is stripped of nested secret keys; a scalar
+    stored under a credential-named key is masked (defence in depth for legacy rows —
+    new writes are rejected)."""
     d = {**obj.as_dict(), "etag": row_etag(obj)}
+    val = d.get("value")
     if obj.key == _PROVIDER_MAP_KEY:
-        d["value"] = public_provider_map(d.get("value"))
+        d["value"] = public_provider_map(val)
+    elif isinstance(val, dict):
+        d["value"] = public_config(val)
+    elif _is_secret_scalar_key(obj.key) and val not in (None, ""):
+        d["value"] = _MASK
     return d
 
 router = APIRouter(
@@ -90,6 +135,27 @@ async def put_setting(key: str, body: SettingIn, request: Request,
                       session: AsyncSession = Depends(get_session)) -> dict:
     if body.value_type not in VALUE_TYPES:
         raise HTTPException(422, f"value_type must be one of {VALUE_TYPES}")
+    # SEC-F6(c): the value must match its declared type — reject e.g. a JSON object
+    # smuggled under a scalar value_type.
+    if not _type_ok(body.value, body.value_type):
+        raise HTTPException(422, f"value does not match value_type '{body.value_type}'")
+    # SEC-F6(a): security-critical namespaces require an elevated permission on top
+    # of settings.manage (route-level). Break-glass / a global-* admin still pass.
+    if _is_protected_key(key):
+        scope = await rbac_repo.resolve_scope(session, raw_scope_ids(request))
+        await enforce(session, principal, _PROTECTED_MANAGE, scope)
+    # SEC-F5: a credential must not be stored as a plaintext config value — it
+    # travels via `secret_ref`. Reject a dict value carrying a secret key, or a
+    # scalar under a credential-named key. (ai.providers has its own allowlist.)
+    if key != _PROVIDER_MAP_KEY:
+        if isinstance(body.value, dict):
+            leaked = secret_keys_in(body.value)
+            if leaked:
+                raise HTTPException(
+                    422, f"value must not contain secret keys {sorted(leaked)}; use secret_ref")
+        elif _is_secret_scalar_key(key) and isinstance(body.value, str) and body.value:
+            raise HTTPException(
+                422, "store this credential via secret_ref, not a plaintext setting value")
     # Secrets discipline on the LLM-routing map (SEC-001 / SEC-F2, authority-
     # enforced): each `ai.providers` entry is ALLOWLISTED to kind/endpoint/model/
     # api_key_secret — any other key (a raw credential, a case/variant) is rejected
@@ -130,6 +196,10 @@ async def put_setting(key: str, body: SettingIn, request: Request,
 async def delete_setting(key: str, request: Request,
                          principal: dict = Depends(require_auth),
                          session: AsyncSession = Depends(get_session)) -> dict:
+    # SEC-F6(a): deleting a security-critical key is as sensitive as writing it.
+    if _is_protected_key(key):
+        scope = await rbac_repo.resolve_scope(session, raw_scope_ids(request))
+        await enforce(session, principal, _PROTECTED_MANAGE, scope)
     ok = await repo.delete_setting(session, key)
     if ok:
         await audit.record(session, audit.SETTING_DELETED,

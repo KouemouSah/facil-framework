@@ -295,3 +295,27 @@ def test_no_registered_schema_declares_a_secret_key():
     for cap, code in r.registered:
         for key in (r.schema_keys(cap, code) or set()):
             assert not _is_secret_key(key), f"{cap}/{code} declares secret-ish key {key!r}"
+
+
+@pytest.mark.asyncio
+async def test_check_endpoints_require_manage(client):
+    ac, _ = client
+    # SEC-F6(b): /check + /llm/routing/check trigger outbound probes → provider.manage,
+    # not the router-level provider.read. A read-only principal is refused (403).
+    await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)  # seed catalog
+    code = "readonlyprov"
+    await ac.post("/api/v1/rbac/roles", headers=AUTH,
+                  json={"code": code, "name": code, "grants": ["provider.read"]})
+    role_id = next(r["id"] for r in (await ac.get("/api/v1/rbac/roles", headers=AUTH)).json()["items"]
+                   if r["code"] == code)
+    acc = (await ac.post("/api/v1/auth/register",
+                         json={"email": "ro@x.io", "password": "Sup3rStr0ng!pw"})).json()
+    await ac.post(f"/api/v1/rbac/accounts/{acc['id']}/roles", headers=AUTH,
+                  json={"role_id": role_id})
+    tok = (await ac.post("/api/v1/auth/login",
+                         json={"identifier": "ro@x.io", "password": "Sup3rStr0ng!pw"})).json()
+    hdr = {"Authorization": f"Bearer {tok['access']}"}
+    # read is allowed, probe is not.
+    assert (await ac.get("/api/v1/admin/providers/", headers=hdr)).status_code == 200
+    assert (await ac.post("/api/v1/admin/providers/llm/routing/check", headers=hdr)).status_code == 403
+    assert (await ac.post("/api/v1/admin/providers/storage/minio/check", headers=hdr)).status_code == 403
