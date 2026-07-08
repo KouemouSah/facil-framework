@@ -286,6 +286,29 @@
       "created": "Sede creada.",
       "deleted": "Sede eliminada.",
       "delete_failed": "Error al eliminar. La sede fue restaurada."
+    },
+    "f": {
+      "code": "Código",
+      "name": "Nombre",
+      "site_type": "Tipo",
+      "is_primary": "Sede principal",
+      "phone": "Teléfono",
+      "email": "Correo",
+      "timezone": "Zona horaria",
+      "address_id": "Dirección",
+      "notes": "Notas",
+      "operating_hours": "Horario de apertura (JSON)",
+      "metadata": "Metadatos (JSON)",
+      "code_hint": "Identificador inmutable.",
+      "operating_hours_hint": "p. ej. {\"mon\": [\"09:00-17:00\"], \"sat\": []}",
+      "metadata_hint": "Metadatos libres del sitio.",
+      "type": {
+        "branch": "Sucursal",
+        "headquarters": "Sede central",
+        "warehouse": "Almacén",
+        "office": "Oficina",
+        "point_of_sale": "Punto de venta"
+      }
     }
   },
   "agents": {
@@ -349,6 +372,14 @@
       "bulk_done": "{count} cuenta(s) puesta(s) en {status}.",
       "bulk_partial": "{ok} actualizada(s), {failed} con error (sin permiso o no encontrada).",
       "bulk_failed": "Error al cambiar el estado en masa."
+    },
+    "f": {
+      "email": "Correo",
+      "password": "Contraseña temporal",
+      "display_name": "Nombre visible",
+      "organization_id": "Organización",
+      "password_hint": "El agente deberá cambiarla en el primer inicio de sesión.",
+      "password_ph": "≥ 12 caracteres · mayúscula/minúscula/dígito"
     }
   },
   "providers": {

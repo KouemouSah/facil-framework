@@ -23,7 +23,7 @@ import { type Scope, EMPTY_SCOPE } from "@/components/ui/scope-picker";
 import { useOrgLabels } from "@/lib/use-organizations";
 import { useServerTable, type ServerPage } from "@/lib/use-server-table";
 import { usePermissions } from "@/lib/use-permissions";
-import { ACCOUNT_CREATE_FIELDS, ACCOUNT_EDIT_FIELDS } from "./fields";
+import { useAccountCreateFields, useAccountEditFields } from "./fields";
 import {
   ACCOUNT_STATUSES, BLOCKING_STATUSES, accountsExportPath,
   assignRole, bulkAccountStatus, bulkAssignRole, createAccount, getAccount,
@@ -308,10 +308,11 @@ export default function AgentsPage() {
 function AccountCreateSurface({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const t = useTranslations("agents");
   const qc = useQueryClient();
+  const fields = useAccountCreateFields();
   return (
     <RecordSurface title={t("new_title")} resourceKey="accounts" onClose={onClose}>
       <RecordForm
-        fields={ACCOUNT_CREATE_FIELDS}
+        fields={fields}
         mode="create"
         layout="compact"
         enableSaveNew
@@ -334,6 +335,7 @@ function AccountDetailSurface({ accountId, onClose, canManageAccounts, canManage
 }) {
   const t = useTranslations("agents");
   const qc = useQueryClient();
+  const fields = useAccountEditFields();
   const { data: detail, isError } = useQuery<Record<string, unknown>>({
     queryKey: ["account", accountId],
     queryFn: () => getAccount(accountId),
@@ -368,7 +370,7 @@ function AccountDetailSurface({ accountId, onClose, canManageAccounts, canManage
           {/* Editable fields via the shared RecordForm (audit 12, DRY) */}
           <RecordForm
             key={String(detail.etag ?? accountId)}
-            fields={ACCOUNT_EDIT_FIELDS}
+            fields={fields}
             mode="edit"
             layout="compact"
             readOnly={!canManageAccounts}

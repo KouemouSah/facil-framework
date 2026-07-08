@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { SITE_FIELDS, SITE_TYPES } from "./fields";
+import { SITE_FIELD_SPECS, SITE_TYPES } from "./fields";
 
-const byName = (n: string) => SITE_FIELDS.find((f) => f.name === n);
+const byName = (n: string) => SITE_FIELD_SPECS.find((f) => f.name === n);
 
-describe("SITE_FIELDS (pilot 1 — Site canonical form)", () => {
+describe("SITE_FIELD_SPECS (pilot 1 — Site canonical form)", () => {
   it("keeps `code` an immutable, required identifier", () => {
     const code = byName("code");
     expect(code?.required).toBe(true);
