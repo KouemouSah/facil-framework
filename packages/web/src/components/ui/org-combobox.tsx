@@ -1,18 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronsUpDown, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { type Org, orgLabel } from "@/lib/use-organizations";
 
 /**
  * Server-side searchable organization picker (backlog ERP item 3). Replaces the
  * 200-capped <Select>: it queries the backend `q` so it scales to any tenant
- * count. Lightweight (no combobox dependency): debounced search, click-to-select,
- * click-outside to close. `value` is the org id ("" = none).
+ * count. Built on the Popover primitive (portaled → never clipped by a scrollable
+ * panel; outside-click / Esc / positioning handled by Radix). `value` is the org
+ * id ("" = none).
  */
 export function OrgCombobox({ value, onChange, placeholder, allowNone = true, noneLabel, disabled = false }: {
   value: string;
@@ -28,22 +30,12 @@ export function OrgCombobox({ value, onChange, placeholder, allowNone = true, no
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState("");
   const [debounced, setDebounced] = useState("");
-  const boxRef = useRef<HTMLDivElement>(null);
 
   // Debounce the search term (250ms).
   useEffect(() => {
-    const t = setTimeout(() => setDebounced(term), 250);
-    return () => clearTimeout(t);
+    const h = setTimeout(() => setDebounced(term), 250);
+    return () => clearTimeout(h);
   }, [term]);
-
-  // Close on click outside.
-  useEffect(() => {
-    function onDoc(e: MouseEvent) {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
 
   // Resolve the current value's label (single fetch by id when set).
   const { data: current } = useQuery<Org | null>({
@@ -62,45 +54,43 @@ export function OrgCombobox({ value, onChange, placeholder, allowNone = true, no
   const selectedLabel = value ? (current ? orgLabel(current) : "…") : "";
 
   return (
-    <div className="relative" ref={boxRef}>
-      <button type="button" disabled={disabled}
-        className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-        onClick={() => setOpen((o) => !o)}>
-        <span className={cn("truncate", !value && "text-muted-foreground")}>
-          {value ? selectedLabel : (allowNone ? none : ph)}
-        </span>
-        <span className="flex items-center gap-1">
-          {value && !disabled && (
-            <X className="size-3.5 text-muted-foreground hover:text-foreground"
-              onClick={(e) => { e.stopPropagation(); onChange(""); }} />
-          )}
-          <ChevronsUpDown className="size-4 opacity-50" />
-        </span>
-      </button>
-
-      {open && (
-        <div className="absolute z-40 mt-1 max-h-64 w-full overflow-auto rounded-md border bg-popover p-1 shadow-md">
-          <input autoFocus value={term} onChange={(e) => setTerm(e.target.value)}
-            placeholder={ph}
-            className="mb-1 h-8 w-full rounded-sm border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" />
-          {allowNone && (
-            <button type="button" className="block w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
-              onClick={() => { onChange(""); setOpen(false); }}>{none}</button>
-          )}
-          {isFetching && <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("searching")}</p>}
-          {!isFetching && results.length === 0 && (
-            <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("no_matches")}</p>
-          )}
-          {results.map((o) => (
-            <button key={o.id} type="button"
-              className={cn("block w-full truncate rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent",
-                o.id === value && "bg-accent")}
-              onClick={() => { onChange(o.id); setOpen(false); }}>
-              {orgLabel(o)} <span className="text-xs text-muted-foreground">· {o.code}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild disabled={disabled}>
+        <button type="button"
+          className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50">
+          <span className={cn("truncate", !value && "text-muted-foreground")}>
+            {value ? selectedLabel : (allowNone ? none : ph)}
+          </span>
+          <span className="flex items-center gap-1">
+            {value && !disabled && (
+              <X className="size-3.5 text-muted-foreground hover:text-foreground"
+                onClick={(e) => { e.stopPropagation(); e.preventDefault(); onChange(""); }} />
+            )}
+            <ChevronsUpDown className="size-4 opacity-50" />
+          </span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="max-h-64 w-[var(--radix-popover-trigger-width)] overflow-auto">
+        <input autoFocus value={term} onChange={(e) => setTerm(e.target.value)}
+          placeholder={ph}
+          className="mb-1 h-8 w-full rounded-sm border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+        {allowNone && (
+          <button type="button" className="block w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+            onClick={() => { onChange(""); setOpen(false); }}>{none}</button>
+        )}
+        {isFetching && <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("searching")}</p>}
+        {!isFetching && results.length === 0 && (
+          <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("no_matches")}</p>
+        )}
+        {results.map((o) => (
+          <button key={o.id} type="button"
+            className={cn("block w-full truncate rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent",
+              o.id === value && "bg-accent")}
+            onClick={() => { onChange(o.id); setOpen(false); }}>
+            {orgLabel(o)} <span className="text-xs text-muted-foreground">· {o.code}</span>
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
   );
 }

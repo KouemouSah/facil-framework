@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronsUpDown, Plus, X } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 /**
  * Server-side searchable party picker (the directory). Used to attach an
  * Organization's legal identity (`party_id`) or any third-party reference.
  * Mirrors OrgCombobox; adds inline "Create '<term>'" (Odoo create-and-pick) that
- * POSTs a minimal party (type=organization) and selects it. `value` is the id.
+ * POSTs a minimal party (type=organization) and selects it. Built on the Popover
+ * primitive (portaled → never clipped). `value` is the id.
  */
 interface Party {
   id: string;
@@ -41,20 +43,11 @@ export function PartyCombobox({ value, onChange, placeholder,
   const [debounced, setDebounced] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
-  const boxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const t = setTimeout(() => setDebounced(term), 250);
-    return () => clearTimeout(t);
+    const h = setTimeout(() => setDebounced(term), 250);
+    return () => clearTimeout(h);
   }, [term]);
-
-  useEffect(() => {
-    function onDoc(e: MouseEvent) {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
 
   const { data: current } = useQuery<Party | null>({
     queryKey: ["party-one", value],
@@ -91,53 +84,51 @@ export function PartyCombobox({ value, onChange, placeholder,
     (p) => p.name.toLowerCase() === term.trim().toLowerCase());
 
   return (
-    <div className="relative" ref={boxRef}>
-      <button type="button" disabled={disabled}
-        className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-        onClick={() => setOpen((o) => !o)}>
-        <span className={cn("truncate", !value && "text-muted-foreground")}>
-          {value ? selectedLabel : (allowNone ? none : ph)}
-        </span>
-        <span className="flex items-center gap-1">
-          {value && !disabled && (
-            <X className="size-3.5 text-muted-foreground hover:text-foreground"
-              onClick={(e) => { e.stopPropagation(); onChange(""); }} />
-          )}
-          <ChevronsUpDown className="size-4 opacity-50" />
-        </span>
-      </button>
-
-      {open && !disabled && (
-        <div className="absolute z-40 mt-1 max-h-64 w-full overflow-auto rounded-md border bg-popover p-1 shadow-md">
-          <input autoFocus value={term} onChange={(e) => setTerm(e.target.value)}
-            placeholder={ph}
-            className="mb-1 h-8 w-full rounded-sm border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" />
-          {allowNone && (
-            <button type="button" className="block w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
-              onClick={() => { onChange(""); setOpen(false); }}>{none}</button>
-          )}
-          {isFetching && <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("searching")}</p>}
-          {!isFetching && results.length === 0 && !showCreate && (
-            <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("no_matches")}</p>
-          )}
-          {results.map((p) => (
-            <button key={p.id} type="button"
-              className={cn("block w-full truncate rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent",
-                p.id === value && "bg-accent")}
-              onClick={() => { onChange(p.id); setOpen(false); }}>
-              {p.name}
-            </button>
-          ))}
-          {showCreate && (
-            <button type="button" disabled={creating}
-              className="mt-1 flex w-full items-center gap-1.5 rounded-sm border-t px-2 py-1.5 text-left text-sm text-primary hover:bg-accent disabled:opacity-50"
-              onClick={createInline}>
-              <Plus className="size-3.5" /> {creating ? t("creating") : t("create", { term: term.trim() })}
-            </button>
-          )}
-          {error && <p className="px-2 py-1.5 text-xs text-destructive">{error}</p>}
-        </div>
-      )}
-    </div>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild disabled={disabled}>
+        <button type="button"
+          className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50">
+          <span className={cn("truncate", !value && "text-muted-foreground")}>
+            {value ? selectedLabel : (allowNone ? none : ph)}
+          </span>
+          <span className="flex items-center gap-1">
+            {value && !disabled && (
+              <X className="size-3.5 text-muted-foreground hover:text-foreground"
+                onClick={(e) => { e.stopPropagation(); e.preventDefault(); onChange(""); }} />
+            )}
+            <ChevronsUpDown className="size-4 opacity-50" />
+          </span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="max-h-64 w-[var(--radix-popover-trigger-width)] overflow-auto">
+        <input autoFocus value={term} onChange={(e) => setTerm(e.target.value)}
+          placeholder={ph}
+          className="mb-1 h-8 w-full rounded-sm border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+        {allowNone && (
+          <button type="button" className="block w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+            onClick={() => { onChange(""); setOpen(false); }}>{none}</button>
+        )}
+        {isFetching && <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("searching")}</p>}
+        {!isFetching && results.length === 0 && !showCreate && (
+          <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("no_matches")}</p>
+        )}
+        {results.map((p) => (
+          <button key={p.id} type="button"
+            className={cn("block w-full truncate rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent",
+              p.id === value && "bg-accent")}
+            onClick={() => { onChange(p.id); setOpen(false); }}>
+            {p.name}
+          </button>
+        ))}
+        {showCreate && (
+          <button type="button" disabled={creating}
+            className="mt-1 flex w-full items-center gap-1.5 rounded-sm border-t px-2 py-1.5 text-left text-sm text-primary hover:bg-accent disabled:opacity-50"
+            onClick={createInline}>
+            <Plus className="size-3.5" /> {creating ? t("creating") : t("create", { term: term.trim() })}
+          </button>
+        )}
+        {error && <p className="px-2 py-1.5 text-xs text-destructive">{error}</p>}
+      </PopoverContent>
+    </Popover>
   );
 }

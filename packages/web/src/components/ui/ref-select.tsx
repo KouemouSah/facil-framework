@@ -1,18 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronsUpDown, Plus, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 /**
  * Server-side searchable picker for reference master data (country / currency /
  * region). Generalises OrgCombobox over the reference module endpoints, so geo &
  * currency become managed dropdowns (vs the old free-text inputs) that scale to
  * the full ISO sets. Supports a dependent `filter` (e.g. regions of a country)
- * and `disabled` (e.g. region until a country is picked). `value` is the id.
+ * and `disabled` (e.g. region until a country is picked). Built on the Popover
+ * primitive (portaled → never clipped). `value` is the id.
  */
 export interface RefItem {
   id: string;
@@ -54,21 +56,12 @@ export function RefSelect({
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState("");
   const [debounced, setDebounced] = useState("");
-  const boxRef = useRef<HTMLDivElement>(null);
   const filterKey = JSON.stringify(filter ?? {});
 
   useEffect(() => {
-    const t = setTimeout(() => setDebounced(term), 250);
-    return () => clearTimeout(t);
+    const h = setTimeout(() => setDebounced(term), 250);
+    return () => clearTimeout(h);
   }, [term]);
-
-  useEffect(() => {
-    function onDoc(e: MouseEvent) {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
 
   // Resolve the current value's label (single fetch by id).
   const { data: current } = useQuery<RefItem | null>({
@@ -89,54 +82,52 @@ export function RefSelect({
   const selectedLabel = value ? (current ? labelOf(current) : "…") : "";
 
   return (
-    <div className="relative" ref={boxRef}>
-      <button type="button" disabled={disabled}
-        className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-        onClick={() => setOpen((o) => !o)}>
-        <span className={cn("truncate", !value && "text-muted-foreground")}>
-          {value ? selectedLabel : (allowNone ? none : ph)}
-        </span>
-        <span className="flex items-center gap-1">
-          {value && !disabled && (
-            <X className="size-3.5 text-muted-foreground hover:text-foreground"
-              onClick={(e) => { e.stopPropagation(); onChange(""); }} />
-          )}
-          <ChevronsUpDown className="size-4 opacity-50" />
-        </span>
-      </button>
-
-      {open && !disabled && (
-        <div className="absolute z-40 mt-1 max-h-64 w-full overflow-auto rounded-md border bg-popover p-1 shadow-md">
-          <input autoFocus value={term} onChange={(e) => setTerm(e.target.value)}
-            placeholder={ph}
-            className="mb-1 h-8 w-full rounded-sm border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" />
-          {allowNone && (
-            <button type="button" className="block w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
-              onClick={() => { onChange(""); setOpen(false); }}>{none}</button>
-          )}
-          {isFetching && <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("searching")}</p>}
-          {!isFetching && results.length === 0 && (
-            <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("no_matches")}</p>
-          )}
-          {results.map((it) => (
-            <button key={it.id} type="button"
-              className={cn("block w-full truncate rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent",
-                it.id === value && "bg-accent")}
-              onClick={() => { onChange(it.id); setOpen(false); }}>
-              {labelOf(it)}
-            </button>
-          ))}
-          {onRequestCreate && term.trim() && !results.some(
-            (it) => it.code.toLowerCase() === term.trim().toLowerCase()
-              || it.name.toLowerCase() === term.trim().toLowerCase()) && (
-            <button type="button"
-              className="mt-1 flex w-full items-center gap-1.5 rounded-sm border-t px-2 py-1.5 text-left text-sm text-primary hover:bg-accent"
-              onClick={() => { onRequestCreate(term.trim()); setOpen(false); }}>
-              <Plus className="size-3.5" /> {t("create", { term: term.trim() })}
-            </button>
-          )}
-        </div>
-      )}
-    </div>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild disabled={disabled}>
+        <button type="button"
+          className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50">
+          <span className={cn("truncate", !value && "text-muted-foreground")}>
+            {value ? selectedLabel : (allowNone ? none : ph)}
+          </span>
+          <span className="flex items-center gap-1">
+            {value && !disabled && (
+              <X className="size-3.5 text-muted-foreground hover:text-foreground"
+                onClick={(e) => { e.stopPropagation(); e.preventDefault(); onChange(""); }} />
+            )}
+            <ChevronsUpDown className="size-4 opacity-50" />
+          </span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="max-h-64 w-[var(--radix-popover-trigger-width)] overflow-auto">
+        <input autoFocus value={term} onChange={(e) => setTerm(e.target.value)}
+          placeholder={ph}
+          className="mb-1 h-8 w-full rounded-sm border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+        {allowNone && (
+          <button type="button" className="block w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+            onClick={() => { onChange(""); setOpen(false); }}>{none}</button>
+        )}
+        {isFetching && <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("searching")}</p>}
+        {!isFetching && results.length === 0 && (
+          <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("no_matches")}</p>
+        )}
+        {results.map((it) => (
+          <button key={it.id} type="button"
+            className={cn("block w-full truncate rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent",
+              it.id === value && "bg-accent")}
+            onClick={() => { onChange(it.id); setOpen(false); }}>
+            {labelOf(it)}
+          </button>
+        ))}
+        {onRequestCreate && term.trim() && !results.some(
+          (it) => it.code.toLowerCase() === term.trim().toLowerCase()
+            || it.name.toLowerCase() === term.trim().toLowerCase()) && (
+          <button type="button"
+            className="mt-1 flex w-full items-center gap-1.5 rounded-sm border-t px-2 py-1.5 text-left text-sm text-primary hover:bg-accent"
+            onClick={() => { onRequestCreate(term.trim()); setOpen(false); }}>
+            <Plus className="size-3.5" /> {t("create", { term: term.trim() })}
+          </button>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
