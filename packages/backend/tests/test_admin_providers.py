@@ -218,11 +218,11 @@ async def test_put_allowlists_config_by_schema(client):
 @pytest.mark.asyncio
 async def test_unregistered_code_falls_back_to_denylist(client):
     ac, _ = client
-    # s3 is not registered → no schema to allowlist → denylist fallback.
-    ok = await ac.put("/api/v1/admin/providers/storage/s3", headers=AUTH,
+    # ftp is not registered → no schema to allowlist → denylist fallback.
+    ok = await ac.put("/api/v1/admin/providers/storage/ftp", headers=AUTH,
                       json={"config": {"region": "eu-west-1"}})  # non-secret → allowed
     assert ok.status_code == 200, ok.text
-    bad = await ac.put("/api/v1/admin/providers/storage/s3", headers=AUTH,
+    bad = await ac.put("/api/v1/admin/providers/storage/ftp", headers=AUTH,
                        json={"config": {"secret_key": "leak"}})
     assert bad.status_code == 422, bad.text
 
@@ -236,7 +236,7 @@ async def test_unregistered_denylist_closes_variants(client):
                 {"smtp_password": "x"},              # substring variant
                 {"aws_secret_access_key": "x"},      # substring variant
                 {"extra": {"secret_key": "x"}}):     # nested
-        r = await ac.put("/api/v1/admin/providers/storage/s3", headers=AUTH,
+        r = await ac.put("/api/v1/admin/providers/storage/ftp", headers=AUTH,
                          json={"config": cfg})
         assert r.status_code == 422, (cfg, r.text)
 
@@ -248,10 +248,10 @@ async def test_unregistered_read_strips_secret_variants(client):
     # guard, or directly) must not echo it on read.
     from app.core.providers import repository as prepo
     async with db.session_factory() as s:
-        await prepo.upsert_provider(s, "storage", "s3",
+        await prepo.upsert_provider(s, "storage", "ftp",
             config={"region": "eu", "SMTP_PASSWORD": "leak", "nested": {"api_key": "leak"}})
         await s.commit()
-    got = (await ac.get("/api/v1/admin/providers/storage/s3", headers=AUTH)).json()
+    got = (await ac.get("/api/v1/admin/providers/storage/ftp", headers=AUTH)).json()
     assert got["config"] == {"region": "eu", "nested": {}}  # variants + nested stripped
 
 
@@ -269,7 +269,8 @@ def test_registry_schema_keys():
     r = default_registry()
     assert r.schema_keys("storage", "minio") == {"endpoint", "bucket"}
     assert r.schema_keys("storage", "memory") == set()   # registered, empty schema
-    assert r.schema_keys("storage", "s3") is None        # not registered
+    assert r.schema_keys("storage", "s3") == {"region", "bucket", "endpoint"}  # P2.1
+    assert r.schema_keys("storage", "ftp") is None       # not registered
 
 
 def test_as_dict_strips_config_but_raw_keeps_it():
@@ -319,3 +320,35 @@ async def test_check_endpoints_require_manage(client):
     assert (await ac.get("/api/v1/admin/providers/", headers=hdr)).status_code == 200
     assert (await ac.post("/api/v1/admin/providers/llm/routing/check", headers=hdr)).status_code == 403
     assert (await ac.post("/api/v1/admin/providers/storage/minio/check", headers=hdr)).status_code == 403
+
+
+# --- P2.1: cloud providers (S3 storage + AWS Secrets Manager) -----------------
+
+def test_s3_provider_config_and_schema():
+    from app.core.providers.storage_s3 import S3StorageProvider
+    p = S3StorageProvider({"region": "eu-west-1", "bucket": "b", "endpoint": "https://x"})
+    assert p._region == "eu-west-1" and p._bucket == "b" and p._endpoint == "https://x"
+    keys = {f["key"] for f in S3StorageProvider.config_schema()}
+    assert keys == {"region", "bucket", "endpoint"}
+    # Credentials are NEVER declared in the schema (SEC-001 / SEC-F2).
+    assert keys.isdisjoint({"access_key", "secret_key", "password", "secret"})
+
+
+def test_aws_secrets_provider_config_and_schema():
+    from app.core.providers.secrets_aws import AwsSecretsManagerProvider
+    p = AwsSecretsManagerProvider({"region": "eu-west-1", "prefix": "facil/"})
+    assert p._region == "eu-west-1" and p._prefix == "facil/"
+    keys = {f["key"] for f in AwsSecretsManagerProvider.config_schema()}
+    assert keys == {"region", "prefix"}
+    assert keys.isdisjoint({"access_key", "secret_key", "password", "secret"})
+
+
+@pytest.mark.asyncio
+async def test_cloud_providers_registered(client):
+    ac, _ = client
+    entries = (await ac.get("/api/v1/admin/providers/registered", headers=AUTH)).json()
+    by = {(e["capability"], e["provider_code"]): e["config_schema"] for e in entries}
+    # Appear in the Add picker → the UI renders their config form automatically.
+    assert ("storage", "s3") in by and ("secrets", "aws_secretsmanager") in by
+    s3 = {f["key"]: f for f in by[("storage", "s3")]}
+    assert s3["region"]["required"] and s3["bucket"]["required"]
