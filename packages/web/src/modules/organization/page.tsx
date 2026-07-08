@@ -115,8 +115,11 @@ export default function OrganizationsPage() {
         </div>
       </div>
 
-      {/* Master-detail: list + docked RecordSurface (create/edit, deep-linkable). */}
+      {/* Master-detail: list + docked RecordSurface (edit) or full-width create page
+          (P1.3). A field-rich create takes the whole area (list hidden); edit keeps
+          the split-view for list context. */}
       <div className="flex min-h-0 flex-1 gap-4">
+        {!(surfaceOpen && isNew) && (
         <div className="min-w-0 flex-1">
           <DataGrid<Org>
             mode="cursor"
@@ -142,6 +145,7 @@ export default function OrganizationsPage() {
             emptyLabel={t("empty")}
           />
         </div>
+        )}
         {surfaceOpen && (
           isNew
             ? (canCreate && <OrgCreateSurface onClose={closeSurface} onCreated={() => { table.refetch(); }} />)
@@ -172,7 +176,7 @@ function OrgCreateSurface({ onClose, onCreated }: { onClose: () => void; onCreat
   const t = useTranslations("organizations");
   const qc = useQueryClient();
   return (
-    <RecordSurface title={t("new_title")} resourceKey="orgs" onClose={onClose}>
+    <RecordSurface title={t("new_title")} resourceKey="orgs" mode="page" onClose={onClose}>
       <RecordForm
         fields={ORG_FIELDS}
         mode="create"
