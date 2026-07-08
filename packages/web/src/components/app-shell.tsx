@@ -145,8 +145,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </SheetContent>
       </Sheet>
 
-      {/* Content column: fixed topbar + the ONLY scrollable region */}
-      <div className="grid grid-rows-[56px_1fr] overflow-hidden">
+      {/* Content column: fixed topbar + (optional) verify-email banner + the ONLY
+          scrollable region. 3 explicit rows so the banner keeps its natural height
+          (was landing in the 1fr row → stretched/collapsed per page content). */}
+      <div className="grid grid-rows-[56px_auto_1fr] overflow-hidden">
         <header className="flex items-center gap-3 border-b bg-background/80 px-5 backdrop-blur">
           <Button
             variant="ghost"
