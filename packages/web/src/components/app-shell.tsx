@@ -6,7 +6,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Network, Settings, Globe, Plug, SlidersHorizontal, FolderTree, BookUser, Search, LogOut, Menu } from "lucide-react";
+import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Network, Settings, Globe, Plug, SlidersHorizontal, FolderTree, BookUser, Search, LogOut, Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import { usePermissions } from "@/lib/use-permissions";
@@ -16,11 +16,16 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useSession } from "@/lib/use-session";
 import { EmailVerifyBanner } from "@/components/layout/email-verify-banner";
 
+const COLLAPSE_KEY = "nav:collapsed";
+
 /**
  * Fixed application shell (ergonomics doctrine, D5): the sidebar + topbar NEVER
  * scroll — only the <main> data region does. Overview/detail views fit the
  * viewport (no-scroll feel); long lists scroll inside main with sticky headers.
  * Grid layout => no JS for sizing; responsive (sidebar hidden < md).
+ *
+ * Nav is grouped by family (P1.2) — Overview / Organization / Access & Identity /
+ * System — and the desktop sidebar is collapsible to an icon rail (persisted).
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const t = useTranslations("nav");
@@ -30,6 +35,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const qc = useQueryClient();
   const [navOpen, setNavOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const { data: session, isLoading } = useSession();
   const { data: branding } = useQuery<{ app_name: string; logo_url: string }>({
     queryKey: ["branding"],
@@ -40,6 +46,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   // Effective permissions -> hide nav the user can't use (backend still enforces).
   const { can } = usePermissions();
+
+  // Hydrate the collapsed preference on the client (avoids SSR mismatch).
+  useEffect(() => {
+    setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
+  }, []);
+  function toggleCollapse() {
+    setCollapsed((c) => {
+      const next = !c;
+      localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
+      return next;
+    });
+  }
 
   // Client guard: if the session check resolves unauthenticated (e.g. refresh
   // failed server-side), leave the protected area.
@@ -59,70 +77,90 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     session?.account?.display_name || session?.account?.email ||
     (session?.break_glass ? "Admin" : "");
 
-  // Only routes that exist are shown, and only those the user's grants cover
-  // (`perm` undefined = always visible). Backend remains the authority.
-  const allNav = [
-    { href: "/", label: t("dashboard"), icon: LayoutDashboard },
-    { href: "/organizations", label: t("organizations"), icon: Building2, perm: "organization.read" },
-    { href: "/org-units", label: t("org_units"), icon: FolderTree, perm: "organization.read" },
-    { href: "/directory", label: t("directory"), icon: BookUser, perm: "party.read" },
-    { href: "/locations", label: t("locations"), icon: MapPin, perm: "location.read" },
-    { href: "/agents", label: t("agents"), icon: Users, perm: "account.read" },
-    { href: "/roles", label: t("roles"), icon: ShieldCheck, perm: "rbac.read" },
-    { href: "/federation", label: t("federation"), icon: Network, perm: "account.read" },
-    // Configuration area (master data is admin config, not a primary workspace).
-    // TODO(Phase U): data-driven, module-declared, grouped nav with a "Configuration" section.
-    { href: "/reference", label: t("reference"), icon: Globe, perm: "reference.read" },
-    { href: "/providers", label: t("providers"), icon: Plug, perm: "provider.read" },
-    { href: "/config", label: t("configuration"), icon: SlidersHorizontal, perm: "settings.read" },
-    { href: "/settings", label: t("settings"), icon: Settings, perm: "branding.manage" },
+  // Nav grouped by family. Only routes that exist are shown, and only those the
+  // user's grants cover (`perm` undefined = always visible); a group with no
+  // visible item is dropped. Backend remains the authority.
+  const groups: { key: string; items: { href: string; label: string; icon: typeof LayoutDashboard; perm?: string }[] }[] = [
+    { key: "overview", items: [
+      { href: "/", label: t("dashboard"), icon: LayoutDashboard },
+    ] },
+    { key: "organization", items: [
+      { href: "/organizations", label: t("organizations"), icon: Building2, perm: "organization.read" },
+      { href: "/org-units", label: t("org_units"), icon: FolderTree, perm: "organization.read" },
+      { href: "/locations", label: t("locations"), icon: MapPin, perm: "location.read" },
+      { href: "/directory", label: t("directory"), icon: BookUser, perm: "party.read" },
+    ] },
+    { key: "access", items: [
+      { href: "/agents", label: t("agents"), icon: Users, perm: "account.read" },
+      { href: "/roles", label: t("roles"), icon: ShieldCheck, perm: "rbac.read" },
+      { href: "/federation", label: t("federation"), icon: Network, perm: "account.read" },
+    ] },
+    { key: "system", items: [
+      { href: "/reference", label: t("reference"), icon: Globe, perm: "reference.read" },
+      { href: "/providers", label: t("providers"), icon: Plug, perm: "provider.read" },
+      { href: "/config", label: t("configuration"), icon: SlidersHorizontal, perm: "settings.read" },
+      { href: "/settings", label: t("settings"), icon: Settings, perm: "branding.manage" },
+    ] },
   ];
-  const nav = allNav.filter((i) => !i.perm || can(i.perm));
+  const visibleGroups = groups
+    .map((g) => ({ ...g, items: g.items.filter((i) => !i.perm || can(i.perm)) }))
+    .filter((g) => g.items.length > 0);
 
   // Brand header + nav list are shared by the desktop sidebar and the mobile
   // drawer (DRY). On mobile, navigating closes the drawer.
-  const brandHeader = (
-    <div className="flex h-14 items-center gap-2 border-b px-5 font-semibold">
+  const brandHeader = (rail: boolean) => (
+    <div className={cn("flex h-14 items-center gap-2 border-b font-semibold", rail ? "justify-center px-0" : "px-5")}>
       {branding?.logo_url ? (
         // Same-origin assets (uploaded via the pipeline, `/api/...`) are optimized;
         // an external URL stays unoptimized so it renders without a host allowlist.
         <Image src={branding.logo_url} alt={appName} width={28} height={28} className="h-7 w-7 rounded-md object-contain" unoptimized={!isSameOriginAsset(branding.logo_url)} />
       ) : (
-        <span className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground">
+        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground">
           {appName.charAt(0).toUpperCase()}
         </span>
       )}
-      {appName}
+      {!rail && <span className="truncate">{appName}</span>}
     </div>
   );
 
-  const navList = (onNavigate?: () => void) => (
-    <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-      {nav.map(({ href, label, icon: Icon }) => {
-        const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
-        return (
-          <Link
-            key={href}
-            href={href}
-            onClick={onNavigate}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              active
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-            )}
-          >
-            <Icon className="size-4" />
-            {label}
-          </Link>
-        );
-      })}
+  const navList = (rail: boolean, onNavigate?: () => void) => (
+    <nav className="flex-1 space-y-4 overflow-y-auto p-3">
+      {visibleGroups.map((g) => (
+        <div key={g.key} className="space-y-1">
+          {!rail && g.key !== "overview" && (
+            <p className="px-3 pb-1 pt-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+              {t(`group.${g.key}`)}
+            </p>
+          )}
+          {g.items.map(({ href, label, icon: Icon }) => {
+            const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                onClick={onNavigate}
+                title={rail ? label : undefined}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  rail && "justify-center px-0",
+                  active
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                )}
+              >
+                <Icon className="size-4 shrink-0" />
+                {!rail && <span className="truncate">{label}</span>}
+              </Link>
+            );
+          })}
+        </div>
+      ))}
     </nav>
   );
 
   return (
-    <div className="grid h-screen grid-cols-1 overflow-hidden md:grid-cols-[260px_1fr]">
+    <div className={cn("grid h-screen grid-cols-1 overflow-hidden", collapsed ? "md:grid-cols-[64px_1fr]" : "md:grid-cols-[260px_1fr]")}>
       {/* Skip-link (a11y): first focusable element, visible only on focus. */}
       <a
         href="#main-content"
@@ -130,18 +168,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         {tc("skip_to_content")}
       </a>
-      {/* Sidebar — fixed on ≥ md, off-canvas drawer < md */}
+      {/* Sidebar — fixed on ≥ md (collapsible to an icon rail), off-canvas drawer < md */}
       <aside className="hidden flex-col border-r bg-card md:flex">
-        {brandHeader}
-        {navList()}
+        {brandHeader(collapsed)}
+        {navList(collapsed)}
+        <div className="border-t p-2">
+          <button
+            type="button"
+            onClick={toggleCollapse}
+            aria-label={collapsed ? tc("expand_sidebar") : tc("collapse_sidebar")}
+            title={collapsed ? tc("expand_sidebar") : tc("collapse_sidebar")}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
+              collapsed && "justify-center px-0",
+            )}
+          >
+            {collapsed ? <PanelLeftOpen className="size-4 shrink-0" /> : <PanelLeftClose className="size-4 shrink-0" />}
+            {!collapsed && <span>{tc("collapse_sidebar")}</span>}
+          </button>
+        </div>
       </aside>
 
-      {/* Mobile navigation drawer (< md) — Radix Dialog: focus-trap + Esc + backdrop */}
+      {/* Mobile navigation drawer (< md) — Radix Dialog: focus-trap + Esc + backdrop.
+          Always the full (non-rail) nav. */}
       <Sheet open={navOpen} onOpenChange={setNavOpen}>
         <SheetContent side="left" closeLabel={tc("close")} className="p-0 md:hidden">
           <SheetTitle className="sr-only">{appName}</SheetTitle>
-          {brandHeader}
-          {navList(() => setNavOpen(false))}
+          {brandHeader(false)}
+          {navList(false, () => setNavOpen(false))}
         </SheetContent>
       </Sheet>
 

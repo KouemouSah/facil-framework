@@ -15,7 +15,13 @@
     "settings": "Settings",
     "configuration": "Configuration",
     "org_units": "Org units",
-    "directory": "Directory"
+    "directory": "Directory",
+    "group": {
+      "overview": "Overview",
+      "organization": "Organization",
+      "access": "Access & Identity",
+      "system": "System"
+    }
   },
   "auth": {
     "login": "Sign in",
@@ -94,7 +100,9 @@
     "close": "Close",
     "dismiss": "Dismiss",
     "open_menu": "Open menu",
-    "resize_panel": "Resize panel"
+    "resize_panel": "Resize panel",
+    "collapse_sidebar": "Collapse sidebar",
+    "expand_sidebar": "Expand sidebar"
   },
   "errors": {
     "title": "Something went wrong",
@@ -123,9 +131,21 @@
   "reference": {
     "title": "Reference data",
     "subtitle": "Managed master data (ISO countries, currencies, subdivisions) used across the platform.",
-    "tab": { "currencies": "Currencies", "countries": "Countries", "regions": "Regions" },
-    "singular": { "currencies": "currency", "countries": "country", "regions": "region" },
-    "col": { "code": "Code", "name": "Name", "symbol": "Symbol" },
+    "tab": {
+      "currencies": "Currencies",
+      "countries": "Countries",
+      "regions": "Regions"
+    },
+    "singular": {
+      "currencies": "currency",
+      "countries": "country",
+      "regions": "region"
+    },
+    "col": {
+      "code": "Code",
+      "name": "Name",
+      "symbol": "Symbol"
+    },
     "search_placeholder": "Search code / name",
     "pick_country_placeholder": "Pick a country to list its regions…",
     "import": "Import CSV",
@@ -143,7 +163,14 @@
     "save_failed": "Save failed.",
     "edit_title": "Edit {code}",
     "new_title": "New {entity}",
-    "f": { "code": "Code", "name": "Name", "symbol": "Symbol", "decimal_places": "Decimal places", "default_currency": "Default currency", "type": "Type" },
+    "f": {
+      "code": "Code",
+      "name": "Name",
+      "symbol": "Symbol",
+      "decimal_places": "Decimal places",
+      "default_currency": "Default currency",
+      "type": "Type"
+    },
     "type_placeholder": "province / state…"
   },
   "combobox": {

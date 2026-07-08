@@ -15,7 +15,13 @@
     "settings": "Paramètres",
     "configuration": "Configuration",
     "org_units": "Unités org.",
-    "directory": "Annuaire"
+    "directory": "Annuaire",
+    "group": {
+      "overview": "Vue d'ensemble",
+      "organization": "Organisation",
+      "access": "Accès & identité",
+      "system": "Système"
+    }
   },
   "auth": {
     "login": "Se connecter",
@@ -94,7 +100,9 @@
     "close": "Fermer",
     "dismiss": "Masquer",
     "open_menu": "Ouvrir le menu",
-    "resize_panel": "Redimensionner le panneau"
+    "resize_panel": "Redimensionner le panneau",
+    "collapse_sidebar": "Réduire le menu",
+    "expand_sidebar": "Développer le menu"
   },
   "errors": {
     "title": "Une erreur est survenue",
@@ -123,9 +131,21 @@
   "reference": {
     "title": "Données de référence",
     "subtitle": "Données maîtres gérées (pays, devises, subdivisions ISO) utilisées dans toute la plateforme.",
-    "tab": { "currencies": "Devises", "countries": "Pays", "regions": "Régions" },
-    "singular": { "currencies": "devise", "countries": "pays", "regions": "région" },
-    "col": { "code": "Code", "name": "Nom", "symbol": "Symbole" },
+    "tab": {
+      "currencies": "Devises",
+      "countries": "Pays",
+      "regions": "Régions"
+    },
+    "singular": {
+      "currencies": "devise",
+      "countries": "pays",
+      "regions": "région"
+    },
+    "col": {
+      "code": "Code",
+      "name": "Nom",
+      "symbol": "Symbole"
+    },
     "search_placeholder": "Rechercher code / nom",
     "pick_country_placeholder": "Choisissez un pays pour lister ses régions…",
     "import": "Importer CSV",
@@ -143,7 +163,14 @@
     "save_failed": "Échec de l’enregistrement.",
     "edit_title": "Modifier {code}",
     "new_title": "Nouveau : {entity}",
-    "f": { "code": "Code", "name": "Nom", "symbol": "Symbole", "decimal_places": "Décimales", "default_currency": "Devise par défaut", "type": "Type" },
+    "f": {
+      "code": "Code",
+      "name": "Nom",
+      "symbol": "Symbole",
+      "decimal_places": "Décimales",
+      "default_currency": "Devise par défaut",
+      "type": "Type"
+    },
     "type_placeholder": "province / état…"
   },
   "combobox": {
