@@ -6,7 +6,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Network, Settings, Globe, Plug, SlidersHorizontal, FolderTree, BookUser, Search, LogOut, Menu, PanelLeftClose, PanelLeftOpen, ChevronDown } from "lucide-react";
+import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Network, Settings, Globe, Plug, SlidersHorizontal, FolderTree, BookUser, Search, Menu, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import { usePermissions } from "@/lib/use-permissions";
@@ -16,6 +16,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useSession } from "@/lib/use-session";
 import { EmailVerifyBanner } from "@/components/layout/email-verify-banner";
 import { LocaleSwitcher } from "@/components/layout/locale-switcher";
+import { SidebarUser } from "@/components/layout/sidebar-user";
 
 const COLLAPSE_KEY = "nav:collapsed";
 const GROUPS_KEY = "nav:groups";
@@ -32,7 +33,6 @@ const GROUPS_KEY = "nav:groups";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const t = useTranslations("nav");
   const tc = useTranslations("common");
-  const ta = useTranslations("auth");
   const pathname = usePathname();
   const router = useRouter();
   const qc = useQueryClient();
@@ -41,7 +41,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Per-group accordion state (key → open). Missing key = open by default.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const { data: session, isLoading } = useSession();
-  const { data: branding } = useQuery<{ app_name: string; logo_url: string; supported_locales: string[] }>({
+  const { data: branding } = useQuery<{ app_name: string; logo_url: string; supported_locales: string[]; support_url: string }>({
     queryKey: ["branding"],
     queryFn: () => apiFetch(`/api/v1/system/branding`),
     staleTime: 5 * 60 * 1000,
@@ -89,8 +89,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.replace("/login");
   }
 
+  const email = session?.account?.email;
   const who =
-    session?.account?.display_name || session?.account?.email ||
+    session?.account?.display_name || email ||
     (session?.break_glass ? "Admin" : "");
 
   // Nav grouped by family. Only routes that exist are shown, and only those the
@@ -140,7 +141,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   const navList = (rail: boolean, onNavigate?: () => void) => (
-    <nav className="flex-1 space-y-2 overflow-y-auto p-3">
+    // min-h-0 lets this flex child shrink below its content so overflow-y-auto
+    // actually scrolls (without it the nav overflows the sidebar — P2.0 fix).
+    <nav className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
       {visibleGroups.map((g) => {
         // Accordion only for real groups on the full sidebar; the icon rail and the
         // header-less "overview" group are always shown.
@@ -201,36 +204,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {brandHeader(collapsed)}
         {navList(collapsed)}
         <div className="border-t p-2">
-          <button
-            type="button"
-            onClick={toggleCollapse}
-            aria-label={collapsed ? tc("expand_sidebar") : tc("collapse_sidebar")}
-            title={collapsed ? tc("expand_sidebar") : tc("collapse_sidebar")}
-            className={cn(
-              "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
-              collapsed && "justify-center px-0",
-            )}
-          >
-            {collapsed ? <PanelLeftOpen className="size-4 shrink-0" /> : <PanelLeftClose className="size-4 shrink-0" />}
-            {!collapsed && <span>{tc("collapse_sidebar")}</span>}
-          </button>
+          <SidebarUser name={who} email={email} rail={collapsed} collapsed={collapsed}
+            onLogout={logout} onToggleCollapse={toggleCollapse} />
         </div>
       </aside>
 
       {/* Mobile navigation drawer (< md) — Radix Dialog: focus-trap + Esc + backdrop.
           Always the full (non-rail) nav. */}
       <Sheet open={navOpen} onOpenChange={setNavOpen}>
-        <SheetContent side="left" closeLabel={tc("close")} className="p-0 md:hidden">
+        <SheetContent side="left" closeLabel={tc("close")} className="flex flex-col p-0 md:hidden">
           <SheetTitle className="sr-only">{appName}</SheetTitle>
           {brandHeader(false)}
           {navList(false, () => setNavOpen(false))}
+          <div className="border-t p-2">
+            <SidebarUser name={who} email={email} rail={false} collapsed={collapsed}
+              onLogout={logout} onToggleCollapse={toggleCollapse} />
+          </div>
         </SheetContent>
       </Sheet>
 
       {/* Content column: fixed topbar + (optional) verify-email banner + the ONLY
           scrollable region. 3 explicit rows so the banner keeps its natural height
           (was landing in the 1fr row → stretched/collapsed per page content). */}
-      <div className="grid grid-rows-[56px_auto_1fr] overflow-hidden">
+      <div className="grid grid-rows-[56px_auto_1fr_auto] overflow-hidden">
         <header className="flex items-center gap-3 border-b bg-background/80 px-5 backdrop-blur">
           <Button
             variant="ghost"
@@ -251,14 +247,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="ml-auto flex items-center gap-2">
             <LocaleSwitcher supported={branding?.supported_locales ?? ["en", "fr", "es"]} />
-            {who && <span className="text-sm text-muted-foreground">{who}</span>}
-            <Button variant="ghost" size="icon" onClick={logout} title={ta("logout")} aria-label={ta("logout")}>
-              <LogOut className="size-4" />
-            </Button>
           </div>
         </header>
         <EmailVerifyBanner />
         <main id="main-content" tabIndex={-1} className="overflow-auto p-6 focus-visible:outline-none">{children}</main>
+        {/* Console footer (P2.0) — thin, persistent: identity + license + support. */}
+        <footer className="flex items-center justify-between gap-3 border-t bg-card/40 px-5 py-2 text-xs text-muted-foreground">
+          <span>{appName} · <span className="uppercase tracking-wide">AGPL-3.0</span></span>
+          {branding?.support_url && (
+            <a href={branding.support_url} target="_blank" rel="noreferrer" className="hover:text-foreground">
+              {tc("support")}
+            </a>
+          )}
+        </footer>
       </div>
     </div>
   );

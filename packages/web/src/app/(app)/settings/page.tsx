@@ -82,7 +82,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto">
-        <div className="max-w-3xl">
+        <div>
           {isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
           {!data && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
           {data && (

@@ -103,7 +103,8 @@
     "resize_panel": "Redimensionner le panneau",
     "collapse_sidebar": "Réduire le menu",
     "expand_sidebar": "Développer le menu",
-    "language": "Langue"
+    "language": "Langue",
+    "support": "Support"
   },
   "errors": {
     "title": "Une erreur est survenue",

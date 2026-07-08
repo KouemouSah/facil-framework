@@ -103,7 +103,8 @@
     "resize_panel": "Resize panel",
     "collapse_sidebar": "Collapse sidebar",
     "expand_sidebar": "Expand sidebar",
-    "language": "Language"
+    "language": "Language",
+    "support": "Support"
   },
   "errors": {
     "title": "Something went wrong",
