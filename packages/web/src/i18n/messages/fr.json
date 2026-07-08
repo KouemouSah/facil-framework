@@ -14,7 +14,8 @@
     "providers": "Fournisseurs",
     "settings": "Paramètres",
     "configuration": "Configuration",
-    "org_units": "Unités org."
+    "org_units": "Unités org.",
+    "directory": "Annuaire"
   },
   "auth": {
     "login": "Se connecter",
@@ -412,5 +413,93 @@
       "is_active": "Actif"
     },
     "delete_parent_hint": "Supprimez ou déplacez d’abord ses sous-unités."
+  },
+  "directory": {
+    "title": "Annuaire",
+    "subtitle": "L’annuaire global des tiers et de leurs adresses.",
+    "loading": "Chargement…",
+    "load_error": "Échec du chargement.",
+    "conflict": "Modifié ailleurs — rechargement.",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "tab": {
+      "parties": "Tiers",
+      "addresses": "Adresses"
+    },
+    "toast": {
+      "created": "Créé.",
+      "saved": "Enregistré.",
+      "deleted": "Supprimé.",
+      "delete_failed": "Échec de la suppression.",
+      "save_failed": "Échec de l’enregistrement."
+    },
+    "delete": {
+      "title": "Supprimer le tiers ?",
+      "body": "Ceci supprime définitivement {name}.",
+      "confirm": "Supprimer"
+    },
+    "p": {
+      "name": "Nom",
+      "type": "Type",
+      "email": "Email",
+      "search": "Rechercher nom / n° fiscal / email",
+      "new": "Nouveau tiers",
+      "new_title": "Nouveau tiers",
+      "edit_title": "Tiers",
+      "empty": "Aucun tiers."
+    },
+    "a": {
+      "address": "Adresse",
+      "city": "Ville",
+      "postal_code": "Code postal",
+      "search": "Rechercher libellé / ville / ligne",
+      "new": "Nouvelle adresse",
+      "new_title": "Nouvelle adresse",
+      "edit_title": "Adresse",
+      "empty": "Aucune adresse.",
+      "delete_title": "Supprimer l’adresse ?",
+      "delete_body": "Ceci supprime définitivement {name}.",
+      "f_label": "Libellé",
+      "f_label_hint": "ex. Siège social",
+      "f_line1": "Adresse ligne 1",
+      "f_line2": "Adresse ligne 2",
+      "country": "Pays",
+      "country_hint": "Rechercher un pays…",
+      "region": "Région",
+      "region_hint": "Rechercher une région…",
+      "latitude": "Latitude",
+      "longitude": "Longitude",
+      "is_active": "Actif",
+      "err_number": "Saisissez un nombre valide."
+    },
+    "status": "Statut",
+    "active": "Actif",
+    "inactive": "Inactif",
+    "r": {
+      "title": "Rôles",
+      "placeholder": "ex. customer",
+      "add": "Ajouter",
+      "empty": "Aucun rôle.",
+      "remove": "Retirer le rôle",
+      "add_failed": "Impossible d’ajouter le rôle.",
+      "remove_failed": "Impossible de retirer le rôle."
+    },
+    "l": {
+      "title": "Adresses",
+      "empty": "Aucune adresse liée.",
+      "mode_existing": "Lier une existante",
+      "mode_new": "Nouvelle adresse",
+      "new_address": "Nouvelle adresse",
+      "type": "Type",
+      "primary": "Principale",
+      "attach": "Lier",
+      "unlink": "Délier",
+      "attached": "Adresse liée.",
+      "unlinked": "Adresse déliée.",
+      "attach_failed": "Impossible de lier l’adresse.",
+      "unlink_failed": "Impossible de délier l’adresse.",
+      "unavailable": "Adresse indisponible (#{id})"
+    }
   }
 }
