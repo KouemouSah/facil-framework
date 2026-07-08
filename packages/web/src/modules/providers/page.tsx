@@ -175,9 +175,12 @@ function ProviderRow({ provider, canManage, selected, onEdit, onSetDefault, onDe
         </span>
       )}
       <div className="ml-auto flex items-center gap-1">
-        <Button variant="ghost" size="sm" disabled={check.isPending} onClick={() => check.mutate()} title={t("check")}>
-          {check.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Activity className="size-3.5" />}
-        </Button>
+        {/* Health-check triggers an outbound probe → provider.manage (SEC-F6b). */}
+        {canManage && (
+          <Button variant="ghost" size="sm" disabled={check.isPending} onClick={() => check.mutate()} title={t("check")}>
+            {check.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Activity className="size-3.5" />}
+          </Button>
+        )}
         {canManage && !provider.is_default && (
           <Button variant="ghost" size="icon" disabled={busy} onClick={onSetDefault} title={t("set_default")}>
             <Star className="size-3.5" />
@@ -313,6 +316,7 @@ function RoutingCard() {
   const t = useTranslations("providers");
   const { can } = usePermissions();
   const canEdit = can("settings.manage");
+  const canProbe = can("provider.manage");  // /llm/routing/check is manage-gated (SEC-F6b)
   const [editing, setEditing] = useState(false);
   const routing = useQuery({ queryKey: ["llm-routing"], queryFn: getRouting });
   const probe = useMutation<RoutingCheck, Error>({
@@ -330,7 +334,7 @@ function RoutingCard() {
             {canEdit && !editing && (
               <Button variant="outline" size="sm" onClick={() => setEditing(true)}>{t("routing.edit")}</Button>
             )}
-            {!editing && (
+            {!editing && canProbe && (
               <Button variant="outline" size="sm" disabled={probe.isPending} onClick={() => probe.mutate()}>
                 {probe.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Activity className="size-3.5" />}
                 {t("routing.check")}

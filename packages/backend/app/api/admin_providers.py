@@ -71,7 +71,7 @@ async def get_llm_routing(request: Request) -> dict:
             "providers": public_provider_map(router_.providers())}
 
 
-@router.post("/llm/routing/check")
+@router.post("/llm/routing/check", dependencies=[_MANAGE])
 async def check_llm_routing(request: Request,
                             session: AsyncSession = Depends(get_session)) -> dict:
     """Resolve every routed role to its concrete provider and probe it (real
@@ -135,11 +135,12 @@ async def put_provider(capability: str, code: str, body: ProviderIn, request: Re
     return _public(obj, registry)
 
 
-@router.post("/{capability}/{code}/check")
+@router.post("/{capability}/{code}/check", dependencies=[_MANAGE])
 async def check_provider(capability: str, code: str, request: Request,
                          session: AsyncSession = Depends(get_session)) -> dict:
     """Instantiate the provider (with its DB config if any) and run its
-    connectivity healthcheck — real, no mutation."""
+    connectivity healthcheck — real, no mutation. `provider.manage`-gated: it
+    triggers an outbound request to a manage-configured endpoint (SSRF-by-config)."""
     registry = request.app.state.registry
     if not registry.is_registered(capability, code):
         raise HTTPException(404, f"provider {capability}/{code} is not registered")

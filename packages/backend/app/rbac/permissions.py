@@ -32,6 +32,8 @@ CORE_PERMISSIONS: list[dict] = [
      "description": "View config-store settings"},
     {"code": "settings.manage", "module": "core",
      "description": "Edit config-store settings"},
+    {"code": "settings.manage_protected", "module": "core",
+     "description": "Edit security-critical settings (auth.*, rbac, security.*)"},
     {"code": "provider.read", "module": "core",
      "description": "View provider registry (LLM/storage/email/…)"},
     {"code": "provider.manage", "module": "core",

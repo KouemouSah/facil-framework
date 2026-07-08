@@ -177,3 +177,88 @@ async def test_ai_providers_rejects_malformed_shape(client):
         r = await ac.put("/api/v1/admin/settings/ai.providers", headers=AUTH,
                          json={"value": bad_value, "value_type": "json"})
         assert r.status_code == 422, (bad_value, r.text)
+
+
+# --- SEC-F5 / SEC-F6: config-store secret discipline + protected keys + typing ---
+
+def test_settings_guards_unit():
+    from app.api.admin_settings import _is_protected_key, _is_secret_scalar_key, _type_ok
+    assert all(_is_protected_key(k) for k in
+               ("auth.oidc.issuer", "rbac", "rbac.foo", "security.x"))
+    assert not any(_is_protected_key(k) for k in ("email.provider", "branding.app_name"))
+    assert _is_secret_scalar_key("smtp.password") and _is_secret_scalar_key("auth.oidc.client_secret")
+    # exact last-segment: a knob whose NAME contains a secret word is not flagged.
+    assert not _is_secret_scalar_key("auth.password_policy")
+    assert not _is_secret_scalar_key("email.provider")
+    assert _type_ok("x", "string") and not _type_ok({}, "string")
+    assert _type_ok(5, "number") and not _type_ok(True, "number")
+    assert _type_ok({"a": 1}, "json") and not _type_ok("x", "json")
+
+
+@pytest.mark.asyncio
+async def test_setting_rejects_plaintext_secret(client):
+    ac, _ = client
+    # A dict value carrying a secret key (SEC-F5).
+    assert (await ac.put("/api/v1/admin/settings/some.integration", headers=AUTH,
+            json={"value": {"api_key": "sk"}, "value_type": "json"})).status_code == 422
+    # A scalar under a credential-named key.
+    assert (await ac.put("/api/v1/admin/settings/smtp.password", headers=AUTH,
+            json={"value": "leak", "value_type": "string"})).status_code == 422
+    # A knob merely containing a secret word (exact-segment) is allowed.
+    assert (await ac.put("/api/v1/admin/settings/auth.password_policy", headers=AUTH,
+            json={"value": "strong", "value_type": "string"})).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_setting_read_masks_and_strips_legacy(client):
+    ac, db = client
+    from app.config_store import repository as srepo
+    async with db.session_factory() as s:
+        await srepo.upsert_setting(s, "legacy.password", "leaked", value_type="string")
+        await srepo.upsert_setting(s, "legacy.blob", {"api_key": "x", "url": "u"}, value_type="json")
+        await s.commit()
+    scalar = (await ac.get("/api/v1/admin/settings/legacy.password", headers=AUTH)).json()
+    assert scalar["value"] != "leaked"  # masked
+    blob = (await ac.get("/api/v1/admin/settings/legacy.blob", headers=AUTH)).json()
+    assert "api_key" not in blob["value"] and blob["value"] == {"url": "u"}  # nested stripped
+
+
+@pytest.mark.asyncio
+async def test_setting_rejects_type_mismatch(client):
+    ac, _ = client
+    assert (await ac.put("/api/v1/admin/settings/x.scalar", headers=AUTH,
+            json={"value": {"a": 1}, "value_type": "string"})).status_code == 422
+    assert (await ac.put("/api/v1/admin/settings/x.num", headers=AUTH,
+            json={"value": "nope", "value_type": "number"})).status_code == 422
+    assert (await ac.put("/api/v1/admin/settings/x.ok", headers=AUTH,
+            json={"value": 5, "value_type": "number"})).status_code == 200
+
+
+async def _narrow_bearer(ac, email, grants):
+    """A JWT for an account holding exactly `grants` at global scope."""
+    await ac.post("/api/v1/rbac/admin/reseed?profile=empty", headers=AUTH)  # seed catalog
+    code = "role_" + email.split("@")[0]
+    await ac.post("/api/v1/rbac/roles", headers=AUTH,
+                  json={"code": code, "name": code, "grants": grants})
+    role_id = next(r["id"] for r in (await ac.get("/api/v1/rbac/roles", headers=AUTH)).json()["items"]
+                   if r["code"] == code)
+    acc = (await ac.post("/api/v1/auth/register",
+                         json={"email": email, "password": "Sup3rStr0ng!pw"})).json()
+    await ac.post(f"/api/v1/rbac/accounts/{acc['id']}/roles", headers=AUTH,
+                  json={"role_id": role_id})  # global scope
+    tok = (await ac.post("/api/v1/auth/login",
+                         json={"identifier": email, "password": "Sup3rStr0ng!pw"})).json()
+    return {"Authorization": f"Bearer {tok['access']}"}
+
+
+@pytest.mark.asyncio
+async def test_protected_settings_need_elevated_permission(client):
+    ac, _ = client
+    hdr = await _narrow_bearer(ac, "ops@x.io", ["settings.read", "settings.manage"])
+    # Non-protected key: settings.manage suffices.
+    assert (await ac.put("/api/v1/admin/settings/email.provider", headers=hdr,
+            json={"value": "smtp"})).status_code == 200
+    # Protected namespace (auth.*): needs settings.manage_protected → 403.
+    assert (await ac.put("/api/v1/admin/settings/auth.oidc.issuer", headers=hdr,
+            json={"value": "https://idp"})).status_code == 403
+    assert (await ac.delete("/api/v1/admin/settings/rbac", headers=hdr)).status_code == 403

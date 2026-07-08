@@ -10,37 +10,22 @@ implementing it + deleting its entry here (and its inline `NOTE (SEC-Fx)` marker
 
 ---
 
-## SEC-F5 — `settings.read` exposes every config-store value (potential plaintext secret)  ·  LOW
-
-- **Where:** `packages/backend/app/api/admin_settings.py` — `_public_setting` strips
-  only the `ai.providers` map; every other setting `value` is returned verbatim to
-  any `settings.read` principal.
-- **Risk (admin-gated):** an operator who stores a credential as an ordinary string
-  value (`smtp.password = "…"`) instead of using `secret_ref` leaks it to all
-  `settings.read` holders. Mitigation by design = `secret_ref`; `settings.read` is a
-  high-trust admin permission. Frontend rendering is XSS-safe (React-escaped).
-- **Recommended fix:** either scan/reject nested-object values for secret-bearing
-  keys on write (like the provider path), or formally document `settings.read` as a
-  secret-bearing permission and keep it tightly scoped.
-- **Surfaced by:** sub-project B security review.
-
-## SEC-F6 — `settings.manage` is a single super-permission over security-critical keys  ·  LOW
-
-- **Where:** `admin_settings.py` (`auth.*`, `ai.routing`, `rbac`, `branding` all
-  behind one `settings.manage`); `admin_providers.py` `/check` + `/llm/routing/check`
-  trigger outbound requests gated only at router-level `provider.read`.
-- **Risk (bounded, all high-perm):** (a) no per-namespace authorization — the
-  config-store editor is a privilege-concentration point; (b) SSRF-by-config: a
-  `provider.read` user can trigger a probe of a `manage`-configured internal URL; (c)
-  `put_setting` validates `value_type ∈ VALUE_TYPES` but not that `value` matches the
-  declared type (a JSON object can be stored under a scalar key).
-- **Recommended fix:** a protected-key allowlist behind a stronger permission;
-  gate `/check` on `provider.manage`; server-side value/type coercion.
-- **Surfaced by:** sub-project B security review (design observation, no new bug).
+_No open items._
 
 ---
 
 Closed:
+- **SEC-F5** (`settings.read` could expose a plaintext secret stored as a setting
+  value) — fixed: `put_setting` rejects a dict value carrying a secret-bearing key
+  and a scalar under a credential-named key (exact last-segment, e.g. `smtp.password`)
+  — credentials go via `secret_ref`. `_public_setting` strips nested secret keys from
+  dict values and masks a legacy credential-keyed scalar on read.
+- **SEC-F6** — fixed all three: (a) security-critical namespaces (`auth.*`, `rbac`,
+  `security.*`) now require the elevated `settings.manage_protected` permission via an
+  in-handler `enforce()` (break-glass / global-`*` admin still pass); (b) the
+  outbound-probe endpoints `/{cap}/{code}/check` + `/llm/routing/check` are
+  `provider.manage`-gated (SSRF-by-config); (c) `put_setting` validates that `value`
+  matches its declared `value_type` (no JSON object smuggled under a scalar key).
 - **SEC-F2** (provider secret denylist was exact/case-sensitive/top-level) — fully
   fixed. Registered providers: `config` is ALLOWLISTED to the type's `config_schema()`
   keys on write + read (`admin_providers._public` + `registry.schema_keys`), and
