@@ -412,9 +412,21 @@
       "metadata": "Métadonnées (JSON)",
       "is_active": "Actif"
     },
-    "delete_parent_hint": "Supprimez ou déplacez d’abord ses sous-unités."
+    "delete_parent_hint": "Supprimez ou déplacez d’abord ses sous-unités.",
+    "capped": "Affichage des {n} premières unités. Affinez ou scindez la hiérarchie pour voir le reste."
   },
   "directory": {
+    "f": {
+      "type": "Type",
+      "name": "Nom",
+      "tax_id": "Identifiant fiscal",
+      "registration_number": "Numéro d’enregistrement",
+      "email": "Courriel",
+      "phone": "Téléphone",
+      "website": "Site web",
+      "custom_fields": "Champs personnalisés (JSON)",
+      "is_active": "Actif"
+    },
     "title": "Annuaire",
     "subtitle": "L’annuaire global des tiers et de leurs adresses.",
     "loading": "Chargement…",

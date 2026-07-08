@@ -412,9 +412,21 @@
       "metadata": "Metadatos (JSON)",
       "is_active": "Activo"
     },
-    "delete_parent_hint": "Elimine o reasigne primero sus sub-unidades."
+    "delete_parent_hint": "Elimine o reasigne primero sus sub-unidades.",
+    "capped": "Mostrando las primeras {n} unidades. Refine o divida la jerarquía para ver el resto."
   },
   "directory": {
+    "f": {
+      "type": "Tipo",
+      "name": "Nombre",
+      "tax_id": "Identificación fiscal",
+      "registration_number": "Número de registro",
+      "email": "Correo",
+      "phone": "Teléfono",
+      "website": "Sitio web",
+      "custom_fields": "Campos personalizados (JSON)",
+      "is_active": "Activo"
+    },
     "title": "Directorio",
     "subtitle": "El directorio global de terceros y sus direcciones.",
     "loading": "Cargando…",

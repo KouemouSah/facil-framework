@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { PARTY_FIELDS } from "./fields";
+import { PARTY_FIELD_SPECS } from "./fields";
 
-const by = (n: string) => PARTY_FIELDS.find((f) => f.name === n);
+const by = (n: string) => PARTY_FIELD_SPECS.find((f) => f.name === n);
 
-describe("PARTY_FIELDS (directory)", () => {
+describe("PARTY_FIELD_SPECS (directory)", () => {
   it("party_type is a required, immutable select over person/organization", () => {
     const pt = by("party_type");
     expect(pt?.type).toBe("select");

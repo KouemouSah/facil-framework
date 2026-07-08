@@ -112,6 +112,13 @@ export default function OrgUnitsPage() {
               onDelete={() => setPendingDelete(unit)}
               busy={del.isPending} />
           ))}
+          {/* The list is server-capped at 200 (no keyset on the tree view); never
+              hide the truncation silently (no-silent-cap mandate). */}
+          {orgId && all.length >= 200 && (
+            <p className="mt-2 text-xs text-amber-600 dark:text-amber-500" role="status">
+              {t("capped", { n: all.length })}
+            </p>
+          )}
         </div>
 
         {surfaceOpen && (
