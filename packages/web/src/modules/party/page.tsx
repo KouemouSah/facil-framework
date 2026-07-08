@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useServerTable } from "@/lib/use-server-table";
 import { usePermissions } from "@/lib/use-permissions";
-import { PARTY_FIELDS } from "./fields";
+import { usePartyFields } from "./fields";
 import {
   PARTY_TYPES, createParty, deleteParty, getParty, listParties, updateParty, type Party,
 } from "./api";
@@ -146,10 +146,11 @@ function PartiesTab({ sel, isNew, openCreate, openEdit, closeSurface }: TabProps
 
 function PartyCreateSurface({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const t = useTranslations("directory");
+  const partyFields = usePartyFields();
   const qc = useQueryClient();
   return (
     <RecordSurface title={t("p.new_title")} resourceKey="parties" onClose={onClose}>
-      <RecordForm fields={PARTY_FIELDS} mode="create" layout="rich" enableSaveNew submitLabel={t("p.new")}
+      <RecordForm fields={partyFields} mode="create" layout="rich" enableSaveNew submitLabel={t("p.new")}
         initial={{ party_type: "organization", is_active: true }}
         onSubmit={(payload) => createParty(payload)}
         onSuccess={({ again }) => { qc.invalidateQueries({ queryKey: ["parties"] }); onSaved(); toast({ variant: "success", title: t("toast.created") }); if (!again) onClose(); }}
@@ -160,6 +161,7 @@ function PartyCreateSurface({ onClose, onSaved }: { onClose: () => void; onSaved
 
 function PartyEditSurface({ partyId, readOnly, onClose }: { partyId: string; readOnly: boolean; onClose: () => void }) {
   const t = useTranslations("directory");
+  const partyFields = usePartyFields();
   const qc = useQueryClient();
   const { can } = usePermissions();
   const { data, isError } = useQuery({ queryKey: ["party", partyId], queryFn: () => getParty(partyId) });
@@ -169,7 +171,7 @@ function PartyEditSurface({ partyId, readOnly, onClose }: { partyId: string; rea
       {!data && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
       {data && (
         <div className="space-y-4">
-          <RecordForm key={data.etag ?? partyId} fields={PARTY_FIELDS} mode="edit" layout="rich" readOnly={readOnly}
+          <RecordForm key={data.etag ?? partyId} fields={partyFields} mode="edit" layout="rich" readOnly={readOnly}
             initial={data as unknown as Record<string, unknown>} etag={data.etag}
             onSubmit={(payload, etag) => updateParty(partyId, payload, etag)}
             onSuccess={() => { qc.invalidateQueries({ queryKey: ["party", partyId] }); qc.invalidateQueries({ queryKey: ["parties"] }); toast({ variant: "success", title: t("toast.saved") }); }}
