@@ -130,8 +130,11 @@ export default function LocationsPage() {
         </div>
       </div>
 
-      {/* Master-detail: list + docked RecordSurface (create/edit, deep-linkable). */}
+      {/* Master-detail: list + docked RecordSurface (edit) or full-width create page
+          (P2.0 consistency — a rich site create takes the whole area; edit keeps
+          the split-view). */}
       <div className="flex min-h-0 flex-1 gap-4">
+        {!(surfaceOpen && isNew) && (
         <div className="min-w-0 flex-1">
           <DataGrid<Site>
             mode="cursor"
@@ -157,6 +160,7 @@ export default function LocationsPage() {
             emptyLabel={orgId ? t("empty") : firstOrg.isError ? t("org_load_error") : t("empty_no_org")}
           />
         </div>
+        )}
         {surfaceOpen && (
           isNew
             ? (canCreate && <SiteCreateSurface orgId={orgId} onClose={closeSurface} onCreated={() => { table.refetch(); }} />)
@@ -189,7 +193,7 @@ function SiteCreateSurface({ orgId, onClose, onCreated }: {
   const qc = useQueryClient();
   const fields = useSiteFields();
   return (
-    <RecordSurface title={t("new_title")} resourceKey="sites" onClose={onClose}>
+    <RecordSurface title={t("new_title")} resourceKey="sites" mode="page" onClose={onClose}>
       <RecordForm
         fields={fields}
         mode="create"
