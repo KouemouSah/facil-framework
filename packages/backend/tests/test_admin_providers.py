@@ -227,6 +227,43 @@ async def test_unregistered_code_falls_back_to_denylist(client):
     assert bad.status_code == 422, bad.text
 
 
+@pytest.mark.asyncio
+async def test_unregistered_denylist_closes_variants(client):
+    ac, _ = client
+    # SEC-F2 residual: the unregistered-type fallback denylist is now case-insensitive
+    # + substring + recursive, so credential variants no longer slip through.
+    for cfg in ({"API_KEY": "x"},                    # case variant
+                {"smtp_password": "x"},              # substring variant
+                {"aws_secret_access_key": "x"},      # substring variant
+                {"extra": {"secret_key": "x"}}):     # nested
+        r = await ac.put("/api/v1/admin/providers/storage/s3", headers=AUTH,
+                         json={"config": cfg})
+        assert r.status_code == 422, (cfg, r.text)
+
+
+@pytest.mark.asyncio
+async def test_unregistered_read_strips_secret_variants(client):
+    ac, db = client
+    # A legacy unregistered-type row carrying a variant secret (written before the
+    # guard, or directly) must not echo it on read.
+    from app.core.providers import repository as prepo
+    async with db.session_factory() as s:
+        await prepo.upsert_provider(s, "storage", "s3",
+            config={"region": "eu", "SMTP_PASSWORD": "leak", "nested": {"api_key": "leak"}})
+        await s.commit()
+    got = (await ac.get("/api/v1/admin/providers/storage/s3", headers=AUTH)).json()
+    assert got["config"] == {"region": "eu", "nested": {}}  # variants + nested stripped
+
+
+def test_secret_key_matching_unit():
+    from app.models.provider import public_config, secret_keys_in
+    cfg = {"endpoint": "x", "API_KEY": "a", "smtp_password": "b",
+           "extra": {"access_key": "c", "model": "m"}}
+    assert secret_keys_in(cfg) == {"API_KEY", "smtp_password", "access_key"}
+    assert public_config(cfg) == {"endpoint": "x", "extra": {"model": "m"}}
+    assert secret_keys_in({"endpoint": "x", "region": "eu"}) == set()  # clean
+
+
 def test_registry_schema_keys():
     from app.core.providers.registry import default_registry
     r = default_registry()
@@ -249,10 +286,12 @@ def test_ai_provider_allowlist_constant():
 
 def test_no_registered_schema_declares_a_secret_key():
     """SEC-005 invariant: the allowlist trusts config_schema, so no registered
-    provider may ever declare a secret-bearing key (that would reopen SEC-001)."""
+    provider may ever declare a secret-bearing key (that would reopen SEC-001).
+    Checked with the same substring matcher the fallback denylist uses, so a
+    variant name (e.g. `smtp_password`) can't sneak into a schema either."""
     from app.core.providers.registry import default_registry
-    from app.models.provider import SECRET_CONFIG_KEYS
+    from app.models.provider import _is_secret_key
     r = default_registry()
     for cap, code in r.registered:
-        keys = r.schema_keys(cap, code) or set()
-        assert keys & SECRET_CONFIG_KEYS == set(), f"{cap}/{code} declares a secret key"
+        for key in (r.schema_keys(cap, code) or set()):
+            assert not _is_secret_key(key), f"{cap}/{code} declares secret-ish key {key!r}"

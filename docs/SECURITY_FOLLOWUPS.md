@@ -41,13 +41,17 @@ implementing it + deleting its entry here (and its inline `NOTE (SEC-Fx)` marker
 ---
 
 Closed:
-- **SEC-F2** (provider secret denylist was exact/case-sensitive/top-level) — fixed in
-  sub-project B: provider `config` is ALLOWLISTED to the type's `config_schema()` keys
-  on write + read (`admin_providers._public` + `registry.schema_keys`), and
-  `ai.providers` entries to `AI_PROVIDER_ALLOWED`. Denylist kept only as the
-  UNREGISTERED-code fallback (bounded: writing needs `provider.manage`, an
-  unregistered row can never be built). A `test_no_registered_schema_declares_a_secret_key`
-  invariant guards against a future schema re-opening the gap (SEC-005).
+- **SEC-F2** (provider secret denylist was exact/case-sensitive/top-level) — fully
+  fixed. Registered providers: `config` is ALLOWLISTED to the type's `config_schema()`
+  keys on write + read (`admin_providers._public` + `registry.schema_keys`), and
+  `ai.providers` entries to `AI_PROVIDER_ALLOWED`. Unregistered-code FALLBACK (the
+  former residual): the denylist `secret_keys_in`/`public_config` are now
+  **case-insensitive + substring + recursive** (`_SECRET_INDICATORS`), so credential
+  variants (`API_KEY`, `smtp_password`, `aws_secret_access_key`, nested blobs) are
+  rejected on write and stripped on read — closing the residual. Safe to be broad:
+  these run only on provider-row config / `as_dict()`, never on `ai.providers`.
+  `test_no_registered_schema_declares_a_secret_key` (now using the substring matcher)
+  guards against a future schema re-opening the gap (SEC-005).
 - **SEC-F4** (`ProviderSetting.as_dict()` returned raw `config`) — fixed: `as_dict()`
   strips via `public_config()`; `as_dict_raw()` for internal raw callers.
 - **BFF dropped `If-Match`** (SEC-001, sub-project B review) — the BFF proxy forwarded

@@ -20,31 +20,70 @@ from app.db.base import Base, JSONType
 
 CAPABILITIES = ("storage", "llm", "email", "secrets", "auth", "payment")
 
-# Credential-bearing keys that must NEVER live in `config`. The DURABLE control
-# (SEC-F2) is an ALLOWLIST: a registered provider's config is restricted to the
-# keys it declares in `config_schema()` (enforced in admin_providers on write, and
-# used to strip on read) — this closes the case/variant/nested denylist gaps
-# structurally. This denylist remains only as the FALLBACK for an UNREGISTERED
-# `(capability, code)` where no schema exists to allowlist against.
+# Canonical credential keys that must NEVER live in `config`. The DURABLE control
+# (SEC-F2) is an ALLOWLIST: a registered provider's config is restricted to the keys
+# it declares in `config_schema()` (enforced in admin_providers on write + read) —
+# this closes the case/variant/nested gaps structurally. This set is the FALLBACK
+# for an UNREGISTERED `(capability, code)` (no schema to allowlist) and the invariant
+# a schema must never intersect (`test_no_registered_schema_declares_a_secret_key`).
 SECRET_CONFIG_KEYS = frozenset({
     "access_key", "secret_key", "api_key", "password", "secret", "client_secret",
     "role_id", "secret_id", "token", "private_key", "passwd", "pwd",
 })
 
+# Substring indicators (lowercased) for the fallback denylist. A config key is
+# secret-bearing if its lowercased form CONTAINS any of these — substring +
+# case-insensitive + recursive closes the SEC-F2 residual gaps (`API_KEY`,
+# `smtp_password`, `aws_secret_access_key`, nested blobs) that an exact top-level
+# match missed. Safe to be broad here: this runs ONLY on provider-row config (whose
+# schema keys never contain a secret word) and the `as_dict()` baseline — NEVER on
+# the `ai.providers` map (that uses AI_PROVIDER_ALLOWED, which allows the
+# `api_key_secret` REFERENCE), so there is no false-positive on a legitimate key.
+_SECRET_INDICATORS = (
+    "password", "passwd", "pwd", "secret", "token", "api_key", "apikey",
+    "access_key", "accesskey", "secret_key", "secretkey", "private_key",
+    "privatekey", "client_secret", "credential", "connection_string", "role_id",
+)
+
 # The `ai.providers` map has a fixed entry shape (no per-entry schema), so it gets
 # its own allowlist. `api_key_secret` is a REFERENCE (a secret name), allowed.
 AI_PROVIDER_ALLOWED = frozenset({"kind", "endpoint", "model", "api_key_secret"})
 
-
-def public_config(config: dict | None) -> dict:
-    """A config dict with any secret-bearing key removed (defence in depth for
-    legacy/env-injected rows) — used for every API response."""
-    return {k: v for k, v in (config or {}).items() if k not in SECRET_CONFIG_KEYS}
+_MAX_CONFIG_DEPTH = 8  # bound recursion on hostile/deeply-nested config
 
 
-def secret_keys_in(config: dict | None) -> set[str]:
-    """Secret-bearing keys present in a config dict (empty = clean)."""
-    return SECRET_CONFIG_KEYS & set(config or {})
+def _is_secret_key(key: str) -> bool:
+    k = str(key).lower()
+    return any(ind in k for ind in _SECRET_INDICATORS)
+
+
+def public_config(config: dict | None, _depth: int = 0) -> dict:
+    """A config dict with every secret-bearing key removed — recursively,
+    case-insensitively, by substring (SEC-F2 fallback + SEC-F4 baseline). Defence
+    in depth for legacy/unregistered rows; the registered path allowlists by schema."""
+    if not isinstance(config, dict) or _depth > _MAX_CONFIG_DEPTH:
+        return {}
+    out: dict = {}
+    for k, v in config.items():
+        if _is_secret_key(k):
+            continue
+        out[k] = public_config(v, _depth + 1) if isinstance(v, dict) else v
+    return out
+
+
+def secret_keys_in(config: dict | None, _depth: int = 0) -> set[str]:
+    """Secret-bearing keys anywhere in a config dict (recursive, case-insensitive,
+    substring) — empty = clean. Rejects an unregistered-type write carrying a
+    credential under any name/case/nesting (SEC-F2)."""
+    found: set[str] = set()
+    if not isinstance(config, dict) or _depth > _MAX_CONFIG_DEPTH:
+        return found
+    for k, v in config.items():
+        if _is_secret_key(k):
+            found.add(k)
+        if isinstance(v, dict):
+            found |= secret_keys_in(v, _depth + 1)
+    return found
 
 
 def public_provider_map(value):
