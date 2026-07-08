@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronsUpDown, Plus, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
@@ -30,8 +31,8 @@ function defaultLabel(it: RefItem): string {
 }
 
 export function RefSelect({
-  value, onChange, resource, filter, placeholder = "Search…",
-  allowNone = true, noneLabel = "— none —", disabled = false, labelOf = defaultLabel,
+  value, onChange, resource, filter, placeholder,
+  allowNone = true, noneLabel, disabled = false, labelOf = defaultLabel,
   onRequestCreate,
 }: {
   value: string;
@@ -47,6 +48,9 @@ export function RefSelect({
    * the search has no exact match. The consumer opens its create form pre-filled. */
   onRequestCreate?: (term: string) => void;
 }) {
+  const t = useTranslations("combobox");
+  const ph = placeholder ?? t("search");
+  const none = noneLabel ?? t("none");
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -90,7 +94,7 @@ export function RefSelect({
         className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
         onClick={() => setOpen((o) => !o)}>
         <span className={cn("truncate", !value && "text-muted-foreground")}>
-          {value ? selectedLabel : (allowNone ? noneLabel : placeholder)}
+          {value ? selectedLabel : (allowNone ? none : ph)}
         </span>
         <span className="flex items-center gap-1">
           {value && !disabled && (
@@ -104,15 +108,15 @@ export function RefSelect({
       {open && !disabled && (
         <div className="absolute z-40 mt-1 max-h-64 w-full overflow-auto rounded-md border bg-popover p-1 shadow-md">
           <input autoFocus value={term} onChange={(e) => setTerm(e.target.value)}
-            placeholder={placeholder}
+            placeholder={ph}
             className="mb-1 h-8 w-full rounded-sm border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" />
           {allowNone && (
             <button type="button" className="block w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
-              onClick={() => { onChange(""); setOpen(false); }}>{noneLabel}</button>
+              onClick={() => { onChange(""); setOpen(false); }}>{none}</button>
           )}
-          {isFetching && <p className="px-2 py-1.5 text-xs text-muted-foreground">Searching…</p>}
+          {isFetching && <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("searching")}</p>}
           {!isFetching && results.length === 0 && (
-            <p className="px-2 py-1.5 text-xs text-muted-foreground">No matches.</p>
+            <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("no_matches")}</p>
           )}
           {results.map((it) => (
             <button key={it.id} type="button"
@@ -128,7 +132,7 @@ export function RefSelect({
             <button type="button"
               className="mt-1 flex w-full items-center gap-1.5 rounded-sm border-t px-2 py-1.5 text-left text-sm text-primary hover:bg-accent"
               onClick={() => { onRequestCreate(term.trim()); setOpen(false); }}>
-              <Plus className="size-3.5" /> Create “{term.trim()}”
+              <Plus className="size-3.5" /> {t("create", { term: term.trim() })}
             </button>
           )}
         </div>

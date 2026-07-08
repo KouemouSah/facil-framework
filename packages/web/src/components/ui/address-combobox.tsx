@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronsUpDown, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
@@ -17,12 +18,14 @@ interface Addr { id: string; label: string | null; line1: string | null; city: s
 const ABASE = "/api/v1/modules/party/addresses";
 const addrLabel = (a: Addr) => a.label || a.line1 || a.city || `#${a.id.slice(0, 8)}`;
 
-export function AddressCombobox({ value, onChange, placeholder = "Search address…", disabled = false }: {
+export function AddressCombobox({ value, onChange, placeholder, disabled = false }: {
   value: string;
   onChange: (id: string) => void;
   placeholder?: string;
   disabled?: boolean;
 }) {
+  const t = useTranslations("combobox");
+  const ph = placeholder ?? t("search_address");
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -51,7 +54,7 @@ export function AddressCombobox({ value, onChange, placeholder = "Search address
         className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
         onClick={() => setOpen((o) => !o)}>
         <span className={cn("truncate", !value && "text-muted-foreground")}>
-          {value ? (current ? addrLabel(current) : "…") : placeholder}
+          {value ? (current ? addrLabel(current) : "…") : ph}
         </span>
         <span className="flex items-center gap-1">
           {value && !disabled && (
@@ -63,10 +66,10 @@ export function AddressCombobox({ value, onChange, placeholder = "Search address
       </button>
       {open && !disabled && (
         <div className="absolute z-40 mt-1 max-h-64 w-full overflow-auto rounded-md border bg-popover p-1 shadow-md">
-          <input autoFocus value={term} onChange={(e) => setTerm(e.target.value)} placeholder={placeholder}
+          <input autoFocus value={term} onChange={(e) => setTerm(e.target.value)} placeholder={ph}
             className="mb-1 h-8 w-full rounded-sm border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" />
-          {isFetching && <p className="px-2 py-1.5 text-xs text-muted-foreground">Searching…</p>}
-          {!isFetching && results.length === 0 && <p className="px-2 py-1.5 text-xs text-muted-foreground">No matches.</p>}
+          {isFetching && <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("searching")}</p>}
+          {!isFetching && results.length === 0 && <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("no_matches")}</p>}
           {results.map((a) => (
             <button key={a.id} type="button"
               className={cn("block w-full truncate rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent", a.id === value && "bg-accent")}

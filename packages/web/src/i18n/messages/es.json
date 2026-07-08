@@ -120,6 +120,28 @@
     "copied": "Copiado",
     "regenerate": "Regenerar"
   },
+  "combobox": {
+    "search": "Buscar…",
+    "search_organization": "Buscar organización…",
+    "search_party": "Buscar tercero…",
+    "search_address": "Buscar dirección…",
+    "none": "— ninguno —",
+    "searching": "Buscando…",
+    "no_matches": "Sin resultados.",
+    "create": "Crear «{term}»",
+    "creating": "Creando…",
+    "create_failed": "Error al crear."
+  },
+  "scope": {
+    "organization": "Organización",
+    "global": "Global (todas las organizaciones)",
+    "unit": "Unidad",
+    "whole_org": "Toda la organización",
+    "site": "Sede",
+    "whole_unit": "Toda la unidad (subárbol)",
+    "all_sites": "Todas las sedes",
+    "capped": "Mostrando las primeras 200 sedes — filtre por unidad."
+  },
   "upload": {
     "browse": "Haga clic para subir",
     "drop": "o arrastre y suelte",

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { Label } from "@/components/ui/label";
@@ -31,6 +32,7 @@ export function ScopePicker({ value, onChange }: {
   value: Scope;
   onChange: (s: Scope) => void;
 }) {
+  const t = useTranslations("scope");
   const { organization_id, org_unit_id, site_id } = value;
 
   // Units of the chosen org (offset list, capped at 200 — units per org are
@@ -55,30 +57,30 @@ export function ScopePicker({ value, onChange }: {
   return (
     <div className="space-y-2">
       <div className="space-y-1">
-        <Label className="text-xs">Organization</Label>
-        <OrgCombobox value={organization_id} noneLabel="Global (all orgs)"
+        <Label className="text-xs">{t("organization")}</Label>
+        <OrgCombobox value={organization_id} noneLabel={t("global")}
           onChange={(id) => onChange({ organization_id: id, org_unit_id: "", site_id: "" })} />
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <Label htmlFor="scope-unit" className="text-xs">Unit</Label>
+          <Label htmlFor="scope-unit" className="text-xs">{t("unit")}</Label>
           <Select id="scope-unit" value={org_unit_id} disabled={!organization_id}
             onChange={(e) => onChange({ ...value, org_unit_id: e.target.value, site_id: "" })}>
-            <option value="">Whole organization</option>
+            <option value="">{t("whole_org")}</option>
             {units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
           </Select>
         </div>
         <div className="space-y-1">
-          <Label htmlFor="scope-site" className="text-xs">Site</Label>
+          <Label htmlFor="scope-site" className="text-xs">{t("site")}</Label>
           <Select id="scope-site" value={site_id} disabled={!organization_id}
             onChange={(e) => onChange({ ...value, site_id: e.target.value })}>
-            <option value="">{org_unit_id ? "Whole unit (subtree)" : "All sites"}</option>
+            <option value="">{org_unit_id ? t("whole_unit") : t("all_sites")}</option>
             {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </Select>
         </div>
       </div>
       {sitesResp?.capped && (
-        <p className="text-xs text-muted-foreground">Showing first 200 sites — narrow by unit to refine.</p>
+        <p className="text-xs text-muted-foreground">{t("capped")}</p>
       )}
     </div>
   );
