@@ -6,7 +6,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Network, Settings, Globe, Plug, SlidersHorizontal, FolderTree, BookUser, Search, LogOut, Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Network, Settings, Globe, Plug, SlidersHorizontal, FolderTree, BookUser, Search, LogOut, Menu, PanelLeftClose, PanelLeftOpen, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import { usePermissions } from "@/lib/use-permissions";
@@ -18,6 +18,7 @@ import { EmailVerifyBanner } from "@/components/layout/email-verify-banner";
 import { LocaleSwitcher } from "@/components/layout/locale-switcher";
 
 const COLLAPSE_KEY = "nav:collapsed";
+const GROUPS_KEY = "nav:groups";
 
 /**
  * Fixed application shell (ergonomics doctrine, D5): the sidebar + topbar NEVER
@@ -37,6 +38,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const qc = useQueryClient();
   const [navOpen, setNavOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  // Per-group accordion state (key → open). Missing key = open by default.
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const { data: session, isLoading } = useSession();
   const { data: branding } = useQuery<{ app_name: string; logo_url: string; supported_locales: string[] }>({
     queryKey: ["branding"],
@@ -48,14 +51,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Effective permissions -> hide nav the user can't use (backend still enforces).
   const { can } = usePermissions();
 
-  // Hydrate the collapsed preference on the client (avoids SSR mismatch).
+  // Hydrate the collapsed + group-accordion preferences on the client (avoids SSR mismatch).
   useEffect(() => {
     setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
+    try {
+      setOpenGroups(JSON.parse(localStorage.getItem(GROUPS_KEY) || "{}"));
+    } catch {
+      /* ignore corrupt pref */
+    }
   }, []);
   function toggleCollapse() {
     setCollapsed((c) => {
       const next = !c;
       localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
+      return next;
+    });
+  }
+  function toggleGroup(key: string) {
+    setOpenGroups((prev) => {
+      const next = { ...prev, [key]: prev[key] === false };  // toggle (default open → collapse)
+      localStorage.setItem(GROUPS_KEY, JSON.stringify(next));
       return next;
     });
   }
@@ -125,38 +140,50 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   const navList = (rail: boolean, onNavigate?: () => void) => (
-    <nav className="flex-1 space-y-4 overflow-y-auto p-3">
-      {visibleGroups.map((g) => (
-        <div key={g.key} className="space-y-1">
-          {!rail && g.key !== "overview" && (
-            <p className="px-3 pb-1 pt-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
-              {t(`group.${g.key}`)}
-            </p>
-          )}
-          {g.items.map(({ href, label, icon: Icon }) => {
-            const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                onClick={onNavigate}
-                title={rail ? label : undefined}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                  rail && "justify-center px-0",
-                  active
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                )}
+    <nav className="flex-1 space-y-2 overflow-y-auto p-3">
+      {visibleGroups.map((g) => {
+        // Accordion only for real groups on the full sidebar; the icon rail and the
+        // header-less "overview" group are always shown.
+        const grouped = !rail && g.key !== "overview";
+        const open = !grouped || openGroups[g.key] !== false;
+        return (
+          <div key={g.key} className="space-y-1">
+            {grouped && (
+              <button
+                type="button"
+                onClick={() => toggleGroup(g.key)}
+                aria-expanded={open}
+                className="flex w-full items-center gap-1 rounded-md px-3 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 transition-colors hover:text-foreground"
               >
-                <Icon className="size-4 shrink-0" />
-                {!rail && <span className="truncate">{label}</span>}
-              </Link>
-            );
-          })}
-        </div>
-      ))}
+                <ChevronDown className={cn("size-3 shrink-0 transition-transform", !open && "-rotate-90")} />
+                <span className="truncate">{t(`group.${g.key}`)}</span>
+              </button>
+            )}
+            {open && g.items.map(({ href, label, icon: Icon }) => {
+              const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={onNavigate}
+                  title={rail ? label : undefined}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                    rail && "justify-center px-0",
+                    active
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                  )}
+                >
+                  <Icon className="size-4 shrink-0" />
+                  {!rail && <span className="truncate">{label}</span>}
+                </Link>
+              );
+            })}
+          </div>
+        );
+      })}
     </nav>
   );
 
