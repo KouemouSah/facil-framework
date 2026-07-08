@@ -18,8 +18,10 @@ import { useResizable } from "@/lib/use-resizable";
  * "fixed shell" ergonomics doctrine. Esc closes. The parent owns open/close (URL
  * `?new` / `?sel`); this is presentation only.
  *
- * `mode="page"` is reserved for a future full-page rendering (Option 3); today both
- * modes render the panel.
+ * `mode="page"` (P1.3) widens the surface to the full content area (`lg:w-full`) —
+ * used for field-rich creates (e.g. an Organization) where a narrow docked panel
+ * cramps the form. The parent hides the list while a page-mode surface is open so
+ * the form gets the whole width; edit stays `mode="panel"` (keeps list context).
  */
 export function RecordSurface({
   title,
