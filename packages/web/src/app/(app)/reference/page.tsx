@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Upload } from "lucide-react";
 import { apiFetch } from "@/lib/api";
@@ -26,30 +27,29 @@ const REF = "/api/v1/modules/reference";
 type Row = Record<string, unknown> & { id: string; code: string; name: string };
 type Tab = "currencies" | "countries" | "regions";
 
-const TABS: { key: Tab; label: string; defaultSort: string }[] = [
-  { key: "currencies", label: "Currencies", defaultSort: "code" },
-  { key: "countries", label: "Countries", defaultSort: "name" },
-  { key: "regions", label: "Regions", defaultSort: "name" },
+const TABS: { key: Tab; defaultSort: string }[] = [
+  { key: "currencies", defaultSort: "code" },
+  { key: "countries", defaultSort: "name" },
+  { key: "regions", defaultSort: "name" },
 ];
 
 export default function ReferencePage() {
+  const t = useTranslations("reference");
   const [tab, setTab] = useState<Tab>("currencies");
   return (
     <div className="flex h-full flex-col gap-4">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Reference data</h1>
-        <p className="text-sm text-muted-foreground">
-          Managed master data (ISO countries, currencies, subdivisions) used across the platform.
-        </p>
+        <h1 className="text-xl font-semibold tracking-tight">{t("title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
       </div>
       <div className="flex gap-1 border-b">
-        {TABS.map((t) => (
-          <button key={t.key} type="button"
-            onClick={() => setTab(t.key)}
+        {TABS.map((tb) => (
+          <button key={tb.key} type="button"
+            onClick={() => setTab(tb.key)}
             className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
-              tab === t.key ? "border-primary text-primary"
+              tab === tb.key ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-            {t.label}
+            {t(`tab.${tb.key}`)}
           </button>
         ))}
       </div>
@@ -62,7 +62,8 @@ export default function ReferencePage() {
 }
 
 function RefTab({ tab }: { tab: Tab }) {
-  const conf = TABS.find((t) => t.key === tab)!;
+  const t = useTranslations("reference");
+  const conf = TABS.find((x) => x.key === tab)!;
   const [editing, setEditing] = useState<Row | "new" | null>(null);
   // Regions are scoped to a country (dependent filter).
   const [countryId, setCountryId] = useState("");
@@ -103,15 +104,15 @@ function RefTab({ tab }: { tab: Tab }) {
   });
 
   const columns: DataGridColumn<Row>[] = [
-    { key: "code", header: "Code", sortable: true, className: "font-mono text-xs" },
-    { key: "name", header: "Name", sortable: true },
+    { key: "code", header: t("col.code"), sortable: true, className: "font-mono text-xs" },
+    { key: "name", header: t("col.name"), sortable: true },
     ...(tab === "currencies"
-      ? [{ key: "symbol", header: "Symbol", cell: (r: Row) => String(r.symbol ?? "—") }]
+      ? [{ key: "symbol", header: t("col.symbol"), cell: (r: Row) => String(r.symbol ?? "—") }]
       : []),
     {
       key: "actions", header: "", align: "right" as const, headClassName: "w-16", stopClick: true,
       cell: (r: Row) => (
-        <Button variant="ghost" size="icon" title="Delete"
+        <Button variant="ghost" size="icon" title={t("delete")}
           disabled={del.isPending} onClick={() => del.mutate(r.id)}>
           <Trash2 className="size-4" />
         </Button>
@@ -125,35 +126,38 @@ function RefTab({ tab }: { tab: Tab }) {
         {tab === "regions" && (
           <div className="w-72">
             <RefSelect resource="countries" value={countryId} onChange={setCountryId}
-              allowNone={false} placeholder="Pick a country to list its regions…" />
+              allowNone={false} placeholder={t("pick_country_placeholder")} />
           </div>
         )}
-        <Input className="h-9 w-56" placeholder="Search code / name"
+        <Input className="h-9 w-56" placeholder={t("search_placeholder")}
           value={table.q} onChange={(e) => table.setQ(e.target.value)} />
         <input ref={fileRef} type="file" accept=".csv,text/csv" hidden
           onChange={(e) => { const f = e.target.files?.[0]; if (f) doImport.mutate(f); e.target.value = ""; }} />
         <Button size="sm" variant="outline" className="ml-auto" disabled={doImport.isPending}
           onClick={() => fileRef.current?.click()}>
-          <Upload className="size-4" /> {doImport.isPending ? "Importing…" : "Import CSV"}
+          <Upload className="size-4" /> {doImport.isPending ? t("importing") : t("import")}
         </Button>
         <Button size="sm"
           disabled={tab === "regions" && !countryId}
           onClick={() => setEditing("new")}>
-          <Plus className="size-4" /> New
+          <Plus className="size-4" /> {t("new")}
         </Button>
       </div>
 
       {imported && (
         <div className="rounded-md border bg-accent/30 px-3 py-2 text-sm">
-          <span className="font-medium">{imported.created}/{imported.total} created.</span>
+          <span className="font-medium">{t("imported", { created: imported.created, total: imported.total })}</span>
           {imported.errors.length > 0 && (
             <span className="ml-2 text-destructive">
-              {imported.errors.length} error(s): {imported.errors.slice(0, 3).map((e) => `row ${e.row}`).join(", ")}
-              {imported.errors.length > 3 ? "…" : ""}
+              {t("import_errors", {
+                count: imported.errors.length,
+                rows: imported.errors.slice(0, 3).map((e) => e.row).join(", ")
+                  + (imported.errors.length > 3 ? "…" : ""),
+              })}
             </span>
           )}
           <button type="button" className="ml-2 text-xs text-muted-foreground underline"
-            onClick={() => setImported(null)}>dismiss</button>
+            onClick={() => setImported(null)}>{t("dismiss")}</button>
         </div>
       )}
 
@@ -179,7 +183,7 @@ function RefTab({ tab }: { tab: Tab }) {
           error={table.error}
           onRowClick={(r) => setEditing(r)}
           selectedId={editing && editing !== "new" ? editing.id : undefined}
-          emptyLabel={tab === "regions" && !countryId ? "Pick a country." : "No data."}
+          emptyLabel={tab === "regions" && !countryId ? t("empty_pick_country") : t("empty")}
         />
         {editing && (
           <RefForm tab={tab} record={editing === "new" ? null : editing}
@@ -196,6 +200,7 @@ function RefForm({ tab, record, countryId, onClose, onSaved }: {
   tab: Tab; record: Row | null; countryId: string;
   onClose: () => void; onSaved: (again: boolean) => void;
 }) {
+  const t = useTranslations("reference");
   const qc = useQueryClient();
   const [form, setForm] = useState<Record<string, string>>(() => ({
     code: String(record?.code ?? ""),
@@ -225,7 +230,7 @@ function RefForm({ tab, record, countryId, onClose, onSaved }: {
     mutationFn: () => record
       ? apiFetch(`${REF}/${tab}/${record.id}`, { method: "PUT", body: JSON.stringify(payload()) })
       : apiFetch(`${REF}/${tab}`, { method: "POST", body: JSON.stringify(payload()) }),
-    onError: (e: Error) => setError(e.message || "Save failed"),
+    onError: (e: Error) => setError(e.message || t("save_failed")),
   });
 
   async function submit(again: boolean) {
@@ -236,36 +241,37 @@ function RefForm({ tab, record, countryId, onClose, onSaved }: {
   }
 
   return (
-    <DetailPanel title={record ? `Edit ${record.code}` : `New ${tab.slice(0, -1)}`} onClose={onClose}
+    <DetailPanel title={record ? t("edit_title", { code: record.code })
+                                : t("new_title", { entity: t(`singular.${tab}`) })} onClose={onClose}
       footer={
         <div className="flex items-center gap-2">
           {error && <span className="text-sm text-destructive">{error}</span>}
           {!record && (
             <Button type="button" size="sm" variant="outline" disabled={save.isPending}
-              onClick={() => submit(true)}>Save &amp; New</Button>
+              onClick={() => submit(true)}>{t("save_new")}</Button>
           )}
           <Button type="button" size="sm" className="ml-auto" disabled={save.isPending}
-            onClick={() => submit(false)}>{save.isPending ? "Saving…" : "Save"}</Button>
+            onClick={() => submit(false)}>{save.isPending ? t("saving") : t("save")}</Button>
         </div>
       }>
       <div className="space-y-3">
-        <Field label="Code"><Input value={form.code} disabled={!!record}
+        <Field label={t("f.code")}><Input value={form.code} disabled={!!record}
           onChange={(e) => set("code", e.target.value)} placeholder={tab === "countries" ? "GQ" : "XAF"} /></Field>
-        <Field label="Name"><Input value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
+        <Field label={t("f.name")}><Input value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
         {tab === "currencies" && (<>
-          <Field label="Symbol"><Input value={form.symbol} onChange={(e) => set("symbol", e.target.value)} /></Field>
-          <Field label="Decimal places"><Input type="number" min={0} max={4} value={form.decimal_places}
+          <Field label={t("f.symbol")}><Input value={form.symbol} onChange={(e) => set("symbol", e.target.value)} /></Field>
+          <Field label={t("f.decimal_places")}><Input type="number" min={0} max={4} value={form.decimal_places}
             onChange={(e) => set("decimal_places", e.target.value)} /></Field>
         </>)}
         {tab === "countries" && (
-          <Field label="Default currency">
+          <Field label={t("f.default_currency")}>
             <RefSelect resource="currencies" value={form.default_currency_id}
               onChange={(v) => set("default_currency_id", v)} />
           </Field>
         )}
         {tab === "regions" && (
-          <Field label="Type"><Input value={form.region_type}
-            onChange={(e) => set("region_type", e.target.value)} placeholder="province / state…" /></Field>
+          <Field label={t("f.type")}><Input value={form.region_type}
+            onChange={(e) => set("region_type", e.target.value)} placeholder={t("type_placeholder")} /></Field>
         )}
       </div>
     </DetailPanel>
