@@ -15,7 +15,7 @@ import { OrgCombobox } from "@/components/ui/org-combobox";
 import { useFirstOrg } from "@/lib/use-organizations";
 import { useServerTable, type ServerPage } from "@/lib/use-server-table";
 import { usePermissions } from "@/lib/use-permissions";
-import { SITE_FIELDS } from "./fields";
+import { useSiteFields } from "./fields";
 import {
   SITE_BASE, createSite, deleteSite, getSite, listSites, updateSite, type Site,
 } from "./api";
@@ -187,10 +187,11 @@ function SiteCreateSurface({ orgId, onClose, onCreated }: {
 }) {
   const t = useTranslations("sites");
   const qc = useQueryClient();
+  const fields = useSiteFields();
   return (
     <RecordSurface title={t("new_title")} resourceKey="sites" onClose={onClose}>
       <RecordForm
-        fields={SITE_FIELDS}
+        fields={fields}
         mode="create"
         layout="rich"
         enableSaveNew
@@ -212,6 +213,7 @@ function SiteCreateSurface({ orgId, onClose, onCreated }: {
 function SiteEditSurface({ siteId, onClose, readOnly }: { siteId: string; onClose: () => void; readOnly: boolean }) {
   const t = useTranslations("sites");
   const qc = useQueryClient();
+  const fields = useSiteFields();
   const { data, isError } = useQuery<Record<string, unknown>>({
     queryKey: ["site", siteId],
     queryFn: () => getSite(siteId),
@@ -229,7 +231,7 @@ function SiteEditSurface({ siteId, onClose, readOnly }: { siteId: string; onClos
       {data && (
         <RecordForm
           key={String(data.etag ?? siteId)}
-          fields={SITE_FIELDS}
+          fields={fields}
           mode="edit"
           layout="rich"
           readOnly={readOnly}

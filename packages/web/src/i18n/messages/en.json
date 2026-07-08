@@ -286,6 +286,29 @@
       "created": "Site created.",
       "deleted": "Site deleted.",
       "delete_failed": "Delete failed. The site was restored."
+    },
+    "f": {
+      "code": "Code",
+      "name": "Name",
+      "site_type": "Type",
+      "is_primary": "Primary site",
+      "phone": "Phone",
+      "email": "Email",
+      "timezone": "Timezone",
+      "address_id": "Address",
+      "notes": "Notes",
+      "operating_hours": "Operating hours (JSON)",
+      "metadata": "Metadata (JSON)",
+      "code_hint": "Immutable identifier.",
+      "operating_hours_hint": "e.g. {\"mon\": [\"09:00-17:00\"], \"sat\": []}",
+      "metadata_hint": "Free-form site metadata.",
+      "type": {
+        "branch": "Branch",
+        "headquarters": "Headquarters",
+        "warehouse": "Warehouse",
+        "office": "Office",
+        "point_of_sale": "Point of sale"
+      }
     }
   },
   "agents": {
@@ -349,6 +372,14 @@
       "bulk_done": "{count} account(s) set to {status}.",
       "bulk_partial": "{ok} updated, {failed} failed (no permission or not found).",
       "bulk_failed": "Bulk status change failed."
+    },
+    "f": {
+      "email": "Email",
+      "password": "Temporary password",
+      "display_name": "Display name",
+      "organization_id": "Organization",
+      "password_hint": "The agent must change it at first sign-in.",
+      "password_ph": "≥ 12 chars · upper/lower/digit"
     }
   },
   "providers": {

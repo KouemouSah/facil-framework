@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { ACCOUNT_CREATE_FIELDS, ACCOUNT_EDIT_FIELDS } from "./fields";
+import { ACCOUNT_CREATE_SPECS, ACCOUNT_EDIT_SPECS } from "./fields";
 import { ACCOUNT_STATUSES, BLOCKING_STATUSES } from "./api";
 
-const c = (n: string) => ACCOUNT_CREATE_FIELDS.find((f) => f.name === n);
-const e = (n: string) => ACCOUNT_EDIT_FIELDS.find((f) => f.name === n);
+const c = (n: string) => ACCOUNT_CREATE_SPECS.find((f) => f.name === n);
+const e = (n: string) => ACCOUNT_EDIT_SPECS.find((f) => f.name === n);
 
 describe("ACCOUNT fields (pilot 2 — mirrors backend AccountIn/AccountUpdate)", () => {
   it("create takes a masked, required temporary password", () => {

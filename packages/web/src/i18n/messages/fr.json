@@ -286,6 +286,29 @@
       "created": "Site créé.",
       "deleted": "Site supprimé.",
       "delete_failed": "Échec de la suppression. Le site a été restauré."
+    },
+    "f": {
+      "code": "Code",
+      "name": "Nom",
+      "site_type": "Type",
+      "is_primary": "Site principal",
+      "phone": "Téléphone",
+      "email": "Courriel",
+      "timezone": "Fuseau horaire",
+      "address_id": "Adresse",
+      "notes": "Notes",
+      "operating_hours": "Horaires d'ouverture (JSON)",
+      "metadata": "Métadonnées (JSON)",
+      "code_hint": "Identifiant immuable.",
+      "operating_hours_hint": "ex. {\"mon\": [\"09:00-17:00\"], \"sat\": []}",
+      "metadata_hint": "Métadonnées libres du site.",
+      "type": {
+        "branch": "Agence",
+        "headquarters": "Siège",
+        "warehouse": "Entrepôt",
+        "office": "Bureau",
+        "point_of_sale": "Point de vente"
+      }
     }
   },
   "agents": {
@@ -349,6 +372,14 @@
       "bulk_done": "{count} compte(s) passé(s) à {status}.",
       "bulk_partial": "{ok} mis à jour, {failed} en échec (droits insuffisants ou introuvable).",
       "bulk_failed": "Échec du changement de statut en masse."
+    },
+    "f": {
+      "email": "Courriel",
+      "password": "Mot de passe temporaire",
+      "display_name": "Nom d'affichage",
+      "organization_id": "Organisation",
+      "password_hint": "L'agent devra le changer à la première connexion.",
+      "password_ph": "≥ 12 caractères · majuscule/minuscule/chiffre"
     }
   },
   "providers": {
