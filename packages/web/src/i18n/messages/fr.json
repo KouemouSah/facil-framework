@@ -642,5 +642,34 @@
       "unlink_failed": "Impossible de délier l’adresse.",
       "unavailable": "Adresse indisponible (#{id})"
     }
+  },
+  "branding": {
+    "title": "Marque",
+    "subtitle": "Personnalisez la plateforme — appliqué en direct à l'enregistrement.",
+    "save": "Enregistrer",
+    "loading": "Chargement…",
+    "load_error": "Échec du chargement de la marque.",
+    "toast": {
+      "saved": "Marque enregistrée"
+    },
+    "f": {
+      "app_name": "Nom de l'application",
+      "tagline": "Accroche",
+      "primary_color": "Couleur primaire",
+      "secondary_color": "Couleur secondaire",
+      "logo_url": "Logo",
+      "logo_dark_url": "Logo (sombre)",
+      "favicon_url": "Favicon",
+      "login_background_url": "Fond de connexion",
+      "default_locale": "Langue par défaut",
+      "theme_mode": "Mode de thème",
+      "support_email": "Courriel de support",
+      "support_url": "URL de support"
+    },
+    "theme": {
+      "light": "Clair",
+      "dark": "Sombre",
+      "auto": "Auto"
+    }
   }
 }

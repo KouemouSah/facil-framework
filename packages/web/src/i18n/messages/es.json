@@ -642,5 +642,34 @@
       "unlink_failed": "No se pudo desvincular la dirección.",
       "unavailable": "Dirección no disponible (#{id})"
     }
+  },
+  "branding": {
+    "title": "Marca",
+    "subtitle": "Personaliza la plataforma — se aplica al guardar.",
+    "save": "Guardar cambios",
+    "loading": "Cargando…",
+    "load_error": "Error al cargar la marca.",
+    "toast": {
+      "saved": "Marca guardada"
+    },
+    "f": {
+      "app_name": "Nombre de la aplicación",
+      "tagline": "Lema",
+      "primary_color": "Color primario",
+      "secondary_color": "Color secundario",
+      "logo_url": "Logo",
+      "logo_dark_url": "Logo (oscuro)",
+      "favicon_url": "Favicon",
+      "login_background_url": "Fondo de inicio de sesión",
+      "default_locale": "Idioma predeterminado",
+      "theme_mode": "Modo de tema",
+      "support_email": "Correo de soporte",
+      "support_url": "URL de soporte"
+    },
+    "theme": {
+      "light": "Claro",
+      "dark": "Oscuro",
+      "auto": "Auto"
+    }
   }
 }
