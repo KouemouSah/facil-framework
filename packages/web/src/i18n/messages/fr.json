@@ -120,6 +120,28 @@
     "copied": "Copié",
     "regenerate": "Régénérer"
   },
+  "combobox": {
+    "search": "Rechercher…",
+    "search_organization": "Rechercher une organisation…",
+    "search_party": "Rechercher un tiers…",
+    "search_address": "Rechercher une adresse…",
+    "none": "— aucun —",
+    "searching": "Recherche…",
+    "no_matches": "Aucun résultat.",
+    "create": "Créer « {term} »",
+    "creating": "Création…",
+    "create_failed": "Échec de la création."
+  },
+  "scope": {
+    "organization": "Organisation",
+    "global": "Global (toutes les organisations)",
+    "unit": "Unité",
+    "whole_org": "Toute l’organisation",
+    "site": "Site",
+    "whole_unit": "Toute l’unité (sous-arbre)",
+    "all_sites": "Tous les sites",
+    "capped": "Affichage des 200 premiers sites — affinez par unité."
+  },
   "upload": {
     "browse": "Cliquer pour téléverser",
     "drop": "ou glisser-déposer",

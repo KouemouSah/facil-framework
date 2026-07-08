@@ -120,6 +120,28 @@
     "copied": "Copied",
     "regenerate": "Regenerate"
   },
+  "combobox": {
+    "search": "Search…",
+    "search_organization": "Search organization…",
+    "search_party": "Search party…",
+    "search_address": "Search address…",
+    "none": "— none —",
+    "searching": "Searching…",
+    "no_matches": "No matches.",
+    "create": "Create “{term}”",
+    "creating": "Creating…",
+    "create_failed": "Create failed."
+  },
+  "scope": {
+    "organization": "Organization",
+    "global": "Global (all orgs)",
+    "unit": "Unit",
+    "whole_org": "Whole organization",
+    "site": "Site",
+    "whole_unit": "Whole unit (subtree)",
+    "all_sites": "All sites",
+    "capped": "Showing first 200 sites — narrow by unit to refine."
+  },
   "upload": {
     "browse": "Click to upload",
     "drop": "or drag and drop",

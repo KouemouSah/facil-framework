@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronsUpDown, Plus, X } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
@@ -20,8 +21,8 @@ interface Party {
 
 const PBASE = "/api/v1/modules/party/parties";
 
-export function PartyCombobox({ value, onChange, placeholder = "Search party…",
-  allowNone = true, noneLabel = "— none —", partyType = "organization", disabled = false }: {
+export function PartyCombobox({ value, onChange, placeholder,
+  allowNone = true, noneLabel, partyType = "organization", disabled = false }: {
   value: string;
   onChange: (id: string) => void;
   placeholder?: string;
@@ -31,6 +32,9 @@ export function PartyCombobox({ value, onChange, placeholder = "Search party…"
   partyType?: string;
   disabled?: boolean;
 }) {
+  const t = useTranslations("combobox");
+  const ph = placeholder ?? t("search_party");
+  const none = noneLabel ?? t("none");
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState("");
@@ -77,7 +81,7 @@ export function PartyCombobox({ value, onChange, placeholder = "Search party…"
       onChange(created.id);
       setOpen(false); setTerm("");
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Create failed");
+      setError(e instanceof ApiError ? e.message : t("create_failed"));
     } finally {
       setCreating(false);
     }
@@ -92,7 +96,7 @@ export function PartyCombobox({ value, onChange, placeholder = "Search party…"
         className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
         onClick={() => setOpen((o) => !o)}>
         <span className={cn("truncate", !value && "text-muted-foreground")}>
-          {value ? selectedLabel : (allowNone ? noneLabel : placeholder)}
+          {value ? selectedLabel : (allowNone ? none : ph)}
         </span>
         <span className="flex items-center gap-1">
           {value && !disabled && (
@@ -106,15 +110,15 @@ export function PartyCombobox({ value, onChange, placeholder = "Search party…"
       {open && !disabled && (
         <div className="absolute z-40 mt-1 max-h-64 w-full overflow-auto rounded-md border bg-popover p-1 shadow-md">
           <input autoFocus value={term} onChange={(e) => setTerm(e.target.value)}
-            placeholder={placeholder}
+            placeholder={ph}
             className="mb-1 h-8 w-full rounded-sm border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" />
           {allowNone && (
             <button type="button" className="block w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
-              onClick={() => { onChange(""); setOpen(false); }}>{noneLabel}</button>
+              onClick={() => { onChange(""); setOpen(false); }}>{none}</button>
           )}
-          {isFetching && <p className="px-2 py-1.5 text-xs text-muted-foreground">Searching…</p>}
+          {isFetching && <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("searching")}</p>}
           {!isFetching && results.length === 0 && !showCreate && (
-            <p className="px-2 py-1.5 text-xs text-muted-foreground">No matches.</p>
+            <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("no_matches")}</p>
           )}
           {results.map((p) => (
             <button key={p.id} type="button"
@@ -128,7 +132,7 @@ export function PartyCombobox({ value, onChange, placeholder = "Search party…"
             <button type="button" disabled={creating}
               className="mt-1 flex w-full items-center gap-1.5 rounded-sm border-t px-2 py-1.5 text-left text-sm text-primary hover:bg-accent disabled:opacity-50"
               onClick={createInline}>
-              <Plus className="size-3.5" /> {creating ? "Creating…" : `Create “${term.trim()}”`}
+              <Plus className="size-3.5" /> {creating ? t("creating") : t("create", { term: term.trim() })}
             </button>
           )}
           {error && <p className="px-2 py-1.5 text-xs text-destructive">{error}</p>}
