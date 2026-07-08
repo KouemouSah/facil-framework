@@ -475,6 +475,31 @@
     },
     "status": "Statut",
     "active": "Actif",
-    "inactive": "Inactif"
+    "inactive": "Inactif",
+    "r": {
+      "title": "Rôles",
+      "placeholder": "ex. customer",
+      "add": "Ajouter",
+      "empty": "Aucun rôle.",
+      "remove": "Retirer le rôle",
+      "add_failed": "Impossible d’ajouter le rôle.",
+      "remove_failed": "Impossible de retirer le rôle."
+    },
+    "l": {
+      "title": "Adresses",
+      "empty": "Aucune adresse liée.",
+      "mode_existing": "Lier une existante",
+      "mode_new": "Nouvelle adresse",
+      "new_address": "Nouvelle adresse",
+      "type": "Type",
+      "primary": "Principale",
+      "attach": "Lier",
+      "unlink": "Délier",
+      "attached": "Adresse liée.",
+      "unlinked": "Adresse déliée.",
+      "attach_failed": "Impossible de lier l’adresse.",
+      "unlink_failed": "Impossible de délier l’adresse.",
+      "unavailable": "Adresse indisponible (#{id})"
+    }
   }
 }

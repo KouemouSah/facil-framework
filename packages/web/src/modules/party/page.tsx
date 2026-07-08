@@ -21,6 +21,7 @@ import {
   PARTY_TYPES, createParty, deleteParty, getParty, listParties, updateParty, type Party,
 } from "./api";
 import { AddressesTab } from "./addresses";
+import { PartyRolesSection, PartyAddressesSection } from "./nested";
 
 type Tab = "parties" | "addresses";
 
@@ -160,6 +161,7 @@ function PartyCreateSurface({ onClose, onSaved }: { onClose: () => void; onSaved
 function PartyEditSurface({ partyId, readOnly, onClose }: { partyId: string; readOnly: boolean; onClose: () => void }) {
   const t = useTranslations("directory");
   const qc = useQueryClient();
+  const { can } = usePermissions();
   const { data, isError } = useQuery({ queryKey: ["party", partyId], queryFn: () => getParty(partyId) });
   return (
     <RecordSurface title={data?.name || t("p.edit_title")} resourceKey="parties" onClose={onClose}>
@@ -172,7 +174,8 @@ function PartyEditSurface({ partyId, readOnly, onClose }: { partyId: string; rea
             onSubmit={(payload, etag) => updateParty(partyId, payload, etag)}
             onSuccess={() => { qc.invalidateQueries({ queryKey: ["party", partyId] }); qc.invalidateQueries({ queryKey: ["parties"] }); toast({ variant: "success", title: t("toast.saved") }); }}
             onConflict={() => qc.invalidateQueries({ queryKey: ["party", partyId] })} />
-          {/* D2: roles + address links mounted here. */}
+          <PartyRolesSection pid={partyId} canCreate={can("party.create")} canDelete={can("party.delete")} />
+          <PartyAddressesSection pid={partyId} canCreate={can("party.create")} canDelete={can("party.delete")} />
         </div>
       )}
     </RecordSurface>

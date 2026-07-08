@@ -475,6 +475,31 @@
     },
     "status": "Estado",
     "active": "Activo",
-    "inactive": "Inactivo"
+    "inactive": "Inactivo",
+    "r": {
+      "title": "Roles",
+      "placeholder": "p. ej. customer",
+      "add": "Añadir",
+      "empty": "Ningún rol.",
+      "remove": "Quitar rol",
+      "add_failed": "No se pudo añadir el rol.",
+      "remove_failed": "No se pudo quitar el rol."
+    },
+    "l": {
+      "title": "Direcciones",
+      "empty": "Ninguna dirección vinculada.",
+      "mode_existing": "Vincular existente",
+      "mode_new": "Nueva dirección",
+      "new_address": "Nueva dirección",
+      "type": "Tipo",
+      "primary": "Principal",
+      "attach": "Vincular",
+      "unlink": "Desvincular",
+      "attached": "Dirección vinculada.",
+      "unlinked": "Dirección desvinculada.",
+      "attach_failed": "No se pudo vincular la dirección.",
+      "unlink_failed": "No se pudo desvincular la dirección.",
+      "unavailable": "Dirección no disponible (#{id})"
+    }
   }
 }
