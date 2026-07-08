@@ -14,7 +14,8 @@
     "providers": "Proveedores",
     "settings": "Ajustes",
     "configuration": "Configuración",
-    "org_units": "Unidades org."
+    "org_units": "Unidades org.",
+    "directory": "Directorio"
   },
   "auth": {
     "login": "Iniciar sesión",
@@ -412,5 +413,68 @@
       "is_active": "Activo"
     },
     "delete_parent_hint": "Elimine o reasigne primero sus sub-unidades."
+  },
+  "directory": {
+    "title": "Directorio",
+    "subtitle": "El directorio global de terceros y sus direcciones.",
+    "loading": "Cargando…",
+    "load_error": "Error al cargar.",
+    "conflict": "Cambiado en otro lugar — recargando.",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "tab": {
+      "parties": "Terceros",
+      "addresses": "Direcciones"
+    },
+    "toast": {
+      "created": "Creado.",
+      "saved": "Guardado.",
+      "deleted": "Eliminado.",
+      "delete_failed": "Error al eliminar.",
+      "save_failed": "Error al guardar."
+    },
+    "delete": {
+      "title": "¿Eliminar el tercero?",
+      "body": "Esto elimina permanentemente {name}.",
+      "confirm": "Eliminar"
+    },
+    "p": {
+      "name": "Nombre",
+      "type": "Tipo",
+      "email": "Email",
+      "search": "Buscar nombre / id fiscal / email",
+      "new": "Nuevo tercero",
+      "new_title": "Nuevo tercero",
+      "edit_title": "Tercero",
+      "empty": "Ningún tercero."
+    },
+    "a": {
+      "address": "Dirección",
+      "city": "Ciudad",
+      "postal_code": "Código postal",
+      "search": "Buscar etiqueta / ciudad / línea",
+      "new": "Nueva dirección",
+      "new_title": "Nueva dirección",
+      "edit_title": "Dirección",
+      "empty": "Ninguna dirección.",
+      "delete_title": "¿Eliminar la dirección?",
+      "delete_body": "Esto elimina permanentemente {name}.",
+      "f_label": "Etiqueta",
+      "f_label_hint": "p. ej. Sede",
+      "f_line1": "Dirección línea 1",
+      "f_line2": "Dirección línea 2",
+      "country": "País",
+      "country_hint": "Buscar país…",
+      "region": "Región",
+      "region_hint": "Buscar región…",
+      "latitude": "Latitud",
+      "longitude": "Longitud",
+      "is_active": "Activo",
+      "err_number": "Introduzca un número válido."
+    },
+    "status": "Estado",
+    "active": "Activo",
+    "inactive": "Inactivo"
   }
 }

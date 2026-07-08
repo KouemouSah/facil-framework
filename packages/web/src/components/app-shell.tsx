@@ -6,7 +6,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Network, Settings, Globe, Plug, SlidersHorizontal, FolderTree, Search, LogOut, Menu } from "lucide-react";
+import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Network, Settings, Globe, Plug, SlidersHorizontal, FolderTree, BookUser, Search, LogOut, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import { usePermissions } from "@/lib/use-permissions";
@@ -65,6 +65,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     { href: "/", label: t("dashboard"), icon: LayoutDashboard },
     { href: "/organizations", label: t("organizations"), icon: Building2, perm: "organization.read" },
     { href: "/org-units", label: t("org_units"), icon: FolderTree, perm: "organization.read" },
+    { href: "/directory", label: t("directory"), icon: BookUser, perm: "party.read" },
     { href: "/locations", label: t("locations"), icon: MapPin, perm: "location.read" },
     { href: "/agents", label: t("agents"), icon: Users, perm: "account.read" },
     { href: "/roles", label: t("roles"), icon: ShieldCheck, perm: "rbac.read" },

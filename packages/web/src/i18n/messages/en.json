@@ -14,7 +14,8 @@
     "providers": "Providers",
     "settings": "Settings",
     "configuration": "Configuration",
-    "org_units": "Org units"
+    "org_units": "Org units",
+    "directory": "Directory"
   },
   "auth": {
     "login": "Sign in",
@@ -412,5 +413,68 @@
       "is_active": "Active"
     },
     "delete_parent_hint": "Delete or reparent its child units first."
+  },
+  "directory": {
+    "title": "Directory",
+    "subtitle": "The global directory of parties and their addresses.",
+    "loading": "Loading…",
+    "load_error": "Failed to load.",
+    "conflict": "Changed elsewhere — reloading.",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving…",
+    "tab": {
+      "parties": "Parties",
+      "addresses": "Addresses"
+    },
+    "toast": {
+      "created": "Created.",
+      "saved": "Saved.",
+      "deleted": "Deleted.",
+      "delete_failed": "Delete failed.",
+      "save_failed": "Save failed."
+    },
+    "delete": {
+      "title": "Delete party?",
+      "body": "This permanently removes {name}.",
+      "confirm": "Delete"
+    },
+    "p": {
+      "name": "Name",
+      "type": "Type",
+      "email": "Email",
+      "search": "Search name / tax id / email",
+      "new": "New party",
+      "new_title": "New party",
+      "edit_title": "Party",
+      "empty": "No party."
+    },
+    "a": {
+      "address": "Address",
+      "city": "City",
+      "postal_code": "Postal code",
+      "search": "Search label / city / line",
+      "new": "New address",
+      "new_title": "New address",
+      "edit_title": "Address",
+      "empty": "No address.",
+      "delete_title": "Delete address?",
+      "delete_body": "This permanently removes {name}.",
+      "f_label": "Label",
+      "f_label_hint": "e.g. Head office",
+      "f_line1": "Address line 1",
+      "f_line2": "Address line 2",
+      "country": "Country",
+      "country_hint": "Search country…",
+      "region": "Region",
+      "region_hint": "Search region…",
+      "latitude": "Latitude",
+      "longitude": "Longitude",
+      "is_active": "Active",
+      "err_number": "Enter a valid number."
+    },
+    "status": "Status",
+    "active": "Active",
+    "inactive": "Inactive"
   }
 }
