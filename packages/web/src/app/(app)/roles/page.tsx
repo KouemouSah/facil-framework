@@ -6,8 +6,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, ShieldCheck, Check, Search } from "lucide-react";
+import { Plus, Trash2, ShieldCheck, Check, Search, ChevronDown } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { codeField, requiredText, optionalText } from "@/lib/form-schemas";
 import { ExportMenu } from "@/components/export-menu";
 import { Button } from "@/components/ui/button";
@@ -206,6 +207,15 @@ function RoleDetail({ role, onClose }: { role: Role; onClose: () => void }) {
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [selected, setSelected] = useState<Set<string> | null>(null);
+  // Collapsible module groups (default collapsed → click a module to reveal + edit
+  // its permissions), so the editor stays scannable instead of a long flat list.
+  const [openModules, setOpenModules] = useState<Set<string>>(new Set());
+  const toggleModule = (m: string) =>
+    setOpenModules((prev) => {
+      const next = new Set(prev);
+      if (next.has(m)) next.delete(m); else next.add(m);
+      return next;
+    });
 
   const { data: catalog = [] } = useQuery<Permission[]>({
     queryKey: ["permissions"],
@@ -281,27 +291,46 @@ function RoleDetail({ role, onClose }: { role: Role; onClose: () => void }) {
           System role — permissions are protected and cannot be changed.
         </p>
       )}
-      <div className="space-y-4">
+      <div className="space-y-2">
         {working === null && <p className="text-sm text-muted-foreground">Loading…</p>}
-        {working !== null && grouped.map(([module, perms]) => (
-          <div key={module} className="space-y-1.5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{module}</p>
-            <div className="grid grid-cols-1 gap-1.5">
-              {perms.map((p) => (
-                <label key={p.code} className="flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-accent">
-                  <input
-                    type="checkbox"
-                    className="size-4 accent-[hsl(var(--primary))]"
-                    checked={working.has(p.code)}
-                    disabled={role.is_system}
-                    onChange={() => toggle(p.code)}
-                  />
-                  <span className="font-mono text-xs">{p.code}</span>
-                </label>
-              ))}
+        {working !== null && grouped.map(([module, perms]) => {
+          const open = openModules.has(module);
+          const granted = perms.filter((p) => working.has(p.code)).length;
+          return (
+            <div key={module} className="overflow-hidden rounded-md border">
+              <button
+                type="button"
+                onClick={() => toggleModule(module)}
+                aria-expanded={open}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-accent"
+              >
+                <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", !open && "-rotate-90")} />
+                <span className="text-xs font-semibold uppercase tracking-wide">{module}</span>
+                <span className={cn("ml-auto rounded-full px-2 py-0.5 text-xs tabular-nums",
+                  granted > 0 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
+                  {granted}/{perms.length}
+                </span>
+              </button>
+              {open && (
+                <div className="grid grid-cols-1 gap-0.5 border-t p-2">
+                  {perms.map((p) => (
+                    <label key={p.code} className="flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-accent">
+                      <input
+                        type="checkbox"
+                        className="size-4 shrink-0 accent-[hsl(var(--primary))]"
+                        checked={working.has(p.code)}
+                        disabled={role.is_system}
+                        onChange={() => toggle(p.code)}
+                      />
+                      <span className="font-mono text-xs">{p.code}</span>
+                      {p.description && <span className="truncate text-xs text-muted-foreground">— {p.description}</span>}
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </DetailPanel>
   );
