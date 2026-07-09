@@ -21,3 +21,4 @@ export { ScopePicker } from "@/components/ui/scope-picker";
 export { ExportMenu } from "@/components/export-menu";
 export { SavedViews } from "@/components/saved-views";
 export { AuthCard } from "@/components/shared/auth-card";
+export { BrandLogo } from "@/components/shared/brand-logo";
