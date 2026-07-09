@@ -547,7 +547,7 @@
   },
   "directory": {
     "f": {
-      "type": "Tipo",
+      "party_type": "Tipo",
       "name": "Nombre",
       "tax_id": "Identificación fiscal",
       "registration_number": "Número de registro",

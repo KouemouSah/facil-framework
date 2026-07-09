@@ -60,8 +60,9 @@ export function RecordSurface({
       style={{ ["--rs-w" as string]: `${width}px` } as React.CSSProperties}
       className={cn(
         "z-30 flex min-h-0 flex-col border-l bg-card",
-        // < lg : full-screen overlay. ≥ lg : right-docked column at the persisted width.
-        "fixed inset-0 w-full lg:static lg:inset-auto lg:z-auto lg:w-[var(--rs-w)]",
+        // < lg : full-screen overlay. ≥ lg : right-docked column at the persisted width,
+        // framed as a card (top+all borders + radius) so its top edge is visible.
+        "fixed inset-0 w-full lg:static lg:inset-auto lg:z-auto lg:w-[var(--rs-w)] lg:rounded-lg lg:border",
         mode === "page" && "lg:w-full",
         isDragging && "select-none",
       )}

@@ -547,7 +547,7 @@
   },
   "directory": {
     "f": {
-      "type": "Type",
+      "party_type": "Type",
       "name": "Name",
       "tax_id": "Tax ID",
       "registration_number": "Registration number",

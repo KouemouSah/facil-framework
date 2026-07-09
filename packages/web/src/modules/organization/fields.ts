@@ -1,5 +1,6 @@
 import { useTranslations } from "next-intl";
 import { codeField, requiredText } from "@/lib/form-schemas";
+import { locales } from "@/i18n/config";
 import type { FieldDef } from "@/components/ui/record-form";
 
 /**
@@ -27,8 +28,8 @@ export const ORG_FIELD_SPECS: Omit<FieldDef, "label" | "hint">[] = [
   { name: "phone" },
   { name: "website" },
   { name: "logo_url", type: "image", colSpan: 2 },
-  { name: "default_locale", placeholder: "en" },
-  { name: "timezone", placeholder: "UTC" },
+  { name: "default_locale", type: "select" },
+  { name: "timezone", type: "timezone" },
   { name: "hq_address_id", type: "address" },
   { name: "document_identity", type: "json" },
   { name: "settings", type: "json" },
@@ -44,5 +45,8 @@ export function useOrgFields(): FieldDef[] {
     label: t(s.name),
     ...(HINTED.has(s.name) ? { hint: t(`${s.name}_hint`) } : {}),
     ...(s.name === "legal_name" ? { zod: requiredText(t("legal_name")) } : {}),
+    ...(s.name === "default_locale"
+      ? { selectOptions: locales.map((l) => ({ value: l, label: l })) }
+      : {}),
   }));
 }

@@ -29,7 +29,7 @@ export const SITE_FIELD_SPECS: Omit<FieldDef, "label" | "hint">[] = [
   { name: "is_primary", type: "checkbox" },
   { name: "phone" },
   { name: "email" },
-  { name: "timezone", placeholder: "UTC" },
+  { name: "timezone", type: "timezone" },
   { name: "address_id", type: "address" },
   { name: "notes", type: "textarea", colSpan: 2 },
   { name: "operating_hours", type: "json" },

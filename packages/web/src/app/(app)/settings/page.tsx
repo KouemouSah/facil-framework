@@ -81,8 +81,8 @@ export default function SettingsPage() {
         <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto">
-        <div>
+      <div className="min-h-0 flex-1 overflow-auto pr-1">
+        <div className="max-w-6xl">
           {isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
           {!data && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
           {data && (
