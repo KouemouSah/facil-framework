@@ -18,6 +18,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: { default: name, template: `%s · ${name}` },
     description: b.tagline || "Digital services platform",
+    // Default favicon = the framework icon (P2.4); a deployment overrides via branding.
+    icons: { icon: b.favicon_url || "/favicon.ico" },
   };
 }
 

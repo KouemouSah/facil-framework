@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { JsonField } from "@/components/ui/json-field";
 import { RefSelect } from "@/components/ui/ref-select";
 import { OrgCombobox } from "@/components/ui/org-combobox";
+import { TimezoneField } from "@/components/ui/timezone-field";
 import { PartyCombobox } from "@/components/ui/party-combobox";
 import { AddressField } from "@/components/ui/address-field";
 import { FileUpload } from "@/components/ui/file-upload";
@@ -28,7 +29,7 @@ import { FileUpload } from "@/components/ui/file-upload";
  */
 export type FieldType =
   | "text" | "email" | "password" | "textarea" | "number" | "checkbox"
-  | "ref" | "org" | "party" | "address" | "json" | "select" | "image" | "color";
+  | "ref" | "org" | "party" | "address" | "json" | "select" | "image" | "color" | "timezone";
 
 export interface FieldDef {
   name: string;
@@ -222,6 +223,9 @@ export function RecordForm({
         );
       case "org":
         return <OrgCombobox value={values[f.name] ?? ""} disabled={fieldRO}
+          onChange={(v) => setField(f.name, v)} />;
+      case "timezone":
+        return <TimezoneField value={values[f.name] ?? ""} disabled={fieldRO}
           onChange={(v) => setField(f.name, v)} />;
       case "party":
         return <PartyCombobox value={values[f.name] ?? ""} disabled={fieldRO}

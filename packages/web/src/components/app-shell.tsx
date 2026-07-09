@@ -132,9 +132,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         // an external URL stays unoptimized so it renders without a host allowlist.
         <Image src={branding.logo_url} alt={appName} width={28} height={28} className="h-7 w-7 rounded-md object-contain" unoptimized={!isSameOriginAsset(branding.logo_url)} />
       ) : (
-        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground">
-          {appName.charAt(0).toUpperCase()}
-        </span>
+        // Default = the framework's own icon (P2.4), not a generic letter tile.
+        <Image src="/brand-icon.png" alt={appName} width={28} height={28} className="h-7 w-7 rounded-md object-contain" />
       )}
       {!rail && <span className="truncate">{appName}</span>}
     </div>
