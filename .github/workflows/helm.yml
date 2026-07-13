@@ -8,9 +8,9 @@ name: Helm chart
 # apparaissent comme `- name: POSTGRES_PASSWORD` / `valueFrom: {secretKeyRef: ...}`,
 # jamais en `password: <literal>`). On réutilise donc la vraie assertion déjà
 # durcie dans infra/helm/facil/tests/test_render.sh (secretKeyRef présent pour
-# chaque credential + aucun littéral `value:` sous un nom de credential) pour
-# le rendu par défaut, et on applique la même logique réelle à l'overlay
-# on-prem pour attraper toute régression spécifique à values-onprem.yaml.
+# chaque credential + aucun littéral `value:` sous un nom de credential), en
+# l'appelant directement pour le rendu par défaut ET pour l'overlay on-prem
+# (`-f values-onprem.yaml`) — une seule implémentation, zéro duplication/drift.
 
 on:
   push:
@@ -39,27 +39,5 @@ jobs:
       - name: helm template + garde-secret (rendu par défaut)
         run: bash infra/helm/facil/tests/test_render.sh
 
-      - name: helm template (overlay on-prem)
-        run: |
-          helm template facil infra/helm/facil -f infra/helm/facil/values-onprem.yaml > /tmp/rendered-onprem.yaml
-
-      - name: garde-secret (overlay on-prem, même logique réelle que test_render.sh)
-        run: |
-          set -euo pipefail
-          OUT="$(cat /tmp/rendered-onprem.yaml)"
-          for key in POSTGRES_PASSWORD REDIS_PASSWORD MINIO_ROOT_PASSWORD OPENBAO_DEV_ROOT_TOKEN; do
-            CTX="$(echo "$OUT" | grep -B2 -E "key: ${key}\b" || true)"
-            if [ -z "$CTX" ]; then
-              continue
-            fi
-            if ! echo "$CTX" | grep -q "secretKeyRef"; then
-              echo "FAIL garde-secret (onprem): ${key} n'est pas câblé via secretKeyRef" >&2
-              exit 1
-            fi
-          done
-          INLINED="$(echo "$OUT" | grep -A1 -E '^[[:space:]]*- name: (POSTGRES_PASSWORD|REDIS_PASSWORD|MINIO_ROOT_PASSWORD|OPENBAO_DEV_ROOT_TOKEN)[[:space:]]*$' | grep -E '^[[:space:]]*value:[[:space:]]' || true)"
-          if [ -n "$INLINED" ]; then
-            echo "FAIL garde-secret (onprem): credential inliné en clair -> $INLINED" >&2
-            exit 1
-          fi
-          echo "OK onprem garde-secret"
+      - name: helm template + garde-secret (overlay on-prem)
+        run: bash infra/helm/facil/tests/test_render.sh -f infra/helm/facil/values-onprem.yaml
