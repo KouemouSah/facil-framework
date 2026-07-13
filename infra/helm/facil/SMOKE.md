@@ -9,6 +9,11 @@ Date : 2026-07-13/14. Cluster : k3d (k3s v1.35.5+k3s1 dans Docker), 1 nœud,
 `--agents 0`. Commits produits par ce smoke : `77165af`, `8dc8370` (branche
 `docs/infra-multitarget-deploy`).
 
+> **Complément 2026-07-14 (revue finale de branche)** : le risque 1
+> (NetworkPolicy) ci-dessous était noté "INCONCLUANT" sur une méthodologie
+> erronée — corrigé avec un test décisif sur un second cluster k3d jetable,
+> voir la section mise à jour.
+
 ## Procédure
 
 ```bash
@@ -121,24 +126,91 @@ history facil` : révision 1 `superseded` (passe 1), révision 2 `deployed`
 
 ## Verdict sur les 3 risques identifiés
 
-### Risque 1 — sondes kubelet sous `default-deny` NetworkPolicy
+### Risque 1 — NetworkPolicy réellement appliquée ou inerte ?
 
-**INCONCLUANT — pas un PASS.** Les 4 `NetworkPolicy` du chart
-(`facil-default-deny` + 3 `allow-*`) ont bien été créées, et les 6 pods sont
-devenus/restés `Ready` malgré `default-deny`. **Mais** : le CNI par défaut de
-k3d/k3s ici est **Flannel (backend VXLAN)**, confirmé via `kube-system`
-(aucun contrôleur de policy — pas de Calico/Cilium/kube-router netpol
-présent). Flannel seul **n'implémente aucune application de NetworkPolicy**.
-Donc le fait que tout soit resté `Ready` ne prouve **rien** sur l'interaction
-réelle sondes-kubelet ↔ NetworkPolicy — cela prouve seulement qu'aucune
-politique n'a été appliquée du tout dans cet environnement. Ce risque reste
-**non testé** par ce smoke ; un test valide exigerait un k3d/k3s avec un CNI
-qui applique réellement les NetworkPolicy (ex. Calico en mode policy-only, ou
-désactiver Flannel et installer Cilium) — non tenté ici par prudence sur la
-consommation de ressources de la machine hôte (déjà à 885% CPU sur le nœud
-k3d en parallèle de la stack `facil_framework` docker-compose de l'utilisateur).
-**Recommandation** : refaire ce test spécifique isolément (cluster dédié,
-CNI enforcant) avant de considérer ce risque clos.
+**PASS — VÉRIFIÉ EMPIRIQUEMENT le 2026-07-14** (revue finale de branche,
+cluster k3d jetable séparé `facil-netpol`, k3s v1.35.5+k3s1, agents 0).
+
+**La conclusion "INCONCLUANT" ci-dessus (smoke initial du 2026-07-13) reposait
+sur une méthodologie erronée**, relevée en revue finale : elle déduisait
+« Flannel sans enforcement » de l'absence d'un pod/DaemonSet de contrôleur de
+policy dans `kube-system`. Or **le contrôleur NetworkPolicy de k3s (kube-router)
+est compilé DANS le process serveur k3s lui-même — ce n'est pas un pod
+séparé**. Son absence de la liste des pods de `kube-system` ne prouve donc
+rien, ni dans un sens ni dans l'autre ; il fallait un test de connectivité
+réel, pas une recherche de pod.
+
+**Procédure (test décisif)** :
+
+```bash
+k3d cluster create facil-netpol --agents 0 --wait
+kubectl config use-context k3d-facil-netpol
+python deploy/providers/k3s.py --apply --yes --allow-dev-vault
+
+# Pod SANS label facil.component (identité non autorisée)
+kubectl -n facil run rogue --restart=Never --image=python:3.12-alpine --command -- sleep 3600
+kubectl -n facil exec rogue -- python3 -c "
+import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM); s.settimeout(5)
+s.connect(('facil-postgres', 5432))"
+
+# Pod AVEC label facil.component=backend (identité autorisée par
+# allow-datastores-from-backend), pour prouver qu'on n'a pas juste tout cassé
+kubectl -n facil apply -f - <<'YAML'
+apiVersion: v1
+kind: Pod
+metadata: {name: authorized-test, labels: {facil.component: backend}}
+spec: {containers: [{name: probe, image: python:3.12-alpine, command: ["sleep","3600"]}]}
+YAML
+kubectl -n facil exec authorized-test -- python3 -c "
+import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM); s.settimeout(5)
+s.connect(('facil-postgres', 5432))"
+
+k3d cluster delete facil-netpol
+docker system prune -f
+```
+
+**Résultat brut observé** :
+
+```text
+# rogue (aucun label facil.component) -> facil-postgres:5432
+ConnectionRefusedError: [Errno 111] Connection refused (after 0.00s)
+# rogue -> facil-redis:6379
+ConnectionRefusedError: [Errno 111] Connection refused (after 0.00s)
+# rogue -> kube-dns.kube-system.svc.cluster.local:53 (référence : service NON
+# ciblé par les policies du chart, doit rester joignable)
+CONNECTED in 0.00s
+
+# authorized-test (facil.component=backend) -> facil-postgres:5432
+CONNECTED in 0.02s
+# authorized-test (facil.component=backend) -> facil-redis:6379
+CONNECTED in 0.00s
+```
+
+Confirmation mécanique (pas seulement comportementale) : `docker exec
+k3d-facil-netpol-server-0 iptables -L -n` montre les chaînes `KUBE-ROUTER-INPUT`
+/ `KUBE-ROUTER-FORWARD` / `KUBE-ROUTER-OUTPUT` actives aux côtés de
+`FLANNEL-FWD` — le contrôleur netpol de kube-router tourne bien, intégré au
+process serveur.
+
+**Verdict** : les 4 `NetworkPolicy` du chart (`facil-default-deny` + 3
+`allow-*`) sont **réellement appliquées** sur k3s (via kube-router, embarqué).
+Un pod sans l'identité (`facil.component`) autorisée reçoit un `ECONNREFUSED`
+instantané sur les datastores ; un pod avec l'identité autorisée s'y connecte
+normalement — la même stack, sans changement, sauf le label du pod appelant.
+Les 4 fichiers qui affirmaient ce comportement (`networkpolicy.yaml`,
+`values.yaml`, `guard_networkpolicy.py`, `test_render.sh`) l'affirmaient déjà
+correctement, mais **sans preuve** avant ce test ; ils référencent désormais
+cette section pour la preuve.
+
+**Portée de la garantie** : ceci vaut pour **k3s avec son CNI/contrôleur netpol
+par défaut** (le seul chemin de ce chart, ADR-0006). Un opérateur qui
+désactiverait explicitement le réseau par défaut de k3s (`--flannel-backend=none`
+sans installer de CNI alternatif appliquant les NetworkPolicy, ou
+`--disable-network-policy`) perdrait cette isolation silencieusement — hors
+scope de ce chart, qui ne pose aucune garde contre une telle désactivation au
+niveau du serveur k3s lui-même (config server, pas Helm).
 
 ### Risque 2 — `readOnlyRootFilesystem` sur OpenBao, chemin d'écriture caché
 

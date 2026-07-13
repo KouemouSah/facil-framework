@@ -2,10 +2,15 @@
 """Garde-NetworkPolicy PARSEE (SEC-012) sur le rendu `helm template`.
 
 Aujourd'hui, sans NetworkPolicy, Postgres/Redis/MinIO/OpenBao sont des Service
-ClusterIP joignables par N'IMPORTE QUEL pod du cluster (k3s embarque kube-router,
-donc les NetworkPolicy sont REELLEMENT appliquees -- contrairement a un cluster
-flannel nu ou elles seraient silencieusement ignorees). Un conteneur compromis
-suffit a atteindre tout le data-plane.
+ClusterIP joignables par N'IMPORTE QUEL pod du cluster. k3s embarque le
+controleur NetworkPolicy de kube-router -- compile DANS le process serveur k3s
+(pas un pod/DaemonSet separe dans kube-system, dont l'absence ne prouve rien) --
+donc les NetworkPolicy sont REELLEMENT appliquees : VERIFIE EMPIRIQUEMENT le
+2026-07-14 sur un cluster k3d jetable (un pod sans le label facil.component
+recoit ECONNREFUSED sur postgres/redis, un pod facil.component=backend s'y
+connecte normalement ; chaines iptables KUBE-ROUTER-* confirmees sur le noeud
+-- detail + sortie brute dans SMOKE.md, section Risque 1). Sans ce fichier, un
+conteneur compromis suffit a atteindre tout le data-plane.
 
 Un `grep -q "kind: NetworkPolicy"` ne prouve RIEN sur le ciblage : une policy au
 `podSelector` mal ecrit (typo, cle renommee par une regression du helper

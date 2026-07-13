@@ -152,9 +152,12 @@ if echo "$OUT" | grep -q -- '-v app_pw='; then
   exit 1
 fi
 # SEC-012 : NetworkPolicy default-deny (ingress) + allow explicites par
-# composant. k3s embarque kube-router -> les NetworkPolicy sont REELLEMENT
-# appliquees, contrairement a un cluster flannel nu ou elles seraient
-# ignorees. `grep -q "kind: NetworkPolicy"` ne prouve rien sur le ciblage :
+# composant. k3s embarque le controleur NetworkPolicy de kube-router (compile
+# dans le process serveur k3s, pas un pod separe) -> les NetworkPolicy sont
+# REELLEMENT appliquees -- VERIFIE EMPIRIQUEMENT le 2026-07-14 sur un cluster
+# k3d jetable (ECONNREFUSED pour un pod non-autorise, connexion normale pour
+# un pod facil.component=backend ; detail dans SMOKE.md, section Risque 1).
+# `grep -q "kind: NetworkPolicy"` ne prouve rien sur le ciblage :
 # un podSelector qui ne matche aucun pod reel est une policy inerte. Remplace
 # par un parseur YAML reel (meme convention que guard_secrets.py /
 # guard_resources.py ci-dessus) qui verifie : (1) une policy default-deny

@@ -1,11 +1,21 @@
 {{- if .Values.networkPolicy.enabled }}
 {{/*
 SEC-012 : default-deny sur l'ingress de tout le namespace, puis allow explicites
-par composant. k3s embarque kube-router, donc les NetworkPolicy sont REELLEMENT
-appliquees (contrairement a un cluster flannel nu ou elles seraient
-silencieusement ignorees). Sans ce fichier, Postgres:5432 / Redis:6379 /
-MinIO:9000-9001 / OpenBao:8200 sont joignables par N'IMPORTE QUEL pod du
-cluster -- un seul conteneur compromis suffit a atteindre tout le data-plane.
+par composant. k3s embarque le controleur NetworkPolicy de kube-router --
+compile DANS le process serveur k3s (PAS un pod/DaemonSet separe : son absence
+de `kube-system` ne prouve rien sur l'enforcement, dans un sens ou l'autre) --
+donc les NetworkPolicy sont REELLEMENT appliquees, contrairement a un CNI qui
+n'implementerait aucun controleur de policy (ou l'aurait explicitement
+desactive via `--disable-network-policy`). VERIFIE EMPIRIQUEMENT le 2026-07-14
+sur un cluster k3d jetable (k3s v1.35.5+k3s1) : un pod SANS le label
+`facil.component` recoit `ECONNREFUSED` instantane sur facil-postgres:5432 ET
+facil-redis:6379, tandis qu'un pod portant `facil.component: backend` s'y
+connecte normalement -- ET les chaines iptables `KUBE-ROUTER-INPUT/FORWARD/
+OUTPUT` sont bien presentes sur le noeud (`docker exec <node> iptables -L -n`).
+Detail complet + sortie brute : `SMOKE.md` (section Risque 1). Sans ce fichier,
+Postgres:5432 / Redis:6379 / MinIO:9000-9001 / OpenBao:8200 sont joignables par
+N'IMPORTE QUEL pod du cluster -- un seul conteneur compromis suffit a atteindre
+tout le data-plane.
 
 Durcissement PARTIEL et ASSUME : uniquement l'ingress est deny-by-default.
 Un default-deny sur l'EGRESS casserait la resolution DNS (kube-dns vit dans
