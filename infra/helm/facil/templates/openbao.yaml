@@ -1,0 +1,55 @@
+{{- if .Values.openbao.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "openbao") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "openbao") | nindent 4 }}
+  ports:
+    - port: 8200
+      targetPort: 8200
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "openbao") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "facil.fullname" (dict "name" "openbao") }}
+  replicas: 1
+  selector:
+    matchLabels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "openbao") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "openbao") | nindent 8 }}
+    spec:
+      containers:
+        - name: openbao
+          image: {{ .Values.openbao.image }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["IPC_LOCK"]   # requis par openbao (mlock)
+          {{- if .Values.openbao.devMode }}
+          args: ["server", "-dev", "-dev-listen-address=0.0.0.0:8200"]
+          env:
+            - name: BAO_ADDR
+              value: http://127.0.0.1:8200
+            - name: BAO_DEV_ROOT_TOKEN_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName }}
+                  key: OPENBAO_DEV_ROOT_TOKEN
+          {{- else }}
+          # Prod unseal (SOPS+age / raft) = plan ultérieur — devMode=false non supporté ici.
+          args: ["server"]
+          {{- end }}
+          ports:
+            - containerPort: 8200
+          readinessProbe:
+            exec: { command: ["bao", "status"] }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+{{- end }}
