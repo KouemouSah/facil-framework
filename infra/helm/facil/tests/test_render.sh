@@ -156,4 +156,14 @@ fi
 echo "$OUT" | grep -q "kind: NetworkPolicy"
 echo "$OUT" | grep -q "policyTypes"
 echo "$OUT" | python infra/helm/facil/tests/guard_networkpolicy.py
+# SEC-024 : Ingress Traefik single-origin ("/" -> frontend, "/api" -> backend).
+# `grep -q "kind: Ingress"` + `grep -q "ingressClassName: traefik"` ne prouvent
+# RIEN sur le ROUTAGE (un backend/port errone rend toujours ces deux chaines).
+# Meme convention que les gardes ci-dessus : parseur YAML reel qui verifie le
+# Service + port resolus PAR PREFIXE. Voir infra/helm/facil/tests/guard_ingress.py
+# + tests/test_guard_ingress.py (preuve par mutation : /api reroute vers le
+# Service frontend).
+echo "$OUT" | grep -q "kind: Ingress"
+echo "$OUT" | grep -q "ingressClassName: traefik"
+echo "$OUT" | python infra/helm/facil/tests/guard_ingress.py
 echo "OK render (${VALUES_FILE:-default})"

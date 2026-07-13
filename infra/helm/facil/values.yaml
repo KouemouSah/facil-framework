@@ -48,11 +48,13 @@ frontend:
   port: 3000
   replicas: 1
 
-# Ingress (Traefik, k3s) -- pose en tache H3. Stub ici pour que la
-# NetworkPolicy conditionnelle (allow-backend-from-frontend) ne casse pas le
-# rendu avant que H3 n'active la ressource Ingress.
+# Ingress (Traefik, k3s) -- SEC-024. Single-origin (anti-CORS) : "/" -> frontend,
+# "/api" -> backend, sur le meme hote. `host` a surcharger par l'overlay / --set
+# pour un vrai domaine. TLS = hors perimetre (P2 : cert-manager / OpenBao PKI).
 ingress:
-  enabled: false
+  enabled: true
+  className: traefik      # ingress controller embarque de k3s
+  host: facil.local
 
 # SEC-012 : NetworkPolicy default-deny (ingress) + allow explicites par
 # composant. k3s embarque kube-router -> les NetworkPolicy sont REELLEMENT
