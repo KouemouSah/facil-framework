@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   code-review:
-    name: Code Quality (Claude)
+    name: Code Quality (GPT-4o)
     runs-on: ubuntu-latest
     if: |
       !github.event.pull_request.draft &&
@@ -55,7 +55,7 @@ jobs:
         id: ai
         uses: actions/ai-inference@v1
         with:
-          model: anthropic/claude-3-5-sonnet
+          model: openai/gpt-4o
           max-tokens: 1500
           system-prompt: |
             You are a senior code-quality reviewer for Facil Framework — FastAPI + Next.js + Expo + Postgres+pgvector + Ollama.
@@ -121,7 +121,7 @@ jobs:
         with:
           script: |
             const review = process.env.REVIEW || '_AI inference returned empty._';
-            const body = `<img src="https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/main/.github/assets/icons/star.svg" width="14" alt="star"/> &nbsp;**Code Quality Review** · GitHub Models · Claude 3.5 Sonnet\n\n---\n\n${review}\n\n---\n_Auto-generated. Add label \`skip-code-review\` to opt out._`;
+            const body = `<img src="https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/main/.github/assets/icons/star.svg" width="14" alt="star"/> &nbsp;**Code Quality Review** · GitHub Models · GPT-4o\n\n---\n\n${review}\n\n---\n_Auto-generated. Add label \`skip-code-review\` to opt out._`;
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
