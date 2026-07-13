@@ -25,6 +25,7 @@ Exit codes
 from __future__ import annotations
 
 import argparse
+import base64
 import shutil
 import subprocess
 import sys
@@ -101,6 +102,67 @@ def find_helm() -> str | None:
 
 def find_kubectl() -> str | None:
     return shutil.which("kubectl") or shutil.which("kubectl.exe")
+
+
+def build_secret_manifest(name: str, literals: dict[str, str]) -> str:
+    """Manifest `kind: Secret` (valeurs base64) — construit EN PYTHON.
+
+    SEC-006 : on n'utilise PAS `kubectl create secret --from-literal=K=V`, qui place
+    les valeurs en clair dans l'argv du process (visible via `ps -ef` et
+    /proc/<pid>/cmdline, capture par auditd/EDR — CWE-214). Le manifest part sur
+    stdin de `kubectl apply -f -` : aucune valeur ne touche une ligne de commande.
+    """
+    lines = ["apiVersion: v1", "kind: Secret", "type: Opaque",
+             "metadata:", f"  name: {name}", "data:"]
+    for k in sorted(literals):
+        b64 = base64.b64encode(literals[k].encode("utf-8")).decode("ascii")
+        lines.append(f"  {k}: {b64}")
+    return "\n".join(lines) + "\n"
+
+
+def build_configmap_manifest(name: str, data: dict[str, str]) -> str:
+    """ConfigMap (donnees NON secretes — le SQL du role). Meme chemin stdin : DRY."""
+    lines = ["apiVersion: v1", "kind: ConfigMap",
+             "metadata:", f"  name: {name}", "data:"]
+    for k in sorted(data):
+        lines.append(f"  {k}: |")
+        lines.extend(f"    {line}" for line in data[k].splitlines())
+    return "\n".join(lines) + "\n"
+
+
+def apply_manifest(kubectl: str, ns: str, manifest: str) -> int:
+    """`kubectl apply -f -` sur stdin. N'imprime JAMAIS le manifest ni le stderr brut
+    de kubectl (SEC-016 : kubectl reemet parfois ses entrees dans ses messages d'erreur)."""
+    proc = subprocess.run(
+        [kubectl, "-n", ns, "apply", "-f", "-"],
+        input=manifest, text=True, capture_output=True,
+        encoding="utf-8", errors="replace",
+    )
+    if proc.returncode != 0:
+        # Message generique : le stderr peut contenir des fragments du manifest.
+        print(f"ERREUR: `kubectl apply` a echoue (code {proc.returncode}). Verifier "
+              f"l'acces au cluster et le namespace '{ns}'.", file=sys.stderr)
+        return 2
+    return 0
+
+
+def ensure_namespace(kubectl: str, ns: str) -> int:
+    """Cree le namespace si absent (idempotent, sans erreur s'il existe deja).
+
+    APPLY-004 : sur un cluster neuf, `kubectl -n <ns> apply` du Secret echoue
+    tant que le namespace n'existe pas — et Helm ne le cree qu'a l'upgrade
+    (--create-namespace), donc APRES. On le cree explicitement en etape 0.
+    """
+    dry = subprocess.run(
+        [kubectl, "create", "namespace", ns, "--dry-run=client", "-o", "yaml"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    if dry.returncode != 0:
+        print(f"ERREUR: impossible de rendre le namespace '{ns}'.", file=sys.stderr)
+        return 2
+    applied = subprocess.run([kubectl, "apply", "-f", "-"], input=dry.stdout,
+                             text=True, encoding="utf-8", errors="replace")
+    return 0 if applied.returncode == 0 else 2
 
 
 def _load_env_secrets(path: Path) -> dict[str, str]:
@@ -188,7 +250,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.plan:
         print(f"=== k3s plan (namespace={args.namespace}) — helm template, lecture seule ===")
         proc = subprocess.run(
-            [helm, "template", "facil", str(CHART_DIR),
+            [helm, "template",
+             "-n", args.namespace,          # SEC-019 : sinon .Release.Namespace = "default"
+             "facil", str(CHART_DIR),
              "-f", str(VALUES_ONPREM), *_set_args(values)],
             check=False,
         )
@@ -215,32 +279,27 @@ def main(argv: list[str] | None = None) -> int:
             print("Annule.")
             return 4
 
-    # 1) Secret k8s (hors Helm) — valeurs jamais ecrites dans un fichier,
-    #    jamais imprimees/loggees (dry_run.stdout n'est jamais print()e).
-    sec_args = [kubectl, "-n", args.namespace, "create", "secret", "generic",
-                SECRET_NAME, "--dry-run=client", "-o", "yaml"]
-    for k, v in literals.items():
-        sec_args.append(f"--from-literal={k}={v}")
-    dry_run = subprocess.run(sec_args, capture_output=True, text=True,
-                             encoding="utf-8", errors="replace")
-    if dry_run.returncode != 0:
-        print("ERREUR: kubectl create secret --dry-run a echoue.", file=sys.stderr)
-        print(dry_run.stderr, file=sys.stderr)
-        return 2
-    applied = subprocess.run(
-        [kubectl, "-n", args.namespace, "apply", "-f", "-"],
-        input=dry_run.stdout, text=True, encoding="utf-8", errors="replace",
-    )
-    if applied.returncode != 0:
-        print("ERREUR: kubectl apply du Secret a echoue.", file=sys.stderr)
-        return 2
+    # 0) Namespace d'abord (APPLY-004) : sur un cluster neuf, `kubectl apply`
+    #    du Secret echoue tant que le namespace n'existe pas.
+    rc_ns = ensure_namespace(kubectl, args.namespace)
+    if rc_ns != 0:
+        return rc_ns
+
+    # 1) Secret k8s (hors Helm) — manifest construit en Python, jamais ecrit
+    #    dans un fichier, pipe sur stdin (SEC-006 : jamais dans l'argv).
+    rc = apply_manifest(kubectl, args.namespace,
+                        build_secret_manifest(SECRET_NAME, literals))
+    if rc != 0:
+        return rc
 
     # 2) helm upgrade --install (backend/web pullent GHCR ; jamais de build ici).
     rc = subprocess.run(
         [helm, "upgrade", "--install", "facil", str(CHART_DIR),
          "-n", args.namespace, "--create-namespace",
          "-f", str(VALUES_ONPREM),
-         *_set_args(values), "--wait", "--timeout", "10m"],
+         *_set_args(values),
+         "--atomic",                       # SEC-022 : rollback auto si le deploiement echoue
+         "--wait", "--timeout", "10m"],
         check=False,
     ).returncode
     return 0 if rc == 0 else 2

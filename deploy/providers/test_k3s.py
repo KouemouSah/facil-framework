@@ -7,6 +7,7 @@ subprocess mocked out where a real helm invocation isn't the point of the test.
 """
 from __future__ import annotations
 
+import base64
 import subprocess
 import sys
 from pathlib import Path
@@ -17,6 +18,14 @@ sys.path.insert(0, str(PROVIDERS_DIR.parent / "scripts"))
 
 import validate_config as vc  # noqa: E402
 import k3s  # noqa: E402
+
+_FULL_SECRETS = {
+    "POSTGRES_PASSWORD": "pg-pw", "REDIS_PASSWORD": "redis-pw",
+    "MINIO_ROOT_PASSWORD": "minio-pw", "OPENBAO_DEV_ROOT_TOKEN": "bao-tok",
+    "JWT_SECRET_KEY": "jwt", "SECRET_KEY": "app", "TOTP_ENCRYPTION_KEY": "totp",
+    "RECEIPT_VERIFICATION_SECRET": "receipt", "CRON_SECRET": "cron",
+    "FACIL_APP_PASSWORD": "app-role-pw",
+}
 
 
 def _cfg() -> vc.DeployConfig:
@@ -202,6 +211,85 @@ def test_apply_passes_values_onprem_overlay_to_helm_upgrade(monkeypatch, tmp_pat
     assert upgrade_cmd[f_idx + 1] == str(k3s.VALUES_ONPREM)
 
 
+def test_apply_creates_namespace_before_secret(monkeypatch, tmp_path):
+    # APPLY-004 : sur un cluster neuf le namespace n'existe pas ; appliquer le
+    # Secret avant sa creation echoue ("namespaces \"facil\" not found").
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+    k3s.main(["--apply", "--yes"])
+
+    joined = [" ".join(c) for c in calls]
+    ns_idx = next(i for i, c in enumerate(joined) if "create namespace" in c or "namespace facil" in c)
+    sec_idx = next(i for i, c in enumerate(joined) if "apply" in c and "-f" in c)
+    assert ns_idx < sec_idx, "le namespace doit etre cree AVANT le Secret"
+
+
+def test_plan_renders_in_the_target_namespace(monkeypatch):
+    # SEC-019 : `helm template` sans -n rend avec .Release.Namespace = "default",
+    # donc le plan ne reflete pas l'apply.
+    calls = []
+    monkeypatch.setattr(k3s.subprocess, "run",
+                        lambda cmd, **kw: calls.append(list(cmd)) or
+                        subprocess.CompletedProcess(cmd, 0))
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    k3s.main(["--plan", "--namespace", "facil"])
+    assert ["-n", "facil"] == [x for x in calls[0] if x in ("-n", "facil")][:2]
+
+
+def test_apply_uses_atomic_for_auto_rollback(monkeypatch):
+    # SEC-022 : sans --atomic une release en echec reste en place, pods casses.
+    calls = []
+    monkeypatch.setattr(k3s.subprocess, "run",
+                        lambda cmd, **kw: calls.append(list(cmd)) or
+                        subprocess.CompletedProcess(cmd, 0, stdout=""))
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+    k3s.main(["--apply", "--yes"])
+    upgrade = next(c for c in calls if "upgrade" in c)
+    assert "--atomic" in upgrade
+
+
+def test_secret_values_never_appear_in_any_process_argv(monkeypatch):
+    # SEC-006 (CWE-214) : `kubectl create secret --from-literal=K=V` expose les valeurs
+    # dans l'argv (ps -ef, /proc/<pid>/cmdline, auditd). On construit le manifest en
+    # Python et on le pipe sur stdin : rien ne transite par une ligne de commande.
+    MARKER = "s3nt1nel-p4ssw0rd-marker"
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets",
+                        lambda p: {**_FULL_SECRETS, "POSTGRES_PASSWORD": MARKER})
+    k3s.main(["--apply", "--yes"])
+
+    b64 = base64.b64encode(MARKER.encode()).decode()
+    for cmd in calls:
+        for arg in cmd:
+            assert MARKER not in arg, f"secret en clair dans l'argv: {cmd[0]}"
+            assert b64 not in arg, f"secret base64 dans l'argv: {cmd[0]}"
+
+
+def test_build_secret_manifest_base64_encodes_values():
+    m = k3s.build_secret_manifest("facil-postgres-secret", {"POSTGRES_PASSWORD": "pw"})
+    assert "kind: Secret" in m
+    assert base64.b64encode(b"pw").decode() in m
+    assert "POSTGRES_PASSWORD: pw" not in m  # jamais en clair
+
+
 def test_deploy_py_knows_k3s_provider():
     import importlib.util
     spec = importlib.util.spec_from_file_location(
@@ -211,15 +299,15 @@ def test_deploy_py_knows_k3s_provider():
     assert "k3s" in mod.SUPPORTED_PROVIDERS
 
 
-def test_apply_never_prints_the_captured_secret_dry_run_stdout(monkeypatch, tmp_path, capsys):
-    # Security-critical invariant (only manual review protects it today):
-    # the `kubectl create secret --dry-run=client -o yaml` stdout, which
-    # carries REAL key material, must NEVER be print()ed/logged anywhere —
-    # it may only flow as stdin into `kubectl apply -f -`. This test exercises
-    # the full --apply path with subprocess faked out (no real cluster) and
-    # asserts an obvious sentinel planted in the fake dry-run YAML never
-    # reaches stdout/stderr. A future refactor adding e.g. a debug
-    # `print(dry_run.stdout)` must fail this test.
+def test_apply_never_prints_kubectl_stderr_on_manifest_apply_failure(monkeypatch, tmp_path, capsys):
+    # Adapted for Task R1 (SEC-016, see apply_manifest() docstring): the old
+    # `kubectl create secret --from-literal=... --dry-run=client -o yaml` step
+    # no longer exists — the Secret manifest is now built in Python
+    # (build_secret_manifest) and piped on stdin (apply_manifest). The residual
+    # risk is that `kubectl apply -f -` can echo fragments of its stdin back in
+    # its own stderr on failure. apply_manifest() must NEVER print that raw
+    # stderr — only a generic error message. This test simulates kubectl doing
+    # exactly that and asserts the sentinel never reaches stdout/stderr.
     sentinel = "SECRETMARKER_SHOULD_NOT_APPEAR_zzq9"
 
     monkeypatch.setattr(k3s, "find_helm", lambda: "/usr/bin/helm")
@@ -227,7 +315,7 @@ def test_apply_never_prints_the_captured_secret_dry_run_stdout(monkeypatch, tmp_
 
     env_secrets = tmp_path / ".env.secrets"
     env_secrets.write_text(
-        "POSTGRES_PASSWORD=pw\n"
+        f"POSTGRES_PASSWORD={sentinel}\n"
         "JWT_SECRET_KEY=jwt\n"
         "SECRET_KEY=sk\n",
         encoding="utf-8",
@@ -235,17 +323,12 @@ def test_apply_never_prints_the_captured_secret_dry_run_stdout(monkeypatch, tmp_
     monkeypatch.setattr(k3s, "REPO_ROOT", tmp_path)
 
     def fake_run(cmd, **kwargs):
-        if "create" in cmd and "secret" in cmd:
-            # Simulates `kubectl create secret ... --dry-run=client -o yaml`:
-            # its captured stdout contains real-looking key material.
-            fake_secret_yaml = (
-                "apiVersion: v1\nkind: Secret\ndata:\n"
-                f"  POSTGRES_PASSWORD: {sentinel}\n"
-            )
-            return subprocess.CompletedProcess(cmd, 0, stdout=fake_secret_yaml, stderr="")
-        # `kubectl apply -f -` and `helm upgrade --install` — neither should
-        # ever need to see/echo the secret literal either.
-        return subprocess.CompletedProcess(cmd, 0)
+        if "-n" in cmd and "apply" in cmd:
+            # Simulates kubectl echoing a stdin fragment back in its stderr
+            # when `kubectl -n <ns> apply -f -` (the Secret manifest) fails.
+            return subprocess.CompletedProcess(
+                cmd, 1, stdout="", stderr=f"error validating data: ...{sentinel}...")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
     monkeypatch.setattr(k3s.subprocess, "run", fake_run)
 
@@ -254,6 +337,6 @@ def test_apply_never_prints_the_captured_secret_dry_run_stdout(monkeypatch, tmp_
     ])
 
     captured = capsys.readouterr()
-    assert rc == 0
+    assert rc == 2
     assert sentinel not in captured.out
     assert sentinel not in captured.err
