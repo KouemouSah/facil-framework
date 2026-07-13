@@ -11,16 +11,39 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from typing import Any
 
-# Field types the admin config form understands (mirrors the web RecordForm).
-ConfigFieldType = str  # "text" | "number" | "boolean" | "json"
+# Field types the admin config form understands — now the full FieldSpec
+# contract (app.core.schema.types), not the 4-type subset this file used to
+# carry. `cfg()` keeps its exact signature: the 13 built-in providers are
+# untouched, and their declarations keep working verbatim.
+from app.core.schema.spec import field as _field
+from app.core.schema.types import LEGACY_TYPE_ALIASES  # noqa: F401  (re-export)
+
+# Legacy provider type names → FieldSpec types.
+_CFG_TYPE_MAP = {"text": "string", "boolean": "boolean",
+                 "number": "number", "json": "json"}
 
 
 def cfg(key: str, label: str, *, type: str = "text", required: bool = False,
         default: Any = None, hint: str = "") -> dict[str, Any]:
     """One declarative config field for a provider's admin form. NON-SECRET only —
-    credentials travel via `secret_ref` / env and must never be declared here."""
-    return {"key": key, "label": label, "type": type, "required": required,
-            "default": default, "hint": hint}
+    credentials travel via `secret_ref` / env and must never be declared here.
+
+    Thin wrapper over `app.core.schema.spec.field()`: providers keep declaring
+    `cfg("host", "Host")` and now get a full FieldSpec (widget, rules, i18n label)
+    for free. The provider label is English-only today, so it is mirrored into the
+    three locales — translating them is a follow-up, not a blocker.
+    """
+    ftype = _CFG_TYPE_MAP.get(type, type)
+    kw: dict[str, Any] = {"required": required, "default": default}
+    if ftype in ("select", "multiselect"):
+        kw["options"] = []
+    return _field(
+        key,
+        {"en": label, "fr": label, "es": label},
+        type=ftype,
+        hint={"en": hint, "fr": hint, "es": hint} if hint else {},
+        **kw,
+    )
 
 
 class Provider(ABC):
