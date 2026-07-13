@@ -45,11 +45,11 @@ jobs:
             echo "EOF"
           } >> $GITHUB_OUTPUT
 
-      - name: Run AI inference (Claude 3.5 Sonnet)
+      - name: Run AI inference (GPT-4o)
         id: ai
         uses: actions/ai-inference@v1
         with:
-          model: anthropic/claude-3-5-sonnet
+          model: openai/gpt-4o
           max-tokens: 1500
           system-prompt: |
             You are a senior reviewer for the Facil Framework — a generic deployable platform for digital services (gov, enterprise, SaaS, banking) built on FastAPI + Next.js + Expo + Postgres+pgvector + Ollama. The framework is in pre-bootstrap state. Be constructive but rigorous.
@@ -91,7 +91,7 @@ jobs:
         with:
           script: |
             const review = process.env.REVIEW || '_AI inference returned empty._';
-            const body = `<img src="https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/main/.github/assets/icons/bot.svg" width="14" alt="bot"/> &nbsp;**PR Review** · GitHub Models · Claude 3.5 Sonnet\n\n---\n\n${review}\n\n---\n_Auto-generated. Add label \`skip-review\` to opt out._`;
+            const body = `<img src="https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/main/.github/assets/icons/bot.svg" width="14" alt="bot"/> &nbsp;**PR Review** · GitHub Models · GPT-4o\n\n---\n\n${review}\n\n---\n_Auto-generated. Add label \`skip-review\` to opt out._`;
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
