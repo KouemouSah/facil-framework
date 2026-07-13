@@ -12,3 +12,15 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/name: facil
 facil.component: {{ .component }}
 {{- end -}}
+
+{{/*
+imagePullSecrets — utilisé par les 3 workloads qui pullent ghcr.io/<owner>/facil-*
+(backend, frontend, db-init). Ne rend RIEN si la liste est vide (pull anonyme).
+Appel : {{- include "facil.imagePullSecrets" . | nindent 6 }} dans un podSpec.
+*/}}
+{{- define "facil.imagePullSecrets" -}}
+{{- with .Values.global.imagePullSecrets }}
+imagePullSecrets:
+{{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}

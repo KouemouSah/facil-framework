@@ -3,6 +3,11 @@ global:
   imageTag: latest             # surchargé par le provider (version/commit)
   namespace: facil
   storageClass: local-path     # défaut k3s
+  # Registre privé (on-prem souverain / GHCR passé en privé) : lister ici les
+  # Secret k8s de type kubernetes.io/dockerconfigjson. Vide = pull anonyme, ce
+  # qui suffit tant que ghcr.io/<owner>/facil-* reste public.
+  # Ex. : imagePullSecrets: [{name: regcred}]
+  imagePullSecrets: []
 
 # Nom du k8s Secret (créé par deploy/providers/k3s.py, hors Helm) portant les
 # clés : POSTGRES_PASSWORD, REDIS_PASSWORD, MINIO_ROOT_PASSWORD,
