@@ -5,21 +5,22 @@ Voir le spec : `docs/superpowers/specs/2026-07-12-infra-deploy-multitarget-desig
 | Tier | Runtime | Provisioning | Update | Pour qui |
 |------|---------|--------------|--------|----------|
 | lite | docker-compose | — | best-effort (recreate) | dev/démo · on-prem SANS ops |
-| k3s (défaut) | k3s + chart Helm `helm/facil` | — (bare-metal/VPS) | helm upgrade health-gated | on-prem/VPS mono-nœud |
+| k3s (défaut) | k3s + chart Helm `infra/helm/facil` | — (bare-metal/VPS) | helm upgrade health-gated | on-prem/VPS mono-nœud |
 | cloud (différé) | k8s managé + même chart | Terraform couche-0 | GitOps ArgoCD | cloud à l'échelle |
 
-- `helm/facil/` — chart unique (P1).
-- `terraform/` — modules couche-0 cloud (P5, différé).
-- `installers/` — install.sh/.ps1 (P3).
-- `gitops/` — ArgoCD app-of-apps (P5).
+- `helm/facil/` — chart Helm **peuplé** (P1, cette branche : `deploy/providers/k3s.py` +
+  `--validate/--plan/--apply`, voir `SMOKE.md`).
+- `terraform/` — modules couche-0 cloud (P5, différé — squelette vide).
+- `installers/` — install.sh/.ps1 (P3, différé — squelette vide).
+- `gitops/` — ArgoCD app-of-apps (P5, différé — squelette vide).
 
-## État actuel (P0)
+## État actuel
 
-Cette arborescence est un **squelette** (Phase 0 du design multi-cible) : aucun sous-répertoire
-n'est encore peuplé. Le runtime actif reste `docker-compose.local.yml` (généré par
-`deploy/providers/docker_local.py`) — rien ne change de comportement à ce stade. Les sous-dossiers
-listés ci-dessus se remplissent phase par phase (P1 = chart Helm, P3 = installeurs, P5 = Terraform +
-GitOps), chacun avec sa propre gate qualité (tests + revue) avant de passer à la phase suivante.
+Le chart Helm (`helm/facil/`, tier `k3s`) est **peuplé et smoke-testé** (P1 du design multi-cible —
+voir `SMOKE.md` pour les résultats observés sur un cluster k3d réel). `terraform/`, `installers/` et
+`gitops/` restent des squelettes vides (P3/P5, différé). Le runtime `docker-compose.local.yml`
+(tier `lite`, généré par `deploy/providers/docker_local.py`) reste le chemin dev/démo par défaut —
+les deux tiers coexistent, sélectionnés par `deploy.tier`/`deploy.target` (voir ci-dessous).
 
 Le champ `deploy.tier`/`deploy.target` dans `deploy/config.yaml` (schéma
 `deploy/scripts/validate_config.py::DeployTargetConfig`) sélectionne la cible ; défaut `k3s`/`onprem`,

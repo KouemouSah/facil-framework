@@ -50,13 +50,16 @@ logique de déploiement dupliquée.
 - **Existe et fonctionne** : `deploy/config.yaml` (+ `deploy.tier`/`deploy.target`, ce P0),
   `deploy/deploy.py` (validate/render/plan/apply par provider), `deploy/providers/docker_local.py`
   (tier `lite` de fait, sans le nom), providers cloud CLI (`aws.py`/`azure.py`/`gcp.py`, wrappers
-  sans state, `apply` EXPERIMENTAL).
-- **Squelette seulement (vide)** : `infra/helm/facil` (chart, P1), `infra/terraform/*` (P5),
-  `infra/installers/*` (P3), `infra/gitops/*` (P5). Aucun de ces répertoires n'est peuplé par ce P0.
-- **Zéro changement de comportement** : le champ `deploy.*` est un défaut rétro-compatible
-  (`default_factory`) — les configs existantes sans section `deploy` valident toujours,
-  tier `k3s` par défaut sans que rien ne soit déployé en k3s aujourd'hui (le provider `k3s` arrive
-  en Phase 1).
+  sans state, `apply` EXPERIMENTAL). **P1 livré** : `infra/helm/facil` (chart Helm complet —
+  Postgres/Redis/MinIO/OpenBao/backend/frontend, NetworkPolicy, Ingress Traefik, ressources
+  bornées) + `deploy/providers/k3s.py` (`--validate/--plan/--apply`, Secrets k8s hors Helm par
+  composant, overlay `values-onprem.yaml`) — smoke-testé sur un cluster k3d réel (voir `SMOKE.md`).
+- **Squelette seulement (vide)** : `infra/terraform/*` (P5), `infra/installers/*` (P3),
+  `infra/gitops/*` (P5). Ces répertoires restent non peuplés à ce stade.
+- **Zéro changement de comportement pour le tier `lite`** : le champ `deploy.*` est un défaut
+  rétro-compatible (`default_factory`) — les configs existantes sans section `deploy` valident
+  toujours ; le tier `k3s` (défaut du schéma) est désormais réellement déployable via
+  `deploy/providers/k3s.py`, mais rien ne bascule automatiquement un déploiement `lite` existant.
 
 ## 5. Suite
 
