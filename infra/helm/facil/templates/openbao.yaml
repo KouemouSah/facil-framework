@@ -46,8 +46,7 @@ spec:
                   name: {{ .Values.secretNames.openbao }}
                   key: OPENBAO_DEV_ROOT_TOKEN
           {{- else }}
-          # Prod unseal (SOPS+age / raft) = plan ultérieur — devMode=false non supporté ici.
-          args: ["server"]
+          {{- fail "openbao.devMode=false : le mode scelle (raft + unseal SOPS/age + TLS) n'est pas encore implemente dans ce chart. Voir .claude/plans/PHASE_P7_P8_SECRETS_PKI.md. Ne PAS deployer OpenBao en prod via ce chart." }}
           {{- end }}
           ports:
             - containerPort: 8200

@@ -255,6 +255,9 @@ def main(argv: list[str] | None = None) -> int:
                       help="Cree le Secret k8s (hors Helm) puis `helm upgrade --install`.")
     parser.add_argument("--yes", action="store_true",
                         help="Confirme --apply sans prompt interactif.")
+    parser.add_argument("--allow-dev-vault", action="store_true",
+                        help="Autorise OpenBao en dev-mode (stockage in-memory, HTTP "
+                             "en clair). SMOKE/DEV UNIQUEMENT — jamais en production.")
     args = parser.parse_args(argv)
 
     helm = find_helm()
@@ -298,6 +301,18 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if proc.returncode == 0 else 2
 
     # --apply
+    if cfg.secrets.openbao.dev_mode and not args.allow_dev_vault:
+        print(
+            "ERREUR: OpenBao est en dev-mode (stockage in-memory : TOUS les secrets\n"
+            "sont perdus au moindre redemarrage du pod ; ecoute HTTP en clair ;\n"
+            "root token en variable d'environnement). Interdit pour un deploiement\n"
+            "reel. Options :\n"
+            "  - smoke/dev  : relancer avec --allow-dev-vault (assume le risque)\n"
+            "  - production : passer secrets.openbao.dev_mode=false dans config.yaml\n"
+            "                 (mode scelle : voir .claude/plans/PHASE_P7_P8_SECRETS_PKI.md)",
+            file=sys.stderr)
+        return 1
+
     kubectl = find_kubectl()
     if not kubectl:
         print("ERREUR: kubectl introuvable dans le PATH.", file=sys.stderr)

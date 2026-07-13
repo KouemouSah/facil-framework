@@ -196,7 +196,11 @@ def test_main_apply_fails_closed_when_required_secrets_missing(monkeypatch, tmp_
     empty_secrets = tmp_path / ".env.secrets"
     empty_secrets.write_text("", encoding="utf-8")
     monkeypatch.setattr(k3s, "REPO_ROOT", tmp_path)
-    rc = k3s.main(["--apply", "--config", str(PROVIDERS_DIR.parent / "config.yaml"), "--yes"])
+    # --allow-dev-vault: isolates this test from the SEC-002 dev-mode guard
+    # (config.yaml has openbao.dev_mode=true) so it still exercises the
+    # missing-secrets fail-closed path it's named for, not the dev-mode one.
+    rc = k3s.main(["--apply", "--config", str(PROVIDERS_DIR.parent / "config.yaml"),
+                   "--yes", "--allow-dev-vault"])
     assert rc == 1
 
 
@@ -264,7 +268,10 @@ def test_apply_passes_values_onprem_overlay_to_helm_upgrade(monkeypatch, tmp_pat
     monkeypatch.setattr(k3s, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(k3s.subprocess, "run", fake_run)
 
-    rc = k3s.main(["--apply", "--config", str(PROVIDERS_DIR.parent / "config.yaml"), "--yes"])
+    # --allow-dev-vault: this test is about the values-onprem overlay flowing
+    # through to `helm upgrade`, not the SEC-002 dev-mode guard.
+    rc = k3s.main(["--apply", "--config", str(PROVIDERS_DIR.parent / "config.yaml"),
+                   "--yes", "--allow-dev-vault"])
 
     assert rc == 0
     upgrade_cmd = next(c for c in captured_cmds if "upgrade" in c)
@@ -286,7 +293,9 @@ def test_apply_creates_namespace_before_secret(monkeypatch, tmp_path):
     monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
     monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
     monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
-    k3s.main(["--apply", "--yes"])
+    # --allow-dev-vault: this test is about namespace-before-secret ordering,
+    # not the SEC-002 dev-mode guard.
+    k3s.main(["--apply", "--yes", "--allow-dev-vault"])
 
     joined = [" ".join(c) for c in calls]
     ns_idx = next(i for i, c in enumerate(joined) if "create namespace" in c or "namespace facil" in c)
@@ -330,7 +339,9 @@ def test_apply_uses_atomic_for_auto_rollback(monkeypatch):
     monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
     monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
     monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
-    k3s.main(["--apply", "--yes"])
+    # --allow-dev-vault: this test is about --atomic on the upgrade command,
+    # not the SEC-002 dev-mode guard.
+    k3s.main(["--apply", "--yes", "--allow-dev-vault"])
     upgrade = next(c for c in calls if "upgrade" in c)
     assert "--atomic" in upgrade
 
@@ -351,8 +362,12 @@ def test_secret_values_never_appear_in_any_process_argv(monkeypatch):
     monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
     monkeypatch.setattr(k3s, "_load_env_secrets",
                         lambda p: {**_FULL_SECRETS, "POSTGRES_PASSWORD": MARKER})
-    k3s.main(["--apply", "--yes"])
+    # --allow-dev-vault: without it the SEC-002 guard returns before any
+    # subprocess call, leaving `calls` empty and the loop below vacuously
+    # true (a tautology) — the flag lets the real argv-scrubbing logic run.
+    k3s.main(["--apply", "--yes", "--allow-dev-vault"])
 
+    assert calls, "aucun appel subprocess capture — l'assertion suivante serait vide de sens"
     b64 = base64.b64encode(MARKER.encode()).decode()
     for cmd in calls:
         for arg in cmd:
@@ -378,6 +393,26 @@ def test_build_configmap_manifest_indents_multiline_values_under_block_scalar():
     assert "  init.sql: |" in m
     assert "    CREATE ROLE facil_app;" in m
     assert "    GRANT ALL ON facil TO facil_app;" in m
+
+
+def test_apply_refuses_openbao_dev_mode_without_explicit_optin(monkeypatch, capsys):
+    # SEC-002 : bao -dev = stockage in-memory (secrets perdus au restart), auto-unseal,
+    # root token en env, HTTP en clair. Acceptable pour un smoke, JAMAIS en prod.
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+    rc = k3s.main(["--apply", "--yes"])   # config.yaml a openbao.dev_mode = true
+    assert rc == 1
+    assert "dev-mode" in capsys.readouterr().err.lower()
+
+
+def test_apply_allows_openbao_dev_mode_with_explicit_flag(monkeypatch):
+    monkeypatch.setattr(k3s.subprocess, "run",
+                        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout=""))
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+    assert k3s.main(["--apply", "--yes", "--allow-dev-vault"]) == 0
 
 
 def test_deploy_py_knows_k3s_provider():
@@ -444,8 +479,11 @@ def test_apply_never_prints_kubectl_stderr_on_manifest_apply_failure(monkeypatch
 
     monkeypatch.setattr(k3s.subprocess, "run", fake_run)
 
+    # --allow-dev-vault: this test is about stderr scrubbing on kubectl apply
+    # failure, not the SEC-002 dev-mode guard.
     rc = k3s.main([
         "--apply", "--config", str(PROVIDERS_DIR.parent / "config.yaml"), "--yes",
+        "--allow-dev-vault",
     ])
 
     captured = capsys.readouterr()
