@@ -1,0 +1,67 @@
+{{- if .Values.backend.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "backend") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "backend") | nindent 4 }}
+  ports:
+    - port: {{ .Values.backend.port }}
+      targetPort: {{ .Values.backend.port }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "backend") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.backend.replicas }}
+  selector:
+    matchLabels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "backend") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "backend") | nindent 8 }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: backend
+          image: ghcr.io/{{ .Values.global.owner }}/facil-backend:{{ .Values.global.imageTag }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          env:
+            - name: PORT
+              value: {{ .Values.backend.port | quote }}
+            - name: ENVIRONMENT
+              value: production
+            - name: MODULES_ENABLED
+              value: {{ .Values.backend.modulesEnabled | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.secretName }}, key: POSTGRES_PASSWORD }
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.secretName }}, key: REDIS_PASSWORD }
+            # Least-privilege : rôle facil_app (pas le superuser facil).
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.secretName }}, key: BACKEND_DATABASE_URL }
+            - name: REDIS_URL
+              value: redis://:$(REDIS_PASSWORD)@{{ include "facil.fullname" (dict "name" "redis") }}:6379/0
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secretName }}   # JWT_SECRET_KEY, SECRET_KEY, TOTP_..., etc.
+          ports:
+            - containerPort: {{ .Values.backend.port }}
+          readinessProbe:
+            httpGet: { path: /health, port: {{ .Values.backend.port }} }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet: { path: /health, port: {{ .Values.backend.port }} }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+{{- end }}
