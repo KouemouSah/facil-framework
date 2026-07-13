@@ -51,3 +51,22 @@ ADR-0003 / `PHASE_P7_P8_SECRETS_PKI.md`) ; opérer deux racines PKI distinctes.
   moteur PKI.
 - **Mutualiser CA signature documentaire et PKI mTLS** — *rejeté* : couplage de sécurité +
   contrainte de conformité eIDAS étendue indûment à toute l'infra.
+
+## Note d'implémentation (2026-07-13)
+
+Cette ADR restait à l'état d'intention (aucun chart Helm, aucun provider k3s). Le design
+multi-cible (`docs/superpowers/specs/2026-07-12-infra-deploy-multitarget-design.md`) et le plan
+d'exécution (2026-07-13) *implémentent* la décision ci-dessus, phase par phase (P0→P5) :
+
+- `docker-compose` = **fallback *lite* documenté** (2e classe, best-effort, dev/démo + on-prem
+  sans ops) — pas maintenu à parité avec le tier k3s.
+- **k3s + chart Helm unique `infra/helm/facil`** = **runtime canonique** on-prem → cloud (mêmes
+  pods/chart sur tout le continuum, seules les `values` changent).
+- **Terraform** = **couche-0 cloud uniquement** (VPC/DB managée/DNS/cluster), conçu et testé à
+  vide (`terraform validate`/`plan`) ; premier `apply` live différé au premier client cloud.
+- P0 (2026-07-13) pose le seul changement de schéma rétro-compatible nécessaire à ce stade :
+  `deploy.tier` (`lite`|`k3s`|`cloud`, défaut `k3s`) + `deploy.target` dans `deploy/config.yaml`
+  (`deploy/scripts/validate_config.py::DeployTargetConfig`) — zéro changement de comportement
+  runtime, le provider k3s arrivant en P1.
+
+Réf. : spec 2026-07-12 + plan 2026-07-13.

@@ -26,6 +26,14 @@ meta:
   version: latest                      # Image tag to deploy. e.g. 'v1.2.3' or commit SHA.
 
 # ----------------------------------------------------------------------------
+# 1bis. Deploy target (P0 infra multi-target design). Optional — defaults
+# below apply if this whole section is omitted (backward-compatible).
+# ----------------------------------------------------------------------------
+deploy:
+  tier: k3s                            # lite (compose) | k3s (canonical) | cloud (Terraform+Helm)
+  target: onprem                       # docker-local | aws | gcp | azure | onprem
+
+# ----------------------------------------------------------------------------
 # 2. Database — Postgres connection.
 # ----------------------------------------------------------------------------
 database:
