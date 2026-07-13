@@ -3,14 +3,17 @@ name: Helm chart
 # Lint + template the facil Helm chart on every change (règle #1 CLAUDE.md:
 # aucun build d'image / apply cluster ici — juste lint/rendu à sec).
 #
-# Garde-secret : la version naïve `grep -Eiq '(password|secret|token): [A-Za-z0-9+/]{8,}'`
-# est un no-op structurel contre un manifest k8s rendu (les credentials y
-# apparaissent comme `- name: POSTGRES_PASSWORD` / `valueFrom: {secretKeyRef: ...}`,
-# jamais en `password: <literal>`). On réutilise donc la vraie assertion déjà
-# durcie dans infra/helm/facil/tests/test_render.sh (secretKeyRef présent pour
-# chaque credential + aucun littéral `value:` sous un nom de credential), en
-# l'appelant directement pour le rendu par défaut ET pour l'overlay on-prem
-# (`-f values-onprem.yaml`) — une seule implémentation, zéro duplication/drift.
+# Garde-secret (SEC-009) : PARSEE (infra/helm/facil/tests/guard_secrets.py),
+# pas grep. L'ancienne version en grep (`grep -Eiq '(password|secret|token):
+# [A-Za-z0-9+/]{8,}'` puis une liste de 4 clés figées) ratait les connection
+# strings (DATABASE_URL/REDIS_URL rendent en `value:` avec interpolation
+# $(VAR)), ne regardait qu'une ligne après `- name:` (contournable par un
+# commentaire YAML) et ne matchait pas le style flow. Le parseur YAML réel
+# vérifie des invariants structurels sur tout le rendu — voir
+# infra/helm/facil/tests/test_guard_secrets.py pour la preuve par mutation de
+# chaque invariant. Appelé depuis infra/helm/facil/tests/test_render.sh pour
+# le rendu par défaut ET pour l'overlay on-prem (`-f values-onprem.yaml`) —
+# une seule implémentation, zéro duplication/drift.
 
 on:
   push:
@@ -33,6 +36,10 @@ jobs:
       - uses: azure/setup-helm@v4
         with: { version: v3.16.4 }
 
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install pyyaml pytest
+
       - name: helm lint
         run: helm lint infra/helm/facil
 
@@ -41,3 +48,6 @@ jobs:
 
       - name: helm template + garde-secret (overlay on-prem)
         run: bash infra/helm/facil/tests/test_render.sh -f infra/helm/facil/values-onprem.yaml
+
+      - name: garde-secret — preuve par mutation (pytest)
+        run: python -m pytest infra/helm/facil/tests/test_guard_secrets.py -q

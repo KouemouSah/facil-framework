@@ -22,23 +22,16 @@ fi
 echo "$OUT" | grep -q "image: pgvector/pgvector:pg16"
 echo "$OUT" | grep -q "name: facil-postgres"
 echo "$OUT" | grep -q "secretKeyRef"
-# Garde-secret (réel) : chaque credential est câblé via secretKeyRef, jamais
-# en littéral. Le check précédent (`grep "POSTGRES_PASSWORD: [^v]..."`) ne
-# pouvait jamais matcher un manifest k8s (les env vars rendent en liste
-# `- name: X` / `valueFrom:`, pas en `X: <literal>`) — no-op structurel.
-for key in POSTGRES_PASSWORD REDIS_PASSWORD MINIO_ROOT_PASSWORD OPENBAO_DEV_ROOT_TOKEN; do
-  CTX="$(echo "$OUT" | grep -B2 -E "key: ${key}\b" || true)"
-  if ! echo "$CTX" | grep -q "secretKeyRef"; then
-    echo "FAIL garde-secret: ${key} n'est pas câblé via secretKeyRef" >&2
-    exit 1
-  fi
-done
-# ... et aucune de ces variables n'est jamais inlinée en `value:` littéral.
-INLINED="$(echo "$OUT" | grep -A1 -E '^[[:space:]]*- name: (POSTGRES_PASSWORD|REDIS_PASSWORD|MINIO_ROOT_PASSWORD|OPENBAO_DEV_ROOT_TOKEN)[[:space:]]*$' | grep -E '^[[:space:]]*value:[[:space:]]' || true)"
-if [ -n "$INLINED" ]; then
-  echo "FAIL garde-secret: credential inliné en clair -> $INLINED" >&2
-  exit 1
-fi
+# Garde-secret PARSEE (SEC-009) : l'ancienne version en grep ne couvrait que 4
+# cles figees, ratait les connection strings (DATABASE_URL/REDIS_URL rendent en
+# `value:` avec interpolation $(VAR) -- jamais verifiees), ne regardait qu'UNE
+# ligne apres `- name:` (`grep -A1`, contournable par un commentaire YAML
+# intercale) et ne matchait pas le style flow (`{name: X, value: y}`) que le
+# chart utilise deja ailleurs. Remplacee par un parseur YAML reel qui verifie
+# des invariants structurels sur TOUS les conteneurs (init inclus) de TOUS les
+# manifests. Voir infra/helm/facil/tests/guard_secrets.py +
+# tests/test_guard_secrets.py (preuve par mutation de chaque invariant).
+echo "$OUT" | python infra/helm/facil/tests/guard_secrets.py
 echo "$OUT" | grep -q "name: facil-redis"
 echo "$OUT" | grep -q "image: redis:7-alpine"
 echo "$OUT" | grep -q "name: facil-minio"
