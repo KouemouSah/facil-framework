@@ -25,6 +25,8 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
+        runAsUser: 1001    # uid/gid "nextjs:nodejs" créés dans packages/web/Dockerfile
+        runAsGroup: 1001   # sans lui le GID primaire retombe à 0 (défaut k8s)
       containers:
         - name: frontend
           image: ghcr.io/{{ .Values.global.owner }}/facil-web:{{ .Values.global.imageTag }}
