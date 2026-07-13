@@ -59,4 +59,24 @@ def test_a_db_field_cannot_shadow_a_code_field():
 
 
 def test_default_registry_is_importable_and_empty_at_M0():
-    assert isinstance(default_schema_registry(), SchemaRegistry)
+    # Emptiness is load-bearing: product schemas land in M2/M3. A registry
+    # accidentally pre-populated today would silently collide with those
+    # later register() calls.
+    r = default_schema_registry()
+    assert isinstance(r, SchemaRegistry)
+    assert r.targets == []
+
+
+def test_registry_state_cannot_be_mutated_through_get_or_register():
+    # The registry is a process-wide source of truth for product schemas.
+    # Handing out the live list would let any caller silently corrupt what
+    # every other caller sees — no exception, no trace.
+    specs = [field("a", L)]
+    r = SchemaRegistry()
+    r.register("t.x", specs)
+
+    specs.append(field("injected_via_register", L))   # mutate the caller's list
+    assert [s["key"] for s in r.get("t.x")] == ["a"]
+
+    r.get("t.x").append(field("injected_via_get", L))  # mutate the returned list
+    assert [s["key"] for s in r.get("t.x")] == ["a"]
