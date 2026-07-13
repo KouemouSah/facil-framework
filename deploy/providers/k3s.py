@@ -75,7 +75,7 @@ def backend_database_url(cfg: vc.DeployConfig, app_pw: str) -> str:
 def render_role_sql(cfg: vc.DeployConfig) -> str:
     """SQL du role applicatif, rendu depuis pg_roles (source unique)."""
     role = pg_roles.app_role_name(cfg.meta.project_name)
-    return ";\n".join(pg_roles.create_role_sql(role, cfg.meta.project_name)) + ";\n"
+    return pg_roles.render_sql(role, cfg.meta.project_name)
 
 
 def render_values(cfg: vc.DeployConfig) -> dict:

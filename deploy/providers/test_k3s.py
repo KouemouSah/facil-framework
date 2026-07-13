@@ -88,6 +88,19 @@ def test_build_secret_literals_empty_input_yields_empty_dict():
     assert k3s.build_secret_literals({}, cfg=_cfg()) == {}
 
 
+def test_render_role_sql_never_leaks_password_via_argv_placeholder():
+    # CWE-214 (revue R2/F1) : le SQL du Job db-role doit lire le mdp applicatif
+    # via `\getenv` (variable d'environnement du process psql), jamais via un
+    # canal qui finirait dans l'argv de psql (`-v app_pw=...`).
+    sql = k3s.render_role_sql(_cfg())
+    assert "\\getenv app_pw FACIL_APP_PASSWORD" in sql
+    assert "-v app_pw" not in sql
+    # La meta-commande doit etre terminee par un saut de ligne, pas par ';'
+    # (sinon psql cherche la variable d'env "FACIL_APP_PASSWORD;", inexistante).
+    assert "\\getenv app_pw FACIL_APP_PASSWORD\n" in sql
+    assert "FACIL_APP_PASSWORD;" not in sql
+
+
 def test_backend_never_receives_infrastructure_root_credentials():
     # SEC-001 (blast radius) : une RCE/SSRF dans le backend — seule surface HTTP
     # exposee — ne doit PAS livrer le superuser Postgres, le root MinIO ni le root

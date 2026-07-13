@@ -72,4 +72,13 @@ if echo "$OUT" | grep -q "envFrom"; then
   echo "FAIL garde-secret: envFrom detecte (bundle global partage) -- chaque pod doit monter uniquement le Secret de son composant" >&2
   exit 1
 fi
+# CWE-214 : le mdp applicatif du Job db-role ne doit JAMAIS transiter par l'argv
+# de psql (lisible via /proc/<pid>/cmdline) -- il doit etre lu depuis l'env via
+# `\getenv` (le SQL lui-meme -- ConfigMap rendu par pg_roles.py -- est hors du
+# chart Helm, verifie par deploy/scripts/test_pg_roles.py + deploy/providers/
+# test_k3s.py ; ici on garde seulement l'invariant du Job Helm rendu).
+if echo "$OUT" | grep -q -- '-v app_pw='; then
+  echo "FAIL garde-secret: mdp applicatif passe en argv psql (-v app_pw=...) -- CWE-214" >&2
+  exit 1
+fi
 echo "OK render (${VALUES_FILE:-default})"

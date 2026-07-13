@@ -230,3 +230,12 @@ def test_app_role_grants_include_default_privileges(monkeypatch, tmp_path):
     assert any(g.startswith("GRANT CONNECT") for g in grants)
     # no DDL/superuser grant
     assert all("SUPERUSER" not in g and "CREATE ON" not in g for g in grants)
+
+
+def test_grants_delegate_to_pg_roles_source_of_truth():
+    # Revue R2/F2 : bootstrap/postgres.py::_grants (chemin docker-local) et
+    # deploy/scripts/pg_roles.py::grants_sql (chemin k3s, Job Helm) DOIVENT
+    # rendre exactement les memes privileges -- sinon les deux transports
+    # divergeraient silencieusement a la premiere modification des grants.
+    import pg_roles
+    assert pg._grants("facil_app", "facil") == pg_roles.grants_sql("facil_app", "facil")

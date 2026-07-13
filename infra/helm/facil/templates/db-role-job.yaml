@@ -49,16 +49,23 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities: { drop: ["ALL"] }
-          # Le mot de passe applicatif est passe a psql par -v (variable psql,
-          # citee par :'app_pw'), jamais concatene dans le SQL -> il n'apparait
-          # pas dans les logs Postgres (CWE-532).
+          # Le mot de passe applicatif n'est JAMAIS passe en argv psql : le SQL
+          # (rendu par deploy/scripts/pg_roles.py) commence par la meta-commande
+          # `\getenv app_pw FACIL_APP_PASSWORD`, qui lit la variable directement
+          # depuis l'environnement du process psql. Ceci ferme deux canaux de
+          # fuite : CWE-532 (le mdp n'est jamais concatene dans une instruction
+          # SQL -> jamais dans les logs Postgres) ET CWE-214 (le mdp n'apparait
+          # jamais dans l'argv de psql -> jamais dans /proc/<pid>/cmdline, lisible
+          # par tout process co-localise / EDR / scraper d'audit). Un `-v
+          # app_pw="$FACIL_APP_PASSWORD"` serait interpole par `sh -c` AVANT
+          # l'exec de psql et fuirait justement par ce second canal.
           command: ["sh", "-c"]
           args:
             - |
               set -e
               psql -h {{ include "facil.fullname" (dict "name" "postgres") }} \
                    -U {{ .Values.postgres.user }} -d {{ .Values.postgres.db }} \
-                   -v ON_ERROR_STOP=1 -v app_pw="$FACIL_APP_PASSWORD" \
+                   -v ON_ERROR_STOP=1 \
                    -f /sql/role.sql
           env:
             - name: PGPASSWORD
