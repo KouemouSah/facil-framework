@@ -46,7 +46,15 @@ RUNTIME_SECRETS = ("POSTGRES_PASSWORD", "REDIS_PASSWORD", "MINIO_ROOT_PASSWORD",
                    "KEYCLOAK_ADMIN_PASSWORD",
                    # OpenBao dev root token — the keystone credential. Auto-generated
                    # so it is NEVER the guessable literal `root` (SEC-001).
-                   "OPENBAO_DEV_ROOT_TOKEN")
+                   "OPENBAO_DEV_ROOT_TOKEN",
+                   # Mot de passe du role applicatif moindre-privilege facil_app.
+                   # BACKEND_DATABASE_URL en est DERIVE par le provider k3s : sans
+                   # lui le backend n'a aucune URL de connexion (APPLY-003).
+                   "FACIL_APP_PASSWORD",
+                   # SEC-011 : k3s.py::REQUIRED_APPLY_SECRETS les exige, mais seul
+                   # le wizard (deploy/init.py) les generait -> --apply cassait hors
+                   # wizard. Fail-closed correct, mais inutilisable : on les genere.
+                   "SECRET_KEY", "RECEIPT_VERIFICATION_SECRET", "CRON_SECRET")
 
 
 def _parse(path: Path) -> dict[str, str]:

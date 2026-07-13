@@ -130,11 +130,16 @@ def test_secret_names_match_chart_default_secret_names():
     # infra/helm/facil/values.yaml pins secretNames.* (one per component) — must
     # never drift from k3s.SECRET_NAMES (the chart's secretKeyRefs resolve from
     # values.yaml's own defaults, k3s.py never overrides them via --set).
+    # NB: values.yaml follows Helm's camelCase key convention; k3s.SECRET_NAMES
+    # keys are the kebab-case component identifiers used internally (they double
+    # as build_secret_literals() dict keys) — "db-role" -> "dbRole" in the chart.
     import yaml
     values_path = k3s.CHART_DIR / "values.yaml"
     chart_values = yaml.safe_load(values_path.read_text(encoding="utf-8"))
+    CHART_KEY = {"db-role": "dbRole"}
     for component, name in k3s.SECRET_NAMES.items():
-        assert chart_values["secretNames"][component] == name
+        chart_key = CHART_KEY.get(component, component)
+        assert chart_values["secretNames"][chart_key] == name
 
 
 def test_load_env_secrets_parses_key_value_file(tmp_path):
@@ -239,7 +244,8 @@ def test_apply_passes_values_onprem_overlay_to_helm_upgrade(monkeypatch, tmp_pat
     monkeypatch.setattr(k3s, "find_kubectl", lambda: "/usr/bin/kubectl")
     env_secrets = tmp_path / ".env.secrets"
     env_secrets.write_text(
-        "POSTGRES_PASSWORD=pw\nJWT_SECRET_KEY=jwt\nSECRET_KEY=sk\n",
+        "POSTGRES_PASSWORD=pw\nJWT_SECRET_KEY=jwt\nSECRET_KEY=sk\n"
+        "FACIL_APP_PASSWORD=apppw\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(k3s, "REPO_ROOT", tmp_path)
@@ -370,6 +376,27 @@ def test_deploy_py_knows_k3s_provider():
     assert "k3s" in mod.SUPPORTED_PROVIDERS
 
 
+def test_backend_database_url_uses_the_app_role_not_the_superuser():
+    # APPLY-003 / cible (e) : le backend se connecte en facil_app, jamais en superuser.
+    url = k3s.backend_database_url(_cfg(), "app-role-pw")
+    assert url.startswith("postgresql+asyncpg://facil_app:")
+    assert "@facil-postgres:5432/facil" in url
+    assert "facil:" not in url.split("@")[0].replace("facil_app:", "")
+
+
+def test_build_secret_literals_derives_backend_database_url():
+    # BACKEND_DATABASE_URL n'est PAS lu de .env.secrets (aucun script ne l'ecrit) :
+    # il est DERIVE de FACIL_APP_PASSWORD. Sans cette derivation, le secretKeyRef
+    # non-optionnel de backend.yaml -> CreateContainerConfigError.
+    lit = k3s.build_secret_literals(_FULL_SECRETS, cfg=_cfg())
+    assert lit["backend"]["BACKEND_DATABASE_URL"].startswith("postgresql+asyncpg://facil_app:")
+
+
+def test_apply_fails_closed_when_app_role_password_missing():
+    lit = k3s.build_secret_literals({"POSTGRES_PASSWORD": "x"}, cfg=_cfg())
+    assert "BACKEND_DATABASE_URL" not in lit.get("backend", {})
+
+
 def test_apply_never_prints_kubectl_stderr_on_manifest_apply_failure(monkeypatch, tmp_path, capsys):
     # Adapted for Task R1 (SEC-016, see apply_manifest() docstring): the old
     # `kubectl create secret --from-literal=... --dry-run=client -o yaml` step
@@ -388,7 +415,8 @@ def test_apply_never_prints_kubectl_stderr_on_manifest_apply_failure(monkeypatch
     env_secrets.write_text(
         f"POSTGRES_PASSWORD={sentinel}\n"
         "JWT_SECRET_KEY=jwt\n"
-        "SECRET_KEY=sk\n",
+        "SECRET_KEY=sk\n"
+        "FACIL_APP_PASSWORD=apppw\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(k3s, "REPO_ROOT", tmp_path)

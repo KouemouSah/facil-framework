@@ -48,6 +48,15 @@ frontend:
   port: 3000
   replicas: 1
 
+# Profil de resources reutilisable par les workloads legers (Jobs one-shot :
+# db-role, wait-postgres). Pas de profil "large"/"medium" pour l'instant — les
+# StatefulSet/Deployment applicatifs (postgres/backend/...) n'ont pas encore de
+# resources.requests/limits (hors scope R2).
+resources:
+  small:
+    requests: { cpu: 50m, memory: 32Mi }
+    limits: { cpu: 200m, memory: 128Mi }
+
 # Services gated (P1b) — OFF ici.
 caddy: { enabled: false }
 keycloak: { enabled: false }

@@ -1,0 +1,87 @@
+{{- if .Values.postgres.enabled }}
+{{/*
+Cree le role applicatif moindre-privilege AVANT les migrations (hook-weight -1
+vs 0 pour db-init) : alembic tourne en superuser et cree les tables, que les
+ALTER DEFAULT PRIVILEGES de ce Job auto-grantent ensuite au role applicatif.
+post-install : a la 1ere install, Postgres n'existe pas encore au moment des
+hooks pre-install (APPLY-002) — d'ou l'initContainer d'attente ci-dessous.
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "db-role") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,pre-upgrade
+    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "db-role") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      {{- include "facil.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        seccompProfile: { type: RuntimeDefault }
+      initContainers:
+        - name: wait-postgres
+          image: {{ .Values.postgres.image }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          command: ["sh", "-c"]
+          args:
+            - |
+              until pg_isready -h {{ include "facil.fullname" (dict "name" "postgres") }} -U {{ .Values.postgres.user }}; do
+                echo "postgres pas pret, attente..." >&2
+                sleep 2
+              done
+          resources: {{- toYaml .Values.resources.small | nindent 12 }}
+      containers:
+        - name: db-role
+          image: {{ .Values.postgres.image }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          # Le mot de passe applicatif est passe a psql par -v (variable psql,
+          # citee par :'app_pw'), jamais concatene dans le SQL -> il n'apparait
+          # pas dans les logs Postgres (CWE-532).
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              psql -h {{ include "facil.fullname" (dict "name" "postgres") }} \
+                   -U {{ .Values.postgres.user }} -d {{ .Values.postgres.db }} \
+                   -v ON_ERROR_STOP=1 -v app_pw="$FACIL_APP_PASSWORD" \
+                   -f /sql/role.sql
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretNames.dbRole }}
+                  key: POSTGRES_PASSWORD
+            - name: FACIL_APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretNames.dbRole }}
+                  key: FACIL_APP_PASSWORD
+          volumeMounts:
+            - name: sql
+              mountPath: /sql
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          resources: {{- toYaml .Values.resources.small | nindent 12 }}
+      volumes:
+        - name: sql
+          configMap:
+            name: {{ include "facil.fullname" (dict "name" "db-role-sql") }}
+        - name: tmp
+          emptyDir: {}
+{{- end }}

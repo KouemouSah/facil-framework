@@ -42,18 +42,40 @@ VALUES_ONPREM = CHART_DIR / "values-onprem.yaml"
 SCRIPTS_DIR = DEPLOY_DIR / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 import validate_config as vc  # noqa: E402
+import pg_roles  # noqa: E402
 
 DEFAULT_CONFIG = DEPLOY_DIR / "config.yaml"
 
-# Secrets sans lesquels le backend ne demarre pas (fail-closed sur --apply).
-REQUIRED_APPLY_SECRETS = ("POSTGRES_PASSWORD", "JWT_SECRET_KEY", "SECRET_KEY")
+# Secrets sans lesquels la stack ne peut pas demarrer (fail-closed sur --apply).
+# FACIL_APP_PASSWORD : sans lui, pas de BACKEND_DATABASE_URL -> le backend reste
+# en CreateContainerConfigError pendant les 10 min du --wait (APPLY-003).
+REQUIRED_APPLY_SECRETS = ("POSTGRES_PASSWORD", "JWT_SECRET_KEY", "SECRET_KEY",
+                          "FACIL_APP_PASSWORD")
 
 # Nom du Secret k8s par composant — doit matcher values.yaml::secretNames.*
 SECRET_NAMES = {
     "postgres": "facil-postgres-secret", "redis": "facil-redis-secret",
     "minio": "facil-minio-secret", "openbao": "facil-openbao-secret",
     "backend": "facil-backend-secret",
+    "db-role": "facil-db-role-secret",
 }
+
+
+def backend_database_url(cfg: vc.DeployConfig, app_pw: str) -> str:
+    """URL de connexion du backend — role applicatif, JAMAIS le superuser.
+
+    Format aligne sur deploy/scripts/render_backend_env.py:53 (SQLAlchemy async).
+    L'hote est le Service k8s du chart (facil-postgres), pas le conteneur compose.
+    """
+    role = pg_roles.app_role_name(cfg.meta.project_name)
+    db = cfg.meta.project_name
+    return f"postgresql+asyncpg://{role}:{app_pw}@facil-postgres:5432/{db}"
+
+
+def render_role_sql(cfg: vc.DeployConfig) -> str:
+    """SQL du role applicatif, rendu depuis pg_roles (source unique)."""
+    role = pg_roles.app_role_name(cfg.meta.project_name)
+    return ";\n".join(pg_roles.create_role_sql(role, cfg.meta.project_name)) + ";\n"
 
 
 def render_values(cfg: vc.DeployConfig) -> dict:
@@ -88,8 +110,6 @@ def build_secret_literals(env_secrets: dict[str, str], *, cfg: vc.DeployConfig
     d'ailleurs aucun — ils n'etaient la que par accident de conception (`envFrom`).
 
     Retourne {composant: {CLE: valeur}} ; un composant sans secret disponible est omis.
-    La Task R2 etendra le bloc "backend" avec BACKEND_DATABASE_URL (derivee) et ajoutera
-    le composant "db-role".
     """
     def pick(*keys: str) -> dict[str, str]:
         return {k: env_secrets[k] for k in keys if k in env_secrets}
@@ -100,10 +120,18 @@ def build_secret_literals(env_secrets: dict[str, str], *, cfg: vc.DeployConfig
         "minio": pick("MINIO_ROOT_PASSWORD"),
         "openbao": pick("OPENBAO_DEV_ROOT_TOKEN"),
         # REDIS_PASSWORD : le backend est CLIENT de Redis, il en a besoin. Pas de
-        # POSTGRES_PASSWORD (superuser) : il se connectera via BACKEND_DATABASE_URL (R2).
+        # POSTGRES_PASSWORD (superuser) : il se connecte via BACKEND_DATABASE_URL.
         "backend": pick("JWT_SECRET_KEY", "SECRET_KEY", "TOTP_ENCRYPTION_KEY",
                         "RECEIPT_VERIFICATION_SECRET", "CRON_SECRET", "REDIS_PASSWORD"),
     }
+    # L'URL de connexion du backend est DERIVEE de FACIL_APP_PASSWORD : aucun script du
+    # repo n'ecrit BACKEND_DATABASE_URL dans .env.secrets (APPLY-003), et le secretKeyRef
+    # de backend.yaml n'est pas `optional` -> sans cette derivation, le pod backend reste
+    # bloque en CreateContainerConfigError pendant les 10 min du --wait.
+    if (app_pw := env_secrets.get("FACIL_APP_PASSWORD")):
+        out["backend"]["BACKEND_DATABASE_URL"] = backend_database_url(cfg, app_pw)
+    # Le Job db-role a besoin du superuser (pour CREATE ROLE) ET du mdp applicatif.
+    out["db-role"] = pick("POSTGRES_PASSWORD", "FACIL_APP_PASSWORD")
     return {k: v for k, v in out.items() if v}
 
 
@@ -298,6 +326,14 @@ def main(argv: list[str] | None = None) -> int:
     rc_ns = ensure_namespace(kubectl, args.namespace)
     if rc_ns != 0:
         return rc_ns
+
+    # 0bis) ConfigMap du SQL du role applicatif (source unique = pg_roles.py) —
+    # le Job db-role-job.yaml la monte en volume. Pas un secret : meme chemin
+    # stdin que le Secret (DRY), mais build_configmap_manifest (pas de base64).
+    rc_cm = apply_manifest(kubectl, args.namespace, build_configmap_manifest(
+        "facil-db-role-sql", {"role.sql": render_role_sql(cfg)}))
+    if rc_cm != 0:
+        return rc_cm
 
     # 1) Secrets k8s (hors Helm), UN PAR COMPOSANT (SEC-001) — manifestes construits
     #    en Python, jamais ecrits dans un fichier, pipes sur stdin (SEC-006 : jamais
