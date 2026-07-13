@@ -7,6 +7,7 @@ subprocess mocked out where a real helm invocation isn't the point of the test.
 """
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -141,3 +142,51 @@ def test_main_validate_returns_1_on_bad_config(monkeypatch, tmp_path):
     bad_config.write_text("meta: {}\n", encoding="utf-8")
     rc = k3s.main(["--validate", "--config", str(bad_config)])
     assert rc == 1
+
+
+def test_apply_never_prints_the_captured_secret_dry_run_stdout(monkeypatch, tmp_path, capsys):
+    # Security-critical invariant (only manual review protects it today):
+    # the `kubectl create secret --dry-run=client -o yaml` stdout, which
+    # carries REAL key material, must NEVER be print()ed/logged anywhere —
+    # it may only flow as stdin into `kubectl apply -f -`. This test exercises
+    # the full --apply path with subprocess faked out (no real cluster) and
+    # asserts an obvious sentinel planted in the fake dry-run YAML never
+    # reaches stdout/stderr. A future refactor adding e.g. a debug
+    # `print(dry_run.stdout)` must fail this test.
+    sentinel = "SECRETMARKER_SHOULD_NOT_APPEAR_zzq9"
+
+    monkeypatch.setattr(k3s, "find_helm", lambda: "/usr/bin/helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "/usr/bin/kubectl")
+
+    env_secrets = tmp_path / ".env.secrets"
+    env_secrets.write_text(
+        "POSTGRES_PASSWORD=pw\n"
+        "JWT_SECRET_KEY=jwt\n"
+        "SECRET_KEY=sk\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(k3s, "REPO_ROOT", tmp_path)
+
+    def fake_run(cmd, **kwargs):
+        if "create" in cmd and "secret" in cmd:
+            # Simulates `kubectl create secret ... --dry-run=client -o yaml`:
+            # its captured stdout contains real-looking key material.
+            fake_secret_yaml = (
+                "apiVersion: v1\nkind: Secret\ndata:\n"
+                f"  POSTGRES_PASSWORD: {sentinel}\n"
+            )
+            return subprocess.CompletedProcess(cmd, 0, stdout=fake_secret_yaml, stderr="")
+        # `kubectl apply -f -` and `helm upgrade --install` — neither should
+        # ever need to see/echo the secret literal either.
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+
+    rc = k3s.main([
+        "--apply", "--config", str(PROVIDERS_DIR.parent / "config.yaml"), "--yes",
+    ])
+
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert sentinel not in captured.out
+    assert sentinel not in captured.err
