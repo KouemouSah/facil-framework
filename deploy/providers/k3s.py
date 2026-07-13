@@ -386,16 +386,55 @@ def main(argv: list[str] | None = None) -> int:
             return rc
 
     # 2) helm upgrade --install (backend/web pullent GHCR ; jamais de build ici).
+    #
+    # DEUX PASSES -- resout un DEADLOCK REEL trouve en smokant sur un vrai cluster
+    # (task-V1, jamais vu par helm lint/template/pytest) : db-role/db-init sont des
+    # hooks `post-install,pre-upgrade` (ils exigent Postgres deja demarre -> impossible
+    # en pre-install au 1er install ; et SEC-001 interdit de les fondre dans un
+    # initContainer du backend, qui ne doit JAMAIS voir le superuser Postgres). Or Helm
+    # n'execute les hooks post-install QU'APRES que `--wait` ait vu TOUTES les
+    # ressources non-hook pretes -- dont le Deployment backend. Le readinessProbe du
+    # backend (`/health`) exige la BD, qui n'existe pas tant que ces memes hooks n'ont
+    # pas tourne : deadlock garanti au 1er install. Verifie en conditions reelles :
+    # `helm upgrade --atomic --wait` a systematiquement expire au bout de 10 min sans
+    # qu'un seul Job soit jamais cree ("Error: release facil failed ... context deadline
+    # exceeded"), le backend restart-loopant sur `password authentication failed for
+    # user "facil_app"` (le role que le hook bloque devait justement creer).
+    #
+    # Fix : 1re passe avec `backend.replicas=0` -- le Deployment est alors trivialement
+    # "Available" (0 pod a attendre), `--wait` passe vite, Postgres est deja debout ->
+    # les hooks tournent normalement (creation du role + migrations). 2e passe qui
+    # remonte le replica reel (valeurs par defaut du chart) : le role/schema existent
+    # desormais, `/health` repond 200 des le 1er cycle de probe. Les deux hooks sont
+    # idempotents (create_role_sql = CREATE-si-absent + ALTER ; `alembic upgrade head`
+    # ne fait rien si deja a jour) donc les rejouer au pre-upgrade de la 2e passe est
+    # sans effet de bord.
+    base_helm_args = [
+        helm, "upgrade", "--install", "facil", str(CHART_DIR),
+        "-n", args.namespace, "--create-namespace",
+        "-f", str(VALUES_ONPREM),
+        *_set_args(values),
+        "--atomic",                        # SEC-022 : rollback auto si le deploiement echoue
+    ]
     rc = subprocess.run(
-        [helm, "upgrade", "--install", "facil", str(CHART_DIR),
-         "-n", args.namespace, "--create-namespace",
-         "-f", str(VALUES_ONPREM),
-         *_set_args(values),
-         "--atomic",                       # SEC-022 : rollback auto si le deploiement echoue
-         "--wait", "--timeout", "10m"],
+        [*base_helm_args, "--set", "backend.replicas=0",
+         "--wait", "--timeout", "5m"],
         check=False,
     ).returncode
-    return 0 if rc == 0 else 2
+    if rc != 0:
+        print("ERREUR: passe 1/2 (datastores + hooks db-role/db-init, backend a 0 "
+              "replica) a echoue.", file=sys.stderr)
+        return 2
+
+    rc = subprocess.run(
+        [*base_helm_args, "--wait", "--timeout", "10m"],
+        check=False,
+    ).returncode
+    if rc != 0:
+        print("ERREUR: passe 2/2 (remontee du backend a son replica reel) a echoue.",
+              file=sys.stderr)
+        return 2
+    return 0
 
 
 if __name__ == "__main__":
