@@ -221,6 +221,14 @@
     "loading": "Loading…",
     "load_error": "Failed to load the organization.",
     "empty": "No organizations.",
+    "save": "Save",
+    "tab": {
+      "details": "Details"
+    },
+    "documentIdentity": {
+      "tab": "Document identity",
+      "description": "The letterhead/footer/seal identity printed on every generated report for this organization."
+    },
     "col": {
       "code": "Code",
       "name": "Legal name",
@@ -250,12 +258,10 @@
       "default_locale": "Default locale",
       "timezone": "Timezone",
       "hq_address_id": "Head office address",
-      "document_identity": "Document identity (JSON)",
       "settings": "Settings (JSON)",
       "code_hint": "Immutable identifier.",
       "party_id_hint": "Party holding tax id / registration / contacts.",
       "parent_id_hint": "Owning company for multi-company groups.",
-      "document_identity_hint": "Identifiers shown on generated documents (registry, VAT…).",
       "settings_hint": "Free-form organization settings."
     }
   },

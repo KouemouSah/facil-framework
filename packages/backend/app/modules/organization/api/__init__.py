@@ -18,6 +18,8 @@ from app.api.concurrency import enforce_if_match, row_etag
 from app.api.csv_export import EXPORT_CAP, export_response
 from app.api.deps import get_session
 from app.api.list_query import apply_sort, keyset_page, paginated, resolve_sort
+from app.core.schema.merge import merge_blob
+from app.core.schema.pydantic_gen import SchemaViolation
 from app.modules.organization import repository as repo
 from app.modules.organization import service
 from app.modules.organization.models import Organization
@@ -202,6 +204,16 @@ async def update_organization(org_id: str, body: OrganizationUpdate, request: Re
     if existing is None:
         raise HTTPException(404, f"organization '{org_id}' not found")
     enforce_if_match(request, row_etag(existing))
+    # `document_identity` is now a schema-validated, merge-preserve blob (Task 8):
+    # only declared keys can be written by the request (422 otherwise); a
+    # pre-existing undeclared key (historic data) survives untouched.
+    if body.document_identity is not None:
+        specs = request.app.state.schema_registry.get("organization.document_identity")
+        try:
+            body.document_identity = merge_blob(
+                existing.document_identity or {}, body.document_identity, specs)
+        except SchemaViolation as e:
+            raise HTTPException(422, detail=e.errors) from e
     try:
         org = await service.update_organization(session, org_id, body)
     except service.OrgError as e:

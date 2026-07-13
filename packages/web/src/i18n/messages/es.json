@@ -221,6 +221,14 @@
     "loading": "Cargando…",
     "load_error": "Error al cargar la organización.",
     "empty": "No hay organizaciones.",
+    "save": "Guardar",
+    "tab": {
+      "details": "Detalles"
+    },
+    "documentIdentity": {
+      "tab": "Identidad documental",
+      "description": "La identidad (encabezado/pie de página/sello) impresa en cada informe generado para esta organización."
+    },
     "col": {
       "code": "Código",
       "name": "Razón social",
@@ -250,12 +258,10 @@
       "default_locale": "Idioma predeterminado",
       "timezone": "Zona horaria",
       "hq_address_id": "Dirección de la sede",
-      "document_identity": "Identidad documental (JSON)",
       "settings": "Ajustes (JSON)",
       "code_hint": "Identificador inmutable.",
       "party_id_hint": "Tercero con NIF / registro / contactos.",
       "parent_id_hint": "Empresa matriz para grupos multiempresa.",
-      "document_identity_hint": "Identificadores mostrados en los documentos generados (registro, IVA…).",
       "settings_hint": "Ajustes libres de la organización."
     }
   },

@@ -58,8 +58,12 @@ class SchemaRegistry:
 def default_schema_registry() -> SchemaRegistry:
     """Registry pre-loaded with the built-in product schemas.
 
-    Empty at M0 — `organization.document_identity` lands in M2 and
-    `organization.settings` in M3. Custom-field targets carry no code schema by
-    design: everything they expose comes from the DB.
+    `organization.document_identity` lands in M2; `organization.settings` lands
+    in M3. Custom-field targets carry no code schema by design: everything they
+    expose comes from the DB.
     """
-    return SchemaRegistry()
+    from app.core.schema.product_schemas import DOCUMENT_IDENTITY
+
+    r = SchemaRegistry()
+    r.register("organization.document_identity", DOCUMENT_IDENTITY)
+    return r

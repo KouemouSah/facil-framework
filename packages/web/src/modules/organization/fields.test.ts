@@ -35,4 +35,10 @@ describe("ORG_FIELD_SPECS (pilot 1 — Company canonical form)", () => {
     );
     expect(textUrlAsset).toBeUndefined();
   });
+
+  it("no longer edits document_identity as raw JSON — it is its own generated-form tab", () => {
+    // Task 8 (SP1/M2): document_identity moved out of this form into
+    // DocumentIdentityForm, driven by the server-served product schema.
+    expect(byName("document_identity")).toBeUndefined();
+  });
 });

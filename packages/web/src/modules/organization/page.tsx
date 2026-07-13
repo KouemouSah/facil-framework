@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { Plus, Trash2, Search } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { DataGrid, ExportMenu, RecordForm, RecordSurface } from "@/components/shared";
 import { type DataGridColumn } from "@/components/ui/data-grid";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import { useServerTable, type ServerPage } from "@/lib/use-server-table";
 import { usePermissions } from "@/lib/use-permissions";
 import { useState } from "react";
 import { useOrgFields } from "./fields";
+import { DocumentIdentityForm } from "./document-identity-form";
 import {
   ORG_BASE, createOrg, deleteOrg, getOrg, listOrgs, updateOrg, type Org,
 } from "./api";
@@ -197,16 +199,20 @@ function OrgCreateSurface({ onClose, onCreated }: { onClose: () => void; onCreat
   );
 }
 
+type OrgTab = "details" | "documentIdentity";
+
 function OrgEditSurface({ orgId, onClose, readOnly }: { orgId: string; onClose: () => void; readOnly: boolean }) {
   const t = useTranslations("organizations");
   const qc = useQueryClient();
   const fields = useOrgFields();
+  const [tab, setTab] = useState<OrgTab>("details");
   const { data, isError } = useQuery<Record<string, unknown>>({
     queryKey: ["org", orgId],
     queryFn: () => getOrg(orgId),
   });
 
   const title = (data?.display_name as string) || (data?.legal_name as string) || t("edit_title");
+  const etag = data?.etag ? String(data.etag) : undefined;
 
   return (
     <RecordSurface
@@ -218,22 +224,52 @@ function OrgEditSurface({ orgId, onClose, readOnly }: { orgId: string; onClose: 
       {isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
       {!data && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
       {data && (
-        <RecordForm
-          // Remount on a fresh load (post-save / post-conflict) to reseed initial + etag.
-          key={String(data.etag ?? orgId)}
-          fields={fields}
-          mode="edit"
-          layout="rich"
-          readOnly={readOnly}
-          initial={data}
-          etag={data.etag ? String(data.etag) : undefined}
-          onSubmit={(payload, etag) => updateOrg(orgId, payload, etag)}
-          onSuccess={() => {
-            qc.invalidateQueries({ queryKey: ["org", orgId] });
-            qc.invalidateQueries({ queryKey: ["orgs"] });
-          }}
-          onConflict={() => qc.invalidateQueries({ queryKey: ["org", orgId] })}
-        />
+        <div className="space-y-4">
+          {/* document_identity is its own tab (master-detail rule, repo convention):
+              rich, schema-generated config, not a raw-JSON field in the main form. */}
+          <div className="flex gap-1 border-b">
+            {(["details", "documentIdentity"] as OrgTab[]).map((tk) => (
+              <button key={tk} type="button" onClick={() => setTab(tk)}
+                className={cn("border-b-2 px-3 py-1.5 text-sm font-medium",
+                  tab === tk ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
+                {tk === "details" ? t("tab.details") : t("documentIdentity.tab")}
+              </button>
+            ))}
+          </div>
+
+          {tab === "details" ? (
+            <RecordForm
+              // Remount on a fresh load (post-save / post-conflict) to reseed initial + etag.
+              key={String(etag ?? orgId)}
+              fields={fields}
+              mode="edit"
+              layout="rich"
+              readOnly={readOnly}
+              initial={data}
+              etag={etag}
+              onSubmit={(payload, tag) => updateOrg(orgId, payload, tag)}
+              onSuccess={() => {
+                qc.invalidateQueries({ queryKey: ["org", orgId] });
+                qc.invalidateQueries({ queryKey: ["orgs"] });
+              }}
+              onConflict={() => qc.invalidateQueries({ queryKey: ["org", orgId] })}
+            />
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">{t("documentIdentity.description")}</p>
+              <DocumentIdentityForm
+                key={String(etag ?? orgId)}
+                orgId={orgId}
+                documentIdentity={(data.document_identity as Record<string, unknown>) ?? {}}
+                etag={etag}
+                onSaved={() => {
+                  qc.invalidateQueries({ queryKey: ["org", orgId] });
+                  qc.invalidateQueries({ queryKey: ["orgs"] });
+                }}
+              />
+            </div>
+          )}
+        </div>
       )}
     </RecordSurface>
   );

@@ -221,6 +221,14 @@
     "loading": "Chargement…",
     "load_error": "Échec du chargement de l'organisation.",
     "empty": "Aucune organisation.",
+    "save": "Enregistrer",
+    "tab": {
+      "details": "Détails"
+    },
+    "documentIdentity": {
+      "tab": "Identité documentaire",
+      "description": "L'identité (en-tête/pied de page/sceau) imprimée sur chaque rapport généré pour cette organisation."
+    },
     "col": {
       "code": "Code",
       "name": "Raison sociale",
@@ -250,12 +258,10 @@
       "default_locale": "Langue par défaut",
       "timezone": "Fuseau horaire",
       "hq_address_id": "Adresse du siège",
-      "document_identity": "Identité documentaire (JSON)",
       "settings": "Paramètres (JSON)",
       "code_hint": "Identifiant immuable.",
       "party_id_hint": "Tiers portant le NIF / immatriculation / contacts.",
       "parent_id_hint": "Société mère pour les groupes multi-sociétés.",
-      "document_identity_hint": "Identifiants affichés sur les documents générés (registre, TVA…).",
       "settings_hint": "Paramètres libres de l'organisation."
     }
   },

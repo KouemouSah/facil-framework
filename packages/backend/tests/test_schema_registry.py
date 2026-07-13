@@ -58,13 +58,14 @@ def test_a_db_field_cannot_shadow_a_code_field():
         resolve(r, "site.custom_fields", db_specs=[field("code_ref", L)])
 
 
-def test_default_registry_is_importable_and_empty_at_M0():
-    # Emptiness is load-bearing: product schemas land in M2/M3. A registry
-    # accidentally pre-populated today would silently collide with those
-    # later register() calls.
+def test_default_registry_carries_exactly_the_shipped_product_schemas():
+    # M0 shipped this registry empty (product schemas land in M2/M3). M2 wires
+    # `organization.document_identity` in — this test now pins the exact set of
+    # targets so a stray `register()` call is caught immediately instead of
+    # silently colliding with a later one.
     r = default_schema_registry()
     assert isinstance(r, SchemaRegistry)
-    assert r.targets == []
+    assert r.targets == ["organization.document_identity"]
 
 
 def test_registry_state_cannot_be_mutated_through_get_or_register():

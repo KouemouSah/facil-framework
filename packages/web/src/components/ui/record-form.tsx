@@ -330,6 +330,14 @@ export function RecordForm({
       return <RefSelect resource={(f.relationResource ?? f.refResource ?? "countries") as never}
                value={values[f.name] ?? ""} filter={f.refFilter} disabled={fieldRO}
                onChange={(v) => setField(f.name, v)} />;
+    // A server-served `type: "file"` (e.g. document_identity.logo_url/seal_url,
+    // widget "image") stores the uploaded asset URL exactly like the legacy
+    // `case "image"` below — same control, reached before the legacy switch so
+    // it isn't misrouted into the default text input.
+    if (specDriven && f.type === "file")
+      return <FileUpload value={values[f.name] ?? ""} disabled={fieldRO}
+               onUploaded={(url) => setField(f.name, url)}
+               onRemove={() => setField(f.name, "")} />;
     // NEW "text" = multi-line (types.py LEGACY_TYPE_ALIASES note: the legacy
     // literal "text" meant single-line and is deliberately NOT aliased to the
     // new "text", to avoid silently downgrading it). No dedicated "code" widget
