@@ -69,7 +69,7 @@ masque entièrement kubectl).
 
 ### 2.3 Schéma cible
 
-```
+```text
 SOURCE UNIQUE      config.yaml   (généré par init.py — wizard existant)
    │               .env.secrets  (secrets de boot, gitignored)
    ▼
@@ -114,7 +114,7 @@ DYNAMIQUE          détecte OS + RAM + cloud-metadata → choisit le tier (overr
 
 **Livrables**
 - Arborescence `infra/` (vide mais structurée) :
-  ```
+  ```text
   infra/
     helm/facil/            # chart (rempli en P1)
       Chart.yaml
@@ -332,7 +332,7 @@ applique. SSH-push proposé en **option** pour les cibles cloud/VM gérées.
 ## 5. Flux de données
 
 **Flux d'installation (on-prem, tier k3s)**
-```
+```text
 install.sh → détecte env → tier=k3s → installe k3s+helm → init.py (config.yaml + .env.secrets)
           → deploy.py apply : render values ← config.yaml
                               → backup (pré) → migrate(gated) → helm upgrade --install
@@ -340,7 +340,7 @@ install.sh → détecte env → tier=k3s → installe k3s+helm → init.py (conf
 ```
 
 **Flux de mise à jour (CD pull-based)**
-```
+```text
 push develop → CI release-images → GHCR (nouveau digest) → deploy.yml publie le channel
    → facil-agent (box) détecte le digest → deploy.py apply (backup→migrate→upgrade→health-gate)
    → succès : channel avancé, audit | échec : rollback auto, channel figé, statut KO
