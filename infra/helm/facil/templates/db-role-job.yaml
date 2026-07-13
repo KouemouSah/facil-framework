@@ -26,6 +26,7 @@ spec:
       labels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "db-role") | nindent 8 }}
     spec:
       restartPolicy: Never
+      automountServiceAccountToken: false   # aucun pod n'appelle l'API k8s
       {{- include "facil.imagePullSecrets" . | nindent 6 }}
       securityContext:
         runAsNonRoot: true

@@ -48,14 +48,22 @@ frontend:
   port: 3000
   replicas: 1
 
-# Profil de resources reutilisable par les workloads legers (Jobs one-shot :
-# db-role, wait-postgres). Pas de profil "large"/"medium" pour l'instant — les
-# StatefulSet/Deployment applicatifs (postgres/backend/...) n'ont pas encore de
-# resources.requests/limits (hors scope R2).
+# Profils de resources (SEC-015) : sur mono-noeud, un pod SANS limits peut
+# OOM-killer le noeud entier (pas de cgroup parent qui l'isole) -- DoS trivial.
+# Surchargeables par l'overlay ; dimensionnes pour un k3s de smoke a 4 Go.
 resources:
-  small:
-    requests: { cpu: 50m, memory: 32Mi }
+  small:      # Jobs one-shot (db-role, db-init) + sidecars d'attente (wait-postgres)
+    requests: { cpu: 10m, memory: 32Mi }
     limits: { cpu: 200m, memory: 128Mi }
+  data:       # postgres, minio
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 1000m, memory: 1Gi }
+  cache:      # redis, openbao
+    requests: { cpu: 25m, memory: 64Mi }
+    limits: { cpu: 300m, memory: 256Mi }
+  app:        # backend, frontend
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 1000m, memory: 1Gi }
 
 # Services gated (P1b) — OFF ici.
 caddy: { enabled: false }

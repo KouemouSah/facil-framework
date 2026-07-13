@@ -44,6 +44,17 @@ echo "$OUT" | grep -q "ghcr.io/kouemousah/facil-backend"
 echo "$OUT" | grep -q "path: /health"
 echo "$OUT" | grep -q "name: facil-frontend"
 echo "$OUT" | grep -q "ghcr.io/kouemousah/facil-web"
+# SEC-015 : resources.limits/requests, seccompProfile, readOnlyRootFilesystem,
+# automountServiceAccountToken=false. Un comptage global (ex. "autant de
+# `limits:` que de workloads") est une assertion TAUTOLOGIQUE : plusieurs
+# conteneurs d'UN workload peuvent porter assez de `limits:` pour compenser
+# qu'UN SEUL container d'un AUTRE workload n'en ait pas -- exactement le biais
+# documente plus haut dans ce fichier (sept occurrences passees sur ce projet).
+# Remplace par un parseur YAML reel qui verifie l'invariant PAR CONTENEUR
+# (containers + initContainers) DE CHAQUE workload -- meme convention que
+# guard_secrets.py ci-dessus (DRY). Preuve par mutation : guard_resources.py +
+# test_guard_resources.py.
+echo "$OUT" | python infra/helm/facil/tests/guard_resources.py
 # APPLY-002 : les hooks pre-install s'executent AVANT les ressources de la release
 # (donc avant Postgres) -> la migration echouerait a la 1ere install. post-install
 # + initContainer d'attente = le seul ordonnancement qui marche install ET upgrade.

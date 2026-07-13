@@ -28,16 +28,20 @@ spec:
     metadata:
       labels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "minio") | nindent 8 }}
     spec:
+      automountServiceAccountToken: false   # aucun pod n'appelle l'API k8s
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
         fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }   # requis par le profil PSS restricted
       containers:
         - name: minio
           image: {{ .Values.minio.image }}
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities: { drop: ["ALL"] }
+          resources: {{- toYaml .Values.resources.data | nindent 12 }}
           args: ["server", "/data", "--console-address", ":9001"]
           env:
             - name: MINIO_ROOT_USER
@@ -53,10 +57,15 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
             httpGet: { path: /minio/health/live, port: 9000 }
             initialDelaySeconds: 5
             periodSeconds: 5
+      volumes:
+        - name: tmp
+          emptyDir: {}
   volumeClaimTemplates:
     - metadata:
         name: data

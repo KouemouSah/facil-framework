@@ -23,15 +23,27 @@ spec:
     metadata:
       labels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "redis") | nindent 8 }}
     spec:
+      automountServiceAccountToken: false   # aucun pod n'appelle l'API k8s
       securityContext:
         runAsNonRoot: true
         runAsUser: 999
+        # fsGroup requis pour l'emptyDir /data : verifie par execution reelle
+        # (docker --tmpfs /data --user 999:999) que le montage est cree root:root
+        # 0755 (mode herite du /data pre-existant dans l'image officielle redis,
+        # owner reinitialise a root) -- `touch /data/probe` echoue en EACCES SANS
+        # fsGroup, reussit AVEC (kubelet applique un chown+chmod g+w recursif a
+        # l'emptyDir pour ce GID). Le brief ne mentionnait pas ce besoin : deduit
+        # du Dockerfile seul, ca aurait ete une hypothese fausse.
+        fsGroup: 999
+        seccompProfile: { type: RuntimeDefault }   # requis par le profil PSS restricted
       containers:
         - name: redis
           image: {{ .Values.redis.image }}
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities: { drop: ["ALL"] }
+          resources: {{- toYaml .Values.resources.cache | nindent 12 }}
           # TODO(security): move requirepass to a mounted config file so the
           # password stops appearing on this process's argv (CWE-214) — tracked, P2 hardening.
           command: ["sh", "-c", "exec redis-server --requirepass \"$REDIS_PASSWORD\""]
@@ -50,8 +62,18 @@ spec:
                   key: REDIS_PASSWORD
           ports:
             - containerPort: 6379
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: data
+              mountPath: /data   # RDB snapshot (readOnlyRootFilesystem) ; pas de PVC = deja ephemere avant ce durcissement
           readinessProbe:
             exec: { command: ["sh", "-c", "redis-cli --no-auth-warning ping"] }
             initialDelaySeconds: 3
             periodSeconds: 5
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: data
+          emptyDir: {}
 {{- end }}
