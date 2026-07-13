@@ -32,6 +32,8 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: { drop: ["ALL"] }
+          # TODO(security): move requirepass to a mounted config file so the
+          # password stops appearing on this process's argv (CWE-214) — tracked, P2 hardening.
           command: ["sh", "-c", "exec redis-server --requirepass \"$REDIS_PASSWORD\""]
           env:
             - name: REDIS_PASSWORD
@@ -39,10 +41,17 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secretName }}
                   key: REDIS_PASSWORD
+            # redis-cli reads REDISCLI_AUTH from the environment (never argv),
+            # unlike `-a`/`--pass` which leaks the password via /proc/<pid>/cmdline.
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName }}
+                  key: REDIS_PASSWORD
           ports:
             - containerPort: 6379
           readinessProbe:
-            exec: { command: ["sh", "-c", "redis-cli -a \"$REDIS_PASSWORD\" --no-auth-warning ping"] }
+            exec: { command: ["sh", "-c", "redis-cli --no-auth-warning ping"] }
             initialDelaySeconds: 3
             periodSeconds: 5
 {{- end }}

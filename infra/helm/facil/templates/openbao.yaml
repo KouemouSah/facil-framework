@@ -24,6 +24,9 @@ spec:
     metadata:
       labels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "openbao") | nindent 8 }}
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100   # uid "openbao" baked into openbao/openbao image (/etc/passwd), not the entrypoint's root-drop path
       containers:
         - name: openbao
           image: {{ .Values.openbao.image }}

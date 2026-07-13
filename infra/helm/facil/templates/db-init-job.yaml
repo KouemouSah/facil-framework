@@ -16,6 +16,7 @@ spec:
       restartPolicy: Never
       securityContext:
         runAsNonRoot: true
+        runAsUser: 1000
       containers:
         - name: db-init
           image: ghcr.io/{{ .Values.global.owner }}/facil-backend:{{ .Values.global.imageTag }}
