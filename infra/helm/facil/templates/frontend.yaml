@@ -1,0 +1,43 @@
+{{- if .Values.frontend.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "frontend") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "frontend") | nindent 4 }}
+  ports:
+    - port: {{ .Values.frontend.port }}
+      targetPort: {{ .Values.frontend.port }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "frontend") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.frontend.replicas }}
+  selector:
+    matchLabels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "frontend") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "frontend") | nindent 8 }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: frontend
+          image: ghcr.io/{{ .Values.global.owner }}/facil-web:{{ .Values.global.imageTag }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          env:
+            - name: INTERNAL_API_URL
+              value: http://{{ include "facil.fullname" (dict "name" "backend") }}:{{ .Values.backend.port }}
+          ports:
+            - containerPort: {{ .Values.frontend.port }}
+          readinessProbe:
+            httpGet: { path: /, port: {{ .Values.frontend.port }} }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+{{- end }}
