@@ -210,6 +210,23 @@ def test_render_values_matches_chart_value_shape():
     assert values["openbao"]["devMode"] is True
 
 
+def test_render_values_derives_postgres_db_and_user_from_project_name():
+    # B2 (regression guard): postgres.db/user used to be hardcoded to "facil"
+    # in render_values() while db-role-job's GRANT CONNECT ON DATABASE and
+    # backend_database_url() both derive from cfg.meta.project_name (see
+    # docker_local.py:181-182 for the same convention on the compose path).
+    # With project_name="acme", the chart would create database `facil` while
+    # the Job ran `GRANT CONNECT ON DATABASE acme` -> SQL error -> Job fails ->
+    # `--atomic` aborts the release. project_name is deliberately != "facil"
+    # here (the chart/config default) so this test cannot pass on a hardcoded
+    # value AND a correct derivation at once -- it would only pass on the
+    # latter (proven by mutation: reverting render_values()'s "db"/"user" to
+    # the literal "facil" turns this red; see finding B2 verification).
+    values = k3s.render_values(_cfg("acme"))
+    assert values["postgres"]["db"] == "acme"
+    assert values["postgres"]["user"] == "acme"
+
+
 def test_build_secret_literals_selects_expected_keys():
     # Post-S1: literals are partitioned PER COMPONENT (dict of dicts), not a
     # flat allowlisted dict — verify each component gets exactly its own keys,

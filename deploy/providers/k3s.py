@@ -87,8 +87,15 @@ def render_values(cfg: vc.DeployConfig) -> dict:
         "global": {"imageTag": cfg.meta.version},
         "postgres": {
             "image": cfg.docker_local.postgres_image,
-            "db": "facil",
-            "user": "facil",
+            # Derives from project_name (B2) -- same convention as
+            # docker_local.py:181-182 (POSTGRES_DB/POSTGRES_USER) and
+            # backend_database_url()/render_role_sql() just above: a hardcoded
+            # "facil" here meant the chart always created database `facil`
+            # while db-role-job's GRANT CONNECT ON DATABASE <project_name>
+            # targeted whatever the operator actually named their project --
+            # a mismatched name broke the Job (and --atomic aborted the release).
+            "db": cfg.meta.project_name,
+            "user": cfg.meta.project_name,
         },
         "redis": {"image": cfg.docker_local.redis_image},
         "minio": {"rootUser": cfg.storage.minio.root_user},
