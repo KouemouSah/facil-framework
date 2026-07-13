@@ -1,6 +1,14 @@
 global:
   owner: kouemousah            # ghcr.io/<owner>/facil-*
-  imageTag: latest             # surchargé par le provider (version/commit)
+  # B4 : PAS "latest" -- release-images.yml ne pousse `latest` que sur la
+  # branche PAR DEFAUT du repo GitHub ("main", confirme par
+  # `git ls-remote --symref origin HEAD`) ; le travail se fait sur `develop`
+  # (CLAUDE.md), poussee a chaque build (tag `type=ref,event=branch`). Un
+  # premier `--apply` sur ce defaut sans le surcharger (deploy/config.yaml
+  # absent/vide) tirerait un tag inexistant sur GHCR -> ImagePullBackOff 10 min
+  # puis rollback --atomic. Surcharge normale : deploy/providers/k3s.py::
+  # render_values() via cfg.meta.version (deploy/config.yaml::meta.version).
+  imageTag: develop
   storageClass: local-path     # défaut k3s
   # Registre privé (on-prem souverain / GHCR passé en privé) : lister ici les
   # Secret k8s de type kubernetes.io/dockerconfigjson. Vide = pull anonyme, ce

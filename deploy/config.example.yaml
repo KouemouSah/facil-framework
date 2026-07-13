@@ -23,7 +23,11 @@ meta:
   config_version: 1                    # Schema version. Do NOT change manually.
   project_name: facil                  # [REQUIRED] Used as a prefix for resource names.
   environment: production              # production | staging | development
-  version: latest                      # Image tag to deploy. e.g. 'v1.2.3' or commit SHA.
+  # Image tag to deploy: 'v1.2.3', a commit SHA, or a branch tag actually
+  # published by .github/workflows/release-images.yml (currently "develop" or
+  # "main" -- "latest" is only tagged on the GitHub *default* branch, which is
+  # "main"; do not assume it exists unless main has been built+pushed).
+  version: develop
 
 # ----------------------------------------------------------------------------
 # 1bis. Deploy target (P0 infra multi-target design). Optional — defaults

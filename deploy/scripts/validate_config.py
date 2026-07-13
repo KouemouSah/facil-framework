@@ -63,7 +63,15 @@ class MetaConfig(BaseModel):
     config_version: int = Field(ge=1, le=1)
     project_name: str = Field(min_length=1)
     environment: Literal["production", "staging", "development"]
-    version: str = "latest"
+    # B4: NOT "latest" -- .github/workflows/release-images.yml only tags
+    # `latest` `enable={{is_default_branch}}` (the GitHub default branch is
+    # "main"; confirmed via `git ls-remote --symref origin HEAD`). Work happens
+    # on `develop` (CLAUDE.md), which is reliably tagged on every push
+    # (type=ref,event=branch) -- a first-time operator who copies
+    # config.example.yaml verbatim and runs `--apply` must pull an image that
+    # actually exists on GHCR, or they hit a 10-minute ImagePullBackOff +
+    # --atomic rollback on their very first deploy.
+    version: str = "develop"
     profile: ProfileName = "empty"
 
 

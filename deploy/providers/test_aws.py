@@ -69,6 +69,9 @@ def test_plan_ecs_fargate():
 
 
 def test_ecr_image_uri():
+    # meta.version default changed "latest" -> "develop" (B4, see
+    # validate_config.py::MetaConfig) -- ecr_image_uri() just interpolates
+    # cfg.meta.version verbatim, so this follows the new default.
     uri = aws.ecr_image_uri(make_cfg(account_id="123456789012", region="eu-west-1"),
                             "backend")
-    assert uri == "123456789012.dkr.ecr.eu-west-1.amazonaws.com/facil-backend:latest"
+    assert uri == "123456789012.dkr.ecr.eu-west-1.amazonaws.com/facil-backend:develop"

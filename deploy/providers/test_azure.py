@@ -75,5 +75,8 @@ def test_plan_container_apps():
 
 
 def test_acr_image():
+    # meta.version default changed "latest" -> "develop" (B4, see
+    # validate_config.py::MetaConfig) -- acr_image() just interpolates
+    # cfg.meta.version verbatim, so this follows the new default.
     uri = azure.acr_image(make_cfg(acr_registry="facilacr"), "frontend")
-    assert uri == "facilacr.azurecr.io/facil-frontend:latest"
+    assert uri == "facilacr.azurecr.io/facil-frontend:develop"
