@@ -47,6 +47,8 @@ async def client(tmp_path, monkeypatch):
         resolver.set_db(await repo.active_map(s))
     app.state.resolver = resolver
     app.state.registry = default_registry()
+    from app.core.schema.registry import default_schema_registry
+    app.state.schema_registry = default_schema_registry()
     app.state.llm_router = LLMRouter(resolver, app.state.registry)
     app.state.auth = app.state.registry.build("auth", "native", {"issuer": "facil"})
     from app.core.cache import MemoryCache
