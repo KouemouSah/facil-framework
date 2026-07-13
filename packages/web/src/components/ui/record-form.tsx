@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { z } from "zod";
 import { Check } from "lucide-react";
 import { ApiError } from "@/lib/api";
+import { isVisible } from "@/lib/schema/conditions";
+import type { FieldRules, FieldSpec, FieldSpecType } from "@/lib/schema/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,18 +36,31 @@ export type FieldType =
 export interface FieldDef {
   name: string;
   label: string;
-  type?: FieldType; // default "text"
+  /** Legacy literal (default "text") OR a server-served FieldSpec type (spec §5,
+   *  axis 1) — `renderControl` dispatches new (type, widget) pairs before
+   *  falling through to the untouched legacy switch below. */
+  type?: FieldType | FieldSpecType;
   required?: boolean;
   hint?: string;
   placeholder?: string;
   colSpan?: 1 | 2;
   /** Read-only in edit mode (e.g. an immutable `code`). */
   immutable?: boolean;
-  /** Override the derived zod rule (text/number/select only). */
+  /** Override the derived zod rule (text/number/select only). A DB-defined field
+   *  can never carry this (not serialisable) — see `rules` below. */
   zod?: z.ZodTypeAny;
   refResource?: "countries" | "currencies" | "regions";
   refFilter?: Record<string, string>;
   selectOptions?: { value: string; label: string }[];
+  /** Presentation variant within `type` (spec §5, axis 2). Falls back to the
+   *  type's canonical widget when absent. */
+  widget?: string;
+  /** Declarative validation/visibility from a server-served spec, compiled to
+   *  zod by `rulesToZod`. `zod` still wins when both are set (hand-written
+   *  fields keep their bespoke rule). */
+  rules?: FieldRules;
+  /** Target resource for `type: "relation"` (generalises refResource). */
+  relationResource?: string;
 }
 
 export interface RecordFormProps {
@@ -68,7 +83,17 @@ export interface RecordFormProps {
   readOnly?: boolean;
 }
 
-const SCALAR = new Set<FieldType>(["text", "email", "password", "textarea", "number", "select"]);
+// Types whose value is a plain string/number the zod rule (`fieldRule`, hand-
+// written OR `rulesToZod`-compiled from a server spec) actually validates.
+// Everything else (checkbox/boolean, json, pickers, file) only gets the
+// simpler required-check below — a picker's "emptiness" isn't a string rule.
+// Without the FieldSpecType members here, a server-served field's compiled
+// `rules` (max_length/pattern/min/max) would silently never run: `fieldRule()`
+// is only reached from inside this gate.
+const SCALAR = new Set<FieldType | FieldSpecType>([
+  "text", "email", "password", "textarea", "number", "select",
+  "string", "richtext", "decimal", "money", "date", "datetime", "time",
+]);
 
 function initialValue(f: FieldDef, initial?: Record<string, unknown>): string {
   const v = initial?.[f.name];
@@ -118,9 +143,21 @@ export function RecordForm({
     return z.string().optional();
   }
 
+  // Adapter: `isVisible` (lib/schema/conditions, mirrors the server) takes a
+  // FieldSpec; a hand-written FieldDef only ever carries `rules` (server-served
+  // fields do — hand-written ones have no `rules` and are therefore always
+  // visible, matching today's behaviour exactly).
+  function isVisibleDef(f: FieldDef, vals: Record<string, string>): boolean {
+    if (!f.rules) return true;
+    return isVisible({ rules: f.rules } as unknown as FieldSpec, vals);
+  }
+
   function validate(): boolean {
     const next: Record<string, string> = {};
     for (const f of fields) {
+      // A hidden field is neither validated nor submitted — mirrors
+      // app/core/schema/conditions.py. The server re-checks regardless.
+      if (!isVisibleDef(f, values)) continue;
       if (f.type === "json") {
         if (!jsonOk[f.name]) next[f.name] = "Invalid JSON";
         continue;
@@ -140,9 +177,12 @@ export function RecordForm({
     const out: Record<string, unknown> = {};
     for (const f of fields) {
       if (f.immutable && mode === "edit") continue;
+      // A hidden field must never be posted — the server rejects an unexpected
+      // field with a 422 (Task 4), which would otherwise break the UX.
+      if (!isVisibleDef(f, values)) continue;
       if (f.type === "json") { out[f.name] = jsonValues[f.name] ?? {}; continue; }
       const raw = values[f.name] ?? "";
-      if (f.type === "checkbox") { out[f.name] = raw === "true"; continue; }
+      if (f.type === "checkbox" || f.type === "boolean") { out[f.name] = raw === "true"; continue; }
       if (f.type === "number") { out[f.name] = raw === "" ? null : Number(raw); continue; }
       // Blank → null uniformly: text/select clear to null, and empty FK pickers
       // (org/party/address/ref) are ids that must be null (never "") to detach.
@@ -203,6 +243,61 @@ export function RecordForm({
     // immutable field in edit mode.
     const fieldRO = readOnly || (f.immutable && mode === "edit");
     const id = `rf-${f.name}`;
+    // New (type, widget) pairs first; the legacy `switch` below still handles
+    // every hand-written field list untouched.
+    if (f.type === "string" && f.widget === "color") {
+      // Same control as the legacy `case "color"` below (kept there for the
+      // hand-written literal `type: "color"` alias) — swatch + hex input.
+      const hex = values[f.name] ?? "";
+      const valid = /^#[0-9a-fA-F]{6}$/.test(hex);
+      return (
+        <div className="flex items-center gap-2">
+          <input type="color" aria-label={f.label} disabled={fieldRO}
+            className="h-9 w-12 shrink-0 cursor-pointer rounded-md border border-input bg-background p-1 disabled:opacity-50"
+            value={valid ? hex : "#000000"}
+            onChange={(e) => setField(f.name, e.target.value)} />
+          <Input id={id} className="font-mono" value={hex} disabled={fieldRO} placeholder={f.placeholder}
+            onChange={(e) => setField(f.name, e.target.value)} />
+        </div>
+      );
+    }
+    if (f.type === "string" && f.widget === "timezone")
+      return <TimezoneField value={values[f.name] ?? ""} disabled={fieldRO}
+               onChange={(v) => setField(f.name, v)} />;
+    if (f.type === "relation")
+      return <RefSelect resource={(f.relationResource ?? f.refResource ?? "countries") as never}
+               value={values[f.name] ?? ""} filter={f.refFilter} disabled={fieldRO}
+               onChange={(v) => setField(f.name, v)} />;
+    // NEW "text" = multi-line (types.py LEGACY_TYPE_ALIASES note: the legacy
+    // literal "text" meant single-line and is deliberately NOT aliased to the
+    // new "text", to avoid silently downgrading it). No dedicated "code" widget
+    // editor exists yet, so both `text` widgets ("plain"/"code") render the same
+    // textarea as the legacy `case "textarea"` below for now.
+    if (f.type === "text")
+      return (
+        <textarea id={id} value={values[f.name] ?? ""} rows={3} disabled={fieldRO}
+          placeholder={f.placeholder}
+          onChange={(e) => setField(f.name, e.target.value)}
+          className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50" />
+      );
+    // `boolean` is a new type-axis value with no legacy switch case (the legacy
+    // literal is the type "checkbox", not "boolean") — dispatch it here so a
+    // server-served boolean config field (e.g. providers' `use_tls`) renders as
+    // a checkbox instead of falling through to the default text input. This is
+    // the MANDATORY providers regression fix (Task 7 brief amendment): the
+    // 13 built-in providers declare several `type="boolean"` config fields.
+    if (f.type === "boolean")
+      return (
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" className="size-4 accent-[hsl(var(--primary))]"
+            checked={values[f.name] === "true"} disabled={fieldRO}
+            onChange={(e) => setField(f.name, e.target.checked ? "true" : "")} />
+          {f.label}
+        </label>
+      );
+    // NOTE: `json` + widget `weekly_hours` (Site.operating_hours, spec §12) is
+    // declared in WIDGETS_BY_TYPE but not yet used by any registered field —
+    // its bespoke `WeeklyHoursField` control ships with M2, not here.
     switch (f.type) {
       case "json":
         return (
@@ -306,12 +401,15 @@ export function RecordForm({
     <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); submit(false); }}>
       <div className={gridCls}>
         {fields.map((f) => {
+          // A hidden field (server-served `visible_if` not met) is neither
+          // rendered, validated, nor submitted — mirrors the server.
+          if (!isVisibleDef(f, values)) return null;
           const span = f.colSpan === 2 || f.type === "json" || f.type === "address"
             ? "sm:col-span-2" : "";
-          // Address renders its own label/border; others get a Label.
+          // Address/checkbox/boolean render their own label; others get a Label.
           return (
             <div key={f.name} className={`space-y-1.5 ${span}`}>
-              {f.type !== "address" && f.type !== "json" && f.type !== "checkbox" && (
+              {f.type !== "address" && f.type !== "json" && f.type !== "checkbox" && f.type !== "boolean" && (
                 <Label htmlFor={`rf-${f.name}`}>
                   {f.label}{f.required && <span className="text-destructive"> *</span>}
                 </Label>

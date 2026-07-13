@@ -4,30 +4,47 @@ import {
 } from "./fields";
 import type { ConfigField, Provider } from "./api";
 
+// Task 3 changed the wire shape: `ConfigField` IS `FieldSpec` now — i18n
+// `label`/`hint` dicts (backend's `cfg()` mirrors the English label into
+// en/fr/es today), a `widget`, and the full FieldSpec envelope, not the old
+// 4-type/plain-string shape. These fixtures mirror the real output of
+// `Provider.config_schema()` (app/core/providers/base.py:cfg()).
+const L = (s: string) => ({ en: s, fr: s, es: s });
 const SCHEMA: ConfigField[] = [
-  { key: "endpoint", label: "Endpoint", type: "text", required: false, default: null, hint: "http://minio:9000" },
-  { key: "port", label: "Port", type: "number", required: false, default: 587, hint: "" },
-  { key: "use_tls", label: "Use TLS", type: "boolean", required: false, default: true, hint: "" },
-  { key: "paths", label: "Paths", type: "json", required: false, default: ["boot"], hint: "" },
+  { key: "endpoint", type: "string", widget: "plain", label: L("Endpoint"), hint: L("http://minio:9000"),
+    required: false, default: null, rules: {}, options: [], relation_resource: "", relation_filter: {},
+    group: "", order: 0, col_span: 1, indexed: false },
+  { key: "port", type: "number", widget: "plain", label: L("Port"), hint: {},
+    required: false, default: 587, rules: {}, options: [], relation_resource: "", relation_filter: {},
+    group: "", order: 0, col_span: 1, indexed: false },
+  { key: "use_tls", type: "boolean", widget: "checkbox", label: L("Use TLS"), hint: {},
+    required: false, default: true, rules: {}, options: [], relation_resource: "", relation_filter: {},
+    group: "", order: 0, col_span: 1, indexed: false },
+  { key: "paths", type: "json", widget: "raw", label: L("Paths"), hint: {},
+    required: false, default: ["boot"], rules: {}, options: [], relation_resource: "", relation_filter: {},
+    group: "", order: 0, col_span: 1, indexed: false },
 ];
 
 describe("configFieldToFieldDef", () => {
-  it("maps backend field types to RecordForm control types", () => {
-    expect(configFieldToFieldDef(SCHEMA[0]).type).toBe("text");
-    expect(configFieldToFieldDef(SCHEMA[1]).type).toBe("number");
-    expect(configFieldToFieldDef(SCHEMA[2]).type).toBe("checkbox");
-    expect(configFieldToFieldDef(SCHEMA[3]).type).toBe("json");
+  it("maps backend FieldSpec types straight through (RecordForm dispatches on type+widget)", () => {
+    expect(configFieldToFieldDef(SCHEMA[0], "en").type).toBe("string");
+    expect(configFieldToFieldDef(SCHEMA[1], "en").type).toBe("number");
+    expect(configFieldToFieldDef(SCHEMA[2], "en").type).toBe("boolean");
+    expect(configFieldToFieldDef(SCHEMA[3], "en").type).toBe("json");
   });
-  it("carries name/label/required and drops empty hints", () => {
-    expect(configFieldToFieldDef(SCHEMA[1])).toMatchObject({ name: "port", label: "Port", required: false });
-    expect(configFieldToFieldDef(SCHEMA[1]).hint).toBeUndefined();
-    expect(configFieldToFieldDef(SCHEMA[0]).hint).toBe("http://minio:9000");
+  it("carries the widget alongside the type", () => {
+    expect(configFieldToFieldDef(SCHEMA[2], "en").widget).toBe("checkbox");
+  });
+  it("carries name/label (localised)/required and drops empty hints", () => {
+    expect(configFieldToFieldDef(SCHEMA[1], "en")).toMatchObject({ name: "port", label: "Port", required: false });
+    expect(configFieldToFieldDef(SCHEMA[1], "en").hint).toBeUndefined();
+    expect(configFieldToFieldDef(SCHEMA[0], "en").hint).toBe("http://minio:9000");
   });
 });
 
 describe("buildProviderFields", () => {
   it("appends the provider-level knobs after the guided config fields", () => {
-    const names = buildProviderFields(SCHEMA).map((f) => f.name);
+    const names = buildProviderFields(SCHEMA, "en").map((f) => f.name);
     expect(names.slice(0, 4)).toEqual(["endpoint", "port", "use_tls", "paths"]);
     expect(names).toContain("secret_ref");
     expect(names).toContain("is_active");

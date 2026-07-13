@@ -1,4 +1,5 @@
 import { apiFetch, ApiError } from "@/lib/api";
+import type { FieldSpec } from "@/lib/schema/types";
 
 export const PROVIDERS_BASE = "/api/v1/admin/providers";
 export const SETTINGS_BASE = "/api/v1/admin/settings";
@@ -7,15 +8,12 @@ export const SETTINGS_BASE = "/api/v1/admin/settings";
 export const CAPABILITIES = ["storage", "llm", "email", "secrets", "auth", "payment"] as const;
 export type Capability = (typeof CAPABILITIES)[number];
 
-/** Declarative, non-secret config field (backend `config_schema` — source of truth). */
-export interface ConfigField {
-  key: string;
-  label: string;
-  type: "text" | "number" | "boolean" | "json";
-  required: boolean;
-  default: unknown;
-  hint: string;
-}
+/** Declarative, non-secret config field (backend `config_schema` — source of
+ *  truth). As of Task 3, `Provider.config_schema()` returns the full FieldSpec
+ *  contract (i18n `label`/`hint`, `widget`, `rules`, …), not the old 4-type/
+ *  plain-string shape — reuse the mirror instead of re-declaring it (DRY),
+ *  which would silently drift the moment the backend's spec.py changes again. */
+export type ConfigField = FieldSpec;
 export interface RegisteredType {
   capability: string;
   provider_code: string;
