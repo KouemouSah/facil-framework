@@ -228,20 +228,35 @@ def test_apply_creates_namespace_before_secret(monkeypatch, tmp_path):
 
     joined = [" ".join(c) for c in calls]
     ns_idx = next(i for i, c in enumerate(joined) if "create namespace" in c or "namespace facil" in c)
-    sec_idx = next(i for i, c in enumerate(joined) if "apply" in c and "-f" in c)
+    # Cible le VRAI apply du Secret : c'est le seul appel qui porte a la fois
+    # "-n" (namespace explicite) ET "apply" dans sa liste d'argv. Le
+    # `kubectl apply -f -` interne a ensure_namespace() (application du
+    # Namespace rendu) n'a PAS de "-n" -- filtrer sur la liste evite de le
+    # confondre avec l'apply du Secret (cf. test ci-dessous qui fait pareil).
+    sec_idx = next(i for i, c in enumerate(calls) if "-n" in c and "apply" in c)
     assert ns_idx < sec_idx, "le namespace doit etre cree AVANT le Secret"
 
 
 def test_plan_renders_in_the_target_namespace(monkeypatch):
     # SEC-019 : `helm template` sans -n rend avec .Release.Namespace = "default",
     # donc le plan ne reflete pas l'apply.
+    #
+    # Namespace volontairement DIFFERENT du nom de release Helm ("facil",
+    # hardcode dans la commande --plan) : avec --namespace facil, l'assertion
+    # `[x for x in calls[0] if x in (...)][:2]` passait meme si `-n` etait
+    # hardcode a une autre valeur, car "facil" apparaissait de toute facon
+    # comme nom de release (garde tautologique). On verifie ici l'adjacence
+    # positionnelle "-n" -> valeur, qui echoue si -n n'est pas lie a
+    # args.namespace.
     calls = []
     monkeypatch.setattr(k3s.subprocess, "run",
                         lambda cmd, **kw: calls.append(list(cmd)) or
                         subprocess.CompletedProcess(cmd, 0))
     monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
-    k3s.main(["--plan", "--namespace", "facil"])
-    assert ["-n", "facil"] == [x for x in calls[0] if x in ("-n", "facil")][:2]
+    k3s.main(["--plan", "--namespace", "custom-ns"])
+    cmd = calls[0]
+    n_idx = cmd.index("-n")
+    assert cmd[n_idx + 1] == "custom-ns", "-n doit etre immediatement suivi de args.namespace"
 
 
 def test_apply_uses_atomic_for_auto_rollback(monkeypatch):
@@ -288,6 +303,19 @@ def test_build_secret_manifest_base64_encodes_values():
     assert "kind: Secret" in m
     assert base64.b64encode(b"pw").decode() in m
     assert "POSTGRES_PASSWORD: pw" not in m  # jamais en clair
+
+
+def test_build_configmap_manifest_indents_multiline_values_under_block_scalar():
+    # ConfigMap = donnees NON secretes (ex. SQL du role applicatif) — pas de
+    # base64 ici, mais le multi-ligne doit passer par un bloc `|` indente
+    # (sinon YAML invalide / valeurs tronquees a la premiere ligne).
+    data = {"init.sql": "CREATE ROLE facil_app;\nGRANT ALL ON facil TO facil_app;"}
+    m = k3s.build_configmap_manifest("facil-role-configmap", data)
+    assert "kind: ConfigMap" in m
+    assert "name: facil-role-configmap" in m
+    assert "  init.sql: |" in m
+    assert "    CREATE ROLE facil_app;" in m
+    assert "    GRANT ALL ON facil TO facil_app;" in m
 
 
 def test_deploy_py_knows_k3s_provider():
