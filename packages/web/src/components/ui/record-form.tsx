@@ -29,6 +29,21 @@ import { FileUpload } from "@/components/ui/file-upload";
  * the field set is dynamic, so a hand-rolled validate pass is simpler and less
  * error-prone here while meeting every §11bis behaviour.
  */
+// ⚠️ COLLISION: `FieldDef.type` is `FieldType | FieldSpecType` (merged union),
+// and exactly one name means two different things depending on which
+// vocabulary it came from:
+//   legacy FieldType.text  = single-line <Input>  — the documented default
+//                             (an omitted `type` falls here, see below).
+//   spec FieldSpecType.text = MULTI-LINE (what legacy called "textarea").
+// The two are told apart by `widget`: a server-served FieldSpec ALWAYS
+// carries one (backend fills `DEFAULT_WIDGET` for every spec — see
+// app/core/schema/types.py), a hand-written legacy FieldDef NEVER sets one.
+// `controlKindFor` below is the single place that resolves this; every
+// spec-driven dispatch branch in `renderControl` must gate through it —
+// never dispatch on a bare `f.type === "text"` (or any other type that
+// exists in both vocabularies). Mirrors the backend's `LEGACY_TYPE_ALIASES`
+// comment (app/core/schema/types.py), which explains why "text" is
+// deliberately NOT aliased there for the identical reason.
 export type FieldType =
   | "text" | "email" | "password" | "textarea" | "number" | "checkbox"
   | "ref" | "org" | "party" | "address" | "json" | "select" | "image" | "color" | "timezone";
@@ -94,6 +109,22 @@ const SCALAR = new Set<FieldType | FieldSpecType>([
   "text", "email", "password", "textarea", "number", "select",
   "string", "richtext", "decimal", "money", "date", "datetime", "time",
 ]);
+
+/**
+ * Discriminates a server-served, spec-driven field from a hand-written legacy
+ * one. This is the fix for the `text` collision documented on `FieldType`
+ * above: a `FieldSpec` served by the backend always carries a `widget`
+ * (`DEFAULT_WIDGET` is filled for every spec — see
+ * `packages/backend/app/core/schema/types.py` and
+ * `lib/schema/to-field-def.ts:14`); a hand-written legacy `FieldDef` never
+ * sets one. Every new pre-switch branch in `renderControl` MUST gate on
+ * `controlKindFor(f) === "spec"` (not on the bare `f.type`) so a legacy field
+ * can never fall into a spec-only branch. Exported + pure so the collision is
+ * pinned by a test (record-form.test.ts) without touching the DOM.
+ */
+export function controlKindFor(f: FieldDef): "legacy" | "spec" {
+  return f.widget !== undefined ? "spec" : "legacy";
+}
 
 function initialValue(f: FieldDef, initial?: Record<string, unknown>): string {
   const v = initial?.[f.name];
@@ -238,33 +269,64 @@ export function RecordForm({
     onCancel?.();
   }
 
+  // Render helpers shared between the new spec-driven dispatch below and the
+  // legacy `switch` (Fix 2 — a control's markup now lives in exactly one
+  // place). Closures over `values`/`setField` since both call sites are
+  // inside the component.
+  function renderColorControl(f: FieldDef, fieldRO: boolean, id: string) {
+    const hex = values[f.name] ?? "";
+    const valid = /^#[0-9a-fA-F]{6}$/.test(hex);
+    return (
+      <div className="flex items-center gap-2">
+        <input type="color" aria-label={f.label} disabled={fieldRO}
+          className="h-9 w-12 shrink-0 cursor-pointer rounded-md border border-input bg-background p-1 disabled:opacity-50"
+          value={valid ? hex : "#000000"}
+          onChange={(e) => setField(f.name, e.target.value)} />
+        <Input id={id} className="font-mono" value={hex} disabled={fieldRO} placeholder={f.placeholder}
+          onChange={(e) => setField(f.name, e.target.value)} />
+      </div>
+    );
+  }
+
+  function renderCheckboxControl(f: FieldDef, fieldRO: boolean) {
+    return (
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" className="size-4 accent-[hsl(var(--primary))]"
+          checked={values[f.name] === "true"} disabled={fieldRO}
+          onChange={(e) => setField(f.name, e.target.checked ? "true" : "")} />
+        {f.label}
+      </label>
+    );
+  }
+
+  function renderTextareaControl(f: FieldDef, fieldRO: boolean, id: string) {
+    return (
+      <textarea id={id} value={values[f.name] ?? ""} rows={3} disabled={fieldRO}
+        placeholder={f.placeholder}
+        onChange={(e) => setField(f.name, e.target.value)}
+        className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50" />
+    );
+  }
+
   function renderControl(f: FieldDef) {
     // Disabled when the form is read-only (no write permission) or this is an
     // immutable field in edit mode.
-    const fieldRO = readOnly || (f.immutable && mode === "edit");
+    const fieldRO = Boolean(readOnly || (f.immutable && mode === "edit"));
     const id = `rf-${f.name}`;
     // New (type, widget) pairs first; the legacy `switch` below still handles
-    // every hand-written field list untouched.
-    if (f.type === "string" && f.widget === "color") {
+    // every hand-written field list untouched. Every branch here is gated on
+    // `controlKindFor(f) === "spec"` (Fix 1) — NOT the bare `f.type` — so a
+    // hand-written legacy FieldDef can never be misrouted into a spec-only
+    // control. See the `text` collision note on `FieldType` above.
+    const specDriven = controlKindFor(f) === "spec";
+    if (specDriven && f.type === "string" && f.widget === "color")
       // Same control as the legacy `case "color"` below (kept there for the
       // hand-written literal `type: "color"` alias) — swatch + hex input.
-      const hex = values[f.name] ?? "";
-      const valid = /^#[0-9a-fA-F]{6}$/.test(hex);
-      return (
-        <div className="flex items-center gap-2">
-          <input type="color" aria-label={f.label} disabled={fieldRO}
-            className="h-9 w-12 shrink-0 cursor-pointer rounded-md border border-input bg-background p-1 disabled:opacity-50"
-            value={valid ? hex : "#000000"}
-            onChange={(e) => setField(f.name, e.target.value)} />
-          <Input id={id} className="font-mono" value={hex} disabled={fieldRO} placeholder={f.placeholder}
-            onChange={(e) => setField(f.name, e.target.value)} />
-        </div>
-      );
-    }
-    if (f.type === "string" && f.widget === "timezone")
+      return renderColorControl(f, fieldRO, id);
+    if (specDriven && f.type === "string" && f.widget === "timezone")
       return <TimezoneField value={values[f.name] ?? ""} disabled={fieldRO}
                onChange={(v) => setField(f.name, v)} />;
-    if (f.type === "relation")
+    if (specDriven && f.type === "relation")
       return <RefSelect resource={(f.relationResource ?? f.refResource ?? "countries") as never}
                value={values[f.name] ?? ""} filter={f.refFilter} disabled={fieldRO}
                onChange={(v) => setField(f.name, v)} />;
@@ -272,29 +334,19 @@ export function RecordForm({
     // literal "text" meant single-line and is deliberately NOT aliased to the
     // new "text", to avoid silently downgrading it). No dedicated "code" widget
     // editor exists yet, so both `text` widgets ("plain"/"code") render the same
-    // textarea as the legacy `case "textarea"` below for now.
-    if (f.type === "text")
-      return (
-        <textarea id={id} value={values[f.name] ?? ""} rows={3} disabled={fieldRO}
-          placeholder={f.placeholder}
-          onChange={(e) => setField(f.name, e.target.value)}
-          className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50" />
-      );
+    // textarea as the legacy `case "textarea"` below for now. `specDriven` is
+    // what keeps a legacy `{type: "text"}` (no widget, single-line default)
+    // out of this branch — see `controlKindFor`.
+    if (specDriven && f.type === "text")
+      return renderTextareaControl(f, fieldRO, id);
     // `boolean` is a new type-axis value with no legacy switch case (the legacy
     // literal is the type "checkbox", not "boolean") — dispatch it here so a
     // server-served boolean config field (e.g. providers' `use_tls`) renders as
     // a checkbox instead of falling through to the default text input. This is
     // the MANDATORY providers regression fix (Task 7 brief amendment): the
     // 13 built-in providers declare several `type="boolean"` config fields.
-    if (f.type === "boolean")
-      return (
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" className="size-4 accent-[hsl(var(--primary))]"
-            checked={values[f.name] === "true"} disabled={fieldRO}
-            onChange={(e) => setField(f.name, e.target.checked ? "true" : "")} />
-          {f.label}
-        </label>
-      );
+    if (specDriven && f.type === "boolean")
+      return renderCheckboxControl(f, fieldRO);
     // NOTE: `json` + widget `weekly_hours` (Site.operating_hours, spec §12) is
     // declared in WIDGETS_BY_TYPE but not yet used by any registered field —
     // its bespoke `WeeklyHoursField` control ships with M2, not here.
@@ -334,30 +386,11 @@ export function RecordForm({
         return <FileUpload value={values[f.name] ?? ""} disabled={fieldRO}
           onUploaded={(url) => setField(f.name, url)}
           onRemove={() => setField(f.name, "")} />;
-      case "color": {
+      case "color":
         // Swatch picker + hex input, both bound to the same string value.
-        const hex = values[f.name] ?? "";
-        const valid = /^#[0-9a-fA-F]{6}$/.test(hex);
-        return (
-          <div className="flex items-center gap-2">
-            <input type="color" aria-label={f.label} disabled={fieldRO}
-              className="h-9 w-12 shrink-0 cursor-pointer rounded-md border border-input bg-background p-1 disabled:opacity-50"
-              value={valid ? hex : "#000000"}
-              onChange={(e) => setField(f.name, e.target.value)} />
-            <Input id={id} className="font-mono" value={hex} disabled={fieldRO} placeholder={f.placeholder}
-              onChange={(e) => setField(f.name, e.target.value)} />
-          </div>
-        );
-      }
+        return renderColorControl(f, fieldRO, id);
       case "checkbox":
-        return (
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" className="size-4 accent-[hsl(var(--primary))]"
-              checked={values[f.name] === "true"} disabled={fieldRO}
-              onChange={(e) => setField(f.name, e.target.checked ? "true" : "")} />
-            {f.label}
-          </label>
-        );
+        return renderCheckboxControl(f, fieldRO);
       case "select":
         return (
           <select id={id} value={values[f.name] ?? ""} disabled={fieldRO}
@@ -370,12 +403,7 @@ export function RecordForm({
           </select>
         );
       case "textarea":
-        return (
-          <textarea id={id} value={values[f.name] ?? ""} rows={3} disabled={fieldRO}
-            placeholder={f.placeholder}
-            onChange={(e) => setField(f.name, e.target.value)}
-            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50" />
-        );
+        return renderTextareaControl(f, fieldRO, id);
       default: {
         // text (default) + number/email/password map straight to the native input
         // type — email gives the right mobile keyboard, password masks entry.
