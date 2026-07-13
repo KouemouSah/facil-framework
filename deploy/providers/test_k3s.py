@@ -697,3 +697,101 @@ def test_apply_never_prints_kubectl_stderr_on_manifest_apply_failure(monkeypatch
     assert rc == 2
     assert sentinel not in captured.out
     assert sentinel not in captured.err
+
+
+# --- A1 : deux passes SEULEMENT au 1er install, une seule sur upgrade -------
+#
+# `release_exists()` interroge `helm status facil -n <ns>` (lecture seule) ;
+# les tests ci-dessous pilotent sa reponse via fake_run pour couvrir les DEUX
+# chemins (aucun des deux n'etait teste avant : tous les tests --apply
+# precedents ne regardaient que `next(c for c in calls if "upgrade" in c)`,
+# qui aurait trouve la 1re passe avec un unique `upgrade` tout aussi bien que
+# le nouveau code a une seule passe -- une regression qui supprimerait la 2e
+# passe serait passee inapercue).
+
+def test_apply_first_install_uses_two_pass_zero_replica_dance(monkeypatch, tmp_path):
+    # 1er install (release absente) : le deadlock reel (task-V1, voir le
+    # commentaire de main()) existe toujours -- la danse deux-passes doit
+    # rester en place.
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(list(cmd))
+        if "status" in cmd:
+            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="release: not found")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+
+    rc = k3s.main(["--apply", "--config", str(_write_cfg_file(tmp_path)),
+                   "--yes", "--allow-dev-vault"])
+    assert rc == 0
+
+    upgrade_calls = [c for c in calls if "upgrade" in c]
+    assert len(upgrade_calls) == 2, "1er install doit faire DEUX invocations helm upgrade"
+    pass1, pass2 = upgrade_calls
+    assert "backend.replicas=0" in pass1
+    assert "--atomic" not in pass1, (
+        "la passe 1 (scale-to-0) n'a rien a proteger par --atomic -- "
+        "sinon un echec de la passe 2 y ferait rollback (etat 0-replica bidon)")
+    assert "backend.replicas=0" not in pass2
+    assert "--atomic" in pass2, "la passe 2 (replica reel) doit etre protegee par --atomic"
+
+
+def test_apply_upgrade_of_existing_release_uses_single_pass_no_downtime(monkeypatch, tmp_path):
+    # Release DEJA installee : pas de deadlock (hooks pre-upgrade tournent
+    # avant --wait) -- une seule passe, backend JAMAIS descendu a 0 replica
+    # (zero coupure a chaque `--apply` suivant), toujours protegee par
+    # --atomic (rollback vers la DERNIERE RELEASE SAINE, pas un etat bidon).
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")  # "helm status" -> existe
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+
+    rc = k3s.main(["--apply", "--config", str(_write_cfg_file(tmp_path)),
+                   "--yes", "--allow-dev-vault"])
+    assert rc == 0
+
+    upgrade_calls = [c for c in calls if "upgrade" in c]
+    assert len(upgrade_calls) == 1, (
+        "une release existante doit faire UNE SEULE invocation helm upgrade "
+        "(zero coupure backend) -- pas la danse deux-passes du 1er install")
+    assert "backend.replicas=0" not in upgrade_calls[0], (
+        "le backend ne doit JAMAIS etre descendu a 0 replica sur un upgrade "
+        "d'une release existante -- ce serait une coupure de service inutile "
+        "(502 cote frontend) puisqu'il n'y a pas de deadlock a contourner ici")
+    assert "--atomic" in upgrade_calls[0]
+
+
+def test_apply_first_install_pass2_failure_warns_backend_left_at_zero_replicas(
+    monkeypatch, tmp_path, capsys,
+):
+    # Si la 2e passe (remontee du replica reel) echoue, le message doit dire
+    # explicitement que le backend est reste a 0 replica (sinon un operateur
+    # qui relit juste "echec" ne sait pas qu'il doit relancer --apply ou
+    # desinstaller -- point 3 du brief).
+    def fake_run(cmd, **kw):
+        if "status" in cmd:
+            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="not found")
+        if "upgrade" in cmd and "--atomic" in cmd:
+            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="boom")  # passe 2
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+
+    rc = k3s.main(["--apply", "--config", str(_write_cfg_file(tmp_path)),
+                   "--yes", "--allow-dev-vault"])
+    assert rc == 2
+    assert "0 replica" in capsys.readouterr().err.lower()

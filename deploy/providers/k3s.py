@@ -192,6 +192,23 @@ def apply_manifest(kubectl: str, ns: str, manifest: str) -> int:
     return 0
 
 
+def release_exists(helm: str, namespace: str) -> bool:
+    """True si la release Helm `facil` existe deja dans ce namespace.
+
+    Lecture seule (`helm status`, aucun effet de bord). Determine si --apply
+    doit faire la danse deux-passes a 0 replica (A1 : SEULEMENT au 1er
+    install) ou une simple mise a jour a une passe (release existante : les
+    hooks pre-upgrade tournent AVANT que --wait n'evalue le Deployment, donc
+    aucun deadlock a contourner -- voir le commentaire du bloc appelant dans
+    main() pour le detail du deadlock reel que la danse deux-passes resout).
+    """
+    proc = subprocess.run(
+        [helm, "status", "facil", "-n", namespace],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    return proc.returncode == 0
+
+
 def ensure_namespace(kubectl: str, ns: str) -> int:
     """Cree le namespace si absent (idempotent, sans erreur s'il existe deja).
 
@@ -393,53 +410,84 @@ def main(argv: list[str] | None = None) -> int:
             return rc
 
     # 2) helm upgrade --install (backend/web pullent GHCR ; jamais de build ici).
-    #
-    # DEUX PASSES -- resout un DEADLOCK REEL trouve en smokant sur un vrai cluster
-    # (task-V1, jamais vu par helm lint/template/pytest) : db-role/db-init sont des
-    # hooks `post-install,pre-upgrade` (ils exigent Postgres deja demarre -> impossible
-    # en pre-install au 1er install ; et SEC-001 interdit de les fondre dans un
-    # initContainer du backend, qui ne doit JAMAIS voir le superuser Postgres). Or Helm
-    # n'execute les hooks post-install QU'APRES que `--wait` ait vu TOUTES les
-    # ressources non-hook pretes -- dont le Deployment backend. Le readinessProbe du
-    # backend (`/health`) exige la BD, qui n'existe pas tant que ces memes hooks n'ont
-    # pas tourne : deadlock garanti au 1er install. Verifie en conditions reelles :
-    # `helm upgrade --atomic --wait` a systematiquement expire au bout de 10 min sans
-    # qu'un seul Job soit jamais cree ("Error: release facil failed ... context deadline
-    # exceeded"), le backend restart-loopant sur `password authentication failed for
-    # user "facil_app"` (le role que le hook bloque devait justement creer).
-    #
-    # Fix : 1re passe avec `backend.replicas=0` -- le Deployment est alors trivialement
-    # "Available" (0 pod a attendre), `--wait` passe vite, Postgres est deja debout ->
-    # les hooks tournent normalement (creation du role + migrations). 2e passe qui
-    # remonte le replica reel (valeurs par defaut du chart) : le role/schema existent
-    # desormais, `/health` repond 200 des le 1er cycle de probe. Les deux hooks sont
-    # idempotents (create_role_sql = CREATE-si-absent + ALTER ; `alembic upgrade head`
-    # ne fait rien si deja a jour) donc les rejouer au pre-upgrade de la 2e passe est
-    # sans effet de bord.
     base_helm_args = [
         helm, "upgrade", "--install", "facil", str(CHART_DIR),
         "-n", args.namespace, "--create-namespace",
         "-f", str(VALUES_ONPREM),
         *_set_args(values),
-        "--atomic",                        # SEC-022 : rollback auto si le deploiement echoue
     ]
-    rc = subprocess.run(
-        [*base_helm_args, "--set", "backend.replicas=0",
-         "--wait", "--timeout", "5m"],
-        check=False,
-    ).returncode
-    if rc != 0:
-        print("ERREUR: passe 1/2 (datastores + hooks db-role/db-init, backend a 0 "
-              "replica) a echoue.", file=sys.stderr)
-        return 2
 
+    if not release_exists(helm, args.namespace):
+        # DEUX PASSES -- resout un DEADLOCK REEL trouve en smokant sur un vrai cluster
+        # (task-V1, jamais vu par helm lint/template/pytest), et SEULEMENT au 1er
+        # install (A1) : db-role/db-init sont des hooks `post-install,pre-upgrade`
+        # (ils exigent Postgres deja demarre -> impossible en pre-install au 1er
+        # install ; et SEC-001 interdit de les fondre dans un initContainer du
+        # backend, qui ne doit JAMAIS voir le superuser Postgres). Or Helm n'execute
+        # les hooks post-install QU'APRES que `--wait` ait vu TOUTES les ressources
+        # non-hook pretes -- dont le Deployment backend. Le readinessProbe du backend
+        # (`/health`) exige la BD, qui n'existe pas tant que ces memes hooks n'ont pas
+        # tourne : deadlock garanti au 1er install. Verifie en conditions reelles :
+        # `helm upgrade --atomic --wait` a systematiquement expire au bout de 10 min
+        # sans qu'un seul Job soit jamais cree ("Error: release facil failed ...
+        # context deadline exceeded"), le backend restart-loopant sur `password
+        # authentication failed for user "facil_app"` (le role que le hook bloque
+        # devait justement creer).
+        #
+        # Sur une release DEJA installee, ce deadlock n'existe PAS : les hooks
+        # pre-upgrade tournent AVANT que Helm n'evalue le Deployment pour --wait --
+        # donc pas de deux-passes a chaque `--apply` suivant (ca coupait le backend
+        # -- 502 cote frontend -- a chaque upgrade, pour rien).
+        #
+        # Fix (1er install seulement) : 1re passe avec `backend.replicas=0` -- le
+        # Deployment est alors trivialement "Available" (0 pod a attendre), `--wait`
+        # passe vite, Postgres est deja debout -> les hooks tournent normalement
+        # (creation du role + migrations). PAS de --atomic sur cette 1re passe : elle
+        # n'a rien a proteger (un scale-to-0 qui rate laisse juste... rien), et
+        # --atomic y ferait justement rollback vers un etat 0-replica si la 2e passe
+        # echouait. 2e passe (--atomic ICI) qui remonte le replica reel (valeurs par
+        # defaut du chart) : le role/schema existent desormais, `/health` repond 200
+        # des le 1er cycle de probe. Les deux hooks sont idempotents (create_role_sql
+        # = CREATE-si-absent + ALTER ; `alembic upgrade head` ne fait rien si deja a
+        # jour) donc les rejouer au pre-upgrade de la 2e passe est sans effet de bord.
+        rc = subprocess.run(
+            [*base_helm_args, "--set", "backend.replicas=0",
+             "--wait", "--timeout", "5m"],
+            check=False,
+        ).returncode
+        if rc != 0:
+            print("ERREUR: passe 1/2 (datastores + hooks db-role/db-init, backend a 0 "
+                  "replica) a echoue.", file=sys.stderr)
+            return 2
+
+        rc = subprocess.run(
+            [*base_helm_args, "--atomic", "--wait", "--timeout", "10m"],
+            check=False,
+        ).returncode
+        if rc != 0:
+            print(
+                "ERREUR: passe 2/2 (remontee du backend a son replica reel) a echoue.\n"
+                "Le backend est reste a 0 replica : --atomic n'a pu faire rollback QUE\n"
+                "vers l'etat de la passe 1 (0 replica), pas vers la derniere release\n"
+                "saine (il n'y en avait pas encore, c'est le 1er install).\n"
+                "Options : relancer `--apply` (idempotent), ou `helm uninstall facil "
+                f"-n {args.namespace}` pour repartir de zero.",
+                file=sys.stderr)
+            return 2
+        return 0
+
+    # Release deja installee : PAS de deadlock (les hooks pre-upgrade tournent avant
+    # --wait), donc une seule passe -- rolling update normal, zero coupure backend --
+    # avec --atomic protegeant ce qu'il doit reellement proteger : un rollback vers la
+    # DERNIERE RELEASE SAINE si cet upgrade echoue (pas vers un etat 0-replica bidon).
     rc = subprocess.run(
-        [*base_helm_args, "--wait", "--timeout", "10m"],
+        [*base_helm_args, "--atomic", "--wait", "--timeout", "10m"],
         check=False,
     ).returncode
     if rc != 0:
-        print("ERREUR: passe 2/2 (remontee du backend a son replica reel) a echoue.",
-              file=sys.stderr)
+        print(
+            "ERREUR: `helm upgrade` a echoue -- rollback automatique (--atomic) vers "
+            "la derniere release saine.", file=sys.stderr)
         return 2
     return 0
 
