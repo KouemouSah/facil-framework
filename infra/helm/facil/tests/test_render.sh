@@ -45,13 +45,24 @@ echo "$OUT" | grep -q "name: facil-minio"
 echo "$OUT" | grep -q "image: minio/minio:latest"
 echo "$OUT" | grep -q "name: facil-openbao"
 echo "$OUT" | grep -q "IPC_LOCK"
-echo "$OUT" | grep -q "helm.sh/hook: pre-install,pre-upgrade"
 echo "$OUT" | grep -q "alembic"
 echo "$OUT" | grep -q "name: facil-backend"
 echo "$OUT" | grep -q "ghcr.io/kouemousah/facil-backend"
 echo "$OUT" | grep -q "path: /health"
 echo "$OUT" | grep -q "name: facil-frontend"
 echo "$OUT" | grep -q "ghcr.io/kouemousah/facil-web"
+# APPLY-002 : les hooks pre-install s'executent AVANT les ressources de la release
+# (donc avant Postgres) -> la migration echouerait a la 1ere install. post-install
+# + initContainer d'attente = le seul ordonnancement qui marche install ET upgrade.
+echo "$OUT" | grep -q "helm.sh/hook: post-install,pre-upgrade"
+echo "$OUT" | grep -q "wait-postgres"
+# ATTENTION : `! cmd | grep -q ...` est une assertion MORTE sous `set -e` — POSIX exempte
+# d'errexit toute commande dont le statut est inverse par `!`. Le script continuerait
+# jusqu'a imprimer "OK render". Toujours un if/exit explicite pour une assertion negative.
+if echo "$OUT" | grep -q "helm.sh/hook: pre-install"; then
+  echo "FAIL: hook pre-install encore present -- il s'execute AVANT que Postgres existe" >&2
+  exit 1
+fi
 # Hardening : `runAsNonRoot: true` seul ne suffit PAS. Nos images déclarent leur
 # USER par nom (`appuser`, `nextjs`) ; le kubelet ne résout pas les noms de l'image
 # et refuse alors le pod (CreateContainerConfigError: "image has non-numeric user").
