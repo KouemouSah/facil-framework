@@ -1,0 +1,6 @@
+apiVersion: v2
+name: facil
+description: Facil Framework — stack souveraine (chart unique on-prem→cloud)
+type: application
+version: 0.1.0
+appVersion: "latest"
