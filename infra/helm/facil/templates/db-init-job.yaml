@@ -1,0 +1,37 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "db-init") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 0            # migration KO ⇒ pas de retry silencieux (fail-closed)
+  template:
+    metadata:
+      labels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "db-init") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: db-init
+          image: ghcr.io/{{ .Values.global.owner }}/facil-backend:{{ .Values.global.imageTag }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          command: ["alembic", "upgrade", "head"]
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName }}
+                  key: POSTGRES_PASSWORD
+            - name: DATABASE_URL
+              value: postgresql://{{ .Values.postgres.user }}:$(POSTGRES_PASSWORD)@{{ include "facil.fullname" (dict "name" "postgres") }}:5432/{{ .Values.postgres.db }}
+            - name: ENVIRONMENT
+              value: production
+            - name: APPLIED_BY
+              value: helm-db-init
