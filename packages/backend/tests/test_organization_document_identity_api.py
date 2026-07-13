@@ -101,3 +101,41 @@ async def test_historic_undeclared_key_survives_a_save(doc_client):
     async with db.session_factory() as s:
         got = (await s.scalars(select(Organization).where(Organization.id == org_id))).one()
         assert got.document_identity == {"legal_name": "Acme SARL", "seal_ref": "SEAL-77"}
+
+
+@pytest.mark.asyncio
+async def test_create_rejects_an_undeclared_document_identity_key(doc_client):
+    # The allowlist is unconditional — it does not exempt the create path.
+    # A key seeded here would be preserved forever by merge_blob on every PUT.
+    ac, _ = doc_client
+    r = await ac.post(f"{BASE}/", headers=AUTH,
+                      json={"code": "doc4", "legal_name": "Acme Corp",
+                            "document_identity": {"injected": "x"}})
+    assert r.status_code == 422, r.text
+
+
+@pytest.mark.asyncio
+async def test_create_with_an_empty_document_identity_is_allowed(doc_client):
+    # An empty blob means "not configured yet", not "invalid" — it must not be
+    # rejected for missing the required `legal_name` inside the blob.
+    ac, _ = doc_client
+    r = await ac.post(f"{BASE}/", headers=AUTH,
+                      json={"code": "doc5", "legal_name": "Acme Corp"})
+    assert r.status_code == 201, r.text
+    assert r.json()["document_identity"] == {}
+
+    r2 = await ac.post(f"{BASE}/", headers=AUTH,
+                       json={"code": "doc5b", "legal_name": "Acme Corp",
+                             "document_identity": {}})
+    assert r2.status_code == 201, r2.text
+    assert r2.json()["document_identity"] == {}
+
+
+@pytest.mark.asyncio
+async def test_create_validates_declared_rules(doc_client):
+    # A declared key must still obey its rules on the create path.
+    ac, _ = doc_client
+    r = await ac.post(f"{BASE}/", headers=AUTH,
+                      json={"code": "doc6", "legal_name": "Acme Corp",
+                            "document_identity": {"legal_name": "x" * 201}})
+    assert r.status_code == 422, r.text

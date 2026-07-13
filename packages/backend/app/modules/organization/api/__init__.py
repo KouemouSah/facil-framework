@@ -19,7 +19,7 @@ from app.api.csv_export import EXPORT_CAP, export_response
 from app.api.deps import get_session
 from app.api.list_query import apply_sort, keyset_page, paginated, resolve_sort
 from app.core.schema.merge import merge_blob
-from app.core.schema.pydantic_gen import SchemaViolation
+from app.core.schema.pydantic_gen import SchemaViolation, validate_blob
 from app.modules.organization import repository as repo
 from app.modules.organization import service
 from app.modules.organization.models import Organization
@@ -135,8 +135,21 @@ async def organization_labels(ids: str = "",
 
 
 @router.post("/", status_code=201, dependencies=[_CREATE])
-async def create_organization(body: OrganizationCreate,
+async def create_organization(body: OrganizationCreate, request: Request,
                               session: AsyncSession = Depends(get_session)) -> dict:
+    # `document_identity` allowlist (Task 8) applies to create too — the
+    # invariant ("the schema IS the allowlist") is unconditional, not PUT-only.
+    # There is no existing blob to merge against on create, so validate
+    # directly instead of `merge_blob`. An empty dict means "not configured
+    # yet" (document identity is optional, filled in later) so it is skipped
+    # rather than rejected for missing the required `legal_name` — only a
+    # non-empty submission is validated (and must then satisfy `required`).
+    if body.document_identity:
+        specs = request.app.state.schema_registry.get("organization.document_identity")
+        try:
+            body.document_identity = validate_blob(specs, body.document_identity)
+        except SchemaViolation as e:
+            raise HTTPException(422, detail=e.errors) from e
     try:
         org = await service.create_organization(session, body)
     except service.OrgError as e:
