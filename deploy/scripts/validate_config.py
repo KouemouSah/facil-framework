@@ -571,9 +571,20 @@ class BrandingConfig(BaseModel):
     support_url: str = ""
 
 
+class DeployTargetConfig(BaseModel):
+    """Cible et tier de déploiement (P0 du design infra multi-cible).
+
+    tier : lite=compose (2e classe, sans-ops) · k3s=canonique · cloud=Terraform+Helm.
+    target : hôte/provider concret. onprem = machine nue / VPS (k3s local).
+    """
+    tier: Literal["lite", "k3s", "cloud"] = "k3s"
+    target: Literal["docker-local", "aws", "gcp", "azure", "onprem"] = "onprem"
+
+
 class DeployConfig(BaseModel):
     """Top-level deploy/config.yaml schema."""
     meta: MetaConfig
+    deploy: DeployTargetConfig = Field(default_factory=DeployTargetConfig)
     database: DatabaseConfig
     redis: RedisConfig
     auth: AuthConfig
