@@ -9,10 +9,16 @@ global:
   # Ex. : imagePullSecrets: [{name: regcred}]
   imagePullSecrets: []
 
-# Nom du k8s Secret (créé par deploy/providers/k3s.py, hors Helm) portant les
-# clés : POSTGRES_PASSWORD, REDIS_PASSWORD, MINIO_ROOT_PASSWORD,
-# OPENBAO_DEV_ROOT_TOKEN, JWT_SECRET_KEY, SECRET_KEY, ...
-secretName: facil-secrets
+# Noms des k8s Secret (crees par deploy/providers/k3s.py, HORS Helm). Un Secret
+# PAR COMPOSANT : chaque pod ne monte que ses propres credentials (SEC-001).
+# Ce sont des NOMS, jamais des valeurs.
+secretNames:
+  postgres: facil-postgres-secret
+  redis: facil-redis-secret
+  minio: facil-minio-secret
+  openbao: facil-openbao-secret
+  backend: facil-backend-secret
+  dbRole: facil-db-role-secret
 
 postgres:
   enabled: true

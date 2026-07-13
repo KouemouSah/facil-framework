@@ -39,14 +39,14 @@ spec:
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secretName }}
+                  name: {{ .Values.secretNames.redis }}
                   key: REDIS_PASSWORD
             # redis-cli reads REDISCLI_AUTH from the environment (never argv),
             # unlike `-a`/`--pass` which leaks the password via /proc/<pid>/cmdline.
             - name: REDISCLI_AUTH
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secretName }}
+                  name: {{ .Values.secretNames.redis }}
                   key: REDIS_PASSWORD
           ports:
             - containerPort: 6379

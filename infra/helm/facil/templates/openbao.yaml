@@ -43,7 +43,7 @@ spec:
             - name: BAO_DEV_ROOT_TOKEN_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secretName }}
+                  name: {{ .Values.secretNames.openbao }}
                   key: OPENBAO_DEV_ROOT_TOKEN
           {{- else }}
           # Prod unseal (SOPS+age / raft) = plan ultérieur — devMode=false non supporté ici.

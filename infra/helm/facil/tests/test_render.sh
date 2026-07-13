@@ -63,4 +63,13 @@ if [ "$NONROOT" -ne "$WITH_UID" ]; then
   echo "FAIL hardening: $((NONROOT - WITH_UID)) podSpec(s) runAsNonRoot sans runAsUser numérique" >&2
   exit 1
 fi
+# SEC-001 : le backend ne doit monter AUCUN bundle global (envFrom sur un Secret
+# partage) — chaque pod ne voit que le Secret de son composant.
+# NB : `! echo ... | grep -q ...` seul ne fait PAS echouer un script `set -e`
+# (bash n'applique pas errexit a une commande dont le statut est inverse par
+# `!`) -- gate explicite comme les autres verifications de ce fichier.
+if echo "$OUT" | grep -q "envFrom"; then
+  echo "FAIL garde-secret: envFrom detecte (bundle global partage) -- chaque pod doit monter uniquement le Secret de son composant" >&2
+  exit 1
+fi
 echo "OK render (${VALUES_FILE:-default})"

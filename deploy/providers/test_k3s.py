@@ -42,12 +42,15 @@ def test_render_values_maps_images_and_ports():
 
 
 def test_render_values_never_contains_secret_values():
-    # Secret guard: the values dict must carry NO secret value, only the k8s
-    # Secret's *name* (secrets live in the Secret object, created out of Helm).
+    # Secret guard: the values dict must carry NO secret value AND no secret
+    # *name* override either (SEC-001, S1): render_values() no longer sets
+    # "secretName"/"secretNames" at all — the chart's own values.yaml defaults
+    # (one Secret name per component) already match k3s.SECRET_NAMES, so no
+    # --set is needed for them.
     values = k3s.render_values(_cfg())
     flat = repr(values).lower()
-    assert "password" not in flat or "secretname" in flat
-    assert values["secretName"] == "facil-secrets"
+    assert "password" not in flat
+    assert "secretname" not in flat
 
 
 def test_render_values_matches_chart_value_shape():
@@ -63,35 +66,75 @@ def test_render_values_matches_chart_value_shape():
 
 
 def test_build_secret_literals_selects_expected_keys():
+    # Post-S1: literals are partitioned PER COMPONENT (dict of dicts), not a
+    # flat allowlisted dict — verify each component gets exactly its own keys,
+    # and unknown keys never leak into any component (still a strict allowlist,
+    # just enforced per-component rather than globally).
     env = {"POSTGRES_PASSWORD": "p", "REDIS_PASSWORD": "r", "MINIO_ROOT_PASSWORD": "m",
            "OPENBAO_DEV_ROOT_TOKEN": "t", "JWT_SECRET_KEY": "j", "SECRET_KEY": "s",
            "IGNORED_EXTRA": "x"}
-    lit = k3s.build_secret_literals(env)
-    assert set(["POSTGRES_PASSWORD", "REDIS_PASSWORD", "MINIO_ROOT_PASSWORD",
-                "OPENBAO_DEV_ROOT_TOKEN", "JWT_SECRET_KEY", "SECRET_KEY"]).issubset(lit)
-    assert "IGNORED_EXTRA" not in lit  # strict allowlist
+    lit = k3s.build_secret_literals(env, cfg=_cfg())
+    assert lit["postgres"] == {"POSTGRES_PASSWORD": "p"}
+    assert lit["redis"] == {"REDIS_PASSWORD": "r"}
+    assert lit["minio"] == {"MINIO_ROOT_PASSWORD": "m"}
+    assert lit["openbao"] == {"OPENBAO_DEV_ROOT_TOKEN": "t"}
+    assert lit["backend"] == {"JWT_SECRET_KEY": "j", "SECRET_KEY": "s", "REDIS_PASSWORD": "r"}
+    for component in lit.values():
+        assert "IGNORED_EXTRA" not in component  # strict allowlist
 
 
 def test_build_secret_literals_empty_input_yields_empty_dict():
-    assert k3s.build_secret_literals({}) == {}
+    # Every component's pick() is empty -> the whole dict is filtered out.
+    assert k3s.build_secret_literals({}, cfg=_cfg()) == {}
+
+
+def test_backend_never_receives_infrastructure_root_credentials():
+    # SEC-001 (blast radius) : une RCE/SSRF dans le backend — seule surface HTTP
+    # exposee — ne doit PAS livrer le superuser Postgres, le root MinIO ni le root
+    # token OpenBao. Le backend n'en a aucun usage (config.py: extra="ignore").
+    lit = k3s.build_secret_literals(_FULL_SECRETS, cfg=_cfg())
+    backend = lit["backend"]
+    assert "POSTGRES_PASSWORD" not in backend
+    assert "MINIO_ROOT_PASSWORD" not in backend
+    assert "OPENBAO_DEV_ROOT_TOKEN" not in backend
+    # ...mais il garde ce qu'il consomme reellement. (BACKEND_DATABASE_URL est ajoute
+    # par la Task R2, qui le DERIVE de FACIL_APP_PASSWORD — pas assere ici.)
+    assert {"JWT_SECRET_KEY", "SECRET_KEY", "REDIS_PASSWORD"} <= set(backend)
+
+
+def test_each_component_secret_holds_only_its_own_credential():
+    lit = k3s.build_secret_literals(_FULL_SECRETS, cfg=_cfg())
+    assert set(lit["postgres"]) == {"POSTGRES_PASSWORD"}
+    assert set(lit["minio"]) == {"MINIO_ROOT_PASSWORD"}
+    assert set(lit["openbao"]) == {"OPENBAO_DEV_ROOT_TOKEN"}
 
 
 def test_secret_keys_allowlist_matches_config_secret_names():
-    # SECRET_KEYS must cover every secret name deploy/config.yaml references
-    # (auth.*_secret + cron.secret_name), plus the infra-only runtime creds
-    # (POSTGRES/REDIS/MINIO/OPENBAO) that never appear in config.yaml at all.
+    # Post-S1: SECRET_KEYS (flat allowlist) is gone — the "backend" component's
+    # pick() list is now the allowlist. Every secret name deploy/config.yaml
+    # references (auth.*_secret + cron.secret_name) must still be coverable by
+    # the backend component (the only one exposed to the config-driven names;
+    # the infra-only runtime creds POSTGRES/REDIS/MINIO/OPENBAO never appear
+    # in config.yaml at all and live in their own components instead).
     cfg = _cfg()
-    assert cfg.auth.jwt_secret_name in k3s.SECRET_KEYS
-    assert cfg.auth.app_secret_name in k3s.SECRET_KEYS
-    assert cfg.auth.totp_encryption_secret in k3s.SECRET_KEYS
-    assert cfg.auth.receipt_verification_secret in k3s.SECRET_KEYS
-    assert cfg.cron.secret_name in k3s.SECRET_KEYS
+    lit = k3s.build_secret_literals(_FULL_SECRETS, cfg=cfg)
+    backend_keys = set(lit["backend"])
+    assert cfg.auth.jwt_secret_name in backend_keys
+    assert cfg.auth.app_secret_name in backend_keys
+    assert cfg.auth.totp_encryption_secret in backend_keys
+    assert cfg.auth.receipt_verification_secret in backend_keys
+    assert cfg.cron.secret_name in backend_keys
 
 
-def test_secret_name_constant_matches_chart_default():
-    # infra/helm/facil/values.yaml pins secretName: facil-secrets — the two
-    # must never drift (the chart's secretKeyRefs point at this exact name).
-    assert k3s.SECRET_NAME == "facil-secrets"
+def test_secret_names_match_chart_default_secret_names():
+    # infra/helm/facil/values.yaml pins secretNames.* (one per component) — must
+    # never drift from k3s.SECRET_NAMES (the chart's secretKeyRefs resolve from
+    # values.yaml's own defaults, k3s.py never overrides them via --set).
+    import yaml
+    values_path = k3s.CHART_DIR / "values.yaml"
+    chart_values = yaml.safe_load(values_path.read_text(encoding="utf-8"))
+    for component, name in k3s.SECRET_NAMES.items():
+        assert chart_values["secretNames"][component] == name
 
 
 def test_load_env_secrets_parses_key_value_file(tmp_path):

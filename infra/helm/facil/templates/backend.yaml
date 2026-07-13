@@ -39,21 +39,30 @@ spec:
               value: production
             - name: MODULES_ENABLED
               value: {{ .Values.backend.modulesEnabled | quote }}
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef: { name: {{ .Values.secretName }}, key: POSTGRES_PASSWORD }
-            - name: REDIS_PASSWORD
-              valueFrom:
-                secretKeyRef: { name: {{ .Values.secretName }}, key: REDIS_PASSWORD }
-            # Least-privilege : rôle facil_app (pas le superuser facil).
+            # Role applicatif moindre-privilege (JAMAIS le superuser facil).
             - name: DATABASE_URL
               valueFrom:
-                secretKeyRef: { name: {{ .Values.secretName }}, key: BACKEND_DATABASE_URL }
+                secretKeyRef: { name: {{ .Values.secretNames.backend }}, key: BACKEND_DATABASE_URL }
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.secretNames.backend }}, key: REDIS_PASSWORD }
             - name: REDIS_URL
               value: redis://:$(REDIS_PASSWORD)@{{ include "facil.fullname" (dict "name" "redis") }}:6379/0
-          envFrom:
-            - secretRef:
-                name: {{ .Values.secretName }}   # JWT_SECRET_KEY, SECRET_KEY, TOTP_..., etc.
+            - name: JWT_SECRET_KEY
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.secretNames.backend }}, key: JWT_SECRET_KEY }
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.secretNames.backend }}, key: SECRET_KEY }
+            - name: TOTP_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.secretNames.backend }}, key: TOTP_ENCRYPTION_KEY, optional: true }
+            - name: RECEIPT_VERIFICATION_SECRET
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.secretNames.backend }}, key: RECEIPT_VERIFICATION_SECRET, optional: true }
+            - name: CRON_SECRET
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.secretNames.backend }}, key: CRON_SECRET, optional: true }
           ports:
             - containerPort: {{ .Values.backend.port }}
           readinessProbe:

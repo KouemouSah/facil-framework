@@ -45,34 +45,23 @@ import validate_config as vc  # noqa: E402
 
 DEFAULT_CONFIG = DEPLOY_DIR / "config.yaml"
 
-# Doit matcher infra/helm/facil/values.yaml::secretName (secretKeyRef partout).
-SECRET_NAME = "facil-secrets"
-
-# Allowlist stricte des cles injectees dans le Secret k8s — rien d'autre ne
-# fuit de .env.secrets, meme si ce fichier contient d'autres cles (GEMINI_API_KEY,
-# RESEND_API_KEY, SCIM_TOKEN, KEYCLOAK_ADMIN_PASSWORD, ...). Couvre : les 4
-# creds infra generees par ensure_secrets.py (Postgres/Redis/MinIO/OpenBao),
-# les 4 noms de secret references par deploy/config.yaml (auth.jwt_secret_name,
-# auth.app_secret_name, auth.totp_encryption_secret,
-# auth.receipt_verification_secret, cron.secret_name), et BACKEND_DATABASE_URL
-# (role applicatif moindre-privilege attendu par backend.yaml — voir NOTE
-# apply ci-dessous : pas encore produit par .env.secrets, gap documente).
-SECRET_KEYS = [
-    "POSTGRES_PASSWORD", "REDIS_PASSWORD", "MINIO_ROOT_PASSWORD",
-    "OPENBAO_DEV_ROOT_TOKEN", "JWT_SECRET_KEY", "SECRET_KEY",
-    "TOTP_ENCRYPTION_KEY", "RECEIPT_VERIFICATION_SECRET", "CRON_SECRET",
-    "BACKEND_DATABASE_URL",
-]
-
 # Secrets sans lesquels le backend ne demarre pas (fail-closed sur --apply).
 REQUIRED_APPLY_SECRETS = ("POSTGRES_PASSWORD", "JWT_SECRET_KEY", "SECRET_KEY")
+
+# Nom du Secret k8s par composant — doit matcher values.yaml::secretNames.*
+SECRET_NAMES = {
+    "postgres": "facil-postgres-secret", "redis": "facil-redis-secret",
+    "minio": "facil-minio-secret", "openbao": "facil-openbao-secret",
+    "backend": "facil-backend-secret",
+}
 
 
 def render_values(cfg: vc.DeployConfig) -> dict:
     """config.yaml -> dict de values Helm. AUCUNE valeur de secret ici —
-    seul le nom du k8s Secret (cree hors Helm) est reference."""
+    seuls les noms des k8s Secret (crees hors Helm, un par composant — SEC-001)
+    sont references, et ils matchent deja les defauts de values.yaml::secretNames
+    donc aucun --set n'est necessaire pour eux."""
     return {
-        "secretName": SECRET_NAME,
         "global": {"imageTag": cfg.meta.version},
         "postgres": {
             "image": cfg.docker_local.postgres_image,
@@ -90,10 +79,32 @@ def render_values(cfg: vc.DeployConfig) -> dict:
     }
 
 
-def build_secret_literals(env_secrets: dict[str, str]) -> dict[str, str]:
-    """Extrait UNIQUEMENT les cles de l'allowlist SECRET_KEYS presentes dans
-    .env.secrets — allowlist stricte, jamais un passthrough du fichier entier."""
-    return {k: env_secrets[k] for k in SECRET_KEYS if k in env_secrets}
+def build_secret_literals(env_secrets: dict[str, str], *, cfg: vc.DeployConfig
+                          ) -> dict[str, dict[str, str]]:
+    """Repartit les secrets PAR COMPOSANT (SEC-001) — chaque pod ne recoit que ce qu'il
+    consomme. Le backend n'a JAMAIS le superuser Postgres, le root MinIO ni le root token
+    OpenBao : une RCE dans le backend (seule surface HTTP exposee) ne doit pas livrer le
+    data-plane entier. Sa config (packages/backend/app/config.py, extra="ignore") n'en lit
+    d'ailleurs aucun — ils n'etaient la que par accident de conception (`envFrom`).
+
+    Retourne {composant: {CLE: valeur}} ; un composant sans secret disponible est omis.
+    La Task R2 etendra le bloc "backend" avec BACKEND_DATABASE_URL (derivee) et ajoutera
+    le composant "db-role".
+    """
+    def pick(*keys: str) -> dict[str, str]:
+        return {k: env_secrets[k] for k in keys if k in env_secrets}
+
+    out: dict[str, dict[str, str]] = {
+        "postgres": pick("POSTGRES_PASSWORD"),
+        "redis": pick("REDIS_PASSWORD"),
+        "minio": pick("MINIO_ROOT_PASSWORD"),
+        "openbao": pick("OPENBAO_DEV_ROOT_TOKEN"),
+        # REDIS_PASSWORD : le backend est CLIENT de Redis, il en a besoin. Pas de
+        # POSTGRES_PASSWORD (superuser) : il se connectera via BACKEND_DATABASE_URL (R2).
+        "backend": pick("JWT_SECRET_KEY", "SECRET_KEY", "TOTP_ENCRYPTION_KEY",
+                        "RECEIPT_VERIFICATION_SECRET", "CRON_SECRET", "REDIS_PASSWORD"),
+    }
+    return {k: v for k, v in out.items() if v}
 
 
 def find_helm() -> str | None:
@@ -265,14 +276,17 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     env = _load_env_secrets(REPO_ROOT / ".env.secrets")
-    literals = build_secret_literals(env)
-    missing = [k for k in REQUIRED_APPLY_SECRETS if k not in literals]
+    literals = build_secret_literals(env, cfg=cfg)
+    flat = {k for comp in literals.values() for k in comp}
+    missing = [k for k in REQUIRED_APPLY_SECRETS if k not in flat]
     if missing:
-        print(f"ERREUR: secrets requis absents de .env.secrets: {missing}", file=sys.stderr)
+        print(f"ERREUR: secrets requis absents de .env.secrets: {missing}\n"
+              f"Lancer: python deploy/scripts/ensure_secrets.py", file=sys.stderr)
         return 1
 
-    print(f"Sur le point de creer/mettre a jour le Secret '{SECRET_NAME}' et de faire "
-          f"`helm upgrade --install facil` dans le namespace '{args.namespace}'.")
+    print(f"Sur le point de creer/mettre a jour {len(literals)} Secret(s) k8s (un par "
+          f"composant, SEC-001) et de faire `helm upgrade --install facil` dans le "
+          f"namespace '{args.namespace}'.")
     if not args.yes:
         ans = input("Continuer ? [y/N] ").strip().lower()
         if ans not in ("y", "yes"):
@@ -285,12 +299,14 @@ def main(argv: list[str] | None = None) -> int:
     if rc_ns != 0:
         return rc_ns
 
-    # 1) Secret k8s (hors Helm) — manifest construit en Python, jamais ecrit
-    #    dans un fichier, pipe sur stdin (SEC-006 : jamais dans l'argv).
-    rc = apply_manifest(kubectl, args.namespace,
-                        build_secret_manifest(SECRET_NAME, literals))
-    if rc != 0:
-        return rc
+    # 1) Secrets k8s (hors Helm), UN PAR COMPOSANT (SEC-001) — manifestes construits
+    #    en Python, jamais ecrits dans un fichier, pipes sur stdin (SEC-006 : jamais
+    #    dans l'argv).
+    for component, lits in literals.items():
+        rc = apply_manifest(kubectl, args.namespace,
+                            build_secret_manifest(SECRET_NAMES[component], lits))
+        if rc != 0:
+            return rc
 
     # 2) helm upgrade --install (backend/web pullent GHCR ; jamais de build ici).
     rc = subprocess.run(
