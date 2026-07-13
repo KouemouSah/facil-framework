@@ -32,18 +32,24 @@ def test_unknown_key_is_rejected_not_ignored():
 
 
 def test_required_field_missing_is_rejected():
-    with pytest.raises(SchemaViolation):
+    with pytest.raises(SchemaViolation) as e:
         validate_blob(SPECS, {})
+    assert e.value.errors[0]["loc"] == ["legal_name"]
+    assert "required" in e.value.errors[0]["msg"]
 
 
 def test_decimal_bounds_enforced():
-    with pytest.raises(SchemaViolation):
+    with pytest.raises(SchemaViolation) as e:
         validate_blob(SPECS, {"legal_name": "Acme", "vat_rate": 150})
+    assert e.value.errors[0]["loc"] == ["vat_rate"]
+    assert "≤ 100" in e.value.errors[0]["msg"]
 
 
 def test_select_value_must_be_one_of_the_options():
-    with pytest.raises(SchemaViolation):
+    with pytest.raises(SchemaViolation) as e:
         validate_blob(SPECS, {"legal_name": "Acme", "status": "archived"})
+    assert e.value.errors[0]["loc"] == ["status"]
+    assert "must be one of" in e.value.errors[0]["msg"]
 
 
 def test_money_must_be_amount_plus_currency_with_a_string_amount():
@@ -81,3 +87,63 @@ def test_sending_a_hidden_field_is_rejected():
         validate_blob(SPECS, {"legal_name": "Acme", "taxable": False,
                               "vat_no": "GQ123"})
     assert "not visible" in e.value.errors[0]["msg"]
+
+
+# --- Fix 1: "" / None on a declared, visible, optional field is the CLEAR
+# sentinel, not a silent drop. ---------------------------------------------
+
+def test_empty_string_clears_a_declared_optional_field():
+    # "" / None is the CLEAR sentinel (RecordForm.buildPayload sends null to
+    # empty a field). The key is deliberately absent from `clean` so that
+    # merge_blob removes it from the stored blob. Not a silent drop.
+    out = validate_blob(SPECS, {"legal_name": "Acme", "vat_rate": ""})
+    assert "vat_rate" not in out
+    assert out["legal_name"] == "Acme"
+
+
+def test_none_clears_a_declared_optional_field():
+    out = validate_blob(SPECS, {"legal_name": "Acme", "vat_rate": None})
+    assert "vat_rate" not in out
+
+
+def test_empty_value_on_a_REQUIRED_visible_field_is_still_rejected():
+    with pytest.raises(SchemaViolation) as e:
+        validate_blob(SPECS, {"legal_name": ""})
+    assert e.value.errors[0]["loc"] == ["legal_name"]
+
+
+def test_falsy_but_legitimate_values_survive():
+    # `0` and `False` must NOT be mistaken for the clear sentinel.
+    specs = [*SPECS, field("rank", L, type="number"), field("active", L, type="boolean")]
+    out = validate_blob(specs, {"legal_name": "Acme", "rank": 0, "active": False})
+    assert out["rank"] == 0
+    assert out["active"] is False
+
+
+# --- Fix 2: `number` is an integer type; non-integral input is rejected,
+# not silently stringified. `decimal` keeps returning a decimal string. ----
+
+def test_number_rejects_a_non_integral_value():
+    specs = [*SPECS, field("rank", L, type="number")]
+    with pytest.raises(SchemaViolation) as e:
+        validate_blob(specs, {"legal_name": "Acme", "rank": 3.7})
+    assert e.value.errors[0]["loc"] == ["rank"]
+    assert "whole number" in e.value.errors[0]["msg"]
+
+
+def test_number_returns_an_int_and_decimal_returns_a_decimal_string():
+    specs = [*SPECS, field("rank", L, type="number")]
+    out = validate_blob(specs, {"legal_name": "Acme", "rank": 7, "vat_rate": "19.60"})
+    assert out["rank"] == 7 and isinstance(out["rank"], int)
+    assert out["vat_rate"] == "19.60" and isinstance(out["vat_rate"], str)
+
+
+# --- Fix 3: one 422, not two round trips — errors accumulate in one pass. -
+
+def test_all_errors_are_reported_in_one_pass():
+    # ERP standard: 422 maps onto fields in ONE round trip, not two.
+    with pytest.raises(SchemaViolation) as e:
+        validate_blob(SPECS, {"sneaky": "x"})          # unknown key AND legal_name missing
+    locs = {tuple(err["loc"]) for err in e.value.errors}
+    assert ("sneaky",) in locs
+    assert ("legal_name",) in locs

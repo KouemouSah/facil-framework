@@ -53,7 +53,15 @@ def _coerce(spec: dict[str, Any], value: Any, out: list[dict[str, Any]]) -> Any:
             out.append(_err(key, f"must be ≥ {rules['min']}"))
         if "max" in rules and num > Decimal(str(rules["max"])):
             out.append(_err(key, f"must be ≤ {rules['max']}"))
-        return int(num) if ftype == "number" and num == num.to_integral_value() else str(num)
+        if ftype == "number":
+            # `number` IS an integer (see types.py) — `decimal` is the type that
+            # carries precision in `rules` and is stored as a decimal string.
+            # A non-integral value here is a real type violation, not something
+            # to silently stringify.
+            if num != num.to_integral_value():
+                out.append(_err(key, "must be a whole number")); return None
+            return int(num)
+        return str(num)
 
     if ftype == "money":
         # Object, and the amount is a DECIMAL STRING — never a float. A float
@@ -116,6 +124,22 @@ def validate_blob(specs: list[dict[str, Any]], values: dict[str, Any]) -> dict[s
     """Validate a JSON blob against its resolved schema. Raises SchemaViolation.
 
     The schema IS the allowlist: an undeclared key is REJECTED, never dropped.
+
+    All errors are accumulated in ONE pass and raised together (ERP standard:
+    a 422 maps every error onto its field in a single round trip — see
+    RecordForm's `ApiError.fieldErrors()`). Undeclared keys do NOT short-circuit
+    the per-field loop below: that loop iterates over `specs`, not `values`, and
+    `visible_if`/`required_if` only ever reference DECLARED fields, so an
+    unknown key cannot corrupt condition evaluation.
+
+    CLEAR sentinel: `""` / `None` on a declared, visible, non-required field is
+    NOT a silent drop — it is how a field is emptied. The frontend
+    `RecordForm.buildPayload()` sends `null` to clear a field
+    (`packages/web/src/components/ui/record-form.tsx:149`, "Blank → null
+    uniformly"). A later `merge_blob` computes `{**preserved, **clean}`, so a
+    declared key deliberately absent from `clean` is REMOVED from the stored
+    blob — that removal IS the clear operation. A `required` visible field sent
+    empty is still rejected (see the `is_required` check below).
     """
     by_key = {s["key"]: s for s in specs}
     errors: list[dict[str, Any]] = []
@@ -123,8 +147,6 @@ def validate_blob(specs: list[dict[str, Any]], values: dict[str, Any]) -> dict[s
     for key in values:
         if key not in by_key:
             errors.append(_err(key, f"key {key!r} is not declared in this schema"))
-    if errors:
-        raise SchemaViolation(errors)
 
     clean: dict[str, Any] = {}
     for spec in specs:
