@@ -310,7 +310,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.plan:
-        print(f"=== k3s plan (namespace={args.namespace}) — helm template, lecture seule ===")
+        # Banner -> stderr : le stdout de `--plan` EST le rendu `helm template`,
+        # destine a etre pipe tel quel dans guard_secrets.py (contrat documente
+        # par son propre docstring : "helm template ... | python guard_secrets.py").
+        # Une ligne de prose avant le premier `---` casse yaml.safe_load_all
+        # (verifie en conditions reelles, task-V1 : ParserError sur le smoke).
+        print(f"=== k3s plan (namespace={args.namespace}) — helm template, lecture seule ===",
+              file=sys.stderr)
         proc = subprocess.run(
             [helm, "template",
              "-n", args.namespace,          # SEC-019 : sinon .Release.Namespace = "default"
