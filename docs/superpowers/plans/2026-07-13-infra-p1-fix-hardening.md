@@ -17,6 +17,12 @@
 - **Moindre privilège** : chaque pod ne reçoit que les secrets qu'il consomme réellement. Le backend n'a **jamais** le superuser Postgres, le root MinIO ni le root token OpenBao.
 - **Immutabilité k8s** : `spec.selector` d'un Deployment/StatefulSet est **immutable après création**. Toute modification des `selectorLabels` (Task H4) doit être faite **avant le premier apply** — sinon `helm upgrade` échoue définitivement.
 - **Branche** : `docs/infra-multitarget-deploy`. **Push = accord explicite** (isolation repo `facil-framework`).
+- **Assertions négatives en bash — JAMAIS `! cmd | grep -q ...`** : sous `set -e`, POSIX **exempte
+  d'`errexit`** toute commande dont le statut est inversé par `!`. Le script **continue** et imprime
+  `OK` même quand le motif interdit est présent — c'est une **assertion morte**. Toujours écrire un
+  `if cmd | grep -q ...; then echo "FAIL: ..." >&2; exit 1; fi` explicite. (Bug réel trouvé en S1.)
+- **Toute garde de sécurité doit être prouvée par mutation** : casser volontairement le code, voir le
+  test rougir, restaurer. Un test qui ne peut pas échouer est pire que pas de test.
 - **Gate de fin** : le smoke k3d (Task V1) est la **seule** preuve acceptable. `helm lint`/`helm template` ne prouvent rien sur le comportement du kubelet — c'est la leçon des 4 bloquants.
 
 ## Ordre d'exécution (corrigé au pre-flight)
@@ -658,8 +664,14 @@ Ajouter à `infra/helm/facil/tests/test_render.sh`, avant l'assertion de hardeni
 # (donc avant Postgres) -> la migration echouerait a la 1ere install. post-install
 # + initContainer d'attente = le seul ordonnancement qui marche install ET upgrade.
 echo "$OUT" | grep -q "helm.sh/hook: post-install,pre-upgrade"
-! echo "$OUT" | grep -q "helm.sh/hook: pre-install"
 echo "$OUT" | grep -q "wait-postgres"
+# ATTENTION : `! cmd | grep -q ...` est une assertion MORTE sous `set -e` — POSIX exempte
+# d'errexit toute commande dont le statut est inverse par `!`. Le script continuerait
+# jusqu'a imprimer "OK render". Toujours un if/exit explicite pour une assertion negative.
+if echo "$OUT" | grep -q "helm.sh/hook: pre-install"; then
+  echo "FAIL: hook pre-install encore present -- il s'execute AVANT que Postgres existe" >&2
+  exit 1
+fi
 ```
 
 - [ ] **Step 2: Lancer — échoue**
@@ -761,7 +773,11 @@ Ajouter à `infra/helm/facil/tests/test_render.sh` :
 ```bash
 # SEC-001 : le backend ne doit monter AUCUN bundle global (envFrom sur un Secret
 # partage) — chaque pod ne voit que le Secret de son composant.
-! echo "$OUT" | grep -q "envFrom"
+# if/exit explicite : `! cmd | grep -q` est une assertion MORTE sous `set -e`.
+if echo "$OUT" | grep -q "envFrom"; then
+  echo "FAIL garde-secret: envFrom detecte (bundle global partage)" >&2
+  exit 1
+fi
 ```
 
 - [ ] **Step 2: Lancer — échouent**
@@ -1655,7 +1671,12 @@ echo "$OUT" | grep -A3 "matchLabels:" | grep -q "app.kubernetes.io/instance"
 echo "$OUT" | grep -q "minio/minio@sha256:"
 echo "$OUT" | grep -q "openbao/openbao@sha256:"
 # SEC-020 : global.namespace n'etait reference par aucun template (valeur morte).
-! grep -q "namespace: facil" infra/helm/facil/values.yaml
+# if/exit explicite : `! grep -q ...` est une assertion MORTE sous `set -e` (POSIX exempte
+# d'errexit toute commande inversee par `!`) — le script continuerait jusqu'a "OK render".
+if grep -q "namespace: facil" infra/helm/facil/values.yaml; then
+  echo "FAIL: global.namespace (valeur morte) encore present dans values.yaml" >&2
+  exit 1
+fi
 ```
 
 - [ ] **Step 2: Lancer — échoue** → FAIL.
