@@ -60,3 +60,13 @@ def test_legacy_record_form_types_map_to_type_plus_widget():
     assert LEGACY_TYPE_ALIASES["org"] == ("relation", "combobox")
     assert LEGACY_TYPE_ALIASES["party"] == ("relation", "combobox")
     assert LEGACY_TYPE_ALIASES["ref"] == ("relation", "combobox")
+
+
+def test_legacy_text_is_deliberately_not_aliased():
+    # `text` is the ONE colliding legacy name: old `text` = single-line <Input>
+    # (-> new `string`), while new `text` = multi-line (<- old `textarea`).
+    # Aliasing it here would silently downgrade every NEW multi-line `text`
+    # declaration to single-line, because field() consults this table first.
+    # The collision is resolved at the boundary, in cfg()'s _CFG_TYPE_MAP.
+    assert "text" not in LEGACY_TYPE_ALIASES
+    assert LEGACY_TYPE_ALIASES["textarea"] == ("text", "plain")

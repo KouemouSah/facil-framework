@@ -71,6 +71,14 @@ INDEX_CAST: dict[str, str] = {
 # RecordForm's original 15 `FieldType`s (record-form.tsx:30-32) that are really
 # (type, widget) pairs. Accepted forever as aliases → zero regression on the
 # hand-written field lists already in the repo.
+#
+# NOTE: "text" is DELIBERATELY absent. It is the ONE legacy name that collides:
+#   OLD "text" = single-line <Input> → NEW "string" (not "text")
+#   NEW "text" = multi-line (← OLD "textarea")
+# If we aliased "text" here, field() would consult this table first and silently
+# downgrade every NEW multi-line "text" declaration to single-line — a worse bug
+# than omitting the alias. The collision is resolved at the BOUNDARY in cfg()'s
+# _CFG_TYPE_MAP which maps provider vocabulary names to the new taxonomy.
 LEGACY_TYPE_ALIASES: dict[str, tuple[str, str]] = {
     "email": ("string", "email"),
     "password": ("string", "password"),
