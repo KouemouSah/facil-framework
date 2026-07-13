@@ -19,6 +19,28 @@
 - **Branche** : `docs/infra-multitarget-deploy`. **Push = accord explicite** (isolation repo `facil-framework`).
 - **Gate de fin** : le smoke k3d (Task V1) est la **seule** preuve acceptable. `helm lint`/`helm template` ne prouvent rien sur le comportement du kubelet — c'est la leçon des 4 bloquants.
 
+## Ordre d'exécution (corrigé au pre-flight)
+
+Le découpage initial portait deux défauts, corrigés ici :
+1. **R2 utilisait `apply_manifest` / `build_configmap_manifest`, définies seulement en S2** — une
+   dépendance vers l'avant : l'implémenteur de R2 aurait codé contre des fonctions inexistantes.
+   → **S2 est absorbée par R1** (c'est de la plomberie `kubectl`, et `ensure_namespace` en a besoin
+   de toute façon).
+2. **R2 créait `db-role-job.yaml` qui référence `.Values.secretNames.dbRole`, défini seulement en S1.**
+   → **S1 passe AVANT R2** : le chart déclare d'abord ses `secretNames` et son cloisonnement, puis R2
+   remplit la case manquante (`BACKEND_DATABASE_URL`) et ajoute le Job du rôle.
+
+**Ordre définitif — 12 tâches :**
+`R1` (plomberie kubectl : namespace + manifest builders + stdin + `--atomic` + `-n`) →
+**`S1`** (Secrets par composant, suppression `envFrom`) →
+**`R2`** (rôle `facil_app` + `BACKEND_DATABASE_URL` + Job db-role) →
+`R3` (hook order) → `S3` (garde OpenBao) → `G1` → `G2` → `H1` → `H2` → `H3` → `H4` → `V1` → `V2`.
+
+⚠️ Conséquence pour l'implémenteur de **S1** : `BACKEND_DATABASE_URL` est **produit par R2**, pas par
+S1. S1 câble la **clé** (`secretKeyRef` vers `secretNames.backend`) et cloisonne les secrets ; les
+assertions sur la **valeur** de l'URL vivent en R2. Entre S1 et R2 le chart reste temporairement
+non-déployable — sans conséquence : aucun `apply` n'a lieu avant la Task V1.
+
 ## File Structure
 
 **Créés :**
@@ -46,14 +68,24 @@
 
 > Sans cette phase, **aucun** `--apply` ne peut aboutir. Ordre imposé : R1 (namespace) → R2 (rôle+URL) → R3 (hook).
 
-### Task R1 : `--apply` crée le namespace en premier ; `--plan` reflète l'apply ; rollback auto
+### Task R1 : plomberie kubectl — namespace d'abord, manifests via stdin, `--plan` fidèle, rollback auto
+
+> **Absorbe l'ancienne Task S2** (voir « Ordre d'exécution corrigé ») : les constructeurs de
+> manifests sont de la plomberie dont `ensure_namespace` a besoin, et sur laquelle R2 s'appuie.
 
 **Files:**
 - Modify: `deploy/providers/k3s.py:188-246`
 - Test: `deploy/providers/test_k3s.py`
 
 **Interfaces:**
-- Produces: `ensure_namespace(kubectl: str, ns: str) -> int` (0 = ok, 2 = échec kubectl).
+- Produces: `ensure_namespace(kubectl, ns) -> int` · `build_secret_manifest(name, literals) -> str`
+  (YAML `kind: Secret`, valeurs base64) · `build_configmap_manifest(name, data) -> str` ·
+  `apply_manifest(kubectl, ns, manifest) -> int` (pipe sur **stdin**). Exit 0 = ok, 2 = échec kubectl.
+
+**Contexte SEC-006 (CWE-214) :** `kubectl create secret --from-literal=K=V` place les **valeurs en
+clair dans l'argv** — lisibles via `ps -ef` / `/proc/<pid>/cmdline`, capturées par tout auditd/EDR.
+Le test sentinelle existant ne couvre que stdout/stderr, jamais l'argv. On construit donc les
+manifests **en Python** et on les pipe sur stdin : aucune valeur ne touche une ligne de commande.
 
 - [ ] **Step 1: Écrire les tests qui échouent**
 
@@ -105,9 +137,44 @@ def test_apply_uses_atomic_for_auto_rollback(monkeypatch):
     k3s.main(["--apply", "--yes"])
     upgrade = next(c for c in calls if "upgrade" in c)
     assert "--atomic" in upgrade
+
+
+def test_secret_values_never_appear_in_any_process_argv(monkeypatch):
+    # SEC-006 (CWE-214) : `kubectl create secret --from-literal=K=V` expose les valeurs
+    # dans l'argv (ps -ef, /proc/<pid>/cmdline, auditd). On construit le manifest en
+    # Python et on le pipe sur stdin : rien ne transite par une ligne de commande.
+    MARKER = "s3nt1nel-p4ssw0rd-marker"
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets",
+                        lambda p: {**_FULL_SECRETS, "POSTGRES_PASSWORD": MARKER})
+    k3s.main(["--apply", "--yes", "--allow-dev-vault"])
+
+    b64 = base64.b64encode(MARKER.encode()).decode()
+    for cmd in calls:
+        for arg in cmd:
+            assert MARKER not in arg, f"secret en clair dans l'argv: {cmd[0]}"
+            assert b64 not in arg, f"secret base64 dans l'argv: {cmd[0]}"
+
+
+def test_build_secret_manifest_base64_encodes_values():
+    m = k3s.build_secret_manifest("facil-postgres-secret", {"POSTGRES_PASSWORD": "pw"})
+    assert "kind: Secret" in m
+    assert base64.b64encode(b"pw").decode() in m
+    assert "POSTGRES_PASSWORD: pw" not in m  # jamais en clair
 ```
 
-Ajouter en tête du fichier (fixture partagée par toute la suite) :
+Note : `--allow-dev-vault` n'existe qu'à partir de la Task S3. **Jusque-là, l'omettre** de l'appel
+`k3s.main([...])` dans ce test — et l'ajouter quand S3 introduit le flag.
+
+Ajouter en tête du fichier (`import base64`, `import subprocess`, fixture partagée) :
 
 ```python
 import subprocess
@@ -184,6 +251,64 @@ Et sur le `helm upgrade`, ajouter `--atomic` :
          "--wait", "--timeout", "10m"],
         check=False,
     ).returncode
+```
+
+- [ ] **Step 3bis: Constructeurs de manifests (Python) + stdin — plus jamais d'argv**
+
+Ajouter `import base64` en tête, puis (avant `ensure_namespace`) :
+
+```python
+def build_secret_manifest(name: str, literals: dict[str, str]) -> str:
+    """Manifest `kind: Secret` (valeurs base64) — construit EN PYTHON.
+
+    SEC-006 : on n'utilise PAS `kubectl create secret --from-literal=K=V`, qui place
+    les valeurs en clair dans l'argv du process (visible via `ps -ef` et
+    /proc/<pid>/cmdline, capture par auditd/EDR — CWE-214). Le manifest part sur
+    stdin de `kubectl apply -f -` : aucune valeur ne touche une ligne de commande.
+    """
+    lines = ["apiVersion: v1", "kind: Secret", "type: Opaque",
+             "metadata:", f"  name: {name}", "data:"]
+    for k in sorted(literals):
+        b64 = base64.b64encode(literals[k].encode("utf-8")).decode("ascii")
+        lines.append(f"  {k}: {b64}")
+    return "\n".join(lines) + "\n"
+
+
+def build_configmap_manifest(name: str, data: dict[str, str]) -> str:
+    """ConfigMap (donnees NON secretes — le SQL du role). Meme chemin stdin : DRY."""
+    lines = ["apiVersion: v1", "kind: ConfigMap",
+             "metadata:", f"  name: {name}", "data:"]
+    for k in sorted(data):
+        lines.append(f"  {k}: |")
+        lines.extend(f"    {line}" for line in data[k].splitlines())
+    return "\n".join(lines) + "\n"
+
+
+def apply_manifest(kubectl: str, ns: str, manifest: str) -> int:
+    """`kubectl apply -f -` sur stdin. N'imprime JAMAIS le manifest ni le stderr brut
+    de kubectl (SEC-016 : kubectl reemet parfois ses entrees dans ses messages d'erreur)."""
+    proc = subprocess.run(
+        [kubectl, "-n", ns, "apply", "-f", "-"],
+        input=manifest, text=True, capture_output=True,
+        encoding="utf-8", errors="replace",
+    )
+    if proc.returncode != 0:
+        # Message generique : le stderr peut contenir des fragments du manifest.
+        print(f"ERREUR: `kubectl apply` a echoue (code {proc.returncode}). Verifier "
+              f"l'acces au cluster et le namespace '{ns}'.", file=sys.stderr)
+        return 2
+    return 0
+```
+
+Remplacer **tout** le bloc « 1) Secret k8s » de `main()` (les lignes `kubectl create secret
+--dry-run` + le pipe) par un appel unique — la répartition par composant arrive en R2, ici on
+garde le Secret unique existant mais **construit en Python** :
+
+```python
+    rc = apply_manifest(kubectl, args.namespace,
+                        build_secret_manifest(SECRET_NAME, literals))
+    if rc != 0:
+        return rc
 ```
 
 - [ ] **Step 4: Lancer — passent**
@@ -361,37 +486,23 @@ def backend_database_url(cfg: vc.DeployConfig, app_pw: str) -> str:
     return f"postgresql+asyncpg://{role}:{app_pw}@facil-postgres:5432/{db}"
 ```
 
-`build_secret_literals` est refondu en Task S1 (Secrets par composant) — sa signature devient `build_secret_literals(env_secrets: dict, *, cfg) -> dict[str, dict[str, str]]`. Implémenter directement la forme finale ici pour éviter un double refactor :
+**Étendre** (ne PAS réécrire) la fonction cloisonnée introduite en Task S1 — ajouter juste avant son `return` :
 
 ```python
-def build_secret_literals(env_secrets: dict[str, str], *, cfg: vc.DeployConfig
-                          ) -> dict[str, dict[str, str]]:
-    """Repartit les secrets PAR COMPOSANT (SEC-001) — chaque pod ne recoit que ce
-    qu'il consomme. Le backend n'a JAMAIS le superuser Postgres, le root MinIO ni
-    le root token OpenBao : une RCE dans le backend ne doit pas livrer le data-plane.
-
-    Retourne {composant: {CLE: valeur}} ; un composant absent de .env.secrets est
-    simplement omis (le caller fail-close sur REQUIRED_APPLY_SECRETS).
-    """
-    def pick(*keys: str) -> dict[str, str]:
-        return {k: env_secrets[k] for k in keys if k in env_secrets}
-
-    out: dict[str, dict[str, str]] = {
-        "postgres": pick("POSTGRES_PASSWORD"),
-        "redis": pick("REDIS_PASSWORD"),
-        "minio": pick("MINIO_ROOT_PASSWORD"),
-        "openbao": pick("OPENBAO_DEV_ROOT_TOKEN"),
-        # Le backend : ses propres secrets applicatifs + le mdp Redis (client) +
-        # son URL de DB derivee. Pas de POSTGRES_PASSWORD (superuser) ici.
-        "backend": pick("JWT_SECRET_KEY", "SECRET_KEY", "TOTP_ENCRYPTION_KEY",
-                        "RECEIPT_VERIFICATION_SECRET", "CRON_SECRET",
-                        "REDIS_PASSWORD"),
-    }
+    # L'URL de connexion du backend est DERIVEE de FACIL_APP_PASSWORD : aucun script du
+    # repo n'ecrit BACKEND_DATABASE_URL dans .env.secrets (APPLY-003), et le secretKeyRef
+    # de backend.yaml n'est pas `optional` -> sans cette derivation, le pod backend reste
+    # bloque en CreateContainerConfigError pendant les 10 min du --wait.
     if (app_pw := env_secrets.get("FACIL_APP_PASSWORD")):
         out["backend"]["BACKEND_DATABASE_URL"] = backend_database_url(cfg, app_pw)
     # Le Job db-role a besoin du superuser (pour CREATE ROLE) ET du mdp applicatif.
     out["db-role"] = pick("POSTGRES_PASSWORD", "FACIL_APP_PASSWORD")
-    return {k: v for k, v in out.items() if v}
+```
+
+…et ajouter l'entrée correspondante au dict `SECRET_NAMES` (défini en S1) :
+
+```python
+    "db-role": "facil-db-role-secret",
 ```
 
 Mettre à jour `REQUIRED_APPLY_SECRETS` :
@@ -633,8 +744,9 @@ def test_backend_never_receives_infrastructure_root_credentials():
     assert "POSTGRES_PASSWORD" not in backend
     assert "MINIO_ROOT_PASSWORD" not in backend
     assert "OPENBAO_DEV_ROOT_TOKEN" not in backend
-    # ...mais il garde ce qu'il consomme reellement.
-    assert {"JWT_SECRET_KEY", "SECRET_KEY", "BACKEND_DATABASE_URL"} <= set(backend)
+    # ...mais il garde ce qu'il consomme reellement. (BACKEND_DATABASE_URL est ajoute
+    # par la Task R2, qui le DERIVE de FACIL_APP_PASSWORD — pas assere ici.)
+    assert {"JWT_SECRET_KEY", "SECRET_KEY", "REDIS_PASSWORD"} <= set(backend)
 
 
 def test_each_component_secret_holds_only_its_own_credential():
@@ -656,6 +768,70 @@ Ajouter à `infra/helm/facil/tests/test_render.sh` :
 
 Run: `& C:\facil_framework\.venv\Scripts\python.exe -m pytest deploy/providers/test_k3s.py -k "blast or component" -v` puis `bash infra/helm/facil/tests/test_render.sh`
 Expected: FAIL (les deux : `envFrom` présent, secrets non cloisonnés).
+
+- [ ] **Step 2bis: Cloisonner `build_secret_literals` par composant (provider)**
+
+Dans `deploy/providers/k3s.py`, remplacer `build_secret_literals` (qui retournait un dict plat) :
+
+```python
+def build_secret_literals(env_secrets: dict[str, str], *, cfg: vc.DeployConfig
+                          ) -> dict[str, dict[str, str]]:
+    """Repartit les secrets PAR COMPOSANT (SEC-001) — chaque pod ne recoit que ce qu'il
+    consomme. Le backend n'a JAMAIS le superuser Postgres, le root MinIO ni le root token
+    OpenBao : une RCE dans le backend (seule surface HTTP exposee) ne doit pas livrer le
+    data-plane entier. Sa config (packages/backend/app/config.py, extra="ignore") n'en lit
+    d'ailleurs aucun — ils n'etaient la que par accident de conception (`envFrom`).
+
+    Retourne {composant: {CLE: valeur}} ; un composant sans secret disponible est omis.
+    La Task R2 etendra le bloc "backend" avec BACKEND_DATABASE_URL (derivee) et ajoutera
+    le composant "db-role".
+    """
+    def pick(*keys: str) -> dict[str, str]:
+        return {k: env_secrets[k] for k in keys if k in env_secrets}
+
+    out: dict[str, dict[str, str]] = {
+        "postgres": pick("POSTGRES_PASSWORD"),
+        "redis": pick("REDIS_PASSWORD"),
+        "minio": pick("MINIO_ROOT_PASSWORD"),
+        "openbao": pick("OPENBAO_DEV_ROOT_TOKEN"),
+        # REDIS_PASSWORD : le backend est CLIENT de Redis, il en a besoin. Pas de
+        # POSTGRES_PASSWORD (superuser) : il se connectera via BACKEND_DATABASE_URL (R2).
+        "backend": pick("JWT_SECRET_KEY", "SECRET_KEY", "TOTP_ENCRYPTION_KEY",
+                        "RECEIPT_VERIFICATION_SECRET", "CRON_SECRET", "REDIS_PASSWORD"),
+    }
+    return {k: v for k, v in out.items() if v}
+
+
+# Nom du Secret k8s par composant — doit matcher values.yaml::secretNames.*
+SECRET_NAMES = {
+    "postgres": "facil-postgres-secret", "redis": "facil-redis-secret",
+    "minio": "facil-minio-secret", "openbao": "facil-openbao-secret",
+    "backend": "facil-backend-secret",
+}
+```
+
+(supprimer la constante `SECRET_NAME` et la liste plate `SECRET_KEYS`, devenues mortes)
+
+Dans `main()`, remplacer l'appel unique introduit en R1 par une boucle :
+
+```python
+    for component, lits in literals.items():
+        rc = apply_manifest(kubectl, args.namespace,
+                            build_secret_manifest(SECRET_NAMES[component], lits))
+        if rc != 0:
+            return rc
+```
+
+…et adapter le fail-closed (les literals sont désormais imbriqués) :
+
+```python
+    flat = {k for comp in literals.values() for k in comp}
+    missing = [k for k in REQUIRED_APPLY_SECRETS if k not in flat]
+    if missing:
+        print(f"ERREUR: secrets requis absents de .env.secrets: {missing}\n"
+              f"Lancer: python deploy/scripts/ensure_secrets.py", file=sys.stderr)
+        return 1
+```
 
 - [ ] **Step 3: Remplacer `secretName` par `secretNames` dans `values.yaml`**
 
@@ -731,7 +907,17 @@ git add infra/helm/facil/values.yaml infra/helm/facil/templates/ infra/helm/faci
 git commit -m "fix(helm): Secret par composant, suppression envFrom (SEC-001, blast radius)"
 ```
 
-### Task S2 : Secrets construits en Python → stdin (SEC-006, SEC-016)
+### Task S2 — ⛔ ABSORBÉE PAR R1, NE PAS EXÉCUTER
+
+> Voir « Ordre d'exécution (corrigé au pre-flight) » : les constructeurs de manifests
+> (`build_secret_manifest` / `build_configmap_manifest` / `apply_manifest`) sont de la plomberie
+> dont `ensure_namespace` (R1) a besoin, et sur laquelle S1 et R2 s'appuient. Les laisser en S2
+> aurait créé une dépendance vers l'avant. Le contenu ci-dessous est **conservé pour référence
+> uniquement** — il est déjà implémenté par R1 Step 3bis.
+
+<details><summary>Contenu historique (implémenté en R1)</summary>
+
+#### (ancien) Task S2 : Secrets construits en Python → stdin (SEC-006, SEC-016)
 
 **Files:**
 - Modify: `deploy/providers/k3s.py`
@@ -869,6 +1055,8 @@ Expected: PASS.
 git add deploy/providers/k3s.py deploy/providers/test_k3s.py
 git commit -m "fix(deploy): manifests Secret construits en Python + stdin (SEC-006, plus d'argv)"
 ```
+
+</details>
 
 ### Task S3 : garde fail-closed sur OpenBao dev-mode (SEC-002)
 
