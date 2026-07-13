@@ -8,9 +8,13 @@ subprocess mocked out where a real helm invocation isn't the point of the test.
 from __future__ import annotations
 
 import base64
+import copy
+import re
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 PROVIDERS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROVIDERS_DIR))
@@ -27,6 +31,59 @@ _FULL_SECRETS = {
     "FACIL_APP_PASSWORD": "app-role-pw",
 }
 
+# --- Structural secret guard for render_values() (G1) -----------------------
+#
+# The old guard (`"password" not in repr(values).lower()`) only ever caught
+# two literal substrings and inspected the *repr* of the whole dict, so it
+# couldn't tell a key from a value. This one (a) walks every leaf of the
+# values dict, (b) rejects any KEY whose name looks like a credential, and
+# (c) rejects any VALUE that looks like a random secret blob — regardless of
+# what its key is called.
+_CREDENTIAL_KEY_RE = re.compile(r"(password|secret|token|credential|api_?key)", re.IGNORECASE)
+# >=24 chars, only the alphabet a base64/hex/urlsafe blob would use. Deliberately
+# does NOT include ":" "@" or ",": every image ref render_values() emits carries
+# an explicit tag (`repo/name:tag`) or a digest (`repo/name@sha256:hex`), and
+# modulesEnabled is a comma-joined list — all of those break a full-string match
+# on this alphabet, so this stays strict without needing a value-based allowlist.
+_SECRET_LIKE_VALUE_RE = re.compile(r"^[A-Za-z0-9+/=_-]{24,}$")
+
+# Dotted paths (in the flattened values dict) that are allowed to have a KEY
+# name matching _CREDENTIAL_KEY_RE, because they carry a Secret *name*/*ref*,
+# never a value. Checked against render_values()'s REAL current output (see
+# k3s.render_values docstring + infra/helm/facil/values.yaml::secretNames)
+# before deciding: render_values() does NOT set "secretName"/"secretNames" at
+# all today (S1 removed that --set entirely — the chart's own values.yaml
+# defaults already match k3s.SECRET_NAMES) — so there is currently NOTHING to
+# allowlist. Left empty on purpose: do not pre-populate with guesses.
+_ALLOWED_CREDENTIAL_KEY_PATHS: frozenset[str] = frozenset()
+
+
+def _flatten(d: dict, prefix: str = "") -> list[tuple[str, object]]:
+    """Recursively flattens a (possibly nested) dict into (dotted.path, leaf_value)."""
+    items: list[tuple[str, object]] = []
+    for k, v in d.items():
+        path = f"{prefix}.{k}" if prefix else str(k)
+        if isinstance(v, dict):
+            items.extend(_flatten(v, path))
+        else:
+            items.append((path, v))
+    return items
+
+
+def _assert_values_carry_no_secrets(values: dict) -> None:
+    """The real guard: raises AssertionError on the first credential-shaped
+    key or secret-shaped value found anywhere in the (flattened) values dict."""
+    for path, value in _flatten(values):
+        leaf_key = path.rsplit(".", 1)[-1]
+        if _CREDENTIAL_KEY_RE.search(leaf_key) and path not in _ALLOWED_CREDENTIAL_KEY_PATHS:
+            raise AssertionError(
+                f"values['{path}']: key name looks like a credential "
+                f"(matches {_CREDENTIAL_KEY_RE.pattern!r})")
+        if isinstance(value, str) and _SECRET_LIKE_VALUE_RE.match(value):
+            raise AssertionError(
+                f"values['{path}']: value looks like a secret blob "
+                f"(len={len(value)}, matches secret-shaped alphabet)")
+
 
 def _cfg() -> vc.DeployConfig:
     data = vc.load_yaml(Path(__file__).resolve().parents[2] / "deploy" / "config.yaml")
@@ -42,15 +99,53 @@ def test_render_values_maps_images_and_ports():
 
 
 def test_render_values_never_contains_secret_values():
-    # Secret guard: the values dict must carry NO secret value AND no secret
-    # *name* override either (SEC-001, S1): render_values() no longer sets
-    # "secretName"/"secretNames" at all — the chart's own values.yaml defaults
-    # (one Secret name per component) already match k3s.SECRET_NAMES, so no
-    # --set is needed for them.
+    # Structural secret guard (G1): walks every leaf of the real values dict
+    # and rejects credential-shaped KEYS (password|secret|token|credential|
+    # api_key) as well as secret-shaped VALUES (>=24-char base64/hex-alphabet
+    # blobs) — not just two hardcoded substrings against a dict repr().
     values = k3s.render_values(_cfg())
-    flat = repr(values).lower()
-    assert "password" not in flat
-    assert "secretname" not in flat
+    _assert_values_carry_no_secrets(values)  # must not raise
+
+
+def test_secret_guard_catches_injected_credential_shaped_key():
+    # Mutation-guard: proves the assertion above can actually fail. Without
+    # this, a future regression of the guard back into a tautology (like the
+    # original `"secretname" in flat` clause, which was always true) would go
+    # unnoticed. Inject a fake credential-shaped key into a REAL rendered
+    # values dict and confirm the guard rejects it.
+    values = k3s.render_values(_cfg())
+    mutated = copy.deepcopy(values)
+    mutated["backend"]["injectedApiToken"] = "unused-value"
+    with pytest.raises(AssertionError, match="looks like a credential"):
+        _assert_values_carry_no_secrets(mutated)
+
+
+def test_secret_guard_catches_secret_shaped_value_under_an_anodyne_key():
+    # Mutation-guard, value side: an innocuous-looking key name ("buildId")
+    # whose VALUE is a random-looking blob must still be rejected — this is
+    # exactly the class of leak the old repr()-substring check could never
+    # catch (it only ever looked at key-shaped substrings).
+    values = k3s.render_values(_cfg())
+    mutated = copy.deepcopy(values)
+    mutated["backend"]["buildId"] = "Zm9vYmFyYmF6cXV4Y29ycmVjdGhvcnNl"  # 32 chars, base64 alphabet
+    with pytest.raises(AssertionError, match="looks like a secret blob"):
+        _assert_values_carry_no_secrets(mutated)
+
+
+def test_secret_guard_does_not_flag_real_image_refs_or_modules_list():
+    # False-positive check (the task's own concern): a digest-pinned image
+    # ref and the comma-joined modulesEnabled list both contain characters
+    # outside the secret-value alphabet (":" "@" ",") so a >=24-char value
+    # there must NOT trip the guard. Proven directly against render_values()'s
+    # real current output, not a hypothetical.
+    values = k3s.render_values(_cfg())
+    _assert_values_carry_no_secrets(values)
+    mutated = copy.deepcopy(values)
+    mutated["postgres"]["image"] = "pgvector/pgvector@sha256:" + "a" * 64  # digest-pinned, legit
+    # Comma-joined list long enough to hit the >=24 length floor, but the
+    # comma is outside the secret-value alphabet so it must not match either.
+    mutated["backend"]["modulesEnabled"] = "organization,location,directory,reporting"
+    _assert_values_carry_no_secrets(mutated)  # must NOT raise
 
 
 def test_render_values_matches_chart_value_shape():
