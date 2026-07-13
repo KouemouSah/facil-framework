@@ -273,10 +273,50 @@ def test_set_args_escapes_commas_in_modules_enabled():
     # so an unescaped "organization,location" is silently mis-parsed as
     # modulesEnabled=organization + a bogus key "location" (helm errors:
     # 'key "location" has no value'). Caught live against real helm.
+    #
+    # backend.modulesEnabled is also a _STRING_KEYS entry (SEC-017): it must
+    # go through --set-string, not --set (a purely-numeric module list is
+    # unlikely today, but the comma-escaping regression this test guards is
+    # orthogonal to the string-vs-coerced-type one below).
     values = k3s.render_values(_cfg())
     args = k3s._set_args(values)
     idx = args.index("backend.modulesEnabled=organization\\,location")
-    assert args[idx - 1] == "--set"
+    assert args[idx - 1] == "--set-string"
+
+
+def test_set_args_uses_set_string_for_string_keys_to_avoid_type_coercion():
+    # SEC-017: `--set` runs the value through Helm's strconv.ParseInt/ParseBool
+    # before writing it into values -- a purely-numeric imageTag like "0123"
+    # would silently lose its leading zero (become the int 123), and a
+    # database name that happened to be all-digits would corrupt the same way.
+    # `--set-string` skips that coercion entirely. Proven against a real
+    # render_values() output plus a synthetic numeric-looking value.
+    values = k3s.render_values(_cfg())
+    values["global"]["imageTag"] = "0123"
+    args = k3s._set_args(values)
+    idx = args.index("global.imageTag=0123")
+    assert args[idx - 1] == "--set-string"
+    # A key NOT in _STRING_KEYS (e.g. backend.port, an int) must still use
+    # the plain --set -- proves the branch isn't a blanket "always --set-string".
+    port_idx = next(i for i, a in enumerate(args) if a.startswith("backend.port="))
+    assert args[port_idx - 1] == "--set"
+
+
+def test_set_args_string_keys_cover_all_render_values_text_fields():
+    # Mutation-style completeness check: every leaf in render_values()'s real
+    # output whose value is naturally textual (image refs, db/user names,
+    # module lists) must be routed through --set-string -- a future field
+    # added to render_values() without a matching _STRING_KEYS entry would
+    # silently regress back to type coercion for that one field.
+    values = k3s.render_values(_cfg())
+    args = k3s._set_args(values)
+    text_paths = {
+        "postgres.image", "postgres.db", "postgres.user",
+        "redis.image", "backend.modulesEnabled",
+    }
+    for path in text_paths:
+        idx = next(i for i, a in enumerate(args) if a.startswith(f"{path}="))
+        assert args[idx - 1] == "--set-string", f"{path} must use --set-string"
 
 
 def test_find_helm_uses_shutil_which(monkeypatch):

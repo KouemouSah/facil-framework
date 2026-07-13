@@ -1,7 +1,6 @@
 global:
   owner: kouemousah            # ghcr.io/<owner>/facil-*
   imageTag: latest             # surchargé par le provider (version/commit)
-  namespace: facil
   storageClass: local-path     # défaut k3s
   # Registre privé (on-prem souverain / GHCR passé en privé) : lister ici les
   # Secret k8s de type kubernetes.io/dockerconfigjson. Vide = pull anonyme, ce
@@ -31,12 +30,16 @@ redis:
   image: redis:7-alpine
 minio:
   enabled: true
-  image: minio/minio:latest
+  # Pinne par digest (SEC-014) : `:latest` sur le stockage objet = un push amont
+  # compromis se propage au prochain restart de pod, sans trace ni rollback.
+  image: minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e   # ~ :latest au 2026-07-13
   storage: 20Gi
   rootUser: facil
 openbao:
   enabled: true
-  image: openbao/openbao:latest
+  # Pinne par digest (SEC-014) : idem minio -- le coffre-fort ne doit jamais
+  # suivre un tag mutable sans trace ni rollback possible.
+  image: openbao/openbao@sha256:6150c4a6b62067db6141c8da7a6a6b5763f4f47c315343d0c848b40fecdfd452   # ~ :latest au 2026-07-13
   devMode: true                # prod unseal (SOPS+age) = plan ultérieur
 backend:
   enabled: true

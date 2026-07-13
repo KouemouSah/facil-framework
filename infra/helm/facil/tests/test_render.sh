@@ -35,8 +35,12 @@ echo "$OUT" | python infra/helm/facil/tests/guard_secrets.py
 echo "$OUT" | grep -q "name: facil-redis"
 echo "$OUT" | grep -q "image: redis:7-alpine"
 echo "$OUT" | grep -q "name: facil-minio"
-echo "$OUT" | grep -q "image: minio/minio:latest"
+# SEC-014 : le coffre-fort et le stockage objet ne doivent pas suivre un tag
+# mutable -- un push amont compromis se propagerait au prochain restart de pod,
+# sans trace ni rollback possible.
+echo "$OUT" | grep -q "minio/minio@sha256:"
 echo "$OUT" | grep -q "name: facil-openbao"
+echo "$OUT" | grep -q "openbao/openbao@sha256:"
 echo "$OUT" | grep -q "IPC_LOCK"
 echo "$OUT" | grep -q "alembic"
 echo "$OUT" | grep -q "name: facil-backend"
@@ -117,6 +121,12 @@ fi
 # et refuse alors le pod (CreateContainerConfigError: "image has non-numeric user").
 # Tout podSpec runAsNonRoot doit donc porter un runAsUser numérique — invariant que
 # `helm template`/`helm lint` ne vérifient pas, d'où cette assertion.
+# SEC-018 : sans app.kubernetes.io/instance dans le selector, deux releases dans
+# le meme namespace se volent leurs pods (les Service de l'une selectionnent
+# aussi ceux de l'autre, puisque le seul discriminant restant serait
+# facil.component, identique entre releases). Verifie sur un `matchLabels:`
+# (Deployment/StatefulSet.spec.selector) reellement rendu.
+echo "$OUT" | grep -A3 "matchLabels:" | grep -q "app.kubernetes.io/instance"
 NONROOT="$(echo "$OUT" | grep -c 'runAsNonRoot: true' || true)"
 WITH_UID="$(echo "$OUT" | grep -A1 'runAsNonRoot: true' | grep -cE 'runAsUser: [0-9]+' || true)"
 if [ "$NONROOT" -ne "$WITH_UID" ]; then
@@ -166,4 +176,13 @@ echo "$OUT" | python infra/helm/facil/tests/guard_networkpolicy.py
 echo "$OUT" | grep -q "kind: Ingress"
 echo "$OUT" | grep -q "ingressClassName: traefik"
 echo "$OUT" | python infra/helm/facil/tests/guard_ingress.py
+# SEC-020 : global.namespace n'etait reference par aucun template (valeur
+# morte -- le vrai namespace vient de `helm ... -n <ns>` / .Release.Namespace).
+# `! grep -q ... ` est une assertion MORTE sous `set -e` (POSIX exempte
+# d'errexit toute commande inversee par `!`) -- if/exit explicite comme
+# ailleurs dans ce fichier.
+if grep -q "namespace: facil" infra/helm/facil/values.yaml; then
+  echo "FAIL: global.namespace (valeur morte) encore present dans values.yaml" >&2
+  exit 1
+fi
 echo "OK render (${VALUES_FILE:-default})"

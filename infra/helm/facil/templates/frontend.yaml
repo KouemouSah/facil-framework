@@ -24,6 +24,7 @@ spec:
       labels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "frontend") | nindent 8 }}
     spec:
       automountServiceAccountToken: false   # aucun pod n'appelle l'API k8s
+      {{- include "facil.imagePullSecrets" . | nindent 6 }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 1001    # uid/gid "nextjs:nodejs" créés dans packages/web/Dockerfile

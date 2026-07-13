@@ -229,16 +229,36 @@ def _escape_set_value(v: object) -> str:
     return s.replace(",", "\\,")
 
 
+# Cles dont la valeur DOIT rester une chaine : `--set` de Helm coerce les types
+# (strconv.ParseInt), donc meta.version="0123" deviendrait le tag 123 (SEC-017).
+# `secretNames.*` n'est aujourd'hui jamais emis par render_values() (S1 les a
+# retires), mais reste liste ici en anticipation defensive : si un futur appel
+# venait a les rendre, ils ne doivent jamais glisser sur `--set` non plus (ce
+# sont des noms de Secret k8s, pas des nombres, mais un nom purement numerique
+# resterait tout aussi coercible).
+_STRING_KEYS = {"global.imageTag", "postgres.image", "postgres.db", "postgres.user",
+                "redis.image", "minio.rootUser", "backend.modulesEnabled",
+                "secretNames.postgres", "secretNames.redis", "secretNames.minio",
+                "secretNames.openbao", "secretNames.backend", "secretNames.dbRole"}
+
+
 def _set_args(values: dict) -> list[str]:
-    """Traduit le dict de values (SANS secret) en `--set section.key=val`
-    repetes, pour surcharger infra/helm/facil/values.yaml a l'upgrade."""
+    """Traduit le dict de values (SANS secret) en `--set`/`--set-string`
+    repetes, pour surcharger infra/helm/facil/values.yaml a l'upgrade.
+
+    `--set-string` pour les cles de `_STRING_KEYS` (SEC-017) : `--set` de Helm
+    parse la valeur via `strconv.ParseInt`/`ParseBool` avant de l'ecrire dans
+    values -- un `imageTag`/tag de version "0123" deviendrait silencieusement
+    l'entier 123 (perte du zero de tete), et une image dont le tag ne serait
+    QUE des chiffres casserait la reference d'image rendue.
+    """
     args: list[str] = []
     for section, sub in values.items():
-        if isinstance(sub, dict):
-            for k, v in sub.items():
-                args += ["--set", f"{section}.{k}={_escape_set_value(v)}"]
-        else:
-            args += ["--set", f"{section}={_escape_set_value(sub)}"]
+        items = sub.items() if isinstance(sub, dict) else [(None, sub)]
+        for k, v in items:
+            path = f"{section}.{k}" if k is not None else section
+            flag = "--set-string" if path in _STRING_KEYS else "--set"
+            args += [flag, f"{path}={_escape_set_value(v)}"]
     return args
 
 
