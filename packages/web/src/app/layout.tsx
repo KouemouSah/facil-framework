@@ -36,10 +36,25 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     secondary && `--secondary:${secondary};`,
   ].filter(Boolean).join("");
 
+  // Deployment default theme (Phase A3): `branding.theme_mode` was a PHANTOM field
+  // (editable, no consumer — there is no theme system yet). Apply it server-side as
+  // the default: "dark" → `.dark` class; "light" → none; "auto" → a pre-paint inline
+  // script picks from prefers-color-scheme (no FOUC; `suppressHydrationWarning`
+  // covers the class the script may add). A user-facing toggle is a separate follow-up.
+  const themeMode = b.theme_mode || "light";
+  const htmlClass = themeMode === "dark" ? `${inter.variable} dark` : inter.variable;
+
   return (
-    <html lang={locale} suppressHydrationWarning className={inter.variable}>
+    <html lang={locale} suppressHydrationWarning className={htmlClass}>
       <head>
         {vars && <style id="branding-vars">{`:root{${vars}}`}</style>}
+        {themeMode === "auto" && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: "try{if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.classList.add('dark')}catch(e){}",
+            }}
+          />
+        )}
       </head>
       <body className="font-sans">
         <NextIntlClientProvider messages={messages}>
