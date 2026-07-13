@@ -141,4 +141,19 @@ if echo "$OUT" | grep -q -- '-v app_pw='; then
   echo "FAIL garde-secret: mdp applicatif passe en argv psql (-v app_pw=...) -- CWE-214" >&2
   exit 1
 fi
+# SEC-012 : NetworkPolicy default-deny (ingress) + allow explicites par
+# composant. k3s embarque kube-router -> les NetworkPolicy sont REELLEMENT
+# appliquees, contrairement a un cluster flannel nu ou elles seraient
+# ignorees. `grep -q "kind: NetworkPolicy"` ne prouve rien sur le ciblage :
+# un podSelector qui ne matche aucun pod reel est une policy inerte. Remplace
+# par un parseur YAML reel (meme convention que guard_secrets.py /
+# guard_resources.py ci-dessus) qui verifie : (1) une policy default-deny
+# (podSelector: {}) avec policyTypes == [Ingress] SEULEMENT (jamais Egress --
+# casserait le DNS vers kube-dns, hors du namespace de la release) ; (2) tout
+# podSelector cible/peer matche au moins un pod-template REELLEMENT rendu.
+# Voir infra/helm/facil/tests/guard_networkpolicy.py +
+# tests/test_guard_networkpolicy.py (preuve par mutation de chaque invariant).
+echo "$OUT" | grep -q "kind: NetworkPolicy"
+echo "$OUT" | grep -q "policyTypes"
+echo "$OUT" | python infra/helm/facil/tests/guard_networkpolicy.py
 echo "OK render (${VALUES_FILE:-default})"

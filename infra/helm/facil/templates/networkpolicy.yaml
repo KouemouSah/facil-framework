@@ -1,0 +1,90 @@
+{{- if .Values.networkPolicy.enabled }}
+{{/*
+SEC-012 : default-deny sur l'ingress de tout le namespace, puis allow explicites
+par composant. k3s embarque kube-router, donc les NetworkPolicy sont REELLEMENT
+appliquees (contrairement a un cluster flannel nu ou elles seraient
+silencieusement ignorees). Sans ce fichier, Postgres:5432 / Redis:6379 /
+MinIO:9000-9001 / OpenBao:8200 sont joignables par N'IMPORTE QUEL pod du
+cluster -- un seul conteneur compromis suffit a atteindre tout le data-plane.
+
+Durcissement PARTIEL et ASSUME : uniquement l'ingress est deny-by-default.
+Un default-deny sur l'EGRESS casserait la resolution DNS (kube-dns vit dans
+kube-system, hors du namespace de la release) sans regle egress explicite --
+hors scope de cette tache. L'egress de tous les pods reste ouvert.
+*/}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "default-deny") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  podSelector: {}          # tous les pods du namespace
+  policyTypes: [Ingress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "allow-datastores-from-backend") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  # Les datastores n'acceptent QUE le backend et les Jobs de hook (migrations +
+  # creation du role applicatif) -- sinon le deploiement se bloque (les Jobs
+  # doivent joindre Postgres pour db-role/db-init).
+  podSelector:
+    matchExpressions:
+      - key: facil.component
+        operator: In
+        values: [postgres, redis, minio, openbao]
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: facil.component
+                operator: In
+                values: [backend, db-init, db-role]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "allow-backend-from-frontend") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      facil.component: backend
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              facil.component: frontend
+        {{- if .Values.ingress.enabled }}
+        # Traefik (ingress controller de k3s) vit dans kube-system : necessaire
+        # uniquement si l'Ingress (tache H3) route certains chemins directement
+        # vers le backend (ex. /api) plutot que via le frontend.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+        {{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "allow-frontend-from-ingress") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  # Le frontend doit toujours accepter Traefik (kube-system), meme si l'Ingress
+  # n'est pas encore pose (tache H3) : NodePort/port-forward passent aussi par
+  # kube-proxy, pas par un pod de kube-system -- ce cas est couvert par l'egress
+  # ouvert. Cette regle securise specifiquement le chemin Ingress -> frontend.
+  podSelector:
+    matchLabels:
+      facil.component: frontend
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+{{- end }}
