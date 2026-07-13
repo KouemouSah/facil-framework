@@ -54,13 +54,58 @@ echo "$OUT" | grep -q "ghcr.io/kouemousah/facil-web"
 # APPLY-002 : les hooks pre-install s'executent AVANT les ressources de la release
 # (donc avant Postgres) -> la migration echouerait a la 1ere install. post-install
 # + initContainer d'attente = le seul ordonnancement qui marche install ET upgrade.
-echo "$OUT" | grep -q "helm.sh/hook: post-install,pre-upgrade"
-echo "$OUT" | grep -q "wait-postgres"
-# ATTENTION : `! cmd | grep -q ...` est une assertion MORTE sous `set -e` — POSIX exempte
-# d'errexit toute commande dont le statut est inverse par `!`. Le script continuerait
-# jusqu'a imprimer "OK render". Toujours un if/exit explicite pour une assertion negative.
-if echo "$OUT" | grep -q "helm.sh/hook: pre-install"; then
-  echo "FAIL: hook pre-install encore present -- il s'execute AVANT que Postgres existe" >&2
+#
+# Garde scopee PAR JOB (et non sur tout le rendu) : `db-role-job.yaml` fournit
+# deja son propre `wait-postgres` -- une assertion globale `grep -q wait-postgres`
+# passe donc meme si celui de db-init disparaissait (verifie : elle passait deja
+# avant que db-init n'en ait un -- non-regressive de facto). On extrait chaque
+# Job de hook via son marqueur `# Source: ...` (unique par fichier de template,
+# stable quel que soit l'overlay -f) et on asserte DEDANS.
+extract_job_block() {
+  local source_path="$1"
+  printf '%s' "$OUT" | awk -v RS='\n---\n' -v src="# Source: ${source_path}" '
+    index($0, src) == 1 { print; exit }
+  '
+}
+
+assert_job_hook() {
+  local label="$1" source_path="$2" expected_weight="$3"
+  local block
+  block="$(extract_job_block "$source_path")"
+  if [ -z "$block" ]; then
+    echo "FAIL hook($label): Job introuvable dans le rendu (source: $source_path)" >&2
+    exit 1
+  fi
+  if ! echo "$block" | grep -q "wait-postgres"; then
+    echo "FAIL hook($label): initContainer wait-postgres absent -- migration/role tenterait avant que Postgres soit pret" >&2
+    exit 1
+  fi
+  if ! echo "$block" | grep -q "helm.sh/hook: post-install,pre-upgrade"; then
+    echo "FAIL hook($label): annotation helm.sh/hook=post-install,pre-upgrade absente ou mal formee" >&2
+    exit 1
+  fi
+  if ! echo "$block" | grep -q "helm.sh/hook-weight: \"${expected_weight}\""; then
+    echo "FAIL hook($label): helm.sh/hook-weight attendu \"${expected_weight}\" absent" >&2
+    exit 1
+  fi
+  # ATTENTION : `! cmd | grep -q ...` est une assertion MORTE sous `set -e` — POSIX
+  # exempte d'errexit toute commande dont le statut est inverse par `!`. Toujours
+  # un if/exit explicite pour une assertion negative.
+  if echo "$block" | grep -qE '"?helm\.sh/hook"?: pre-install'; then
+    echo "FAIL hook($label): hook pre-install encore present -- il s'execute AVANT que Postgres existe" >&2
+    exit 1
+  fi
+}
+
+assert_job_hook "db-role" "facil/templates/db-role-job.yaml" "-1"
+assert_job_hook "db-init" "facil/templates/db-init-job.yaml" "0"
+
+# Garde negative globale (style d'annotation normalise non-quote sur les deux
+# Jobs -- cf. commentaire ci-dessus) : aucun `pre-install` nulle part dans le
+# rendu, quelle que soit la forme de la cle (quotee ou non -- couvre une
+# regression qui reintroduirait le style quote).
+if echo "$OUT" | grep -qE '"?helm\.sh/hook"?: pre-install'; then
+  echo "FAIL: hook pre-install detecte dans le rendu complet -- il s'execute AVANT que Postgres existe" >&2
   exit 1
 fi
 # Hardening : `runAsNonRoot: true` seul ne suffit PAS. Nos images déclarent leur

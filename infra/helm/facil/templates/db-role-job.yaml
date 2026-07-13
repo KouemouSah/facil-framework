@@ -12,9 +12,13 @@ metadata:
   name: {{ include "facil.fullname" (dict "name" "db-role") }}
   labels: {{- include "facil.labels" . | nindent 4 }}
   annotations:
-    "helm.sh/hook": post-install,pre-upgrade
-    "helm.sh/hook-weight": "-1"
-    "helm.sh/hook-delete-policy": before-hook-creation
+    # Style d'annotation aligne sur db-init-job.yaml (cle non quotee) : Helm
+    # recopie le texte verbatim (pas de re-serialisation YAML), donc un style
+    # different par Job ferait echouer silencieusement la garde negative anti-
+    # pre-install (regression) du test render : le guillemet casse son motif.
+    helm.sh/hook: post-install,pre-upgrade
+    helm.sh/hook-weight: "-1"
+    helm.sh/hook-delete-policy: before-hook-creation
 spec:
   backoffLimit: 2
   template:
