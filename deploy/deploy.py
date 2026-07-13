@@ -41,7 +41,7 @@ PROVIDERS_DIR = DEPLOY_DIR / "providers"
 DEFAULT_CONFIG = DEPLOY_DIR / "config.yaml"
 PYTHON = sys.executable
 
-SUPPORTED_PROVIDERS = ["gcp", "aws", "azure", "docker-local"]
+SUPPORTED_PROVIDERS = ["gcp", "aws", "azure", "docker-local", "k3s"]
 SUPPORTED_ACTIONS = ["validate", "plan", "apply"]
 
 

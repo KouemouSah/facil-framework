@@ -34,6 +34,10 @@ PROVIDERS_DIR = Path(__file__).resolve().parent
 DEPLOY_DIR = PROVIDERS_DIR.parent
 REPO_ROOT = DEPLOY_DIR.parent
 CHART_DIR = REPO_ROOT / "infra" / "helm" / "facil"
+# Overlay on-prem mono-noeud (tailles/replicas/storageClass — aucun secret).
+# Applique via `-f` avant les `--set` de render_values() (helm applique les
+# `--set` en dernier, donc les deux coexistent sans conflit d'ordre).
+VALUES_ONPREM = CHART_DIR / "values-onprem.yaml"
 SCRIPTS_DIR = DEPLOY_DIR / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 import validate_config as vc  # noqa: E402
@@ -184,7 +188,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.plan:
         print(f"=== k3s plan (namespace={args.namespace}) — helm template, lecture seule ===")
         proc = subprocess.run(
-            [helm, "template", "facil", str(CHART_DIR), *_set_args(values)],
+            [helm, "template", "facil", str(CHART_DIR),
+             "-f", str(VALUES_ONPREM), *_set_args(values)],
             check=False,
         )
         return 0 if proc.returncode == 0 else 2
@@ -234,6 +239,7 @@ def main(argv: list[str] | None = None) -> int:
     rc = subprocess.run(
         [helm, "upgrade", "--install", "facil", str(CHART_DIR),
          "-n", args.namespace, "--create-namespace",
+         "-f", str(VALUES_ONPREM),
          *_set_args(values), "--wait", "--timeout", "10m"],
         check=False,
     ).returncode

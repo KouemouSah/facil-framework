@@ -144,6 +144,73 @@ def test_main_validate_returns_1_on_bad_config(monkeypatch, tmp_path):
     assert rc == 1
 
 
+def test_values_onprem_file_exists_and_has_no_secret():
+    # Referenced by --plan/--apply (-f overlay) and by the CI workflow
+    # (task 1.11) — must exist at this exact path, secret-free.
+    path = k3s.REPO_ROOT / "infra" / "helm" / "facil" / "values-onprem.yaml"
+    assert path.exists()
+    text = path.read_text(encoding="utf-8").lower()
+    for banned in ("password", "secret_key", "token", "root_token"):
+        assert banned not in text.replace("devmode", "")
+
+
+def test_plan_passes_values_onprem_overlay_to_helm_template(monkeypatch):
+    captured_cmds = []
+
+    def fake_run(cmd, **kwargs):
+        captured_cmds.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(k3s, "find_helm", lambda: "/usr/bin/helm")
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+
+    rc = k3s.main(["--plan", "--config", str(PROVIDERS_DIR.parent / "config.yaml")])
+
+    assert rc == 0
+    assert len(captured_cmds) == 1
+    cmd = captured_cmds[0]
+    assert "-f" in cmd
+    f_idx = cmd.index("-f")
+    assert cmd[f_idx + 1] == str(k3s.VALUES_ONPREM)
+
+
+def test_apply_passes_values_onprem_overlay_to_helm_upgrade(monkeypatch, tmp_path):
+    captured_cmds = []
+
+    def fake_run(cmd, **kwargs):
+        captured_cmds.append(cmd)
+        if "create" in cmd and "secret" in cmd:
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(k3s, "find_helm", lambda: "/usr/bin/helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "/usr/bin/kubectl")
+    env_secrets = tmp_path / ".env.secrets"
+    env_secrets.write_text(
+        "POSTGRES_PASSWORD=pw\nJWT_SECRET_KEY=jwt\nSECRET_KEY=sk\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(k3s, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+
+    rc = k3s.main(["--apply", "--config", str(PROVIDERS_DIR.parent / "config.yaml"), "--yes"])
+
+    assert rc == 0
+    upgrade_cmd = next(c for c in captured_cmds if "upgrade" in c)
+    assert "-f" in upgrade_cmd
+    f_idx = upgrade_cmd.index("-f")
+    assert upgrade_cmd[f_idx + 1] == str(k3s.VALUES_ONPREM)
+
+
+def test_deploy_py_knows_k3s_provider():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "deploy_main", Path(__file__).resolve().parents[1] / "deploy.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert "k3s" in mod.SUPPORTED_PROVIDERS
+
+
 def test_apply_never_prints_the_captured_secret_dry_run_stdout(monkeypatch, tmp_path, capsys):
     # Security-critical invariant (only manual review protects it today):
     # the `kubectl create secret --dry-run=client -o yaml` stdout, which

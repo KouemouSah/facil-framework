@@ -668,6 +668,10 @@ def provider_required_fields(cfg: DeployConfig, provider: str) -> list[str]:
     elif provider == "docker-local":
         # Self-contained, nothing extra required at this stage.
         pass
+    elif provider == "k3s":
+        # Self-contained on-prem mono-noeud (helm chart + values-onprem.yaml
+        # overlay) — nothing cloud-account-specific required at this stage.
+        pass
     return missing
 
 
@@ -692,7 +696,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("config", type=Path, help="Path to config.yaml")
     parser.add_argument(
         "--provider",
-        choices=["gcp", "aws", "azure", "docker-local"],
+        choices=["gcp", "aws", "azure", "docker-local", "k3s"],
         default=None,
         help="Validate provider-specific required fields too.",
     )
