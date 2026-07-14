@@ -48,6 +48,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.concurrency import enforce_if_match, row_etag
 from app.api.deps import get_session
 from app.auth import audit
+from app.core.cache import Cache
+from app.core.schema import cache as schema_cache
 from app.core.schema import indexing
 from app.core.schema import repository as schema_repo
 from app.core.schema.registry import EXTENSIBLE_TARGETS
@@ -256,7 +258,8 @@ async def _check_indexed_cap(session: AsyncSession, target: str,
                  f"{target!r} (max {MAX_INDEXED_PER_TARGET})")
 
 
-async def _commit(session: AsyncSession, *, key: str, target: str) -> None:
+async def _commit(session: AsyncSession, *, key: str, target: str,
+                  organization_id: str, cache: Cache | None) -> None:
     """Commit, mapping the `uq_field_definition_org_target_key` violation to a
     409 instead of a bare 500. Redefining a key that already exists is the most
     likely admin mistake there is; it must not surface as a server error. Same
@@ -269,6 +272,13 @@ async def _commit(session: AsyncSession, *, key: str, target: str) -> None:
     the owning organization for every definition write) is not worth it at this
     scale. Documented rather than silently ignored; revisit if the indexed cap
     ever gates real concurrent index builds (Task 14).
+
+    D2: on a SUCCESSFUL commit only (a rolled-back 409 persisted nothing, so
+    there is nothing stale to evict), invalidate the resolved-schema cache
+    entry for this exact `(organization_id, target)` — every write path in
+    this module funnels through here for exactly this reason: miss one and
+    an admin defines/archives/purges a field and does not see the change,
+    the worst kind of "it works on my machine" (see `core.schema.cache`).
     """
     try:
         await session.commit()
@@ -277,6 +287,7 @@ async def _commit(session: AsyncSession, *, key: str, target: str) -> None:
         raise HTTPException(
             409, f"a field definition for key {key!r} on {target!r} already "
                  f"exists in this organization") from e
+    await schema_cache.invalidate(cache, organization_id, target)
 
 
 async def _assert_org_exists(session: AsyncSession, organization_id: str) -> None:
@@ -313,12 +324,19 @@ def _apply_spec(row: FieldDefinition, body: FieldDefinitionIn) -> None:
 
 async def _run_index_build(db: Database, definition_id: str, target: str,
                           spec: dict, organization_id: str,
-                          actor: str | None) -> None:
+                          actor: str | None, cache: Cache | None = None) -> None:
     """The background job Task 14 promised: `CREATE INDEX CONCURRENTLY` cannot
     run inside the request's transaction, so this runs AFTER the response
     (via `BackgroundTasks`), on the app's own engine, in its own AUTOCOMMIT
     connection (`indexing.create_index`). It then opens a FRESH session (the
     request's session is long gone) to record the outcome.
+
+    D2: the TERMINAL `index_state` (`ready`/`failed`, or SQLite's `none`) is
+    part of the resolved schema payload (`FieldDefinition.as_spec()` carries
+    `index_state`), so this transition must invalidate the resolved-schema
+    cache exactly like every other write path in this module — otherwise a
+    build that just went `pending` -> `ready` would keep reporting `pending`
+    to every form that reads the cached entry until the TTL expires.
 
     Never swallows a failure: on ANY exception the reason is logged
     (`logger.exception`, full traceback) and `index_state` is set to
@@ -361,6 +379,7 @@ async def _run_index_build(db: Database, definition_id: str, target: str,
                                            "organization_id": organization_id,
                                            "action": f"index_build_{terminal}"})
             await session.commit()
+            await schema_cache.invalidate(cache, organization_id, target)
 
 
 @router.post("/{definition_id}/index")
@@ -391,10 +410,12 @@ async def build_index(definition_id: str, background_tasks: BackgroundTasks,
                        account_id=principal.get("sub"),
                        detail={"id": definition_id, "target": row.target,
                                "key": row.key, "action": "index_build_requested"})
-    await _commit(session, key=row.key, target=row.target)
+    cache = getattr(request.app.state, "cache", None)
+    await _commit(session, key=row.key, target=row.target,
+                 organization_id=row.organization_id, cache=cache)
     background_tasks.add_task(_run_index_build, request.app.state.db, definition_id,
                               row.target, row.as_spec(), row.organization_id,
-                              principal.get("sub"))
+                              principal.get("sub"), cache)
     return _public(row)
 
 
@@ -445,6 +466,7 @@ async def get_definition(definition_id: str,
 
 @router.post("/", status_code=201)
 async def create_definition(organization_id: str, body: FieldDefinitionIn,
+                            request: Request,
                             principal: dict = Depends(require_auth),
                             session: AsyncSession = Depends(get_session)) -> dict:
     await _authorize_org(session, principal, organization_id)
@@ -479,7 +501,9 @@ async def create_definition(organization_id: str, body: FieldDefinitionIn,
     await audit.record(session, audit.FIELD_DEFINITION_CREATED, account_id=actor,
                        detail={"target": body.target, "key": body.key,
                                "organization_id": organization_id})
-    await _commit(session, key=body.key, target=body.target)
+    await _commit(session, key=body.key, target=body.target,
+                 organization_id=organization_id,
+                 cache=getattr(request.app.state, "cache", None))
     return _public(row)
 
 
@@ -546,7 +570,9 @@ async def update_definition(definition_id: str, body: FieldDefinitionIn,
     await audit.record(session, audit.FIELD_DEFINITION_CHANGED,
                        account_id=principal.get("sub"),
                        detail={"id": definition_id, "target": row.target, "key": row.key})
-    await _commit(session, key=row.key, target=row.target)
+    await _commit(session, key=row.key, target=row.target,
+                 organization_id=row.organization_id,
+                 cache=getattr(request.app.state, "cache", None))
     return _public(row)
 
 
@@ -622,7 +648,9 @@ async def _set_archived(definition_id: str, request: Request, background_tasks: 
     await audit.record(session, action, account_id=principal.get("sub"),
                        detail={"id": definition_id, "target": row.target,
                                "key": row.key})
-    await _commit(session, key=row.key, target=row.target)
+    await _commit(session, key=row.key, target=row.target,
+                 organization_id=row.organization_id,
+                 cache=getattr(request.app.state, "cache", None))
     return _public(row)
 
 
@@ -679,7 +707,8 @@ async def purge_definition(definition_id: str, request: Request,
     await session.delete(row)
     await audit.record(session, audit.FIELD_DEFINITION_PURGED,
                        account_id=principal.get("sub"), detail=detail)
-    await _commit(session, key=row.key, target=row.target)
+    await _commit(session, key=key, target=target, organization_id=organization_id,
+                 cache=getattr(request.app.state, "cache", None))
     if had_index:
         background_tasks.add_task(indexing.drop_index, request.app.state.db.engine,
                                   target, key, organization_id)

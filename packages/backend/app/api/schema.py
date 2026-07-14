@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
+from app.core.schema import cache as schema_cache
 from app.core.schema import repository as schema_repo
 from app.core.schema.registry import EXTENSIBLE_TARGETS
 from app.core.schema.resolver import resolve
@@ -42,8 +43,20 @@ async def get_schema(target: str, request: Request, organization_id: str | None 
         allowed = await visible_orgs(session, principal, "organization.read")
         if allowed is not None and organization_id not in allowed:
             raise HTTPException(404, f"organization {organization_id!r} not found")
-        rows = await schema_repo.definitions_for(session, target, organization_id)
-        db_specs = [r.as_spec() for r in rows]
+
+        # Cache of the RESOLVED schema (D2, spec §7's promised cache) — one
+        # DB round trip per (organization_id, target) instead of one per
+        # request. Keyed STRICTLY by (organization_id, target); see
+        # `core.schema.cache`'s module docstring for why that is the one
+        # thing that must never change. `getattr(..., None)` mirrors
+        # `security/rate_limit.py`'s convention: no cache configured on
+        # `app.state` -> transparently fall back to resolving from the DB.
+        cache = getattr(request.app.state, "cache", None)
+        db_specs = await schema_cache.get(cache, organization_id, target)
+        if db_specs is None:
+            rows = await schema_repo.definitions_for(session, target, organization_id)
+            db_specs = [r.as_spec() for r in rows]
+            await schema_cache.set(cache, organization_id, target, db_specs)
 
     try:
         fields = resolve(registry, target, db_specs=db_specs)
