@@ -58,6 +58,7 @@ SECRET_NAMES = {
     "minio": "facil-minio-secret", "openbao": "facil-openbao-secret",
     "backend": "facil-backend-secret",
     "db-role": "facil-db-role-secret",
+    "backup": "facil-backup-secret",
 }
 
 
@@ -139,6 +140,10 @@ def build_secret_literals(env_secrets: dict[str, str], *, cfg: vc.DeployConfig
         out["backend"]["BACKEND_DATABASE_URL"] = backend_database_url(cfg, app_pw)
     # Le Job db-role a besoin du superuser (pour CREATE ROLE) ET du mdp applicatif.
     out["db-role"] = pick("POSTGRES_PASSWORD", "FACIL_APP_PASSWORD")
+    # Le Job de backup (hook pre-upgrade) : dump Postgres complet (superuser) +
+    # mirror des buckets MinIO (root). Ses propres credentials, cloisonnes --
+    # jamais ceux du backend.
+    out["backup"] = pick("POSTGRES_PASSWORD", "MINIO_ROOT_PASSWORD")
     return {k: v for k, v in out.items() if v}
 
 

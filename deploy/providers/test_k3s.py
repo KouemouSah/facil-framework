@@ -284,6 +284,26 @@ def test_each_component_secret_holds_only_its_own_credential():
     assert set(lit["openbao"]) == {"OPENBAO_DEV_ROOT_TOKEN"}
 
 
+def test_backup_secret_holds_only_what_the_backup_job_needs():
+    # Le Job de backup a besoin du superuser PG (dump complet) et du root MinIO
+    # (lire tous les buckets) -- mais de RIEN d'autre. Un Secret dedie, jamais
+    # celui du backend (SEC-001 : une RCE dans le backend ne doit pas livrer le
+    # data-plane, et ce test-la doit rester vert).
+    lit = k3s.build_secret_literals(_FULL_SECRETS, cfg=_cfg())
+    assert set(lit["backup"]) == {"POSTGRES_PASSWORD", "MINIO_ROOT_PASSWORD"}
+    assert k3s.SECRET_NAMES["backup"] == "facil-backup-secret"
+
+
+def test_backend_still_has_no_root_credentials_after_adding_backup():
+    # Garde-fou explicite : l'ajout du composant "backup" ne doit pas rouvrir le
+    # blast radius qu'on a ferme.
+    lit = k3s.build_secret_literals(_FULL_SECRETS, cfg=_cfg())
+    backend = lit["backend"]
+    assert "POSTGRES_PASSWORD" not in backend
+    assert "MINIO_ROOT_PASSWORD" not in backend
+    assert "OPENBAO_DEV_ROOT_TOKEN" not in backend
+
+
 def test_secret_keys_allowlist_matches_config_secret_names():
     # Post-S1: SECRET_KEYS (flat allowlist) is gone — the "backend" component's
     # pick() list is now the allowlist. Every secret name deploy/config.yaml

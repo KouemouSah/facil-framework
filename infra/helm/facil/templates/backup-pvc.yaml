@@ -1,0 +1,22 @@
+{{- if .Values.backup.enabled }}
+{{/*
+PVC dedie aux sauvegardes. PAS un volumeClaimTemplate : le Job de backup est un
+hook ephemere, il ne possede pas de StatefulSet -- le volume doit lui SURVIVRE
+(c'est tout l'interet). D'ou un PersistentVolumeClaim autonome, conserve entre
+les releases (annotation helm.sh/resource-policy: keep : un `helm uninstall` ne
+doit PAS emporter les sauvegardes avec lui).
+*/}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "backups") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: {{ .Values.global.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.backup.storage }}
+{{- end }}
