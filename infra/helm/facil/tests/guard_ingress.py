@@ -48,8 +48,15 @@ import yaml
 
 EXPECTED_CLASS = "traefik"
 # (path, pathType attendu, composant facil.component attendu)
+# "/scim" (SCIM v2, packages/backend/app/scim/api.py:20) est le seul autre
+# prefixe hors "/api" que le backend monte -- appele par l'IdP externe pour
+# le provisionnement federe. Sans cette route, /scim/v2/... tombe sur "/" ->
+# frontend -> 404 (capacite backend orpheline, cf. CLAUDE.md). "/health"
+# (racine, main.py) est exclu DELIBEREMENT : le kubelet sonde le Pod
+# directement, jamais via l'Ingress -- voir le commentaire d'ingress.yaml.
 EXPECTED_ROUTES = [
     ("/api", "Prefix", "backend"),
+    ("/scim", "Prefix", "backend"),
     ("/", "Prefix", "frontend"),
 ]
 

@@ -103,6 +103,73 @@ def test_root_path_routes_to_frontend_service(default_render):
     assert root_path["backend"]["service"]["name"] == "facil-frontend"
 
 
+def test_scim_path_routes_to_backend_service(default_render):
+    # Parite backend<->Ingress (CLAUDE.md) : packages/backend/app/scim/api.py:20
+    # monte `APIRouter(prefix="/scim/v2")` -- le SEUL autre prefixe hors /api
+    # que le backend expose. Sans cette route, l'IdP externe qui appelle
+    # /scim/v2/Users tombe sur la regle "/" -> frontend -> 404.
+    docs = guard_ingress._load_docs(default_render)
+    ing = guard_ingress.iter_ingresses(docs)[0]
+    paths = ing["spec"]["rules"][0]["http"]["paths"]
+    scim_path = next(p for p in paths if p["path"] == "/scim")
+    assert scim_path["backend"]["service"]["name"] == "facil-backend"
+    assert scim_path["pathType"] == "Prefix"
+
+
+def test_catches_missing_scim_route_entirely():
+    # Preuve par mutation : un Ingress sans /scim (l'etat AVANT ce correctif)
+    # doit etre detecte -- sinon la federation d'identite resterait
+    # silencieusement injoignable en k3s malgre un backend qui l'expose.
+    doc = """
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: facil-ingress
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: facil.local
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: facil-backend
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: facil-frontend
+                port:
+                  number: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: facil-backend
+spec:
+  selector:
+    facil.component: backend
+  ports:
+    - port: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: facil-frontend
+spec:
+  selector:
+    facil.component: frontend
+  ports:
+    - port: 3000
+"""
+    problems = guard_ingress.check(doc)
+    assert any("/scim" in p for p in problems), problems
+
+
 def _mutate_api_backend_service_name(rendered: str, new_service_name: str) -> str:
     """Repointe UNIQUEMENT le Service cible du path `/api` de l'Ingress (round-trip
     YAML, pas un remplacement texte global qui muterait aussi le Service lui-meme

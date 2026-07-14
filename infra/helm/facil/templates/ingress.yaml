@@ -7,16 +7,32 @@ hote. Traefik est l'ingress controller embarque de k3s (`ingressClassName:
 traefik`) : aucune installation supplementaire requise sur un k3s standard.
 
 Ordre des paths et priorite : avec `pathType: Prefix`, la regle "/" matche
-TOUT chemin (y compris /api/...). Un Ingress `networking.k8s.io/v1` ne suit
-PAS l'ordre de declaration pour departager deux prefixes qui matchent tous
-les deux -- la specification impose (et Traefik l'applique, comme les autres
-controllers conformes) que le PREFIXE LE PLUS LONG gagne, quel que soit
-l'ordre d'ecriture. "/api" (5 caracteres) l'emporte donc toujours sur "/"
-(1 caractere). On liste neanmoins "/api" en premier par lisibilite humaine ;
-`guard_ingress.py` (SEC-024) verifie le ROUTAGE reel (Service + port resolus
-par prefixe), pas seulement la presence des deux regles -- voir
-tests/guard_ingress.py et task-H3-report.md pour la verification du prefixe
-reel des routes backend (`/api/v1/...`).
+TOUT chemin (y compris /api/... et /scim/...). Un Ingress
+`networking.k8s.io/v1` ne suit PAS l'ordre de declaration pour departager
+deux prefixes qui matchent tous les deux -- la specification impose (et
+Traefik l'applique, comme les autres controllers conformes) que le PREFIXE LE
+PLUS LONG gagne, quel que soit l'ordre d'ecriture. "/api" et "/scim" (tous
+deux plus longs) l'emportent donc toujours sur "/" (1 caractere). On les liste
+neanmoins avant "/" par lisibilite humaine ; `guard_ingress.py` (SEC-024)
+verifie le ROUTAGE reel (Service + port resolus par prefixe), pas seulement la
+presence des regles -- voir tests/guard_ingress.py et task-H3-report.md pour
+la verification du prefixe reel des routes backend (`/api/v1/...`).
+
+Parite backend <-> Ingress (CLAUDE.md) : le backend ne monte que DEUX prefixes
+hors "/" -- `/api/v1/...` (toutes les ressources REST) et `/scim/v2/...`
+(SCIM, `packages/backend/app/scim/api.py:20`, provisionnement par un IdP
+externe). Sans route "/scim", ces appels tombent sur la regle "/" ->
+frontend -> 404 : la federation d'identite serait inutilisable en k3s, alors
+que le backend l'expose reellement -- une capacite backend orpheline. D'ou le
+3e path ci-dessous.
+
+Exclusion DELIBEREE et documentee (pas subie) : `@app.get("/health")` a la
+racine (main.py) est la SEULE autre route hors "/api"/"/scim", et elle n'est
+PAS exposee par cet Ingress -- volontairement. Les sondes readiness/liveness
+du kubelet (backend.yaml) tapent le Pod directement par IP:port, jamais via
+l'Ingress/Service ; l'exposer publiquement n'apporterait rien et elargirait
+la surface. `guard_ingress.py` ne verifie donc que les routes attendues
+`/api` + `/scim` + `/` -- l'absence de `/health` n'est pas un gap.
 
 TLS = HORS PERIMETRE (P2 : cert-manager ou OpenBao PKI). Cet Ingress expose en
 HTTP simple sur le reseau du noeud -- acceptable pour le socle on-prem actuel
@@ -34,6 +50,13 @@ spec:
       http:
         paths:
           - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "facil.fullname" (dict "name" "backend") }}
+                port:
+                  number: {{ .Values.backend.port }}
+          - path: /scim
             pathType: Prefix
             backend:
               service:
