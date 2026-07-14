@@ -593,3 +593,27 @@ def test_cli_exits_zero_on_clean_render(default_render):
     )
     assert result.returncode == 0
     assert "OK garde-backup" in result.stdout
+
+
+def test_mirror_step_uses_only_binaries_that_exist_in_the_minio_image(default_render):
+    """BUG REEL (smoke k3d, nouveaux manifestes) : la garde de non-vacuite du
+    mirror utilisait `find` -- absent de l'image minio/minio (`sh: find: command
+    not found`). Le comptage tombait a 0 alors que le mirror avait REUSSI, donc
+    la garde avortait TOUS les upgrades. Fail-closed, mais faux positif bloquant,
+    invisible pour helm lint / helm template / les tests unitaires.
+
+    `mc` est le seul binaire garanti dans ce conteneur -- c'est sa raison d'etre.
+    """
+    docs = list(yaml.safe_load_all(default_render))
+    backup_doc = next(
+        d for d in docs if isinstance(d, dict) and d.get("kind") == "Job"
+        and (d.get("metadata") or {}).get("name") == "facil-backup")
+    mirror = next(
+        c for c in backup_doc["spec"]["template"]["spec"]["initContainers"]
+        if c.get("name") == "mirror-minio")
+    argv = guard_backup._container_argv_text(mirror)
+    commands = [l.strip() for l in argv.splitlines()
+                if l.strip() and not l.strip().startswith("#")]
+    assert not any(c.startswith("find ") or "$(find " in c for c in commands), (
+        "l'image minio/minio n'a pas `find` -- utiliser `mc ls --recursive`")
+    assert "mc ls --recursive" in argv

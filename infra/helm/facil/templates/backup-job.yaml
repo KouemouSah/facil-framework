@@ -200,7 +200,14 @@ spec:
                 echo "FAIL: le mirror MinIO a echoue -- upgrade avorte AVANT migration." >&2
                 exit 1
               }
-              DST_N="$(find "$DEST" -type f | wc -l)"
+              # `mc ls --recursive`, PAS `find` : l'image minio/minio ne contient
+              # PAS `find` (verifie sur le cluster : `sh: find: command not found`).
+              # Le comptage tombait donc a 0 alors que le mirror avait REUSSI, et
+              # cette garde avortait TOUS les upgrades -- un faux positif que ni
+              # `helm lint`, ni `helm template`, ni les tests unitaires ne pouvaient
+              # voir. `mc` est le seul binaire garanti ici : c'est tout l'objet de
+              # ce conteneur.
+              DST_N="$(mc ls --recursive "$DEST" | wc -l)"
               # FAIL-CLOSED, symetrique du dump : 0 objet source = 0 fichier
               # mirore reste vert (install neuve sans objet -- pas de faux positif).
               if [ "$SRC_N" -ne "$DST_N" ]; then

@@ -128,6 +128,43 @@ place.
   fail-closed (aucune migration ne passe), mais le diagnostic est opaque :
   passer par `k3s.py --apply`.
 
+## Smoke — REJEU sur les manifestes durcis (task-E2, cluster k3d jetable, 2026-07-14)
+
+Le smoke E1 (plus bas) avait été passé sur les **anciens** manifestes. La revue
+E2 a ensuite modifié la restauration en profondeur — `containers` →
+`initContainers` séquentiels, conteneur de **pré-vol**, `pg_restore
+--single-transaction`, `mc mirror --remove`, et une **post-condition de
+non-vacuité sur le miroir MinIO**. Ces changements n'étaient couverts que par des
+tests unitaires : le smoke a donc été **entièrement rejoué**.
+
+**1 bug réel trouvé — invisible pour `helm lint`, `helm template` et les 715
+tests unitaires** : la nouvelle garde de non-vacuité du miroir comptait les
+fichiers écrits avec **`find`**, absent de l'image `minio/minio`
+(`sh: find: command not found`). Le compte tombait à `0` alors que le miroir
+avait **réussi** (44 B copiés) → `FAIL: mirror MinIO incomplet (0/1 objets)` →
+**tous les upgrades avortaient**. Fail-closed (aucune donnée perdue, `db-init`
+n'a jamais démarré), mais faux positif bloquant. Corrigé avec `mc ls --recursive`
+(le seul binaire garanti dans ce conteneur), plus un test de non-régression qui
+interdit `find` dans cette étape.
+
+| # | Critère | Résultat réel observé (rejeu E2) |
+|---|---|---|
+| 1 | Cluster k3d jetable, stack saine | ✅ 9 pods, 3 Jobs `Complete`, 3 PVC `Bound` |
+| 2 | Données réelles (Postgres + MinIO) | ✅ `organization` `code=SMOKE-E2` + objet `facil-documents/smoke-e2/proof.txt` (44 B) |
+| 3 | `facil-backup` **avant** `db-role`/`db-init` | ✅ **prouvé par les `startTime` réels** : backup 21:52:33→42, db-role 42→49, db-init 49→58 — strictement séquentiel |
+| 4 | PVC : dump non vide + miroir MinIO | ✅ `postgres.dump` = 286 556 o ; `minio/facil-documents/smoke-e2/proof.txt` présent dans le même horodatage `20260714T215237Z` |
+| 5 | Destruction réelle des deux côtés | ✅ `DELETE` → `count=0` ; `mc rm` → listing vide |
+| 6 | `--rollback` : manifestes reviennent, **données NON** | ✅ avertissement affiché **avant** l'action ; après rollback : `0` / listing vide. **`--yes` ne contourne plus la confirmation** (vérifié : le prompt s'affiche, « n » annule) |
+| 7 | **`--restore` : les données reviennent** | ✅ **LE critère** — pré-vol OK → Postgres → MinIO (séquentiels) → `restauration terminee (toutes les etapes ont reussi)`. Ligne `SMOKE-E2` et objet 44 B **identiques bit pour bit** à l'état pré-destruction |
+| 8 | Fail-closed : mot de passe cassé → `db-init` ne démarre **jamais** | ✅ `pg_dump: FATAL: password authentication failed` → `pre-upgrade hooks failed` → `--atomic` rollback auto (rev. 7 `failed` → 8 `Rollback to 6`) ; **UID de `facil-db-init` ET `facil-db-role` INCHANGÉS** avant/après — jamais recréés, donc jamais exécutés |
+| 9 | Cluster détruit | ✅ `k3d cluster delete facil-smoke` + `docker system prune -f` |
+
+Bonus prouvé en vrai : le correctif **cp1252** (crash `UnicodeEncodeError` *après*
+une restauration réussie) — le tableau semi-graphique de `mc mirror`, recopié
+verbatim depuis `kubectl logs`, s'affiche désormais sans faire planter le script.
+
+---
+
 ## Smoke — résultats observés (task-E1, cluster k3d jetable, 2026-07-14)
 
 **Contexte** : `helm lint`/`helm template`/646 tests unitaires étaient déjà
