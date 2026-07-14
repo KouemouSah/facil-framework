@@ -381,6 +381,50 @@ spec:
     assert guard_secrets.check(doc) == []
 
 
+def test_mkdir_dash_p_creating_a_variable_path_is_not_a_false_positive():
+    # `mkdir -p "$DEST"` (cree les repertoires parents d'un chemin horodate) est
+    # un idiome shell omnipresent -- pas un flag de mot de passe. Sans
+    # exemption ciblee, TOUT script qui cree un repertoire nomme par une
+    # variable ferait rougir la garde : c'etait le cas reel du Job de
+    # sauvegarde (backup-job.yaml, `mkdir -p "$DEST"` x2) avant ce correctif.
+    doc = """
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fine
+spec:
+  template:
+    spec:
+      containers:
+        - name: fine
+          command: ["sh", "-c"]
+          args:
+            - |
+              DEST="/backups/${TS}"
+              mkdir -p "$DEST"
+"""
+    assert guard_secrets.check(doc) == []
+
+
+def test_mkdir_dash_p_exemption_does_not_hide_a_real_password_flag_same_line():
+    # L'exemption est scopee au motif EXACT `mkdir -p` -- un vrai flag
+    # credential ailleurs (meme ligne) doit rester detecte.
+    doc = """
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: evil
+spec:
+  template:
+    spec:
+      containers:
+        - name: evil
+          command: ["sh", "-c", "mkdir -p /tmp && mysql -p\\"$PASSWORD\\" -h db"]
+"""
+    problems = guard_secrets.check(doc)
+    assert any("evil/evil" in p and "-p " in p for p in problems), problems
+
+
 def test_conf_file_directive_requirepass_without_dashes_is_not_flagged():
     # `requirepass <valeur>` DANS un fichier de conf (ecrit via heredoc/cat,
     # jamais un argument de ligne de commande) n'est PAS le motif banni --

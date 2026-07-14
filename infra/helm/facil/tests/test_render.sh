@@ -94,19 +94,28 @@ extract_job_block() {
 }
 
 assert_job_hook() {
+  # $4/$5 sont optionnels (retro-compatibles : les deux anciens appels ci-dessous
+  # n'en passent que 3) -- ajoutes pour le Job de sauvegarde (P2/A2), qui n'est PAS
+  # un post-install (rien a sauvegarder a la 1ere install, decision de conception
+  # verrouillee) et n'a PAS besoin d'attendre Postgres (il tourne en pre-upgrade,
+  # sur une release deja etablie ou Postgres tourne forcement deja -- contrairement
+  # a db-role/db-init qui peuvent s'executer en post-install, juste apres que
+  # Postgres vient de demarrer).
   local label="$1" source_path="$2" expected_weight="$3"
+  local expected_hook="${4:-post-install,pre-upgrade}"
+  local require_wait_postgres="${5:-true}"
   local block
   block="$(extract_job_block "$source_path")"
   if [ -z "$block" ]; then
     echo "FAIL hook($label): Job introuvable dans le rendu (source: $source_path)" >&2
     exit 1
   fi
-  if ! echo "$block" | grep -q "wait-postgres"; then
+  if [ "$require_wait_postgres" = "true" ] && ! echo "$block" | grep -q "wait-postgres"; then
     echo "FAIL hook($label): initContainer wait-postgres absent -- migration/role tenterait avant que Postgres soit pret" >&2
     exit 1
   fi
-  if ! echo "$block" | grep -q "helm.sh/hook: post-install,pre-upgrade"; then
-    echo "FAIL hook($label): annotation helm.sh/hook=post-install,pre-upgrade absente ou mal formee" >&2
+  if ! echo "$block" | grep -q "helm.sh/hook: ${expected_hook}"; then
+    echo "FAIL hook($label): annotation helm.sh/hook=${expected_hook} absente ou mal formee" >&2
     exit 1
   fi
   if ! echo "$block" | grep -q "helm.sh/hook-weight: \"${expected_weight}\""; then
@@ -124,6 +133,8 @@ assert_job_hook() {
 
 assert_job_hook "db-role" "facil/templates/db-role-job.yaml" "-1"
 assert_job_hook "db-init" "facil/templates/db-init-job.yaml" "0"
+# P2 : la sauvegarde doit tourner AVANT les migrations, sinon elle ne protege rien.
+assert_job_hook "backup" "facil/templates/backup-job.yaml" "-2" "pre-upgrade" "false"
 
 # Garde negative globale (style d'annotation normalise non-quote sur les deux
 # Jobs -- cf. commentaire ci-dessus) : aucun `pre-install` nulle part dans le
