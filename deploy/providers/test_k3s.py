@@ -1391,3 +1391,42 @@ def test_the_guard_does_not_fire_when_backup_is_enabled(monkeypatch, tmp_path):
     calls = _apply_env(monkeypatch, tmp_path, backup_enabled=True, existing_release=True)
     assert _run_apply(tmp_path) == 0
     assert any("upgrade" in c for c in calls)
+
+
+# --- M5 : "l'appli est cassee" et "je n'ai pas pu lui demander" ne sont pas ---
+#     la meme conclusion -- la premiere pousse a --rollback, la plus risquee.
+
+def _health_gate_failing(monkeypatch, stderr):
+    monkeypatch.setattr(
+        k3s.subprocess, "run",
+        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1, stdout="", stderr=stderr))
+    monkeypatch.setattr(k3s.time, "sleep", lambda s: None)
+
+
+def test_health_gate_does_not_blame_the_app_when_it_could_not_even_ask(monkeypatch, capsys):
+    # `kubectl exec` peut echouer POUR LUI-MEME : pod en cours de terminaison en
+    # fin de rolling update, RBAC, skew kubectl. Le gate concluait quand meme
+    # "c'est donc l'APPLICATION qui est en cause" -- un mensonge qui pousse
+    # l'operateur vers --rollback, l'operation la plus risquee du provider.
+    _health_gate_failing(monkeypatch, "Error from server (Forbidden): pods is forbidden")
+    rc = k3s.health_gate("kubectl", "facil", 8080, attempts=2, delay_seconds=0)
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "NON CONCLUANT" in err
+    assert "l'APPLICATION" not in err, (
+        "ne pas accuser l'application quand on n'a meme pas pu l'interroger")
+    assert "rollback" not in err.lower() or "pas" in err.lower()
+
+
+def test_health_gate_blames_the_app_when_the_app_really_answered_unhealthy(monkeypatch, capsys):
+    # A l'inverse : une HTTPError remontee par la sonde, c'est l'application qui
+    # a REPONDU non-200 (le /health du backend renvoie 503 quand la base est
+    # injoignable). La, l'accusation est fondee.
+    _health_gate_failing(
+        monkeypatch,
+        'Traceback...\n  urllib.error.HTTPError: HTTP Error 503: Service Unavailable')
+    rc = k3s.health_gate("kubectl", "facil", 8080, attempts=2, delay_seconds=0)
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "l'APPLICATION" in err
+    assert "NON CONCLUANT" not in err

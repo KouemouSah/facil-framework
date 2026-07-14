@@ -219,7 +219,11 @@ def _container_exit_summary(kubectl: str, namespace: str, job_name: str) -> str:
         capture_output=True, text=True, encoding="utf-8", errors="replace", check=False,
     )
     if proc.returncode != 0 or not proc.stdout.strip():
-        return ""
+        # "pas de detail" et "detail indisponible" ne se lisent pas pareil : le
+        # premier suggere qu'il n'y avait rien a dire, le second avoue une
+        # ignorance. Sur un rapport d'echec de restauration, la nuance dit a
+        # l'operateur s'il doit chercher ailleurs.
+        return "Statut par conteneur : INDISPONIBLE (introspection du pod en echec)"
     lines: list[str] = []
     for entry in proc.stdout.strip().splitlines():
         name, _, code = entry.partition("=")

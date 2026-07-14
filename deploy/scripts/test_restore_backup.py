@@ -165,11 +165,17 @@ def test_container_exit_summary_reports_which_container_failed(monkeypatch):
     assert "restore-minio=ECHEC (exit 1)" in summary
 
 
-def test_container_exit_summary_empty_when_introspection_fails(monkeypatch):
+def test_container_exit_summary_admits_ignorance_when_introspection_fails(monkeypatch):
+    # "pas de detail" et "detail INDISPONIBLE" ne se lisent pas pareil : le
+    # premier suggere qu'il n'y avait rien a dire, le second avoue une ignorance.
+    # Sur un rapport d'echec de restauration, la nuance dit a l'operateur s'il
+    # doit chercher ailleurs. (La fonction ne leve toujours pas : elle ne doit
+    # jamais faire planter le rapport global d'erreur qu'elle enrichit.)
     monkeypatch.setattr(
         rb.subprocess, "run",
         lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1, stdout="", stderr="denied"))
-    assert rb._container_exit_summary("kubectl", "facil", rb.RESTORE_JOB) == ""
+    summary = rb._container_exit_summary("kubectl", "facil", rb.RESTORE_JOB)
+    assert "INDISPONIBLE" in summary
 
 
 def test_restore_failure_reports_per_container_status_in_stderr(monkeypatch, capsys):

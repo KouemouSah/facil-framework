@@ -429,15 +429,42 @@ def health_gate(kubectl: str, namespace: str, port: int, *,
         last_diag = (proc.stderr or proc.stdout or "").strip()
         if attempt < attempts:
             time.sleep(delay_seconds)
-    print(
-        f"ERREUR: health-gate post-upgrade a echoue -- '{deployment}' (namespace "
-        f"'{namespace}') ne repond pas sur /health apres {attempts} tentative(s).\n"
-        f"Helm a pourtant declare la release reussie (--wait) : c'est donc "
-        f"l'APPLICATION, pas seulement le pod, qui est en cause.\n"
-        f"Dernier diagnostic : {last_diag or '(aucune sortie)'}\n"
-        f"Inspecter : kubectl -n {namespace} logs {deployment}",
-        file=sys.stderr,
-    )
+    # "L'application est cassee" et "je n'ai pas pu lui demander" ne sont PAS la
+    # meme conclusion. La premiere pousse l'operateur vers --rollback -- justement
+    # l'operation la plus risquee du provider (elle ne restaure pas la base). Le
+    # gate accusait l'application dans les DEUX cas : un `kubectl exec` qui echoue
+    # pour lui-meme (pod en cours de terminaison en fin de rolling update, RBAC,
+    # skew kubectl) etait rapporte comme une panne applicative.
+    #
+    # La sonde est un `python -c` : si l'application REPOND non-200, urllib leve
+    # une HTTPError/URLError et sa trace remonte ici. Si `kubectl exec` n'a pas pu
+    # s'executer, c'est kubectl qui parle ("Error from server", "unable to...").
+    app_answered = any(marker in last_diag for marker in
+                       ("HTTPError", "URLError", "urllib", "Connection refused"))
+    if app_answered:
+        print(
+            f"ERREUR: health-gate post-upgrade a echoue -- '{deployment}' (namespace "
+            f"'{namespace}') ne repond pas sur /health apres {attempts} tentative(s).\n"
+            f"Helm a pourtant declare la release reussie (--wait) : c'est donc "
+            f"l'APPLICATION, pas seulement le pod, qui est en cause.\n"
+            f"Dernier diagnostic : {last_diag or '(aucune sortie)'}\n"
+            f"Inspecter : kubectl -n {namespace} logs {deployment}",
+            file=sys.stderr,
+        )
+    else:
+        print(
+            f"ERREUR: health-gate post-upgrade NON CONCLUANT -- `kubectl exec` n'a pas "
+            f"pu interroger '{deployment}' (namespace '{namespace}') en {attempts} "
+            f"tentative(s).\n"
+            f"Ce n'est PAS la preuve que l'application est en panne : la sonde n'a "
+            f"jamais pu etre posee (pod en cours de terminaison, RBAC, kubectl "
+            f"incompatible...). N'en deduisez PAS qu'il faut rollbacker -- verifiez "
+            f"d'abord l'etat reel.\n"
+            f"Dernier diagnostic : {last_diag or '(aucune sortie)'}\n"
+            f"Inspecter : kubectl -n {namespace} get pods && kubectl -n {namespace} "
+            f"logs {deployment}",
+            file=sys.stderr,
+        )
     return 2
 
 
