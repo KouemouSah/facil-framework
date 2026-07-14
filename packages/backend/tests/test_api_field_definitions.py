@@ -725,11 +725,14 @@ async def test_richtext_is_sanitized_in_document_identity_too(client, admin_head
     field, in a CODE-declared, always-active product schema, and `_coerce` treats
     richtext as a plain string. Sanitising only the DB-defined custom fields would
     have left the one richtext field the product itself ships wide open."""
+    # `legal_name` is DELIBERATELY not part of the `document_identity` payload
+    # here (SP1 D1): it was stripped from `organization.document_identity` —
+    # it lives on the `Organization` row's own column (`legal_name` above) —
+    # `legal_mentions` is the richtext key under test.
     r = await client.post(
         "/api/v1/modules/organization/",
         json={"code": "rt-org", "legal_name": "RT",
               "document_identity": {
-                  "legal_name": "RT SARL",
                   "legal_mentions": "<p>ok</p><script>alert(1)</script>"}},
         headers=admin_headers)
     assert r.status_code == 201, r.text

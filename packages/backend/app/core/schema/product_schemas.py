@@ -5,6 +5,18 @@ Document Designer (SP2) renders. It is deliberately FLAT: the per-format layout
 lives in the TEMPLATE (CSS @page + margin boxes), not here. Conflating the two
 is what forces one hand-positioned layout per (format × document × org).
 
+`legal_name`, `tax_id`, `registration_number` and `logo_url` are DELIBERATELY
+ABSENT from this schema (SP1 debt D1): `Organization` already carries them as
+REAL COLUMNS (`app/modules/organization/models.py`) — re-declaring them here
+would create two sources of truth for the same legal identity that WILL
+diverge (fix the legal name in the org's own record, the document keeps
+printing the old one). `Organization` is the single source of truth for legal
+identity; `document_identity` carries only what is document-specific. Read
+the resolved identity (columns + blob + child-entity overrides, with origin
+per key) via `core.schema.issuer.resolve_issuer_identity`, never by
+re-declaring these keys in a blob. See `DOCUMENT_IDENTITY_OVERRIDE` below for
+the (deliberately narrower) set that a child `OrgUnit`/`Site` MAY override.
+
 `organization.settings` replaces the raw-JSON `Organization.settings` column
 with a generated form. The column has NO consumer in the code today, so only
 the per-organisation settings the product genuinely needs are declared here —
@@ -21,23 +33,12 @@ from typing import Any
 from app.core.schema.spec import field
 
 DOCUMENT_IDENTITY: list[dict[str, Any]] = [
-    field("legal_name",
-          {"en": "Legal name", "fr": "Raison sociale", "es": "Razón social"},
-          required=True, rules={"max_length": 200}, group="identity", order=1, col_span=2),
     field("short_code",
           {"en": "Short code", "fr": "Code court", "es": "Código corto"},
           hint={"en": "Printed on reports to identify the issuing entity",
                 "fr": "Imprimé sur les rapports pour identifier l'entité émettrice",
                 "es": "Impreso en los informes para identificar la entidad emisora"},
           rules={"max_length": 20}, group="identity", order=2),
-    field("tax_id", {"en": "Tax ID", "fr": "Identifiant fiscal", "es": "NIF"},
-          rules={"max_length": 50}, group="identity", order=3),
-    field("registration_number",
-          {"en": "Registration number", "fr": "Numéro d'enregistrement",
-           "es": "Número de registro"},
-          rules={"max_length": 50}, group="identity", order=4),
-    field("logo_url", {"en": "Logo", "fr": "Logo", "es": "Logotipo"},
-          type="file", widget="image", group="branding", order=1),
     field("seal_url", {"en": "Seal / stamp", "fr": "Sceau / cachet", "es": "Sello"},
           type="file", widget="image",
           hint={"en": "Reserved zone for the signature seal (SP2)",
@@ -56,6 +57,46 @@ DOCUMENT_IDENTITY: list[dict[str, Any]] = [
     field("contact_line", {"en": "Contact line", "fr": "Ligne de contact",
                            "es": "Línea de contacto"},
           rules={"max_length": 200}, group="layout", order=4, col_span=2),
+]
+
+# Optional overrides an `OrgUnit` or `Site` may declare on ITS OWN
+# `document_identity` blob (SP1 debt D1 — value inheritance). An organisation
+# never overrides its own name (meaningless); overrides only exist GOING
+# DOWN the hierarchy — a department or branch wants its own name/code printed
+# on its documents. Deliberately narrower than `DOCUMENT_IDENTITY`:
+# `tax_id`/`registration_number` (legal/fiscal identifiers) and
+# `seal_url`/`header_note`/`legal_mentions` (organisation-wide legal text) are
+# NOT overridable — only identity/branding fields a sub-entity would
+# legitimately want to localise. `resolve_issuer_identity` (core/schema/
+# issuer.py) is what a document actually reads: it walks
+# Site -> OrgUnit -> Organization, first non-empty value wins, and reports
+# WHERE each value came from.
+DOCUMENT_IDENTITY_OVERRIDE: list[dict[str, Any]] = [
+    field("legal_name",
+          {"en": "Legal name (override)", "fr": "Raison sociale (surcharge)",
+           "es": "Razón social (anulación)"},
+          hint={"en": "Leave empty to inherit the organization's legal name",
+                "fr": "Laisser vide pour hériter de la raison sociale de l'organisation",
+                "es": "Dejar vacío para heredar la razón social de la organización"},
+          rules={"max_length": 200}, group="identity", order=1, col_span=2),
+    field("short_code",
+          {"en": "Short code", "fr": "Code court", "es": "Código corto"},
+          hint={"en": "Leave empty to inherit the organization's short code",
+                "fr": "Laisser vide pour hériter du code court de l'organisation",
+                "es": "Dejar vacío para heredar el código corto de la organización"},
+          rules={"max_length": 20}, group="identity", order=2),
+    field("logo_url", {"en": "Logo", "fr": "Logo", "es": "Logotipo"},
+          type="file", widget="image",
+          hint={"en": "Leave empty to inherit the organization's logo",
+                "fr": "Laisser vide pour hériter du logo de l'organisation",
+                "es": "Dejar vacío para heredar el logotipo de la organización"},
+          group="branding", order=1),
+    field("contact_line", {"en": "Contact line", "fr": "Ligne de contact",
+                           "es": "Línea de contacto"},
+          rules={"max_length": 200}, group="layout", order=1, col_span=2),
+    field("footer_note", {"en": "Footer note", "fr": "Mention de pied de page",
+                          "es": "Nota de pie de página"},
+          type="text", rules={"max_length": 300}, group="layout", order=2, col_span=2),
 ]
 
 ORGANIZATION_SETTINGS: list[dict[str, Any]] = [

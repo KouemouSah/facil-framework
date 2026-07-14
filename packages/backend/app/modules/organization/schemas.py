@@ -105,6 +105,9 @@ class OrgUnitCreate(BaseModel):
     metadata: dict = Field(default_factory=dict)
     # User-defined fields (SP1) — allowlisted against `org_unit.custom_fields`.
     custom_fields: dict = Field(default_factory=dict)
+    # Optional issuer-identity override (SP1 D1) — allowlisted against
+    # `org_unit.document_identity` (product_schemas.DOCUMENT_IDENTITY_OVERRIDE).
+    document_identity: dict = Field(default_factory=dict)
 
     @field_validator("code")
     @classmethod
@@ -120,4 +123,5 @@ class OrgUnitUpdate(BaseModel):
     external_ref: str | None = Field(None, max_length=80)
     metadata: dict | None = None
     custom_fields: dict | None = None
+    document_identity: dict | None = None
     is_active: bool | None = None

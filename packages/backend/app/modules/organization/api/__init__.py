@@ -230,6 +230,16 @@ async def update_unit(unit_id: str, body: OrgUnitUpdate, request: Request,
                 existing.custom_fields or {}, body.custom_fields, specs))
         except SchemaViolation as e:
             raise HTTPException(422, detail=e.errors) from e
+    # `document_identity` (SP1 D1) — the narrow OPTIONAL-override schema
+    # (`org_unit.document_identity`, code-defined like organization's own),
+    # same schema-validated merge-preserve blob as `custom_fields` above.
+    if body.document_identity is not None:
+        specs = request.app.state.schema_registry.get("org_unit.document_identity")
+        try:
+            body.document_identity = clean_richtext_fields(specs, merge_blob(
+                existing.document_identity or {}, body.document_identity, specs))
+        except SchemaViolation as e:
+            raise HTTPException(422, detail=e.errors) from e
     try:
         unit = await service.update_unit(session, unit_id, body)
     except service.OrgError as e:
@@ -357,7 +367,7 @@ async def export_units(org_id: str, format: str = "csv",
 
 
 @router.post("/{org_id}/units", status_code=201, dependencies=[_CREATE])
-async def create_unit(org_id: str, body: OrgUnitCreate,
+async def create_unit(org_id: str, body: OrgUnitCreate, request: Request,
                       principal: dict = Depends(require_auth),
                       session: AsyncSession = Depends(get_session)) -> dict:
     # `custom_fields` (Task 13) allowlist against `org_unit.custom_fields` DB
@@ -370,6 +380,17 @@ async def create_unit(org_id: str, body: OrgUnitCreate,
         try:
             body.custom_fields = clean_richtext_fields(
                 specs, validate_blob(specs, body.custom_fields))
+        except SchemaViolation as e:
+            raise HTTPException(422, detail=e.errors) from e
+    # `document_identity` (SP1 D1) allowlist applies on create too (the
+    # invariant is unconditional — see the analogous comment on
+    # `create_organization` above). Empty means "not configured yet" and is
+    # skipped, not rejected for a missing (non-existent, here) `required` key.
+    if body.document_identity:
+        specs = request.app.state.schema_registry.get("org_unit.document_identity")
+        try:
+            body.document_identity = clean_richtext_fields(
+                specs, validate_blob(specs, body.document_identity))
         except SchemaViolation as e:
             raise HTTPException(422, detail=e.errors) from e
     try:

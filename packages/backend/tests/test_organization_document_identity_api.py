@@ -61,12 +61,15 @@ async def _etag(ac, org_id):
 
 @pytest.mark.asyncio
 async def test_declared_key_is_written_via_the_real_endpoint(doc_client):
+    # `legal_name` is DELIBERATELY not used here (SP1 D1): it was stripped from
+    # `organization.document_identity` (it lives on the `Organization` row's
+    # own column instead) — `short_code` is the declared key that remains.
     ac, _ = doc_client
     org_id = await _mk_org(ac, "doc1")
     r = await ac.put(f"{BASE}/{org_id}", headers={**AUTH, "If-Match": await _etag(ac, org_id)},
-                     json={"document_identity": {"legal_name": "Acme SARL"}})
+                     json={"document_identity": {"short_code": "ACME"}})
     assert r.status_code == 200, r.text
-    assert r.json()["document_identity"]["legal_name"] == "Acme SARL"
+    assert r.json()["document_identity"]["short_code"] == "ACME"
 
 
 @pytest.mark.asyncio
@@ -74,15 +77,17 @@ async def test_unknown_key_in_the_request_is_422(doc_client):
     ac, _ = doc_client
     org_id = await _mk_org(ac, "doc2")
     r = await ac.put(f"{BASE}/{org_id}", headers={**AUTH, "If-Match": await _etag(ac, org_id)},
-                     json={"document_identity": {"legal_name": "Acme", "injected": "x"}})
+                     json={"document_identity": {"short_code": "ACME", "injected": "x"}})
     assert r.status_code == 422, r.text
 
 
 @pytest.mark.asyncio
 async def test_historic_undeclared_key_survives_a_save(doc_client):
     """An org whose `document_identity` predates this schema carries a key nobody
-    ever validated (e.g. `seal_ref` from a manual JSON edit). Saving the form must
-    not destroy it — it lives on, untouched, in the DB row after the write."""
+    ever validated (e.g. `seal_ref` from a manual JSON edit — and, since SP1
+    D1, `legal_name` itself, now that it lives on the row's own column). Saving
+    the form must not destroy either — they live on, untouched, in the DB row
+    after the write."""
     ac, db = doc_client
     org_id = await _mk_org(ac, "doc3")
 
@@ -90,17 +95,19 @@ async def test_historic_undeclared_key_survives_a_save(doc_client):
 
     async with db.session_factory() as s:
         org = (await s.scalars(select(Organization).where(Organization.id == org_id))).one()
-        org.document_identity = {"legal_name": "Old", "seal_ref": "SEAL-77"}
+        org.document_identity = {"short_code": "OLD", "seal_ref": "SEAL-77", "legal_name": "Stale"}
         await s.commit()
 
     r = await ac.put(f"{BASE}/{org_id}", headers={**AUTH, "If-Match": await _etag(ac, org_id)},
-                     json={"document_identity": {"legal_name": "Acme SARL"}})
+                     json={"document_identity": {"short_code": "ACME"}})
     assert r.status_code == 200, r.text
-    assert r.json()["document_identity"] == {"legal_name": "Acme SARL", "seal_ref": "SEAL-77"}
+    assert r.json()["document_identity"] == {
+        "short_code": "ACME", "seal_ref": "SEAL-77", "legal_name": "Stale"}
 
     async with db.session_factory() as s:
         got = (await s.scalars(select(Organization).where(Organization.id == org_id))).one()
-        assert got.document_identity == {"legal_name": "Acme SARL", "seal_ref": "SEAL-77"}
+        assert got.document_identity == {
+            "short_code": "ACME", "seal_ref": "SEAL-77", "legal_name": "Stale"}
 
 
 @pytest.mark.asyncio
@@ -134,8 +141,9 @@ async def test_create_with_an_empty_document_identity_is_allowed(doc_client):
 @pytest.mark.asyncio
 async def test_create_validates_declared_rules(doc_client):
     # A declared key must still obey its rules on the create path.
+    # `short_code` caps at 20 chars (`product_schemas.DOCUMENT_IDENTITY`).
     ac, _ = doc_client
     r = await ac.post(f"{BASE}/", headers=AUTH,
                       json={"code": "doc6", "legal_name": "Acme Corp",
-                            "document_identity": {"legal_name": "x" * 201}})
+                            "document_identity": {"short_code": "x" * 21}})
     assert r.status_code == 422, r.text

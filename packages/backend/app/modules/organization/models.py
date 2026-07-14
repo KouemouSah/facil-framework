@@ -112,6 +112,13 @@ class OrgUnit(UUIDAuditBase):
     # allowlist guarantee (an undeclared key could no longer be rejected).
     custom_fields: Mapped[dict] = mapped_column(JSONType, default=dict)
 
+    # Optional issuer-identity OVERRIDE (SP1 debt D1, migration 0019) — allowlisted
+    # against `product_schemas.DOCUMENT_IDENTITY_OVERRIDE` (target
+    # "org_unit.document_identity"). Never a source of truth on its own: read the
+    # RESOLVED identity via `core.schema.issuer.resolve_issuer_identity`, which
+    # walks this unit's ancestors then falls back to the Organization row.
+    document_identity: Mapped[dict] = mapped_column(JSONType, default=dict)
+
     def as_dict(self) -> dict:
         return {
             "id": self.id, "organization_id": self.organization_id,
@@ -120,5 +127,6 @@ class OrgUnit(UUIDAuditBase):
             "path": self.path, "depth": self.depth,
             "external_ref": self.external_ref, "metadata": self.meta or {},
             "custom_fields": self.custom_fields or {},
+            "document_identity": self.document_identity or {},
             "is_active": self.is_active,
         }

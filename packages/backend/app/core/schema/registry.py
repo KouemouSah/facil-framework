@@ -70,12 +70,19 @@ def default_schema_registry() -> SchemaRegistry:
     """Registry pre-loaded with the built-in product schemas.
 
     `organization.document_identity` (M2) and `organization.settings` (M3) are
-    both registered here. Custom-field targets carry no code schema by design:
-    everything they expose comes from the DB.
+    both registered here. `org_unit.document_identity`/`site.document_identity`
+    (SP1 debt D1) are the narrower OPTIONAL-override counterpart — see
+    `DOCUMENT_IDENTITY_OVERRIDE`'s docstring in product_schemas.py. Custom-field
+    targets carry no code schema by design: everything they expose comes from
+    the DB.
     """
-    from app.core.schema.product_schemas import DOCUMENT_IDENTITY, ORGANIZATION_SETTINGS
+    from app.core.schema.product_schemas import (
+        DOCUMENT_IDENTITY, DOCUMENT_IDENTITY_OVERRIDE, ORGANIZATION_SETTINGS,
+    )
 
     r = SchemaRegistry()
     r.register("organization.document_identity", DOCUMENT_IDENTITY)
     r.register("organization.settings", ORGANIZATION_SETTINGS)
+    r.register("org_unit.document_identity", DOCUMENT_IDENTITY_OVERRIDE)
+    r.register("site.document_identity", DOCUMENT_IDENTITY_OVERRIDE)
     return r

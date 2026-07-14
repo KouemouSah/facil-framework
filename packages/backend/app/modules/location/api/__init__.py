@@ -135,6 +135,16 @@ async def create_site(body: SiteCreate, request: Request,
                 specs, validate_blob(specs, body.custom_fields))
         except SchemaViolation as e:
             raise HTTPException(422, detail=e.errors) from e
+    # `document_identity` (SP1 D1) — the narrow OPTIONAL-override schema
+    # (`site.document_identity`, code-defined). Unconditional allowlist like
+    # `custom_fields` above; empty means "not configured yet".
+    if body.document_identity:
+        specs = request.app.state.schema_registry.get("site.document_identity")
+        try:
+            body.document_identity = clean_richtext_fields(
+                specs, validate_blob(specs, body.document_identity))
+        except SchemaViolation as e:
+            raise HTTPException(422, detail=e.errors) from e
     try:
         site = await service.create_site(session, body)
     except service.LocError as e:
@@ -173,6 +183,16 @@ async def update_site(site_id: str, body: SiteUpdate, request: Request,
         try:
             body.custom_fields = clean_richtext_fields(specs, merge_blob(
                 existing.custom_fields or {}, body.custom_fields, specs))
+        except SchemaViolation as e:
+            raise HTTPException(422, detail=e.errors) from e
+    # `document_identity` (SP1 D1) — same schema-validated, merge-preserve
+    # blob as `custom_fields` above, against the code-defined
+    # `site.document_identity` override schema.
+    if body.document_identity is not None:
+        specs = request.app.state.schema_registry.get("site.document_identity")
+        try:
+            body.document_identity = clean_richtext_fields(specs, merge_blob(
+                existing.document_identity or {}, body.document_identity, specs))
         except SchemaViolation as e:
             raise HTTPException(422, detail=e.errors) from e
     try:
