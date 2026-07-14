@@ -252,6 +252,26 @@ def test_restore_job_includes_mc_mirror_when_minio_deployed(monkeypatch):
     assert "key: MINIO_ROOT_PASSWORD" in manifest
 
 
+def test_restore_job_carries_backup_component_label_for_networkpolicy(monkeypatch):
+    # BUG REEL CORRIGE (smoke k3d task-E1, 2026-07-14) : sans le label
+    # `facil.component: backup` sur le pod-template, ce Job recevait
+    # "Connection refused" sur Postgres ET MinIO -- la NetworkPolicy
+    # default-deny (infra/helm/facil/templates/networkpolicy.yaml, SEC-012)
+    # n'autorise l'ingress sur les datastores QU'aux pods portant
+    # `facil.component in [backend, db-init, db-role, backup]`, et ce Job n'en
+    # portait aucun (seuls les labels Kubernetes auto-generes : job-name/
+    # controller-uid). Verifie en conditions reelles (helm+kubectl+k3d), pas
+    # seulement ici : ce test protege la regression future, pas la preuve
+    # initiale (qui exige un vrai cluster).
+    ts = "20260701T000000Z"
+    fake_run, calls = _make_fake_run(list_output=f"{ts}\n", minio_ok=True)
+    _patch_kubectl(monkeypatch, fake_run)
+    monkeypatch.setattr("builtins.input", lambda prompt="": ts)
+    rb.main(["--restore", ts])
+    manifest = next(m for c, m in calls if "apply" in c and m and rb.RESTORE_JOB in m)
+    assert "facil.component: backup" in manifest
+
+
 def test_restore_skips_minio_when_not_deployed(monkeypatch, capsys):
     ts = "20260701T000000Z"
     fake_run, calls = _make_fake_run(list_output=f"{ts}\n", minio_ok=False)

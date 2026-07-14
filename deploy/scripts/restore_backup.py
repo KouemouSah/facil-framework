@@ -247,6 +247,20 @@ def _restore_job_manifest(*, timestamp: str, postgres: dict[str, str],
           args:
             - |
               set -eu
+              # BUG REEL CORRIGE (smoke k3d task-E1, 2026-07-14) : sans cette
+              # attente, `pg_restore` echouait "Connection refused" sur un
+              # cluster fraichement joint (meme fenetre transitoire que le Job
+              # facil-backup avant son propre correctif -- voir backup-job.yaml)
+              # -- alors que le mirroir MinIO (container voisin, commande `mc`)
+              # reussissait grace a sa PROPRE resilience interne ("Unable to
+              # list comparison retrying...") : `pg_restore` n'a aucune retry
+              # logic, il faut la lui fournir. Meme motif `until pg_isready`
+              # que db-role-job.yaml/db-init-job.yaml/backup-job.yaml (DRY par
+              # copie, deja accepte entre ces Jobs).
+              until pg_isready -h "$PGHOST" -U "$PGUSER"; do
+                echo "postgres pas pret, attente..." >&2
+                sleep 2
+              done
               echo "restauration Postgres depuis {dest}/postgres.dump" >&2
               pg_restore --clean --if-exists --no-owner -d "$PGDATABASE" "{dest}/postgres.dump"
           volumeMounts:
@@ -292,6 +306,17 @@ spec:
   backoffLimit: 0
   ttlSecondsAfterFinished: 300
   template:
+    metadata:
+      # BUG REEL CORRIGE (smoke k3d task-E1, 2026-07-14) : sans ce label, ce
+      # Job recevait "Connection refused" sur Postgres ET MinIO -- la
+      # NetworkPolicy default-deny (infra/helm/facil/templates/
+      # networkpolicy.yaml, SEC-012) n'autorise l'ingress sur ces datastores
+      # QU'aux pods portant `facil.component in [backend, db-init, db-role,
+      # backup]`. Ce Job n'en portait AUCUN (seuls les labels auto-generes par
+      # Kubernetes -- job-name/controller-uid) -> bloque inconditionnellement.
+      # "backup" est reutilise ici (pas une nouvelle valeur) : restauration et
+      # sauvegarde partagent la meme legitimite d'acces aux datastores.
+      labels: {{facil.component: backup}}
     spec:
       restartPolicy: Never
       automountServiceAccountToken: false
