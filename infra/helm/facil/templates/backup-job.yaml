@@ -46,6 +46,37 @@ spec:
         fsGroup: 999
         seccompProfile: { type: RuntimeDefault }
       initContainers:
+        - name: wait-postgres
+          {{/*
+          MANQUAIT ICI (BUG REEL, PAS THEORIQUE) : verifie en conditions
+          reelles sur le smoke k3d task-E1 (2026-07-14) -- le Job db-role et
+          le Job db-init ont TOUS LES DEUX ce meme initContainer d'attente
+          (voir db-role-job.yaml/db-init-job.yaml), mais le Job de sauvegarde
+          en etait prive et attaquait `pg_dump` directement. Avec
+          `backoffLimit: 1` (2 tentatives max -- volontaire, cf. commentaire
+          plus bas), la moindre fenetre transitoire ou Postgres n'accepte pas
+          encore de connexion (ex. propagation des regles NetworkPolicy de
+          kube-router sur un pod fraichement cree avec un `facil.component`
+          jamais vu jusque-la dans ce namespace) faisait echouer les 2
+          tentatives -> `pg_dump: error: connection ... Connection refused`,
+          BackoffLimitExceeded, upgrade avorte. `pg_isready` en boucle est
+          l'exacte meme parade deja utilisee par les Jobs freres -- DRY par
+          copie du motif, pas d'`include` partage (mineur, meme duplication
+          deja acceptee entre db-role-job.yaml et db-init-job.yaml).
+          */}}
+          image: {{ .Values.postgres.image }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          command: ["sh", "-c"]
+          args:
+            - |
+              until pg_isready -h {{ include "facil.fullname" (dict "name" "postgres") }} -U {{ .Values.postgres.user }}; do
+                echo "postgres pas pret, attente..." >&2
+                sleep 2
+              done
+          resources: {{- toYaml .Values.resources.small | nindent 12 }}
         - name: dump-postgres
           image: {{ .Values.postgres.image }}
           securityContext:
