@@ -335,6 +335,30 @@ def test_restore_proceeds_when_retyped_timestamp_matches_exactly(monkeypatch, ca
     assert any(rb.RESTORE_JOB in " ".join(c) for c, _ in calls)
 
 
+def test_restore_success_message_survives_cp1252_console(tmp_path, monkeypatch):
+    """Reproduces the exact crash found on a real k3d smoke (task-E1,
+    2026-07-14): `mc mirror`'s box-drawing summary table, returned verbatim by
+    `kubectl logs`, is not encodable in cp1252 (Windows console default).
+    Before main() reconfigured stdout/stderr to utf-8/replace, `print(f"[OK]
+    ... {logs}")` raised UnicodeEncodeError RIGHT AFTER the restore had
+    already succeeded -- the operator saw a traceback instead of "[OK]"."""
+    ts = "20260701T000000Z"
+    box_drawing_logs = "┌─┐ restore ok"  # not representable in cp1252
+    fake_run, _ = _make_fake_run(list_output=f"{ts}\n", restore_logs=box_drawing_logs)
+    _patch_kubectl(monkeypatch, fake_run)
+    monkeypatch.setattr("builtins.input", lambda prompt="": ts)
+
+    out_path = tmp_path / "stdout.txt"
+    cp1252_stdout = open(out_path, "w", encoding="cp1252", errors="strict")
+    monkeypatch.setattr(rb.sys, "stdout", cp1252_stdout)
+    try:
+        rc = rb.main(["--restore", ts])
+    finally:
+        cp1252_stdout.close()
+    assert rc == 0
+    assert "[OK]" in out_path.read_text(encoding="utf-8", errors="replace")
+
+
 def test_restore_confirmation_is_case_and_whitespace_sensitive(monkeypatch):
     # Proves it's a real string-equality retype, not a fuzzy/normalized match.
     ts = "20260701T000000Z"

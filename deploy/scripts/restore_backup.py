@@ -438,6 +438,20 @@ def confirm_exact_timestamp(timestamp: str) -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Windows consoles default to cp1252; `logs` below is raw kubectl output
+    # from a Job we do not control the content of (pg_restore/mc mirror can
+    # emit box-drawing glyphs, e.g. `mc mirror`'s summary table) -- a plain
+    # print() of that text crashed with UnicodeEncodeError on a real k3d smoke
+    # (task-E1, 2026-07-14) AFTER the restore had already succeeded, so the
+    # operator saw a traceback instead of the "[OK]" confirmation. Same
+    # precedent as deploy/providers/bootstrap/__init__.py::main().
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure:
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except (ValueError, OSError):
+                pass
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--namespace", default=NAMESPACE_DEFAULT)
     mode = parser.add_mutually_exclusive_group(required=True)
