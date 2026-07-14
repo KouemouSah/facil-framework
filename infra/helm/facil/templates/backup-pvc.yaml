@@ -5,6 +5,33 @@ hook ephemere, il ne possede pas de StatefulSet -- le volume doit lui SURVIVRE
 (c'est tout l'interet). D'ou un PersistentVolumeClaim autonome, conserve entre
 les releases (annotation helm.sh/resource-policy: keep : un `helm uninstall` ne
 doit PAS emporter les sauvegardes avec lui).
+
+hook `pre-install` SEUL (jamais `pre-upgrade`) -- ceci est deliberement UNE
+correction de deadlock reel, pas une preference stylistique. DEADLOCK VERIFIE
+EN CONDITIONS REELLES (smoke k3d task-E1, 2026-07-14) : cette PVC n'a JAMAIS de
+pod consommateur au moment du `helm install` initial (le Job facil-backup est
+lui-meme un hook `pre-upgrade` SEUL -- rien a sauvegarder au 1er install, cf.
+backup-job.yaml). Avec le storageClass par defaut (local-path,
+WaitForFirstConsumer), une PVC en tant que ressource NORMALE reste PENDING
+indefiniment sans consommateur -- et `helm install --wait` attend le Bound de
+TOUTES les PVC non-hook AVANT meme de lancer les hooks post-install
+(db-role/db-init) : `helm upgrade --install --wait --timeout 5m` expirait
+SYSTEMATIQUEMENT au 1er install, AUCUN Job jamais cree. Essai rejete : une
+StorageClass dediee `volumeBindingMode: Immediate` -- `rancher.io/local-path`
+ne la supporte PAS ("configuration error, no node was specified"), erreur
+observee en direct sur ce meme smoke.
+En hook, cette PVC est exclue du tracking `--wait` (les hooks ne sont PAS
+attendus comme le reste du manifeste -- seuls les Jobs/Pods hook le sont, via
+leur propre polling de completion) : elle reste PENDING (WaitForFirstConsumer,
+c'est attendu) jusqu'au 1er `helm upgrade`, ou le Job facil-backup (hook
+pre-upgrade, poids -2) la monte enfin et la fait binder -- sans jamais bloquer
+--wait. `pre-upgrade` est volontairement ABSENT de cette annotation : Helm
+recree (create, pas patch) un hook a chaque declenchement de son evenement ;
+`pre-upgrade` la referait a CHAQUE upgrade -> soit "already exists" (sans
+delete-policy), soit DESTRUCTION du volume de sauvegardes lui-meme (avec
+`before-hook-creation`, comme le Job l'utilise) -- inacceptable pour la PVC qui
+doit au contraire SURVIVRE a tous les upgrades. `pre-install` ne se declenche
+qu'une fois, jamais rejoue -- aucun conflit possible.
 */}}
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -13,6 +40,8 @@ metadata:
   labels: {{- include "facil.labels" . | nindent 4 }}
   annotations:
     "helm.sh/resource-policy": keep
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-3"
 spec:
   accessModes: ["ReadWriteOnce"]
   storageClassName: {{ .Values.global.storageClass }}
