@@ -189,6 +189,61 @@ def build_configmap_manifest(name: str, data: dict[str, str]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def build_pvc_manifest(name: str, storage_class: str, storage: str) -> str:
+    """PVC des sauvegardes (B2) — construit HORS Helm, applique via `kubectl
+    apply -f -` (meme chemin stdin que build_secret_manifest/
+    build_configmap_manifest ci-dessus, DRY), idempotent.
+
+    Ce PVC vivait auparavant DANS le chart (infra/helm/facil/templates/
+    backup-pvc.yaml), porte par un hook `pre-install` SEUL (jamais
+    `pre-upgrade` — un hook de ce type est recree a CHAQUE upgrade, ce qui
+    aurait soit echoue "already exists", soit DETRUIT le volume de sauvegardes
+    lui-meme). Mais Helm n'execute un hook `pre-install` QUE lors du tout
+    premier `helm install` d'une release — donc sur un `helm upgrade` d'une
+    release DEJA installee (exactement la population que P2 protege : un
+    client qui tourne deja avec des donnees), ce PVC n'etait JAMAIS cree. Le
+    Job `facil-backup` (qui le monte) restait alors `Pending`
+    ("persistentvolumeclaim not found") indefiniment -> le hook `pre-upgrade`
+    ne se completait jamais -> timeout `--wait` (10 min) -> rollback
+    `--atomic` -> ECHEC SYSTEMATIQUE, a chaque tentative (B2). En le creant ICI
+    (avant `helm upgrade --install`, independamment du cycle de vie de la
+    release), il existe deja au moment ou le Job de sauvegarde en a besoin,
+    qu'il s'agisse d'un premier install ou d'un upgrade ulterieur.
+
+    JAMAIS supprime par ce provider (aucun `kubectl delete` correspondant) :
+    les sauvegardes doivent survivre a tout `helm uninstall` — ce PVC n'etant
+    plus une ressource du chart, `helm uninstall` ne peut de toute facon plus
+    y toucher.
+    """
+    return (
+        "apiVersion: v1\n"
+        "kind: PersistentVolumeClaim\n"
+        "metadata:\n"
+        f"  name: {name}\n"
+        "spec:\n"
+        '  accessModes: ["ReadWriteOnce"]\n'
+        f"  storageClassName: {storage_class}\n"
+        "  resources:\n"
+        "    requests:\n"
+        f"      storage: {storage}\n"
+    )
+
+
+def chart_pvc_defaults() -> tuple[str, str]:
+    """(storageClass, storage) pour le PVC des sauvegardes — lus depuis les
+    values DEJA versionnees du chart (infra/helm/facil/values.yaml + l'overlay
+    values-onprem.yaml, les DEUX memes sources que `--plan`/`--apply`
+    utilisent deja pour tout le reste), jamais un litteral duplique ici qui
+    pourrait silencieusement diverger du chart.
+    """
+    base = vc.load_yaml(CHART_DIR / "values.yaml")
+    overlay = vc.load_yaml(VALUES_ONPREM)
+    storage_class = ((overlay.get("global") or {}).get("storageClass")
+                     or base["global"]["storageClass"])
+    storage = (overlay.get("backup") or {}).get("storage") or base["backup"]["storage"]
+    return storage_class, storage
+
+
 def apply_manifest(kubectl: str, ns: str, manifest: str) -> int:
     """`kubectl apply -f -` sur stdin. N'imprime JAMAIS le manifest ni le stderr brut
     de kubectl (SEC-016 : kubectl reemet parfois ses entrees dans ses messages d'erreur)."""
@@ -508,6 +563,17 @@ def main(argv: list[str] | None = None) -> int:
         "facil-db-role-sql", {"role.sql": render_role_sql(cfg)}))
     if rc_cm != 0:
         return rc_cm
+
+    # 0ter) PVC des sauvegardes (B2), HORS Helm — voir build_pvc_manifest() pour le
+    # deadlock reel que ce chemin resout (un upgrade sur une release deja installee
+    # n'execute jamais un hook `pre-install`). Cree/mis a jour AVANT `helm upgrade
+    # --install`, pour que le Job facil-backup (pre-upgrade) le trouve toujours deja
+    # existant, premier install comme upgrade suivant.
+    storage_class, backup_storage = chart_pvc_defaults()
+    rc_pvc = apply_manifest(kubectl, args.namespace, build_pvc_manifest(
+        "facil-backups", storage_class, backup_storage))
+    if rc_pvc != 0:
+        return rc_pvc
 
     # 1) Secrets k8s (hors Helm), UN PAR COMPOSANT (SEC-001) — manifestes construits
     #    en Python, jamais ecrits dans un fichier, pipes sur stdin (SEC-006 : jamais

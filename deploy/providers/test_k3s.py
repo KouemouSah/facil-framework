@@ -549,6 +549,130 @@ def test_apply_creates_namespace_before_secret(monkeypatch, tmp_path):
     assert ns_idx < sec_idx, "le namespace doit etre cree AVANT le Secret"
 
 
+# ---------------------------------------------------------------------------
+# B2 : PVC des sauvegardes cree HORS Helm (kubectl apply -f -), AVANT
+# `helm upgrade --install` — sur les DEUX chemins (1er install ET upgrade
+# d'une release deja installee). C'est exactement le deadlock que ce
+# correctif ferme : porte par Helm en hook `pre-install` SEUL, ce PVC n'etait
+# JAMAIS cree sur un upgrade (Helm n'execute pre-install qu'au tout premier
+# `helm install`) -> le Job facil-backup restait Pending indefiniment.
+# ---------------------------------------------------------------------------
+
+def test_build_pvc_manifest_shape():
+    manifest = k3s.build_pvc_manifest("facil-backups", "local-path", "10Gi")
+    assert "kind: PersistentVolumeClaim" in manifest
+    assert "name: facil-backups" in manifest
+    assert "storageClassName: local-path" in manifest
+    assert "storage: 10Gi" in manifest
+    assert "ReadWriteOnce" in manifest
+    # Ni hook Helm ni resource-policy : ce manifest n'est plus une ressource du
+    # chart -- rien a "garder" contre un `helm uninstall` qui ne le voit
+    # de toute facon jamais.
+    assert "helm.sh/hook" not in manifest
+
+
+def test_chart_pvc_defaults_reads_from_real_chart_values():
+    # Pas de litteral duplique : les valeurs DOIVENT provenir des fichiers
+    # values.yaml/values-onprem.yaml reels du chart -- une divergence future
+    # (ex. quelqu'un bascule le storageClass onprem) doit se refleter ICI
+    # sans toucher k3s.py.
+    storage_class, storage = k3s.chart_pvc_defaults()
+    assert storage_class == "local-path"
+    assert storage == "10Gi"
+
+
+def test_apply_creates_pvc_before_helm_upgrade_on_a_fresh_install(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append((list(cmd), kw.get("input")))
+        if "status" in cmd:
+            # release_exists() -- aucune release existante -> chemin danse 2 passes.
+            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="not found")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+    monkeypatch.setattr(k3s, "health_gate", lambda *a, **kw: 0)
+    rc = k3s.main(["--apply", "--config", str(_write_cfg_file(tmp_path)),
+                   "--yes", "--allow-dev-vault"])
+    assert rc == 0
+
+    joined = [" ".join(c) for c, _ in calls]
+    pvc_idx = next(
+        i for i, (c, manifest) in enumerate(calls)
+        if "apply" in c and manifest and "kind: PersistentVolumeClaim" in manifest
+        and "name: facil-backups" in manifest
+    )
+    upgrade_idx = next(i for i, c in enumerate(joined) if "upgrade" in c)
+    assert pvc_idx < upgrade_idx, "le PVC doit exister AVANT le premier `helm upgrade --install`"
+
+
+def test_apply_creates_pvc_before_helm_upgrade_on_an_already_installed_release(
+    monkeypatch, tmp_path,
+):
+    # LE scenario du bug B2 : release DEJA installee (donc une seule passe,
+    # pas de danse 2-replicas) -- le PVC doit quand meme etre (re)applique
+    # AVANT `helm upgrade`, jamais suppose deja present.
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append((list(cmd), kw.get("input")))
+        if "status" in cmd:
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout='{"info":{"status":"deployed"}}', stderr="")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+    monkeypatch.setattr(k3s, "health_gate", lambda *a, **kw: 0)
+    rc = k3s.main(["--apply", "--config", str(_write_cfg_file(tmp_path)),
+                   "--yes", "--allow-dev-vault"])
+    assert rc == 0
+
+    joined = [" ".join(c) for c, _ in calls]
+    pvc_idx = next(
+        i for i, (c, manifest) in enumerate(calls)
+        if "apply" in c and manifest and "kind: PersistentVolumeClaim" in manifest
+        and "name: facil-backups" in manifest
+    )
+    upgrade_idx = next(i for i, c in enumerate(joined) if "upgrade" in c)
+    assert pvc_idx < upgrade_idx, (
+        "B2 : sur une release DEJA installee, le PVC doit encore etre applique "
+        "AVANT `helm upgrade` -- c'est exactement le chemin ou l'ancien hook "
+        "pre-install ne se declenchait JAMAIS")
+
+
+def test_apply_pvc_after_namespace_but_manifest_carries_no_secret(monkeypatch, tmp_path):
+    # Le PVC ne porte aucune valeur de secret -- juste une preuve de forme
+    # complementaire a test_secret_values_never_appear_in_any_process_argv.
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append((list(cmd), kw.get("input")))
+        if "status" in cmd:
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout='{"info":{"status":"deployed"}}', stderr="")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+    monkeypatch.setattr(k3s, "health_gate", lambda *a, **kw: 0)
+    k3s.main(["--apply", "--config", str(_write_cfg_file(tmp_path)),
+              "--yes", "--allow-dev-vault"])
+
+    pvc_manifest = next(
+        m for c, m in calls if "apply" in c and m and "kind: PersistentVolumeClaim" in m)
+    for secret_value in _FULL_SECRETS.values():
+        assert secret_value not in pvc_manifest
+
+
 def test_plan_renders_in_the_target_namespace(monkeypatch, tmp_path):
     # SEC-019 : `helm template` sans -n rend avec .Release.Namespace = "default",
     # donc le plan ne reflete pas l'apply.
