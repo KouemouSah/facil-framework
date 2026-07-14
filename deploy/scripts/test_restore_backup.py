@@ -207,15 +207,17 @@ def test_list_backups_ignores_non_timestamp_lines(monkeypatch):
     assert rb.list_backups("kubectl", "facil") == ["20260701T000000Z", "20260801T000000Z"]
 
 
-def test_list_backups_empty_when_postgres_statefulset_missing(monkeypatch):
+def test_list_backups_undetermined_when_postgres_statefulset_missing(monkeypatch):
+    # C2 (revue E2) : None = "je n'ai pas pu savoir", JAMAIS [] = "il n'y en a
+    # pas". Au moment d'un sinistre, ce sont des conclusions OPPOSEES.
     fake_run, calls = _make_fake_run(postgres_ok=False)
     _patch_kubectl(monkeypatch, fake_run)
-    assert rb.list_backups("kubectl", "facil") == []
+    assert rb.list_backups("kubectl", "facil") is None
     # Never even tries to run the list Job without knowing which image to use.
     assert not any("apply" in c for c, _ in calls)
 
 
-def test_list_backups_empty_when_job_fails(monkeypatch):
+def test_list_backups_undetermined_when_job_fails(monkeypatch):
     # wait_rc=1 (Job failed/timed out) but the logs happen to contain
     # well-formed timestamp lines anyway (e.g. a partial run before it died) --
     # a naive implementation that only ever looks at the logs, ignoring
@@ -224,16 +226,16 @@ def test_list_backups_empty_when_job_fails(monkeypatch):
     # empty logs (which would pass whether or not the wait_rc check exists).
     fake_run, calls = _make_fake_run(wait_rc=1, list_output="20260701T000000Z\n")
     _patch_kubectl(monkeypatch, fake_run)
-    assert rb.list_backups("kubectl", "facil") == []
+    assert rb.list_backups("kubectl", "facil") is None
 
 
-def test_list_backups_empty_when_apply_fails(monkeypatch):
+def test_list_backups_undetermined_when_apply_fails(monkeypatch):
     # `kubectl apply -f -` itself can fail (e.g. RBAC, PVC not bound yet) --
     # must fail closed WITHOUT ever calling `kubectl wait`/`kubectl logs` on a
     # Job that was never actually created.
     fake_run, calls = _make_fake_run(apply_rc=1)
     _patch_kubectl(monkeypatch, fake_run)
-    assert rb.list_backups("kubectl", "facil") == []
+    assert rb.list_backups("kubectl", "facil") is None
     assert not any("wait" in c for c, _ in calls)
     assert not any("logs" in c for c, _ in calls)
 
@@ -275,12 +277,46 @@ def test_main_list_prints_available_backups(monkeypatch, capsys):
     assert "20260701T000000Z" in capsys.readouterr().out
 
 
-def test_main_list_reports_none_found_without_crashing(monkeypatch, capsys):
+def test_main_list_exits_nonzero_when_it_could_not_determine(monkeypatch, capsys):
+    # C2 (revue E2). AVANT : le listage echoue -> [] -> "Aucune sauvegarde
+    # trouvee" -> exit 0. Un operateur en sinistre lisait "il n'y a pas de
+    # sauvegarde" et en concluait que le hook pre-upgrade n'en avait jamais
+    # produit -- alors que le PVC pouvait en contenir cinq et que c'est le JOB
+    # DE LISTAGE qui n'avait pas pu demarrer (RBAC, noeud sature, PVC RWO deja
+    # monte ailleurs). Toute automatisation testant $? concluait "verifie,
+    # rien". C'est le pire moment pour mentir.
     fake_run, _ = _make_fake_run(postgres_ok=False)
+    _patch_kubectl(monkeypatch, fake_run)
+    rc = rb.main(["--list"])
+    assert rc == 2, "un listage IMPOSSIBLE n'est pas un listage VIDE"
+    out, err = capsys.readouterr()
+    assert "Aucune sauvegarde" not in out
+    assert "impossible" in err.lower()
+
+
+def test_main_list_reports_a_genuinely_empty_pvc_as_success(monkeypatch, capsys):
+    # Le pendant : un PVC reellement vide (listage REUSSI, zero horodatage) est
+    # une reponse valide -- exit 0, message clair. Distinguer les deux est tout
+    # l'objet du correctif.
+    fake_run, _ = _make_fake_run(list_output="")
     _patch_kubectl(monkeypatch, fake_run)
     rc = rb.main(["--list"])
     assert rc == 0
     assert "Aucune sauvegarde" in capsys.readouterr().out
+
+
+def test_main_restore_does_not_claim_no_backups_when_listing_failed(monkeypatch, capsys):
+    # H5 (revue E2) : corollaire. La DIRECTION etait bonne (on ne restaure pas),
+    # mais le diagnostic mentait -- "Sauvegardes disponibles : (aucune)" alors
+    # que le listage n'avait simplement pas pu tourner. L'operateur en sinistre
+    # en deduisait que sa sauvegarde avait ete purgee.
+    fake_run, _ = _make_fake_run(postgres_ok=False)
+    _patch_kubectl(monkeypatch, fake_run)
+    rc = rb.main(["--restore", "20260701T000000Z"])
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "(aucune)" not in err, "ne pas affirmer l'absence de ce qu'on n'a pas pu lire"
+    assert "impossible" in err.lower()
 
 
 def test_main_fails_closed_when_kubectl_missing(monkeypatch):

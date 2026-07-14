@@ -290,21 +290,26 @@ spec:
 """
 
 
-def list_backups(kubectl: str, namespace: str) -> list[str]:
+def list_backups(kubectl: str, namespace: str) -> list[str] | None:
     """Sauvegardes horodatees disponibles sur le PVC, triees (plus recente en dernier).
 
-    Liste VIDE (pas d'exception) si Postgres est introuvable ou si le Job de
-    liste echoue -- l'appelant (main()) est responsable d'expliquer pourquoi a
-    l'operateur ; cette fonction reste une primitive silencieuse-sur-echec
-    volontairement simple, reutilisee par --list ET par la validation de
-    --restore (garde l'horodatage demande contre la liste reelle).
+    `None` = INDETERMINE (Postgres introuvable, ou le Job de liste n'a pas pu
+    tourner). `[]` = liste REELLEMENT vide, prouvee telle par un Job qui a
+    reussi.
+
+    C2 (revue E2) : ces deux cas etaient confondus sur `[]`, et `--list`
+    imprimait alors "Aucune sauvegarde trouvee" en sortant 0. Au moment ou l'on
+    se sert de cet outil -- apres un sinistre -- "il n'y a pas de sauvegarde" et
+    "je n'ai pas pu determiner s'il y en a une" sont des conclusions OPPOSEES :
+    la premiere fait renoncer, la seconde fait reessayer. Les ecraser l'une sur
+    l'autre etait le mensonge le plus couteux que ce script pouvait dire.
     """
     postgres = _introspect_postgres(kubectl, namespace)
     if postgres is None:
-        return []
+        return None
     rc, out = _run_job(kubectl, namespace, LIST_JOB, _list_job_manifest(postgres["image"]))
     if rc != 0:
-        return []
+        return None
     return sorted(line.strip() for line in out.splitlines() if TIMESTAMP_RE.match(line.strip()))
 
 
@@ -533,9 +538,17 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.list:
         backups = list_backups(kubectl, args.namespace)
+        if backups is None:
+            print("ERREUR: impossible de determiner les sauvegardes disponibles -- le "
+                  f"StatefulSet Postgres est introuvable dans le namespace "
+                  f"'{args.namespace}', ou le Job de listage n'a pas pu tourner.\n"
+                  "Ce N'EST PAS la preuve qu'il n'existe aucune sauvegarde : le PVC "
+                  "peut tres bien en contenir. Verifier le namespace, les droits RBAC, "
+                  "et que le PVC n'est pas deja monte ailleurs (RWO).",
+                  file=sys.stderr)
+            return 2
         if not backups:
-            print("Aucune sauvegarde trouvee (ou StatefulSet Postgres introuvable dans "
-                  f"le namespace '{args.namespace}').")
+            print("Aucune sauvegarde trouvee : le PVC a bien ete lu, il est vide.")
             return 0
         print("Sauvegardes disponibles (la plus recente en dernier) :")
         for ts in backups:
@@ -553,6 +566,18 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     available = list_backups(kubectl, args.namespace)
+    if available is None:
+        # H5 : la direction etait deja fail-closed (on ne restaure pas), mais le
+        # diagnostic mentait -- "Sauvegardes disponibles : (aucune)" alors qu'on
+        # n'avait tout simplement pas pu lire le PVC. L'operateur en sinistre en
+        # deduisait que sa sauvegarde avait ete purgee.
+        print("ERREUR: impossible de lister les sauvegardes (StatefulSet Postgres "
+              f"introuvable dans '{args.namespace}', ou Job de listage en echec) -- "
+              "donc impossible de verifier que l'horodatage demande existe.\n"
+              "Restauration AVORTEE. Ce n'est PAS la preuve que la sauvegarde "
+              "n'existe pas : corriger la cause, puis relancer --list.",
+              file=sys.stderr)
+        return 2
     if ts not in available:
         print(f"ERREUR: sauvegarde '{ts}' introuvable. Sauvegardes disponibles : "
               f"{', '.join(available) if available else '(aucune)'}.\n"
