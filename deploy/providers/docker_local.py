@@ -169,6 +169,45 @@ def backup_postgres(cfg: vc.DeployConfig, *, dest_dir: Path = BACKUPS_DIR,
     return True, f"sauvegarde Postgres -> {dump_path}"
 
 
+def postgres_has_existing_data(cfg: vc.DeployConfig, *,
+                               compose_file: Path = COMPOSE_FILE) -> bool:
+    """True if Postgres ALREADY has an initialized schema — the real signal the
+    pre-update backup must gate on (B4), not container liveness (`stack_running`).
+
+    BUG THIS REPLACES: the previous gate was `was_running = stack_running()`,
+    captured before the data-plane comes up. But the single most natural update
+    flow on this tier is `docker compose down` (or a host reboot) followed by
+    `--apply` — and `stack_running()` reports False in exactly that case, even
+    though the named Postgres volume (and every row inside it) is completely
+    untouched. "Stack stopped" is NOT "no data exists yet": that gate silently
+    skipped the backup on precisely the population it exists to protect,
+    locked in by `test_fresh_install_never_calls_backup` treating
+    `stack_running()=False` as synonymous with "nothing to protect" — the two
+    are not the same thing.
+
+    By the point this is called in `_do_apply`, the data-plane (Postgres
+    included) has ALREADY been brought `up -d` — so instead of guessing from
+    liveness, ask Postgres itself whether `db-init`'s Alembic migration is
+    about to run against existing tables, or a genuinely empty database
+    (nothing to protect on a first install, same "pre-upgrade only" decision
+    as `infra/helm/facil/templates/backup-job.yaml` on k3s).
+
+    Same auth assumption as `backup_postgres()` above: local UNIX socket
+    (no `-h`), which the official Postgres image accepts as `trust` regardless
+    of POSTGRES_PASSWORD — no secret needed here, and none appears in this argv.
+    """
+    docker = find_docker()
+    if not docker:
+        return False
+    proc = subprocess.run(
+        [docker, "compose", "-f", str(compose_file), "exec", "-T", "postgres",
+         "psql", "-U", cfg.meta.project_name, "-d", cfg.meta.project_name, "-tAc",
+         "SELECT 1 FROM information_schema.tables WHERE table_schema='public' LIMIT 1"],
+        capture_output=True, text=True, check=False,
+    )
+    return proc.returncode == 0 and proc.stdout.strip() == "1"
+
+
 # ---------------------------------------------------------------------------
 # Compose file generator
 # ---------------------------------------------------------------------------
@@ -797,10 +836,9 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
     if generated:
         print(f"[OK] generated strong runtime secrets: {', '.join(generated)}")
 
-    # D1: captured once, reused below to gate the pre-update backup — a stack
-    # that was ALREADY running before this --apply is an UPDATE (there's data
-    # to protect); one that wasn't is a first install (nothing to back up
-    # yet, same "pre-upgrade only" decision as backup-job.yaml on k3s).
+    # Port-conflict warning ONLY (B4: this is no longer used to gate the
+    # pre-update backup below — see postgres_has_existing_data() for why
+    # container liveness is the wrong signal for "is there data to protect").
     was_running = stack_running()
     if was_running:
         msg = ("[WARN] Stack already running. --apply on top can hit "
@@ -903,12 +941,17 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
     # bootstrap state, then bring up the app tier — only if it's present.
     backend_ctx = REPO_ROOT / "packages" / "backend"
     if backend_ctx.exists():
-        # D1: back up Postgres BEFORE db-init (Alembic migration) starts —
+        # D1/B4: back up Postgres BEFORE db-init (Alembic migration) starts —
         # fail-closed, an update on this tier must never risk data loss any
         # more than the k3s tier does. Only when there's actually a
         # facil-managed Postgres container to protect (database_mode=local)
-        # AND this is an update, not the first install (was_running, above).
-        if was_running and cfg.docker_local.database_mode == "local":
+        # AND Postgres already has an initialized schema — NOT gated on
+        # whether the stack happened to be running before this --apply
+        # (`docker compose down` + `--apply` is a normal update flow that
+        # would otherwise skip the backup entirely; see
+        # postgres_has_existing_data()'s docstring for the bug this replaces).
+        if (cfg.docker_local.database_mode == "local"
+                and postgres_has_existing_data(cfg)):
             print("\n=== Backing up Postgres before update (tier lite, best-effort) ===")
             ok, msg = backup_postgres(cfg)
             if not ok:

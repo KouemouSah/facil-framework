@@ -908,6 +908,74 @@ class TestBackupPostgres:
             assert MARKER not in arg
 
 
+class TestPostgresHasExistingData:
+    """B4 : le signal reel de gating -- schema deja initialise, pas liveness
+    du conteneur (stack_running())."""
+
+    def test_returns_true_when_a_public_table_exists(self, cfg, monkeypatch):
+        monkeypatch.setattr(dl, "find_docker", lambda: "/usr/bin/docker")
+        monkeypatch.setattr(
+            dl.subprocess, "run",
+            lambda cmd, **kw: MagicMock(returncode=0, stdout="1\n", stderr=""))
+        assert dl.postgres_has_existing_data(cfg) is True
+
+    def test_returns_false_on_a_genuinely_empty_database(self, cfg, monkeypatch):
+        monkeypatch.setattr(dl, "find_docker", lambda: "/usr/bin/docker")
+        monkeypatch.setattr(
+            dl.subprocess, "run",
+            lambda cmd, **kw: MagicMock(returncode=0, stdout="", stderr=""))
+        assert dl.postgres_has_existing_data(cfg) is False
+
+    def test_returns_false_when_psql_errors(self, cfg, monkeypatch):
+        # e.g. postgres container not up yet / connection refused -- fail
+        # closed towards "nothing to protect", never crash the apply.
+        monkeypatch.setattr(dl, "find_docker", lambda: "/usr/bin/docker")
+        monkeypatch.setattr(
+            dl.subprocess, "run",
+            lambda cmd, **kw: MagicMock(returncode=1, stdout="", stderr="connection refused"))
+        assert dl.postgres_has_existing_data(cfg) is False
+
+    def test_returns_false_when_docker_missing(self, cfg, monkeypatch):
+        monkeypatch.setattr(dl, "find_docker", lambda: None)
+        called = []
+        monkeypatch.setattr(dl.subprocess, "run", lambda cmd, **kw: called.append(cmd))
+        assert dl.postgres_has_existing_data(cfg) is False
+        assert called == []
+
+    def test_never_puts_a_password_in_the_psql_argv(self, cfg, monkeypatch):
+        MARKER = "s3ntinel-pw-marker"
+        monkeypatch.setenv("POSTGRES_PASSWORD", MARKER)
+        monkeypatch.setattr(dl, "find_docker", lambda: "/usr/bin/docker")
+        captured = {}
+
+        def fake_run(cmd, **kw):
+            captured["cmd"] = cmd
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(dl.subprocess, "run", fake_run)
+        dl.postgres_has_existing_data(cfg)
+        for arg in captured["cmd"]:
+            assert MARKER not in arg
+
+    def test_queries_via_local_socket_no_host_flag_same_as_backup_postgres(
+        self, cfg, monkeypatch,
+    ):
+        # Meme postulat que backup_postgres() (auth locale par socket unix) :
+        # jamais de `-h` dans l'invocation psql.
+        monkeypatch.setattr(dl, "find_docker", lambda: "/usr/bin/docker")
+        captured = {}
+
+        def fake_run(cmd, **kw):
+            captured["cmd"] = cmd
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(dl.subprocess, "run", fake_run)
+        dl.postgres_has_existing_data(cfg)
+        assert "-h" not in captured["cmd"]
+        assert "psql" in captured["cmd"]
+        assert "-U" in captured["cmd"] and cfg.meta.project_name in captured["cmd"]
+
+
 class TestBackupWiredIntoApply:
     def _mocks(self, tmp_path, minimal_config_dict, monkeypatch):
         cfg_file = tmp_path / "config.yaml"
@@ -920,43 +988,50 @@ class TestBackupWiredIntoApply:
         monkeypatch.setattr(dl, "_run_bootstrap", lambda cfg: None)
         return cfg_file
 
-    def test_update_of_an_already_running_stack_backs_up_before_the_app_tier(
+    def test_update_backs_up_before_the_app_tier_comes_up(
         self, tmp_path, minimal_config_dict, monkeypatch,
     ):
-        # "Update" == the stack was ALREADY running before this --apply (the
-        # same signal this function already used to warn about port
-        # conflicts) -- database_mode defaults to "local", so there IS a
-        # facil-managed Postgres to protect.
+        # "Update" == Postgres ALREADY has an initialized schema (B4 :
+        # `postgres_has_existing_data()`, PAS `stack_running()` -- une stack
+        # ARRETEE puis `--apply` (down + apply, flux normal) a quand meme des
+        # donnees a proteger). database_mode reste "local" par defaut.
         cfg_file = self._mocks(tmp_path, minimal_config_dict, monkeypatch)
-        calls = []
-        monkeypatch.setattr(dl, "backup_postgres", lambda cfg, **kw: (calls.append(cfg) or (True, "ok: /tmp/x")))
-        run_compose_calls = []
+        monkeypatch.setattr(dl, "postgres_has_existing_data", lambda cfg, **kw: True)
+        # A1 : preuve d'ORDRE reelle, pas un index d'enumerate (toujours >= 0).
+        # Un sentinel PARTAGE entre le faux backup_postgres et le faux
+        # run_compose enregistre le RANG relatif des deux evenements.
+        order = []
+        monkeypatch.setattr(
+            dl, "backup_postgres",
+            lambda cfg, **kw: (order.append("backup") or (True, "ok: /tmp/x")))
+
+        def fake_run_compose(args, **kw):
+            if "db-init" in args:
+                order.append("app_tier")
+            return 0
+
         with patch("docker_local.find_docker", return_value="/usr/bin/docker"), \
              patch("docker_local.docker_compose_available", return_value=True), \
              patch("docker_local.stack_running", return_value=True), \
              patch("docker_local.subprocess.run", return_value=MagicMock(returncode=0)), \
-             patch("docker_local.run_compose",
-                   side_effect=lambda args, **kw: run_compose_calls.append(args) or 0):
+             patch("docker_local.run_compose", side_effect=fake_run_compose):
             rc = dl.main(["--config", str(cfg_file), "--apply", "--yes"])
         assert rc == 0
-        assert len(calls) == 1, "backup_postgres doit tourner exactement une fois"
-        # Doit tourner AVANT le bring-up de l'app tier (db-init lance les
-        # migrations Alembic -- la sauvegarde n'a de sens que si elle precede).
-        app_tier_idx = next(
-            i for i, args in enumerate(run_compose_calls) if "db-init" in args)
-        # backup_postgres lui-meme n'appelle pas run_compose (il shell out en
-        # docker direct) -- on verifie plutot l'ordre via un sentinel partage.
-        assert app_tier_idx >= 0
+        assert order == ["backup", "app_tier"], (
+            "backup_postgres doit tourner AVANT le bring-up de l'app tier "
+            "(db-init lance les migrations Alembic juste apres) -- ordre "
+            f"observe : {order}")
 
     def test_fresh_install_never_calls_backup(
         self, tmp_path, minimal_config_dict, monkeypatch,
     ):
         # Rien a sauvegarder a la 1ere installation (meme decision que
-        # backup-job.yaml, hook pre-upgrade SEULEMENT) -- stack_running()
-        # False signale un premier `--apply`.
+        # backup-job.yaml, hook pre-upgrade SEULEMENT) : une base neuve n'a
+        # encore AUCUNE table -- postgres_has_existing_data() renvoie False.
         cfg_file = self._mocks(tmp_path, minimal_config_dict, monkeypatch)
         calls = []
         monkeypatch.setattr(dl, "backup_postgres", lambda cfg, **kw: (calls.append(cfg) or (True, "ok")))
+        monkeypatch.setattr(dl, "postgres_has_existing_data", lambda cfg, **kw: False)
         with patch("docker_local.find_docker", return_value="/usr/bin/docker"), \
              patch("docker_local.docker_compose_available", return_value=True), \
              patch("docker_local.stack_running", return_value=False), \
@@ -966,17 +1041,44 @@ class TestBackupWiredIntoApply:
         assert rc == 0
         assert calls == []
 
+    def test_stopped_stack_with_existing_data_still_backs_up(
+        self, tmp_path, minimal_config_dict, monkeypatch,
+    ):
+        # B4 (le bug reel) : `docker compose down` (ou un reboot) PUIS
+        # `--apply` est le flux d'update le plus naturel -- `stack_running()`
+        # vaut False ici, alors qu'il y a bel et bien des donnees existantes
+        # (postgres_has_existing_data()=True). L'ancien gate (`was_running`)
+        # aurait saute la sauvegarde ; celui-ci ne doit PAS le faire.
+        cfg_file = self._mocks(tmp_path, minimal_config_dict, monkeypatch)
+        calls = []
+        monkeypatch.setattr(dl, "backup_postgres", lambda cfg, **kw: (calls.append(cfg) or (True, "ok")))
+        monkeypatch.setattr(dl, "postgres_has_existing_data", lambda cfg, **kw: True)
+        with patch("docker_local.find_docker", return_value="/usr/bin/docker"), \
+             patch("docker_local.docker_compose_available", return_value=True), \
+             patch("docker_local.stack_running", return_value=False), \
+             patch("docker_local.subprocess.run", return_value=MagicMock(returncode=0)), \
+             patch("docker_local.run_compose", return_value=0):
+            rc = dl.main(["--config", str(cfg_file), "--apply", "--yes"])
+        assert rc == 0
+        assert len(calls) == 1, (
+            "une stack ARRETEE avec des donnees existantes doit quand meme "
+            "declencher la sauvegarde -- stack_running()=False n'est pas "
+            "synonyme de 'rien a proteger'")
+
     def test_external_database_mode_never_calls_backup(
         self, tmp_path, minimal_config_dict, monkeypatch,
     ):
         # database_mode=external : aucun conteneur Postgres facil-manage a
         # sauvegarder par ce chemin (la base vit ailleurs) -- pas de fausse
         # confiance en pretendant sauvegarder quelque chose qu'on ne peut
-        # pas atteindre ainsi.
+        # pas atteindre ainsi. postgres_has_existing_data() force a True pour
+        # prouver que c'est bien le garde database_mode qui bloque ici, pas
+        # une coincidence de valeur par defaut.
         minimal_config_dict["docker_local"] = {"database_mode": "external"}
         cfg_file = self._mocks(tmp_path, minimal_config_dict, monkeypatch)
         calls = []
         monkeypatch.setattr(dl, "backup_postgres", lambda cfg, **kw: (calls.append(cfg) or (True, "ok")))
+        monkeypatch.setattr(dl, "postgres_has_existing_data", lambda cfg, **kw: True)
         with patch("docker_local.find_docker", return_value="/usr/bin/docker"), \
              patch("docker_local.docker_compose_available", return_value=True), \
              patch("docker_local.stack_running", return_value=True), \
@@ -995,6 +1097,7 @@ class TestBackupWiredIntoApply:
         cfg_file = self._mocks(tmp_path, minimal_config_dict, monkeypatch)
         monkeypatch.setattr(dl, "backup_postgres",
                             lambda cfg, **kw: (False, "pg_dump a echoue: boom"))
+        monkeypatch.setattr(dl, "postgres_has_existing_data", lambda cfg, **kw: True)
         run_compose_calls = []
         with patch("docker_local.find_docker", return_value="/usr/bin/docker"), \
              patch("docker_local.docker_compose_available", return_value=True), \
