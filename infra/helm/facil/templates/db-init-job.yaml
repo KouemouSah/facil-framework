@@ -1,3 +1,14 @@
+{{- if .Values.postgres.enabled }}
+{{/*
+Garde symetrique a db-role-job.yaml (qui l'a deja) : sans elle, avec
+postgres.enabled=false, db-role disparait (plus de role applicatif cree) mais
+db-init tournerait quand meme -- alembic tenterait `pg_isready`/la migration
+contre un hote Postgres INEXISTANT (aucun Service/pod facil-postgres rendu).
+L'initContainer wait-postgres boucler ait indefiniment (`until pg_isready`),
+backoffLimit=2 finirait par faire echouer le Job -- et --atomic (helm upgrade
+--install) romprait toute la release pour une dependance qu'on a explicitement
+desactivee. Asymetrie entre deux Jobs qui partagent la meme dependance dure.
+*/}}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -68,3 +79,4 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
+{{- end }}
