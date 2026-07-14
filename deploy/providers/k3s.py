@@ -454,6 +454,26 @@ def main(argv: list[str] | None = None) -> int:
     # constat que pour --validate/--plan/--apply, mais ceux-la ont besoin du
     # rendu des values, --rollback non.
     if args.rollback:
+        # A4 : l'avertissement doit venir AVANT l'action (pas apres coup), et
+        # exiger une confirmation -- coherent avec --apply, qui prompte deja.
+        # L'ancien ordre (rollback d'abord, avertissement ensuite) laissait
+        # l'operateur decouvrir "la base n'est pas restauree" APRES avoir deja
+        # declenche l'operation, sans jamais avoir eu a en decider en connaissance
+        # de cause.
+        print(
+            "\n*** ATTENTION : `helm rollback` NE RESTAURE PAS la BASE DE DONNEES. ***\n"
+            "Il rend les MANIFESTES a leur etat anterieur -- jamais les donnees. Si la\n"
+            "migration etait destructive (DROP COLUMN/TABLE), le schema restera casse et\n"
+            "le code rollbacke tournera dessus.\n"
+            "Pour restaurer la base depuis la sauvegarde pre-upgrade (operation SEPAREE,\n"
+            "JAMAIS automatique) :\n"
+            "    python deploy/scripts/restore_backup.py --list\n"
+            "    python deploy/scripts/restore_backup.py --restore <horodatage>\n")
+        if not args.yes:
+            ans = input("Continuer le rollback des manifestes ? [y/N] ").strip().lower()
+            if ans not in ("y", "yes"):
+                print("Annule.")
+                return 4
         subprocess.run([helm, "history", "facil", "-n", args.namespace], check=False)
         rb = [helm, "rollback", "facil"]
         if args.revision is not None:
@@ -464,13 +484,9 @@ def main(argv: list[str] | None = None) -> int:
             print("ERREUR: `helm rollback` a echoue.", file=sys.stderr)
             return 2
         print(
-            "\n*** ATTENTION : la BASE DE DONNEES n'est PAS restauree. ***\n"
-            "`helm rollback` rend les MANIFESTES a leur etat anterieur -- jamais les\n"
-            "donnees. Si la migration etait destructive (DROP COLUMN/TABLE), le schema\n"
-            "reste casse et le code rollbacke tournera dessus.\n"
-            "Pour restaurer la base depuis la sauvegarde pre-upgrade :\n"
-            "    python deploy/scripts/restore_backup.py --list\n"
-            "    python deploy/scripts/restore_backup.py --restore <horodatage>\n")
+            "[OK] `helm rollback` termine. RAPPEL : la base de donnees n'a PAS ete\n"
+            "restauree (voir l'avertissement ci-dessus) -- utiliser\n"
+            "deploy/scripts/restore_backup.py si besoin.")
         return 0
 
     if not args.config.exists():

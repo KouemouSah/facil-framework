@@ -813,8 +813,63 @@ def test_rollback_warns_that_the_database_is_NOT_restored(monkeypatch, capsys):
     monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
     k3s.main(["--rollback", "--yes"])
     out = capsys.readouterr().out.lower()
-    assert "base" in out and ("pas restaur" in out or "non restaur" in out)
+    assert "base de donnees" in out
+    assert "ne restaure pas" in out or "n'a pas ete" in out
     assert "restore_backup" in out   # on pointe vers l'outil, pas juste un avertissement
+
+
+# --- A4 : l'avertissement vient AVANT l'action, et exige confirmation --------
+
+def test_rollback_requires_confirmation_without_yes(monkeypatch):
+    calls = []
+    monkeypatch.setattr(k3s.subprocess, "run",
+                        lambda cmd, **kw: calls.append(list(cmd)) or
+                        subprocess.CompletedProcess(cmd, 0, stdout=""))
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+    rc = k3s.main(["--rollback"])
+    assert rc == 4
+    assert calls == [], (
+        "decliner doit annuler AVANT tout appel `helm history`/`helm rollback` "
+        f"-- appels observes : {calls}")
+
+
+def test_rollback_proceeds_when_confirmed_without_yes(monkeypatch):
+    calls = []
+    monkeypatch.setattr(k3s.subprocess, "run",
+                        lambda cmd, **kw: calls.append(list(cmd)) or
+                        subprocess.CompletedProcess(cmd, 0, stdout=""))
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+    rc = k3s.main(["--rollback"])
+    assert rc == 0
+    assert any("rollback" in c for c in calls)
+
+
+def test_rollback_yes_flag_skips_the_prompt(monkeypatch):
+    # --yes : coherent avec --apply, jamais bloque sur un `input()` en CI/script.
+    def boom(prompt=""):
+        raise AssertionError("--yes ne doit jamais invoquer input()")
+
+    monkeypatch.setattr("builtins.input", boom)
+    monkeypatch.setattr(k3s.subprocess, "run",
+                        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout=""))
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    assert k3s.main(["--rollback", "--yes"]) == 0
+
+
+def test_rollback_warning_appears_before_the_success_confirmation(monkeypatch, capsys):
+    # A4 : l'avertissement ("ne restaure pas la base") doit precede l'action --
+    # pas etre decouvert APRES coup, une fois le rollback deja declenche.
+    monkeypatch.setattr(k3s.subprocess, "run",
+                        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout=""))
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+    k3s.main(["--rollback"])
+    out = capsys.readouterr().out
+    warn_idx = out.lower().index("ne restaure pas")
+    ok_idx = out.index("[OK]")
+    assert warn_idx < ok_idx, "l'avertissement doit precede la confirmation de succes"
 
 
 def test_rollback_targets_specific_revision_when_given(monkeypatch):
@@ -838,10 +893,14 @@ def test_rollback_fails_closed_when_helm_rollback_errors(monkeypatch, capsys):
     monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
     rc = k3s.main(["--rollback", "--yes"])
     assert rc == 2
-    # Sur echec, PAS d'avertissement "base non restauree" : `helm rollback`
-    # n'a rien change du tout, le message serait trompeur (laisserait croire
-    # qu'un rollback a bien eu lieu, juste incomplet).
-    assert "restore_backup" not in capsys.readouterr().out.lower()
+    out = capsys.readouterr()
+    # A4 : l'avertissement pre-action est maintenant affiche AVANT de savoir si
+    # `helm rollback` va reussir (c'est le point -- l'operateur doit le voir
+    # AVANT de decider) -- mais la confirmation de SUCCES ("[OK] ... termine")
+    # ne doit elle jamais apparaitre quand `helm rollback` a echoue : rien n'a
+    # ete change, ce message serait trompeur.
+    assert "[OK]" not in out.out
+    assert "ERREUR" in out.err
 
 
 def test_rollback_does_not_require_deploy_config_yaml(monkeypatch, tmp_path):
