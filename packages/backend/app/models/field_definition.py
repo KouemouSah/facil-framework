@@ -72,16 +72,28 @@ class FieldDefinition(UUIDAuditBase):
         Carries `index_state` (not just `indexed`): `sortable_keys()` (a later
         task) reads it off the resolved spec — a field is only offered for
         sorting once its index is actually READY, never merely requested.
+
+        NOTE: SQLAlchemy `mapped_column(default=...)` applies at FLUSH, not at
+        `__init__`. A freshly constructed, unflushed FieldDefinition has None in
+        every column whose value was left implicit. This method coalesces every
+        defaulted field to ensure an unflushed object is always well-formed.
         """
         return {
-            "key": self.key, "type": self.type, "widget": self.widget,
+            "key": self.key,
+            "type": self.type or "string",
+            "widget": self.widget or "plain",
             "label": {"en": self.label_en, "fr": self.label_fr, "es": self.label_es},
             "hint": {"en": self.hint_en or "", "fr": self.hint_fr or "",
                      "es": self.hint_es or ""},
-            "required": self.required, "default": self.default,
-            "rules": self.rules or {}, "options": self.options or [],
+            "required": self.required if self.required is not None else False,
+            "default": self.default,
+            "rules": self.rules or {},
+            "options": self.options or [],
             "relation_resource": self.relation_resource or "",
             "relation_filter": self.relation_filter or {},
-            "group": self.group, "order": self.order, "col_span": self.col_span,
-            "indexed": self.indexed, "index_state": self.index_state,
+            "group": self.group or "",
+            "order": self.order if self.order is not None else 0,
+            "col_span": self.col_span if self.col_span is not None else 1,
+            "indexed": self.indexed if self.indexed is not None else False,
+            "index_state": self.index_state or "none",
         }

@@ -14,9 +14,14 @@ def test_organization_id_is_not_nullable():
 
 
 def test_unique_on_org_target_key():
-    names = {c.name for c in FieldDefinition.__table__.constraints
-             if c.__class__.__name__ == "UniqueConstraint"}
-    assert "uq_field_definition_org_target_key" in names
+    # Verify both the constraint name AND its column set.
+    for constraint in FieldDefinition.__table__.constraints:
+        if constraint.__class__.__name__ == "UniqueConstraint" and constraint.name == "uq_field_definition_org_target_key":
+            col_names = {col.name for col in constraint.columns}
+            assert col_names == {"organization_id", "target", "key"}, \
+                f"Expected columns {{organization_id, target, key}}, got {col_names}"
+            return
+    raise AssertionError("Constraint 'uq_field_definition_org_target_key' not found")
 
 
 def test_every_extensible_entity_has_a_custom_fields_column():
@@ -34,6 +39,23 @@ def test_as_spec_produces_a_valid_FieldSpec():
     spec = FieldSpec.model_validate(fd.as_spec())
     assert spec.key == "convention_no"
     assert spec.label["fr"] == "N° de convention"
+
+
+def test_as_spec_is_valid_on_unflushed_object_with_only_required_fields():
+    # SQLAlchemy column defaults fire at FLUSH, not __init__. A "validate before
+    # persist" caller sees None in every implicit column — as_spec() must coalesce.
+    fd = FieldDefinition(organization_id="org-1", target="site.custom_fields",
+                         key="convention_no",
+                         label_en="X", label_fr="X", label_es="X")
+    spec = FieldSpec.model_validate(fd.as_spec())
+    assert spec.type == "string"
+    assert spec.widget == "plain"
+    assert spec.indexed is False
+    assert spec.index_state == "none"
+    assert spec.required is False
+    assert spec.col_span == 1
+    assert spec.order == 0
+    assert spec.group == ""
 
 
 def test_fields_manage_permission_is_registered():
