@@ -116,23 +116,20 @@ if echo "$OUT" | grep -qE '"?helm\.sh/hook"?: pre-install'; then
   echo "FAIL: hook pre-install detecte dans le rendu complet -- il s'execute AVANT que Postgres existe" >&2
   exit 1
 fi
-# Hardening : `runAsNonRoot: true` seul ne suffit PAS. Nos images déclarent leur
-# USER par nom (`appuser`, `nextjs`) ; le kubelet ne résout pas les noms de l'image
-# et refuse alors le pod (CreateContainerConfigError: "image has non-numeric user").
-# Tout podSpec runAsNonRoot doit donc porter un runAsUser numérique — invariant que
-# `helm template`/`helm lint` ne vérifient pas, d'où cette assertion.
-# SEC-018 : sans app.kubernetes.io/instance dans le selector, deux releases dans
-# le meme namespace se volent leurs pods (les Service de l'une selectionnent
-# aussi ceux de l'autre, puisque le seul discriminant restant serait
-# facil.component, identique entre releases). Verifie sur un `matchLabels:`
-# (Deployment/StatefulSet.spec.selector) reellement rendu.
-echo "$OUT" | grep -A3 "matchLabels:" | grep -q "app.kubernetes.io/instance"
-NONROOT="$(echo "$OUT" | grep -c 'runAsNonRoot: true' || true)"
-WITH_UID="$(echo "$OUT" | grep -A1 'runAsNonRoot: true' | grep -cE 'runAsUser: [0-9]+' || true)"
-if [ "$NONROOT" -ne "$WITH_UID" ]; then
-  echo "FAIL hardening: $((NONROOT - WITH_UID)) podSpec(s) runAsNonRoot sans runAsUser numérique" >&2
-  exit 1
-fi
+# Hardening : `runAsNonRoot: true` seul ne suffit PAS (nos images déclarent leur
+# USER par nom -- le kubelet ne résout pas, CreateContainerConfigError) + SEC-018
+# (spec.selector.matchLabels doit porter app.kubernetes.io/instance, sinon deux
+# releases dans le meme namespace se volent leurs pods). Les DEUX anciennes
+# assertions ici etaient des COMPTAGES GLOBAUX ("autant de X que de Y dans tout
+# le rendu" / "un match n'importe ou apres un matchLabels:") -- exactement le
+# biais tautologique deja tue 8 fois sur ce projet (guard_secrets.py,
+# guard_networkpolicy.py, guard_ingress.py, et le premier invariant de
+# guard_resources.py ci-dessus) : un seul workload fautif parmi plusieurs se
+# fait compenser/masquer par les autres. Remplacees par les memes invariants,
+# desormais verifies PAR WORKLOAD DANS guard_resources.py (deja invoque plus
+# haut dans ce fichier -- SELECTOR_CHECKED_KINDS + runAsNonRoot/runAsUser,
+# meme appel `echo "$OUT" | python .../guard_resources.py`, pas de 2e passe).
+# Preuve par mutation : test_guard_resources.py.
 # SEC-001 : le backend ne doit monter AUCUN bundle global (envFrom sur un Secret
 # partage) — chaque pod ne voit que le Secret de son composant.
 # NB : `! echo ... | grep -q ...` seul ne fait PAS echouer un script `set -e`
