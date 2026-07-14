@@ -722,6 +722,167 @@ def test_rollback_and_apply_are_mutually_exclusive():
         k3s.main(["--rollback", "--apply", "--yes"])
 
 
+# --- C1 : health-gate explicite apres upgrade ------------------------------
+#
+# Honnetete (a ne pas perdre de vue en lisant ces tests) : `helm upgrade --wait`
+# attend deja que les pods soient Ready, et la readinessProbe backend EST deja
+# /health -- ce gate est donc INCREMENTAL (verifie l'app APRES que Helm ait
+# declare la release reussie, message exploitable), jamais un remplacement du
+# --wait existant.
+
+def test_health_gate_calls_kubectl_exec_with_expected_url_and_returns_0_on_success(monkeypatch):
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s.time, "sleep", lambda s: (_ for _ in ()).throw(
+        AssertionError("no sleep expected on first-try success")))
+
+    rc = k3s.health_gate("kubectl", "facil", 8080)
+
+    assert rc == 0
+    assert len(calls) == 1
+    cmd = calls[0]
+    assert cmd[:4] == ["kubectl", "-n", "facil", "exec"]
+    assert "deploy/facil-backend" in cmd
+    assert any("localhost:8080/health" in a for a in cmd)
+
+
+def test_health_gate_retries_with_delay_before_failing(monkeypatch):
+    # Mutation-guard: proves the retry loop can actually exhaust and fail --
+    # not just succeed trivially on the first attempt.
+    calls = []
+    slept = []
+
+    def fake_run(cmd, **kw):
+        calls.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="connection refused")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s.time, "sleep", lambda s: slept.append(s))
+
+    rc = k3s.health_gate("kubectl", "facil", 8080, attempts=3, delay_seconds=2.0)
+
+    assert rc == 2
+    assert len(calls) == 3, "doit epuiser TOUTES les tentatives avant d'echouer"
+    assert slept == [2.0, 2.0], "espace entre tentatives, mais pas apres la derniere"
+
+
+def test_health_gate_names_the_faulty_deployment_and_namespace_on_failure(monkeypatch, capsys):
+    monkeypatch.setattr(
+        k3s.subprocess, "run",
+        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1, stdout="", stderr="dial tcp: timeout"))
+    monkeypatch.setattr(k3s.time, "sleep", lambda s: None)
+
+    rc = k3s.health_gate("kubectl", "custom-ns", 9000, attempts=1)
+
+    assert rc == 2
+    err = capsys.readouterr().err
+    # Message exploitable : nomme le Deployment fautif + le namespace + le
+    # DERNIER diagnostic reel -- pas juste "echec", ce qui serait un timeout
+    # Helm opaque avec un habillage different.
+    assert "deploy/facil-backend" in err
+    assert "custom-ns" in err
+    assert "dial tcp: timeout" in err
+
+
+def test_health_gate_succeeds_after_a_transient_failure(monkeypatch):
+    # Distingue vraiment le retry loop d'un simple pass/fail binaire.
+    attempts_seen = []
+
+    def fake_run(cmd, **kw):
+        attempts_seen.append(1)
+        rc = 1 if len(attempts_seen) == 1 else 0
+        return subprocess.CompletedProcess(cmd, rc, stdout="", stderr="not ready yet")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s.time, "sleep", lambda s: None)
+
+    rc = k3s.health_gate("kubectl", "facil", 8080, attempts=5, delay_seconds=1.0)
+
+    assert rc == 0
+    assert len(attempts_seen) == 2
+
+
+def test_main_apply_fails_closed_when_health_gate_reports_app_down(monkeypatch, tmp_path):
+    # Helm declares the release successful (--wait passed) but the app itself
+    # doesn't answer /health -- main() must surface this as a hard failure,
+    # not silently return 0 just because `helm upgrade` succeeded.
+    monkeypatch.setattr(k3s.subprocess, "run",
+                        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout="", stderr=""))
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+    monkeypatch.setattr(k3s, "health_gate", lambda *a, **kw: 2)
+
+    rc = k3s.main(["--apply", "--config", str(_write_cfg_file(tmp_path)),
+                   "--yes", "--allow-dev-vault"])
+    assert rc == 2
+
+
+def test_main_apply_returns_0_when_health_gate_passes(monkeypatch, tmp_path):
+    monkeypatch.setattr(k3s.subprocess, "run",
+                        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout="", stderr=""))
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+    monkeypatch.setattr(k3s, "health_gate", lambda *a, **kw: 0)
+
+    rc = k3s.main(["--apply", "--config", str(_write_cfg_file(tmp_path)),
+                   "--yes", "--allow-dev-vault"])
+    assert rc == 0
+
+
+def test_main_apply_passes_configured_backend_port_to_health_gate(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_health_gate(kubectl, namespace, port, **kw):
+        seen["kubectl"] = kubectl
+        seen["namespace"] = namespace
+        seen["port"] = port
+        return 0
+
+    monkeypatch.setattr(k3s.subprocess, "run",
+                        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout="", stderr=""))
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+    monkeypatch.setattr(k3s, "health_gate", fake_health_gate)
+
+    rc = k3s.main(["--apply", "--config",
+                   str(_write_cfg_file(tmp_path, docker_local={
+                       "database_mode": "local", "backend_port": 9999,
+                       "frontend_port": 3000, "postgres_image": "pgvector/pgvector:pg16",
+                       "postgres_volume": "facil_pgdata", "redis_image": "redis:7-alpine"})),
+                   "--yes", "--allow-dev-vault", "--namespace", "custom-ns"])
+    assert rc == 0
+    assert seen == {"kubectl": "kubectl", "namespace": "custom-ns", "port": 9999}
+
+
+def test_main_apply_first_install_also_runs_health_gate(monkeypatch, tmp_path):
+    # Le 1er install (danse deux-passes) doit AUSSI passer par le health-gate
+    # apres la 2e passe -- pas seulement le chemin upgrade-simple.
+    def fake_run(cmd, **kw):
+        if "status" in cmd:
+            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="not found")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    calls = []
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+    monkeypatch.setattr(k3s, "health_gate", lambda *a, **kw: calls.append(a) or 0)
+
+    rc = k3s.main(["--apply", "--config", str(_write_cfg_file(tmp_path)),
+                   "--yes", "--allow-dev-vault"])
+    assert rc == 0
+    assert len(calls) == 1
+
+
 def test_deploy_py_knows_k3s_provider():
     import importlib.util
     spec = importlib.util.spec_from_file_location(

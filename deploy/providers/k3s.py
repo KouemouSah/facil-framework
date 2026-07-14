@@ -35,6 +35,7 @@ import base64
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 PROVIDERS_DIR = Path(__file__).resolve().parent
@@ -297,6 +298,54 @@ def _set_args(values: dict) -> list[str]:
     return args
 
 
+def health_gate(kubectl: str, namespace: str, port: int, *,
+                 deployment: str = "deploy/facil-backend",
+                 attempts: int = 5, delay_seconds: float = 2.0) -> int:
+    """Verifie `/health` APRES que Helm ait deja declare la release reussie.
+
+    Honnetete sur ce que ca apporte (a ne pas perdre en cours de route) :
+    `helm upgrade --wait` attend DEJA que les pods soient Ready, et la
+    readinessProbe du backend EST DEJA `/health` (infra/helm/facil/templates/
+    backend.yaml). Ce gate n'ajoute donc PAS une garantie fondamentale nouvelle
+    -- il est INCREMENTAL. Ce qu'il ajoute reellement :
+      1. Une verification APRES le retour de `helm upgrade`, distincte de la
+         readinessProbe (qui peut avoir menti, ou dont la fenetre suivante
+         n'a pas encore tourne juste apres --wait) -- "le pod est Ready" et
+         "l'application repond" ne sont pas rigoureusement la meme assertion.
+      2. Un message d'ECHEC EXPLOITABLE (namespace + Deployment + dernier
+         diagnostic reel) au lieu d'un timeout Helm opaque ("context deadline
+         exceeded") qui ne dit pas OU chercher.
+
+    `kubectl exec` (pas de port-forward, pas de dependance HTTP externe au
+    cluster) -- ce process Python tourne DANS le pod backend, via l'image deja
+    presente (aucune image nouvelle). Tentatives espacees (defaut 5x2s) pour
+    absorber une latence transitoire juste apres --wait.
+    """
+    probe = ("import urllib.request; "
+             f"urllib.request.urlopen('http://localhost:{port}/health', timeout=3)")
+    last_diag = ""
+    for attempt in range(1, attempts + 1):
+        proc = subprocess.run(
+            [kubectl, "-n", namespace, "exec", deployment, "--", "python", "-c", probe],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+        )
+        if proc.returncode == 0:
+            return 0
+        last_diag = (proc.stderr or proc.stdout or "").strip()
+        if attempt < attempts:
+            time.sleep(delay_seconds)
+    print(
+        f"ERREUR: health-gate post-upgrade a echoue -- '{deployment}' (namespace "
+        f"'{namespace}') ne repond pas sur /health apres {attempts} tentative(s).\n"
+        f"Helm a pourtant declare la release reussie (--wait) : c'est donc "
+        f"l'APPLICATION, pas seulement le pod, qui est en cause.\n"
+        f"Dernier diagnostic : {last_diag or '(aucune sortie)'}\n"
+        f"Inspecter : kubectl -n {namespace} logs {deployment}",
+        file=sys.stderr,
+    )
+    return 2
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
@@ -515,7 +564,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"-n {args.namespace}` pour repartir de zero.",
                 file=sys.stderr)
             return 2
-        return 0
+        return health_gate(kubectl, args.namespace, cfg.docker_local.backend_port)
 
     # Release deja installee : PAS de deadlock (les hooks pre-upgrade tournent avant
     # --wait), donc une seule passe -- rolling update normal, zero coupure backend --
@@ -530,7 +579,7 @@ def main(argv: list[str] | None = None) -> int:
             "ERREUR: `helm upgrade` a echoue -- rollback automatique (--atomic) vers "
             "la derniere release saine.", file=sys.stderr)
         return 2
-    return 0
+    return health_gate(kubectl, args.namespace, cfg.docker_local.backend_port)
 
 
 if __name__ == "__main__":
