@@ -15,7 +15,7 @@ Three rules (spec §7):
 
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.field_definition import FieldDefinition
@@ -29,7 +29,26 @@ MAX_ORG_DEPTH = 20
 async def _ancestor_org_ids(session: AsyncSession, organization_id: str) -> list[str]:
     """The org's ancestors, nearest first, bounded. Cycles cannot occur
     (organization service enforces `_assert_no_parent_cycle`), but we bound
-    anyway: a guard that relies on another guard is not a guard."""
+    anyway: a guard that relies on another guard is not a guard.
+
+    Dialect-guarded (repo rule: Postgres-specific SQL degrades cleanly under
+    any other dialect): Postgres walks the whole lineage in ONE round trip via
+    a bounded `WITH RECURSIVE` CTE (`_ancestor_org_ids_cte`); every other
+    dialect (SQLite, the test suite's default) falls back to the original
+    bounded sequential-query loop (`_ancestor_org_ids_loop`) — a textbook N+1,
+    but a correct and simple one, and SQLite is never the production path
+    100+ concurrent agents actually hit.
+    """
+    dialect = session.bind.dialect.name if session.bind is not None else ""
+    if dialect == "postgresql":
+        return await _ancestor_org_ids_cte(session, organization_id)
+    return await _ancestor_org_ids_loop(session, organization_id)
+
+
+async def _ancestor_org_ids_loop(session: AsyncSession, organization_id: str) -> list[str]:
+    """The original N+1: up to `MAX_ORG_DEPTH` sequential round trips, one per
+    hop up the lineage. Kept as the non-Postgres fallback — see
+    `_ancestor_org_ids`'s docstring."""
     ancestors: list[str] = []
     current = organization_id
     for _ in range(MAX_ORG_DEPTH):
@@ -41,6 +60,35 @@ async def _ancestor_org_ids(session: AsyncSession, organization_id: str) -> list
         ancestors.append(parent)
         current = parent
     return ancestors
+
+
+async def _ancestor_org_ids_cte(session: AsyncSession, organization_id: str) -> list[str]:
+    """The same result as `_ancestor_org_ids_loop`, in ONE round trip: a
+    `WITH RECURSIVE` CTE walks `organization.parent_id` upward, carrying its
+    own `depth` counter bounded by `:max_depth` — a guard that relies on
+    another guard (only the ORM loop being bounded) is not a guard, so the
+    SQL itself must refuse to recurse past `MAX_ORG_DEPTH` even though the
+    organization service already forbids cycles (`_assert_no_parent_cycle`).
+    `ORDER BY depth` reproduces the loop's nearest-first ordering, which
+    `definitions_for`'s precedence walk (`by_org.get(org_id, {})` iterated in
+    `(organization_id, *ancestors)` order) depends on.
+    """
+    rows = (await session.execute(text(
+        """
+        WITH RECURSIVE ancestors(id, depth) AS (
+            SELECT parent_id, 1
+            FROM organization
+            WHERE id = :org_id AND parent_id IS NOT NULL
+          UNION ALL
+            SELECT o.parent_id, a.depth + 1
+            FROM organization o
+            JOIN ancestors a ON o.id = a.id
+            WHERE o.parent_id IS NOT NULL AND a.depth < :max_depth
+        )
+        SELECT id FROM ancestors ORDER BY depth ASC
+        """
+    ), {"org_id": organization_id, "max_depth": MAX_ORG_DEPTH})).scalars().all()
+    return list(rows)
 
 
 async def definitions_for(session: AsyncSession, target: str,
