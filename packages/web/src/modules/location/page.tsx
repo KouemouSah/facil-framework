@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { DataGrid, ExportMenu, RecordForm, RecordSurface } from "@/components/shared";
 import { type DataGridColumn } from "@/components/ui/data-grid";
 import { Button } from "@/components/ui/button";
@@ -16,9 +17,10 @@ import { useFirstOrg } from "@/lib/use-organizations";
 import { useServerTable, type ServerPage } from "@/lib/use-server-table";
 import { usePermissions } from "@/lib/use-permissions";
 import { flattenCustomInitial, splitCustomPayload } from "@/modules/fields/fields";
+import { DocumentIdentityOverrideTab } from "@/modules/organization/document-identity-override-tab";
 import { SITE_BASE_KEYS, useSiteFields, useSiteFieldsSchemaError } from "./fields";
 import {
-  SITE_BASE, createSite, deleteSite, getSite, listSites, updateSite, type Site,
+  SITE_BASE, createSite, deleteSite, getSite, getSiteIssuerIdentity, listSites, updateSite, type Site,
 } from "./api";
 
 const DEFAULT_PAGE = 20;
@@ -33,6 +35,11 @@ export default function LocationsPage() {
   const isNew = searchParams.get("new") === "1";
   const [orgId, setOrgId] = useState("");
   const [pendingDelete, setPendingDelete] = useState<Site | null>(null);
+  // Lifted (not local to SiteEditSurface): the document-identity tab needs
+  // the full content width for the edit-column + live-preview split, so the
+  // list-hiding decision below has to know which tab is active.
+  const [tab, setTab] = useState<SiteTab>("details");
+  useEffect(() => { setTab("details"); }, [sel]);
   const { can } = usePermissions();
   const canCreate = can("location.create");
   const canUpdate = can("location.update");
@@ -131,11 +138,12 @@ export default function LocationsPage() {
         </div>
       </div>
 
-      {/* Master-detail: list + docked RecordSurface (edit) or full-width create page
-          (P2.0 consistency — a rich site create takes the whole area; edit keeps
-          the split-view). */}
+      {/* Master-detail: list + docked RecordSurface (edit) or full-width create/
+          document-identity page (P2.0 consistency + SP1 D1 — a rich site
+          create OR the document-identity screen takes the whole area; the
+          details tab keeps the split-view). */}
       <div className="flex min-h-0 flex-1 gap-4">
-        {!(surfaceOpen && isNew) && (
+        {!(surfaceOpen && (isNew || tab === "documentIdentity")) && (
         <div className="min-w-0 flex-1">
           <DataGrid<Site>
             mode="cursor"
@@ -165,7 +173,8 @@ export default function LocationsPage() {
         {surfaceOpen && (
           isNew
             ? (canCreate && <SiteCreateSurface orgId={orgId} onClose={closeSurface} onCreated={() => { table.refetch(); }} />)
-            : <SiteEditSurface key={sel} siteId={sel} orgId={orgId} onClose={closeSurface} readOnly={!canUpdate} />
+            : <SiteEditSurface key={sel} siteId={sel} orgId={orgId} tab={tab} onTabChange={setTab}
+                onClose={closeSurface} readOnly={!canUpdate} />
         )}
       </div>
 
@@ -225,8 +234,11 @@ function SiteCreateSurface({ orgId, onClose, onCreated }: {
   );
 }
 
-function SiteEditSurface({ siteId, orgId, onClose, readOnly }: {
-  siteId: string; orgId: string; onClose: () => void; readOnly: boolean;
+type SiteTab = "details" | "documentIdentity";
+
+function SiteEditSurface({ siteId, orgId, tab, onTabChange, onClose, readOnly }: {
+  siteId: string; orgId: string; tab: SiteTab; onTabChange: (t: SiteTab) => void;
+  onClose: () => void; readOnly: boolean;
 }) {
   const t = useTranslations("sites");
   const qc = useQueryClient();
@@ -245,50 +257,81 @@ function SiteEditSurface({ siteId, orgId, onClose, readOnly }: {
       title={(data?.name as string) || t("edit_title")}
       subtitle={data?.code ? `code ${data.code}` : undefined}
       resourceKey="sites"
+      mode={tab === "documentIdentity" ? "page" : "panel"}
       onClose={onClose}
     >
       {isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
       {!data && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
       {data && (
-        <RecordForm
-          // `fields.length` in the key (not just the row's etag) — Task 16
-          // e2e caught a real bug here: `SiteEditSurface` can mount before
-          // `orgId` (async `useFirstOrg()`, resolved by the PARENT page, not
-          // this component) is known — `LocationsPage`'s `surfaceOpen` opens
-          // this surface off `!!sel` alone, so a hard reload/deep-link lands
-          // here with `orgId=""` on the first render. `useSiteFields("")`
-          // then returns ONLY the base columns (its schema query is `enabled:
-          // Boolean(organizationId)`); RecordForm's `values` state is seeded
-          // ONCE, from whatever `fields` it was first mounted with (a lazy
-          // `useState` initializer, not an effect) — so once `orgId` resolves
-          // a moment later and a custom field's `FieldDef` appears, RecordForm
-          // does NOT remount (same key) and never seeds that field's stored
-          // value from `initial`, showing it permanently blank. Worse: saving
-          // the form afterward would submit that blank and silently ERASE the
-          // real value. Including `fields.length` forces a remount (fresh
-          // `values` seed from `initial`, using the now-complete `fields`)
-          // the moment the custom-fields schema finishes loading; once
-          // `fields` is stable (the common case — orgId already resolved
-          // before this surface ever mounted) the key never changes again, so
-          // no extra remounts are introduced for the already-working path.
-          key={`${String(data.etag ?? siteId)}-${fields.length}`}
-          fields={fields}
-          mode="edit"
-          layout="rich"
-          readOnly={readOnly}
-          initial={flattenCustomInitial(data)}
-          etag={data.etag ? String(data.etag) : undefined}
-          onSubmit={(payload, etag) => {
-            const { base, customFields } = splitCustomPayload(payload, SITE_BASE_KEYS);
-            const body = Object.keys(customFields).length ? { ...base, custom_fields: customFields } : base;
-            return updateSite(siteId, body, etag);
-          }}
-          onSuccess={() => {
-            qc.invalidateQueries({ queryKey: ["site", siteId] });
-            qc.invalidateQueries({ queryKey: ["sites"] });
-          }}
-          onConflict={() => qc.invalidateQueries({ queryKey: ["site", siteId] })}
-        />
+        <div className="space-y-4">
+          <div className="flex gap-1 border-b">
+            {(["details", "documentIdentity"] as SiteTab[]).map((tk) => (
+              <button key={tk} type="button" onClick={() => onTabChange(tk)}
+                className={cn("border-b-2 px-3 py-1.5 text-sm font-medium",
+                  tab === tk ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
+                {tk === "details" ? t("tab.details") : t("documentIdentity.tab")}
+              </button>
+            ))}
+          </div>
+
+          {tab === "details" ? (
+            <RecordForm
+              // `fields.length` in the key (not just the row's etag) — Task 16
+              // e2e caught a real bug here: `SiteEditSurface` can mount before
+              // `orgId` (async `useFirstOrg()`, resolved by the PARENT page, not
+              // this component) is known — `LocationsPage`'s `surfaceOpen` opens
+              // this surface off `!!sel` alone, so a hard reload/deep-link lands
+              // here with `orgId=""` on the first render. `useSiteFields("")`
+              // then returns ONLY the base columns (its schema query is `enabled:
+              // Boolean(organizationId)`); RecordForm's `values` state is seeded
+              // ONCE, from whatever `fields` it was first mounted with (a lazy
+              // `useState` initializer, not an effect) — so once `orgId` resolves
+              // a moment later and a custom field's `FieldDef` appears, RecordForm
+              // does NOT remount (same key) and never seeds that field's stored
+              // value from `initial`, showing it permanently blank. Worse: saving
+              // the form afterward would submit that blank and silently ERASE the
+              // real value. Including `fields.length` forces a remount (fresh
+              // `values` seed from `initial`, using the now-complete `fields`)
+              // the moment the custom-fields schema finishes loading; once
+              // `fields` is stable (the common case — orgId already resolved
+              // before this surface ever mounted) the key never changes again, so
+              // no extra remounts are introduced for the already-working path.
+              key={`${String(data.etag ?? siteId)}-${fields.length}`}
+              fields={fields}
+              mode="edit"
+              layout="rich"
+              readOnly={readOnly}
+              initial={flattenCustomInitial(data)}
+              etag={data.etag ? String(data.etag) : undefined}
+              onSubmit={(payload, etag) => {
+                const { base, customFields } = splitCustomPayload(payload, SITE_BASE_KEYS);
+                const body = Object.keys(customFields).length ? { ...base, custom_fields: customFields } : base;
+                return updateSite(siteId, body, etag);
+              }}
+              onSuccess={() => {
+                qc.invalidateQueries({ queryKey: ["site", siteId] });
+                qc.invalidateQueries({ queryKey: ["sites"] });
+              }}
+              onConflict={() => qc.invalidateQueries({ queryKey: ["site", siteId] })}
+            />
+          ) : (
+            <DocumentIdentityOverrideTab
+              key={String(data.etag ?? siteId)}
+              schemaTarget="site.document_identity"
+              organizationId={orgId}
+              blob={(data.document_identity as Record<string, unknown>) ?? {}}
+              etag={data.etag ? String(data.etag) : undefined}
+              canWrite={!readOnly}
+              issuerIdentityQueryKey={["issuer-identity", "site", siteId]}
+              fetchIssuerIdentity={() => getSiteIssuerIdentity(siteId)}
+              onSubmit={(payload, etag) => updateSite(siteId, { document_identity: payload }, etag)}
+              onSaved={() => {
+                qc.invalidateQueries({ queryKey: ["site", siteId] });
+                qc.invalidateQueries({ queryKey: ["sites"] });
+              }}
+            />
+          )}
+        </div>
       )}
     </RecordSurface>
   );

@@ -21,9 +21,16 @@ export interface FileUploadProps {
   onRemove: () => void;
   maxSizeMB?: number;
   disabled?: boolean;
+  /** SP1 D1 (org_unit/site document-identity overrides): the value this field
+   *  would resolve to if left blank (e.g. the organization's own logo). When
+   *  `value` is empty and this is set, the dropzone shows that image with an
+   *  "inherited" caption instead of a bare empty state — a blank override
+   *  must read as "inherit", never as "no logo at all". Purely additive:
+   *  every existing caller that doesn't pass it keeps today's behaviour. */
+  inheritedPreviewUrl?: string;
 }
 
-export function FileUpload({ value, onUploaded, onRemove, maxSizeMB, disabled }: FileUploadProps) {
+export function FileUpload({ value, onUploaded, onRemove, maxSizeMB, disabled, inheritedPreviewUrl }: FileUploadProps) {
   const t = useTranslations("upload");
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -88,6 +95,14 @@ export function FileUpload({ value, onUploaded, onRemove, maxSizeMB, disabled }:
           {busy ? (
             <><Loader2 className="size-5 animate-spin text-muted-foreground" />
               <span className="text-muted-foreground">{t("uploading")}</span></>
+          ) : inheritedPreviewUrl ? (
+            <>
+              <Image src={inheritedPreviewUrl} alt="" width={32} height={32}
+                unoptimized={!isSameOriginAsset(inheritedPreviewUrl)}
+                className="h-8 w-8 rounded object-contain opacity-70" />
+              <span className="text-muted-foreground">{t("inherited")}</span>
+              <span><span className="text-primary">{t("browse")}</span> {t("drop")}</span>
+            </>
           ) : (
             <><ImagePlus className="size-5 text-muted-foreground" />
               <span><span className="text-primary">{t("browse")}</span> {t("drop")}</span>

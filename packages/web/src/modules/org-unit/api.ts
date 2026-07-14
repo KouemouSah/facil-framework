@@ -15,6 +15,7 @@ export interface OrgUnit {
   external_ref: string | null;
   metadata: Record<string, unknown>;
   custom_fields: Record<string, unknown>;
+  document_identity: Record<string, unknown>;
   is_active: boolean;
   etag?: string;
 }
@@ -24,6 +25,13 @@ export const listUnits = (orgId: string) =>
 
 export const getUnit = (unitId: string) =>
   apiFetch<OrgUnit>(`${ORG_BASE}/units/${unitId}`);
+
+/** Resolved issuer identity for a document issued by this unit: the unit's
+ *  own `document_identity` overrides, its ancestors', then the organization
+ *  row — first non-empty per key, origin included (SP1 debt D1). */
+export const getUnitIssuerIdentity = (unitId: string) =>
+  apiFetch<import("../organization/document-preview").ResolvedIssuerIdentity>(
+    `${ORG_BASE}/units/${unitId}/issuer-identity`);
 
 export const createUnit = (orgId: string, body: Record<string, unknown>) =>
   apiFetch<OrgUnit>(`${ORG_BASE}/${orgId}/units`, { method: "POST", body: JSON.stringify(body) });

@@ -19,6 +19,12 @@ export const listOrgs = (p: { q: string; sort: string; limit: number; cursor: st
 export const getOrg = (id: string) =>
   apiFetch<Record<string, unknown>>(`${ORG_BASE}/${id}`);
 
+/** Resolved issuer identity for a document issued directly by this
+ *  organization (no site/unit override level) — every key already resolves
+ *  to the org's own row, `from: "organization"` (SP1 debt D1). */
+export const getOrgIssuerIdentity = (id: string) =>
+  apiFetch<import("./document-preview").ResolvedIssuerIdentity>(`${ORG_BASE}/${id}/issuer-identity`);
+
 export const createOrg = (payload: Record<string, unknown>) =>
   apiFetch(`${ORG_BASE}/`, { method: "POST", body: JSON.stringify(payload) });
 

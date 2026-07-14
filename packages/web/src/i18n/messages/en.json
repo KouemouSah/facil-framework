@@ -210,7 +210,8 @@
       "type": "Unsupported file type. Use PNG, JPG, GIF, WEBP or ICO (SVG is not allowed).",
       "size": "File is too large (max 5 MB).",
       "failed": "Upload failed. Please try again."
-    }
+    },
+    "inherited": "Inherited"
   },
   "organizations": {
     "title": "Organizations",
@@ -228,7 +229,35 @@
     },
     "documentIdentity": {
       "tab": "Document identity",
-      "description": "The letterhead/footer/seal identity printed on every generated report for this organization."
+      "description": "The letterhead/footer/seal identity printed on every generated report for this organization.",
+      "override_description": "Optional overrides for this entity. Leave a field empty to inherit it from the organization.",
+      "loading": "Loading…",
+      "load_error": "Failed to load the document identity.",
+      "save": "Save",
+      "inherited": {
+        "title": "Inherited from the organization",
+        "hint": "Edited on the Details tab — shown here for reference only.",
+        "edit_in_details": "Edit in Details →",
+        "loading": "Loading…",
+        "load_error": "Failed to load the inherited identity.",
+        "empty": "—",
+        "legal_name": "Legal name",
+        "tax_id": "Tax ID",
+        "registration_number": "Registration number",
+        "logo_url": "Logo"
+      },
+      "preview": {
+        "title": "Preview",
+        "size_label": "Paper size",
+        "orientation_label": "Orientation",
+        "portrait": "Portrait",
+        "landscape": "Landscape",
+        "aria_label": "Live preview of the document header and footer",
+        "caption": "Preview · not contractual",
+        "placeholder": {
+          "legal_name": "Legal name"
+        }
+      }
     },
     "settings": {
       "tab": "Settings",
@@ -266,7 +295,8 @@
       "code_hint": "Immutable identifier.",
       "party_id_hint": "Party holding tax id / registration / contacts.",
       "parent_id_hint": "Owning company for multi-company groups."
-    }
+    },
+    "inherited_placeholder": "Inherited: {value}"
   },
   "sites": {
     "title": "Sites",
@@ -320,6 +350,12 @@
         "office": "Office",
         "point_of_sale": "Point of sale"
       }
+    },
+    "tab": {
+      "details": "Details"
+    },
+    "documentIdentity": {
+      "tab": "Document identity"
     }
   },
   "agents": {
@@ -552,7 +588,13 @@
       "is_active": "Active"
     },
     "delete_parent_hint": "Delete or reparent its child units first.",
-    "capped": "Showing the first {n} units. Refine or split the hierarchy to see the rest."
+    "capped": "Showing the first {n} units. Refine or split the hierarchy to see the rest.",
+    "tab": {
+      "details": "Details"
+    },
+    "documentIdentity": {
+      "tab": "Document identity"
+    }
   },
   "directory": {
     "f": {

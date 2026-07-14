@@ -364,9 +364,15 @@ export function RecordForm({
     // A server-served `type: "file"` (e.g. document_identity.logo_url/seal_url,
     // widget "image") stores the uploaded asset URL exactly like the legacy
     // `case "image"` below — same control, reached before the legacy switch so
-    // it isn't misrouted into the default text input.
+    // it isn't misrouted into the default text input. `f.placeholder` doubles
+    // as the "inherited value" channel here (SP1 D1 org_unit/site overrides):
+    // a text/textarea field already shows it via the native `placeholder`
+    // attribute below, so a caller building an override form (SchemaBlobForm's
+    // `placeholders` prop) can set it uniformly across every field type,
+    // including file, without a second prop.
     if (specDriven && f.type === "file")
       return <FileUpload value={values[f.name] ?? ""} disabled={fieldRO}
+               inheritedPreviewUrl={f.placeholder}
                onUploaded={(url) => setField(f.name, url)}
                onRemove={() => setField(f.name, "")} />;
     // NEW "text" = multi-line (types.py LEGACY_TYPE_ALIASES note: the legacy

@@ -14,10 +14,10 @@ import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useServerTable, type ServerPage } from "@/lib/use-server-table";
 import { usePermissions } from "@/lib/use-permissions";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { flattenCustomInitial, splitCustomPayload } from "@/modules/fields/fields";
 import { ORG_BASE_KEYS, useOrgFields, useOrgFieldsSchemaError } from "./fields";
-import { DocumentIdentityForm } from "./document-identity-form";
+import { DocumentIdentityPage } from "./document-identity-page";
 import { OrganizationSettingsForm } from "./settings-form";
 import {
   ORG_BASE, createOrg, deleteOrg, getOrg, listOrgs, updateOrg, type Org,
@@ -34,6 +34,12 @@ export default function OrganizationsPage() {
   const sel = searchParams.get("sel") ?? "";
   const isNew = searchParams.get("new") === "1";
   const [pendingDelete, setPendingDelete] = useState<Org | null>(null);
+  // Lifted here (not local to OrgEditSurface): the document-identity tab needs
+  // the FULL content width (mode="page", like create) — the list-hiding
+  // decision below has to know which tab is active, not just whether a
+  // surface is open at all.
+  const [tab, setTab] = useState<OrgTab>("details");
+  useEffect(() => { setTab("details"); }, [sel]);
   // Permission-driven actions (backend still enforces + scope-checks).
   const { can } = usePermissions();
   const canCreate = can("organization.create");
@@ -119,11 +125,13 @@ export default function OrganizationsPage() {
         </div>
       </div>
 
-      {/* Master-detail: list + docked RecordSurface (edit) or full-width create page
-          (P1.3). A field-rich create takes the whole area (list hidden); edit keeps
-          the split-view for list context. */}
+      {/* Master-detail: list + docked RecordSurface (edit) or full-width create/
+          document-identity page (P1.3 + SP1 D1). A field-rich create OR the
+          document-identity screen (live A4 preview needs the room) takes the
+          whole area (list hidden); the details/settings tabs keep the
+          split-view for list context. */}
       <div className="flex min-h-0 flex-1 gap-4">
-        {!(surfaceOpen && isNew) && (
+        {!(surfaceOpen && (isNew || tab === "documentIdentity")) && (
         <div className="min-w-0 flex-1">
           <DataGrid<Org>
             mode="cursor"
@@ -153,7 +161,8 @@ export default function OrganizationsPage() {
         {surfaceOpen && (
           isNew
             ? (canCreate && <OrgCreateSurface onClose={closeSurface} onCreated={() => { table.refetch(); }} />)
-            : <OrgEditSurface key={sel} orgId={sel} onClose={closeSurface} readOnly={!canUpdate} />
+            : <OrgEditSurface key={sel} orgId={sel} tab={tab} onTabChange={setTab}
+                onClose={closeSurface} readOnly={!canUpdate} />
         )}
       </div>
 
@@ -203,12 +212,13 @@ function OrgCreateSurface({ onClose, onCreated }: { onClose: () => void; onCreat
 
 type OrgTab = "details" | "documentIdentity" | "settings";
 
-function OrgEditSurface({ orgId, onClose, readOnly }: { orgId: string; onClose: () => void; readOnly: boolean }) {
+function OrgEditSurface({ orgId, tab, onTabChange, onClose, readOnly }: {
+  orgId: string; tab: OrgTab; onTabChange: (t: OrgTab) => void; onClose: () => void; readOnly: boolean;
+}) {
   const t = useTranslations("organizations");
   const qc = useQueryClient();
   const fields = useOrgFields(orgId);
   const customFieldsError = useOrgFieldsSchemaError(orgId);
-  const [tab, setTab] = useState<OrgTab>("details");
   const { data, isError: rowError } = useQuery<Record<string, unknown>>({
     queryKey: ["org", orgId],
     queryFn: () => getOrg(orgId),
@@ -226,6 +236,10 @@ function OrgEditSurface({ orgId, onClose, readOnly }: { orgId: string; onClose: 
       title={title}
       subtitle={data?.code ? `code ${data.code}` : undefined}
       resourceKey="orgs"
+      // Document identity needs the FULL content width for the edit-column +
+      // live-preview split (SP1 D1) — the same `mode="page"` a rich create
+      // already uses; details/settings stay docked (list stays visible).
+      mode={tab === "documentIdentity" ? "page" : "panel"}
       onClose={onClose}
     >
       {isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
@@ -237,7 +251,7 @@ function OrgEditSurface({ orgId, onClose, readOnly }: { orgId: string; onClose: 
               field in the main form. */}
           <div className="flex gap-1 border-b">
             {(["details", "documentIdentity", "settings"] as OrgTab[]).map((tk) => (
-              <button key={tk} type="button" onClick={() => setTab(tk)}
+              <button key={tk} type="button" onClick={() => onTabChange(tk)}
                 className={cn("border-b-2 px-3 py-1.5 text-sm font-medium",
                   tab === tk ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
                 {tk === "details" ? t("tab.details")
@@ -286,19 +300,18 @@ function OrgEditSurface({ orgId, onClose, readOnly }: { orgId: string; onClose: 
               onConflict={() => qc.invalidateQueries({ queryKey: ["org", orgId] })}
             />
           ) : tab === "documentIdentity" ? (
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">{t("documentIdentity.description")}</p>
-              <DocumentIdentityForm
-                key={String(etag ?? orgId)}
-                orgId={orgId}
-                documentIdentity={(data.document_identity as Record<string, unknown>) ?? {}}
-                etag={etag}
-                onSaved={() => {
-                  qc.invalidateQueries({ queryKey: ["org", orgId] });
-                  qc.invalidateQueries({ queryKey: ["orgs"] });
-                }}
-              />
-            </div>
+            <DocumentIdentityPage
+              key={String(etag ?? orgId)}
+              orgId={orgId}
+              documentIdentity={(data.document_identity as Record<string, unknown>) ?? {}}
+              etag={etag}
+              canWrite={!readOnly}
+              onGoToDetails={() => onTabChange("details")}
+              onSaved={() => {
+                qc.invalidateQueries({ queryKey: ["org", orgId] });
+                qc.invalidateQueries({ queryKey: ["orgs"] });
+              }}
+            />
           ) : (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">{t("settings.description")}</p>

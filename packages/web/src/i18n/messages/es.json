@@ -210,7 +210,8 @@
       "type": "Tipo de archivo no admitido. Use PNG, JPG, GIF, WEBP o ICO (SVG no permitido).",
       "size": "El archivo es demasiado grande (máx. 5 MB).",
       "failed": "Error al subir. Inténtelo de nuevo."
-    }
+    },
+    "inherited": "Heredado"
   },
   "organizations": {
     "title": "Organizaciones",
@@ -228,7 +229,35 @@
     },
     "documentIdentity": {
       "tab": "Identidad documental",
-      "description": "La identidad (encabezado/pie de página/sello) impresa en cada informe generado para esta organización."
+      "description": "La identidad (encabezado/pie de página/sello) impresa en cada informe generado para esta organización.",
+      "override_description": "Anulaciones opcionales para esta entidad. Deje un campo vacío para heredarlo de la organización.",
+      "loading": "Cargando…",
+      "load_error": "Error al cargar la identidad documental.",
+      "save": "Guardar",
+      "inherited": {
+        "title": "Heredado de la organización",
+        "hint": "Editado en la pestaña Detalles — se muestra aquí solo como referencia.",
+        "edit_in_details": "Editar en Detalles →",
+        "loading": "Cargando…",
+        "load_error": "Error al cargar la identidad heredada.",
+        "empty": "—",
+        "legal_name": "Razón social",
+        "tax_id": "Identificador fiscal",
+        "registration_number": "Número de registro",
+        "logo_url": "Logotipo"
+      },
+      "preview": {
+        "title": "Vista previa",
+        "size_label": "Tamaño de papel",
+        "orientation_label": "Orientación",
+        "portrait": "Vertical",
+        "landscape": "Horizontal",
+        "aria_label": "Vista previa en vivo del encabezado y pie de página del documento",
+        "caption": "Vista previa · no contractual",
+        "placeholder": {
+          "legal_name": "Razón social"
+        }
+      }
     },
     "settings": {
       "tab": "Ajustes",
@@ -266,7 +295,8 @@
       "code_hint": "Identificador inmutable.",
       "party_id_hint": "Tercero con NIF / registro / contactos.",
       "parent_id_hint": "Empresa matriz para grupos multiempresa."
-    }
+    },
+    "inherited_placeholder": "Heredado: {value}"
   },
   "sites": {
     "title": "Sedes",
@@ -320,6 +350,12 @@
         "office": "Oficina",
         "point_of_sale": "Punto de venta"
       }
+    },
+    "tab": {
+      "details": "Detalles"
+    },
+    "documentIdentity": {
+      "tab": "Identidad documental"
     }
   },
   "agents": {
@@ -552,7 +588,13 @@
       "is_active": "Activo"
     },
     "delete_parent_hint": "Elimine o reasigne primero sus sub-unidades.",
-    "capped": "Mostrando las primeras {n} unidades. Refine o divida la jerarquía para ver el resto."
+    "capped": "Mostrando las primeras {n} unidades. Refine o divida la jerarquía para ver el resto.",
+    "tab": {
+      "details": "Detalles"
+    },
+    "documentIdentity": {
+      "tab": "Identidad documental"
+    }
   },
   "directory": {
     "f": {

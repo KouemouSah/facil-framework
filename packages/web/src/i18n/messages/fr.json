@@ -210,7 +210,8 @@
       "type": "Type de fichier non pris en charge. Utilisez PNG, JPG, GIF, WEBP ou ICO (SVG interdit).",
       "size": "Fichier trop volumineux (max 5 Mo).",
       "failed": "Échec du téléversement. Veuillez réessayer."
-    }
+    },
+    "inherited": "Hérité"
   },
   "organizations": {
     "title": "Organisations",
@@ -228,7 +229,35 @@
     },
     "documentIdentity": {
       "tab": "Identité documentaire",
-      "description": "L'identité (en-tête/pied de page/sceau) imprimée sur chaque rapport généré pour cette organisation."
+      "description": "L'identité (en-tête/pied de page/sceau) imprimée sur chaque rapport généré pour cette organisation.",
+      "override_description": "Surcharges facultatives pour cette entité. Laisser un champ vide pour hériter de l'organisation.",
+      "loading": "Chargement…",
+      "load_error": "Échec du chargement de l'identité documentaire.",
+      "save": "Enregistrer",
+      "inherited": {
+        "title": "Hérité de l'organisation",
+        "hint": "Modifié dans l'onglet Détails — affiché ici pour référence uniquement.",
+        "edit_in_details": "Modifier dans Détails →",
+        "loading": "Chargement…",
+        "load_error": "Échec du chargement de l'identité héritée.",
+        "empty": "—",
+        "legal_name": "Raison sociale",
+        "tax_id": "Identifiant fiscal",
+        "registration_number": "Numéro d'enregistrement",
+        "logo_url": "Logo"
+      },
+      "preview": {
+        "title": "Aperçu",
+        "size_label": "Format papier",
+        "orientation_label": "Orientation",
+        "portrait": "Portrait",
+        "landscape": "Paysage",
+        "aria_label": "Aperçu en direct de l'en-tête et du pied de page du document",
+        "caption": "Aperçu · non contractuel",
+        "placeholder": {
+          "legal_name": "Raison sociale"
+        }
+      }
     },
     "settings": {
       "tab": "Paramètres",
@@ -266,7 +295,8 @@
       "code_hint": "Identifiant immuable.",
       "party_id_hint": "Tiers portant le NIF / immatriculation / contacts.",
       "parent_id_hint": "Société mère pour les groupes multi-sociétés."
-    }
+    },
+    "inherited_placeholder": "Hérité : {value}"
   },
   "sites": {
     "title": "Sites",
@@ -320,6 +350,12 @@
         "office": "Bureau",
         "point_of_sale": "Point de vente"
       }
+    },
+    "tab": {
+      "details": "Détails"
+    },
+    "documentIdentity": {
+      "tab": "Identité documentaire"
     }
   },
   "agents": {
@@ -552,7 +588,13 @@
       "is_active": "Actif"
     },
     "delete_parent_hint": "Supprimez ou déplacez d’abord ses sous-unités.",
-    "capped": "Affichage des {n} premières unités. Affinez ou scindez la hiérarchie pour voir le reste."
+    "capped": "Affichage des {n} premières unités. Affinez ou scindez la hiérarchie pour voir le reste.",
+    "tab": {
+      "details": "Détails"
+    },
+    "documentIdentity": {
+      "tab": "Identité documentaire"
+    }
   },
   "directory": {
     "f": {

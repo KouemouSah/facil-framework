@@ -5,7 +5,7 @@ import type { OrgUnit } from "./api";
 const u = (id: string, parent_id: string | null, name = id): OrgUnit => ({
   id, organization_id: "o", parent_id, code: id, name, unit_type: "department",
   description: null, path: "", depth: 0, external_ref: null, metadata: {},
-  custom_fields: {}, is_active: true,
+  custom_fields: {}, document_identity: {}, is_active: true,
 });
 
 // root
