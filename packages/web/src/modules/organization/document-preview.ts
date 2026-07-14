@@ -96,8 +96,9 @@ export function buildDocumentPreviewModel(
 
 /** CSS `aspect-ratio` value (width/height, millimetres) for the sheet — the
  *  ISO 216 dimensions, swapped for landscape. Driving the sheet's shape from
- *  this (not a hardcoded per-format class) is what makes the header/footer
- *  REFLOW on format change instead of being repositioned by hand. */
+ *  this (not a hardcoded per-format class) is what makes the ghost body clip
+ *  to more or fewer lines on format change (see `document-preview-sheet.tsx`
+ *  for the exact mechanism) instead of the sheet being repositioned by hand. */
 export function previewAspectRatio(format: PreviewFormat): string {
   const [size, orientation] = format.split("-") as [PaperSize, PaperOrientation];
   const [w, h] = size === "a4" ? [210, 297] : [148, 210];

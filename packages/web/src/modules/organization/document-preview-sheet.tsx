@@ -15,11 +15,18 @@ const GHOST_LINES = [95, 88, 92, 60, 0, 90, 84, 96, 70, 0, 82, 91];
 /**
  * Live, non-contractual A4/A5 preview of the resolved issuer identity
  * (SP1 debt D1) — pure HTML/CSS, no PDF/canvas. The sheet is a flex column
- * (header / ghost body / footer); its aspect-ratio is driven entirely by
- * `previewAspectRatio(format)`, so switching format RESIZES the sheet and the
- * flex/wrap layout reflows the same header/footer content — nothing is ever
- * repositioned by hand. That is the visual proof of the document engine's
- * architecture (CSS flow, not a positional canvas).
+ * (header / ghost body / footer); its `aspect-ratio` is driven entirely by
+ * `previewAspectRatio(format)`, so switching format RESIZES the sheet.
+ *
+ * That resize is the whole mechanism — it is NOT a text reflow: every
+ * header/footer `<p>` uses `truncate` (single line, ellipsis, never wraps
+ * to a second line) and the footer is always a vertical stack
+ * (`space-y-0.5`), in every format. What visibly changes between formats is
+ * the ghost body — its container is `overflow-hidden`, so as the sheet's
+ * computed height shrinks or grows with the aspect ratio, fewer or more of
+ * the fixed-width `GHOST_LINES` are visible, clipped by the browser's box
+ * model rather than repositioned by hand. That is the visual proof of the
+ * document engine's architecture (CSS flow, not a positional canvas).
  */
 export function DocumentPreviewSheet({ values, resolved }: {
   values: Record<string, string>;

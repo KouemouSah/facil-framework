@@ -3,12 +3,10 @@
 import { useState } from "react";
 import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { RecordForm } from "@/components/ui/record-form";
-import { getSchema } from "@/lib/schema/api";
-import { fieldSpecToFieldDef } from "@/lib/schema/to-field-def";
+import { useSchemaFields } from "@/lib/schema/use-schema-fields";
 import { isSameOriginAsset } from "@/lib/upload";
-import type { Locale } from "@/lib/schema/types";
 import { getOrgIssuerIdentity, updateOrg } from "./api";
 import { DocumentPreviewSheet } from "./document-preview-sheet";
 import type { ResolvedIssuerIdentity } from "./document-preview";
@@ -53,21 +51,18 @@ export function DocumentIdentityPage({ orgId, documentIdentity, etag, canWrite, 
   onGoToDetails: () => void;
 }) {
   const t = useTranslations("organizations.documentIdentity");
-  const locale = useLocale() as Locale;
   const [liveValues, setLiveValues] = useState<Record<string, string>>(
     () => initialScalarValues(documentIdentity));
 
-  const schema = useQuery({
-    queryKey: ["schema", "organization.document_identity", orgId],
-    queryFn: () => getSchema("organization.document_identity", orgId),
-  });
+  const { fields, isLoading: fieldsLoading, isError: fieldsError } =
+    useSchemaFields("organization.document_identity", orgId);
   const issuer = useQuery({
     queryKey: ["issuer-identity", "organization", orgId],
     queryFn: () => getOrgIssuerIdentity(orgId),
   });
 
-  if (schema.isError) return <p className="text-sm text-destructive">{t("load_error")}</p>;
-  if (schema.isLoading || !schema.data) return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
+  if (fieldsError) return <p className="text-sm text-destructive">{t("load_error")}</p>;
+  if (fieldsLoading) return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
@@ -76,7 +71,7 @@ export function DocumentIdentityPage({ orgId, documentIdentity, etag, canWrite, 
         <RecordForm
           mode="edit"
           layout="rich"
-          fields={schema.data.fields.map((s) => fieldSpecToFieldDef(s, locale))}
+          fields={fields}
           initial={documentIdentity ?? {}}
           etag={etag}
           readOnly={!canWrite}

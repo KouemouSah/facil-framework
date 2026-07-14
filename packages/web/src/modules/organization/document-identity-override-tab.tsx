@@ -2,13 +2,21 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { RecordForm } from "@/components/ui/record-form";
-import { getSchema } from "@/lib/schema/api";
-import { fieldSpecToFieldDef } from "@/lib/schema/to-field-def";
-import type { Locale } from "@/lib/schema/types";
+import { useSchemaFields } from "@/lib/schema/use-schema-fields";
 import { DocumentPreviewSheet } from "./document-preview-sheet";
-import type { IssuerKey, ResolvedIssuerIdentity } from "./document-preview";
+import type { ResolvedIssuerIdentity } from "./document-preview";
+
+/** `ResolvedIssuerIdentity` (`{key: {value, from}}`) flattened to the plain
+ *  `{key: value}` map `useSchemaFields`'s `inheritedFrom` expects — the hook
+ *  doesn't need to know about `IssuerKey`/`IssuerOrigin`, only that a value
+ *  may be present per field key. */
+function flattenIssuerValues(resolved: ResolvedIssuerIdentity | undefined): Record<string, string | undefined> {
+  const out: Record<string, string | undefined> = {};
+  for (const [k, v] of Object.entries(resolved ?? {})) out[k] = v?.value ?? undefined;
+  return out;
+}
 
 /** `product_schemas.DOCUMENT_IDENTITY_OVERRIDE` keys — mirrors the seed used
  *  to prime the live preview before the user has typed anything (see
@@ -51,33 +59,21 @@ export function DocumentIdentityOverrideTab({
   fetchIssuerIdentity: () => Promise<ResolvedIssuerIdentity>;
 }) {
   const t = useTranslations("organizations.documentIdentity");
-  // `inherited_placeholder` lives at the top of the `organizations` namespace
-  // (shared with `SchemaBlobForm`, which renders the organization's OWN
-  // document-identity tab) — a second scoped translator, not a duplicated key.
-  const tCommon = useTranslations("organizations");
-  const locale = useLocale() as Locale;
   const [liveValues, setLiveValues] = useState<Record<string, string>>(() => initialScalarValues(blob));
 
-  const schema = useQuery({
-    queryKey: ["schema", schemaTarget, organizationId],
-    queryFn: () => getSchema(schemaTarget, organizationId),
-  });
   const issuer = useQuery({ queryKey: issuerIdentityQueryKey, queryFn: fetchIssuerIdentity });
+  // Deferred until `issuer` resolves (see `inheritedFrom` below): while the
+  // issuer query is in flight, `useSchemaFields` gets `undefined` and returns
+  // plain fields with no placeholder, which is exactly why we don't render
+  // the form yet either (`fieldsLoading || issuer.isLoading` below) — a blank
+  // field must never momentarily read as "empty on purpose" before we
+  // actually know what it inherits.
+  const inheritedFrom = issuer.data ? flattenIssuerValues(issuer.data) : undefined;
+  const { fields, isLoading: fieldsLoading, isError: fieldsError } =
+    useSchemaFields(schemaTarget, organizationId, { inheritedFrom });
 
-  if (schema.isError) return <p className="text-sm text-destructive">{t("load_error")}</p>;
-  if (schema.isLoading || !schema.data) return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
-
-  const fields = schema.data.fields.map((s) => {
-    const fd = fieldSpecToFieldDef(s, locale);
-    const inheritedValue = issuer.data?.[s.key as IssuerKey]?.value;
-    if (!inheritedValue) return fd;
-    // Same dual rendering as `SchemaBlobForm`: a raw preview URL for `file`
-    // fields, a formatted "Hérité : X" string for every other control type.
-    return {
-      ...fd,
-      placeholder: s.type === "file" ? inheritedValue : tCommon("inherited_placeholder", { value: inheritedValue }),
-    };
-  });
+  if (fieldsError || issuer.isError) return <p className="text-sm text-destructive">{t("load_error")}</p>;
+  if (fieldsLoading || issuer.isLoading) return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">

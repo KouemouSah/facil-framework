@@ -59,6 +59,14 @@ export interface FieldDef {
   required?: boolean;
   hint?: string;
   placeholder?: string;
+  /** Per-field "value if left blank", `type: "file"` controls ONLY (SP1 D1
+   *  org_unit/site document-identity overrides) — a raw asset URL fed to
+   *  `FileUpload`'s own preview channel (`inheritedPreviewUrl`). Kept
+   *  distinct from `placeholder` (a text hint rendered via the native
+   *  `placeholder` attribute) rather than overloading it: the two mean
+   *  different things and a `file` field has no native text placeholder to
+   *  double up on. */
+  inheritedValue?: string;
   colSpan?: 1 | 2;
   /** Read-only in edit mode (e.g. an immutable `code`). */
   immutable?: boolean;
@@ -364,15 +372,15 @@ export function RecordForm({
     // A server-served `type: "file"` (e.g. document_identity.logo_url/seal_url,
     // widget "image") stores the uploaded asset URL exactly like the legacy
     // `case "image"` below — same control, reached before the legacy switch so
-    // it isn't misrouted into the default text input. `f.placeholder` doubles
-    // as the "inherited value" channel here (SP1 D1 org_unit/site overrides):
-    // a text/textarea field already shows it via the native `placeholder`
-    // attribute below, so a caller building an override form (SchemaBlobForm's
-    // `placeholders` prop) can set it uniformly across every field type,
-    // including file, without a second prop.
+    // it isn't misrouted into the default text input. Its "value if left
+    // blank" channel is `f.inheritedValue` (SP1 D1 org_unit/site overrides),
+    // NOT `f.placeholder`: a text/textarea field already shows its hint via
+    // the native `placeholder` attribute below, but a `file` field has no such
+    // native channel, so it gets its own honestly-named attribute instead of
+    // overloading `placeholder` with a second meaning.
     if (specDriven && f.type === "file")
       return <FileUpload value={values[f.name] ?? ""} disabled={fieldRO}
-               inheritedPreviewUrl={f.placeholder}
+               inheritedPreviewUrl={f.inheritedValue}
                onUploaded={(url) => setField(f.name, url)}
                onRemove={() => setField(f.name, "")} />;
     // NEW "text" = multi-line (types.py LEGACY_TYPE_ALIASES note: the legacy

@@ -1,19 +1,18 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { RecordForm } from "@/components/ui/record-form";
-import { getSchema } from "@/lib/schema/api";
-import { fieldSpecToFieldDef } from "@/lib/schema/to-field-def";
-import type { Locale } from "@/lib/schema/types";
+import { useSchemaFields } from "@/lib/schema/use-schema-fields";
 import { updateOrg } from "./api";
 
 /**
  * Generic schema-generated form for an org-scoped JSON blob column
  * (`document_identity`, `settings`, …) — factored out of what was originally
  * `DocumentIdentityForm` (Task 8) once `settings` (Task 9) needed the exact
- * same shape: one `RecordForm` driven by `GET /api/v1/schema/{schemaTarget}`,
- * submitting `{ [payloadKey]: payload }` through `PUT organization/{id}`.
+ * same shape: one `RecordForm` driven by `GET /api/v1/schema/{schemaTarget}`
+ * (via `useSchemaFields`, shared with `DocumentIdentityPage` and
+ * `DocumentIdentityOverrideTab`), submitting `{ [payloadKey]: payload }`
+ * through `PUT organization/{id}`.
  *
  * The backend enforces merge-preserve semantics (`merge_blob`): only the
  * declared keys are ever written by this form; a pre-existing undeclared key
@@ -23,9 +22,21 @@ import { updateOrg } from "./api";
  * duplicated here. Only the surrounding chrome (loading/error/save labels)
  * is localized client-side, under the `organizations` i18n namespace shared
  * by every blob-form tab.
+ *
+ * Today's only caller (`organization.settings`) has no live preview and no
+ * inherited-value concept, so this stays a plain, single-column `RecordForm`
+ * always submitting through `updateOrg`. `DocumentIdentityPage` and
+ * `DocumentIdentityOverrideTab` need a live A4/A5 preview, a sticky
+ * two-column layout, and (for the override tab) inherited-placeholder
+ * fields — real per-surface differences a generic blob form has no business
+ * knowing about — so they own their `RecordForm` directly instead of routing
+ * through here. (SP1 D1 review: this component used to carry `placeholders`/
+ * `onSubmit` props built "for" those two screens, which never actually
+ * called it; removed as dead code rather than left unused. The part that
+ * WAS genuinely common — the schema fetch + `FieldDef` mapping + placeholder-
+ * as-inherited overlay — now lives once in `useSchemaFields`.)
  */
-export function SchemaBlobForm({ orgId, schemaTarget, payloadKey, blob, etag, onSaved, canWrite,
-  placeholders, onSubmit }: {
+export function SchemaBlobForm({ orgId, schemaTarget, payloadKey, blob, etag, onSaved, canWrite }: {
   orgId: string;
   schemaTarget: string;
   payloadKey: string;
@@ -33,53 +44,26 @@ export function SchemaBlobForm({ orgId, schemaTarget, payloadKey, blob, etag, on
   etag?: string;
   onSaved: () => void;
   canWrite: boolean;
-  /** Per-field "inherited value" hints (SP1 D1, org_unit/site override tabs),
-   *  keyed by the schema's field key — rendered as the native input
-   *  placeholder ("Hérité : Facil SA") so a blank override reads as
-   *  "inherit", never as "empty on purpose". Absent = today's plain behaviour. */
-  placeholders?: Record<string, string>;
-  /** Override the default `PUT organization/{orgId}` submit — an org_unit or
-   *  site override tab PUTs its OWN row, not the organization's. Every
-   *  pre-existing caller (organization.document_identity / .settings) omits
-   *  this and keeps writing through `updateOrg` unchanged. */
-  onSubmit?: (payload: Record<string, unknown>, etag?: string) => Promise<unknown>;
 }) {
-  const locale = useLocale() as Locale;
   const t = useTranslations("organizations");
-
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["schema", schemaTarget, orgId],
-    queryFn: () => getSchema(schemaTarget, orgId),
-  });
+  const { fields, isLoading, isError } = useSchemaFields(schemaTarget, orgId);
 
   if (isError) {
     return <p className="text-sm text-destructive">{t("load_error")}</p>;
   }
-  if (isLoading || !data) {
+  if (isLoading) {
     return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
   }
-
-  const submit = onSubmit ?? ((payload: Record<string, unknown>, tag?: string) =>
-    updateOrg(orgId, { [payloadKey]: payload }, tag));
 
   return (
     <RecordForm
       mode="edit"
       layout="rich"
-      fields={data.fields.map((s) => {
-        const fd = fieldSpecToFieldDef(s, locale);
-        const inherited = placeholders?.[s.key];
-        if (!inherited) return fd;
-        // `FileUpload` (type "file") reads its "inherited" channel as a raw
-        // preview URL, not display text — every other control shows the
-        // formatted "Hérité : X" string via the native `placeholder`
-        // attribute. Same `f.placeholder` field, two renderings.
-        return { ...fd, placeholder: s.type === "file" ? inherited : t("inherited_placeholder", { value: inherited }) };
-      })}
+      fields={fields}
       initial={blob ?? {}}
       etag={etag}
       readOnly={!canWrite}
-      onSubmit={submit}
+      onSubmit={(payload, tag) => updateOrg(orgId, { [payloadKey]: payload }, tag)}
       onSuccess={onSaved}
       onConflict={onSaved}
       submitLabel={t("save")}
