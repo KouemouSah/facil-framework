@@ -20,6 +20,7 @@ from app.api.deps import get_session
 from app.api.list_query import apply_sort, keyset_page, paginated, resolve_sort
 from app.auth import audit
 from app.core.schema import repository as schema_repo
+from app.core.schema.issuer import resolve_issuer_identity
 from app.core.schema.merge import merge_blob
 from app.core.schema.pydantic_gen import SchemaViolation, validate_blob
 from app.core.schema.sanitize import clean_richtext_fields
@@ -211,6 +212,28 @@ async def get_unit(unit_id: str, session: AsyncSession = Depends(get_session)) -
     return {**unit.as_dict(), "etag": row_etag(unit)}
 
 
+@router.get("/units/{unit_id}/issuer-identity")
+async def get_unit_issuer_identity(unit_id: str, principal: dict = Depends(require_auth),
+                                   session: AsyncSession = Depends(get_session)) -> dict:
+    """The identity a document ISSUED BY this unit prints: the unit's own
+    `document_identity` overrides, its ancestor units', then the organization
+    row — first non-empty per key, origin included (SP1 debt D1).
+
+    Scope-filtered like every other read here (`visible_orgs`): a unit whose
+    organisation is outside the caller's perimeter is 404, never 403 — do not
+    leak its existence. The row must be fetched first (the scope lives on the
+    unit's `organization_id`, not on the path id itself), but the 404 message
+    is identical either way, so that lookup leaks nothing extra.
+    """
+    unit = await repo.get_unit(session, unit_id)
+    if unit is None:
+        raise HTTPException(404, f"unit '{unit_id}' not found")
+    visible = await visible_orgs(session, principal, "organization.read")
+    if visible is not None and unit.organization_id not in visible:
+        raise HTTPException(404, f"unit '{unit_id}' not found")
+    return await resolve_issuer_identity(session, org_unit=unit)
+
+
 @router.put("/units/{unit_id}", dependencies=[_UPDATE])
 async def update_unit(unit_id: str, body: OrgUnitUpdate, request: Request,
                       principal: dict = Depends(require_auth),
@@ -275,6 +298,27 @@ async def get_organization(org_id: str,
     if org is None:
         raise HTTPException(404, f"organization '{org_id}' not found")
     return {**org.as_dict(), "etag": row_etag(org)}
+
+
+@router.get("/{org_id}/issuer-identity")
+async def get_organization_issuer_identity(
+        org_id: str, principal: dict = Depends(require_auth),
+        session: AsyncSession = Depends(get_session)) -> dict:
+    """The identity a document ISSUED BY the organization DIRECTLY prints
+    (no site/unit override level) — every key resolves to the organization's
+    own row (columns + `document_identity` blob), origin included (SP1 D1).
+
+    Scope check BEFORE reading (the id is already in the path, no lookup
+    needed to know the scope): a caller with no visibility into `org_id` gets
+    404, never 403 — mirrors `GET /api/v1/schema/{target}`.
+    """
+    visible = await visible_orgs(session, principal, "organization.read")
+    if visible is not None and org_id not in visible:
+        raise HTTPException(404, f"organization '{org_id}' not found")
+    org = await repo.get_organization(session, org_id)
+    if org is None:
+        raise HTTPException(404, f"organization '{org_id}' not found")
+    return await resolve_issuer_identity(session, organization=org)
 
 
 @router.put("/{org_id}", dependencies=[_UPDATE])

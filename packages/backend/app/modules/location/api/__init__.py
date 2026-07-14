@@ -25,6 +25,7 @@ from app.api.list_query import (
 from app.auth import audit
 from app.core.schema.indexing import CUSTOM_FIELD_SORT_PREFIX
 from app.core.schema import repository as schema_repo
+from app.core.schema.issuer import resolve_issuer_identity
 from app.core.schema.merge import merge_blob
 from app.core.schema.pydantic_gen import SchemaViolation, validate_blob
 from app.core.schema.sanitize import clean_richtext_fields
@@ -163,6 +164,28 @@ async def get_site(site_id: str, session: AsyncSession = Depends(get_session)) -
     if site is None:
         raise HTTPException(404, f"site '{site_id}' not found")
     return {**site.as_dict(), "etag": row_etag(site)}
+
+
+@router.get("/sites/{site_id}/issuer-identity")
+async def get_site_issuer_identity(site_id: str, principal: dict = Depends(require_auth),
+                                   session: AsyncSession = Depends(get_session)) -> dict:
+    """The identity a document ISSUED BY this site prints: the site's own
+    `document_identity` overrides, its org_unit's (and that unit's ancestors'),
+    then the organization row — first non-empty per key, origin included
+    (SP1 debt D1).
+
+    Scope-filtered like every other read here (`visible_orgs`): a site whose
+    organisation is outside the caller's perimeter is 404, never 403. The
+    row must be fetched first (scope lives on `organization_id`, not the
+    path id), but the 404 message is identical either way.
+    """
+    site = await repo.get_site(session, site_id)
+    if site is None:
+        raise HTTPException(404, f"site '{site_id}' not found")
+    visible = await visible_orgs(session, principal, "location.read")
+    if visible is not None and site.organization_id not in visible:
+        raise HTTPException(404, f"site '{site_id}' not found")
+    return await resolve_issuer_identity(session, site=site)
 
 
 @router.put("/sites/{site_id}", dependencies=[Depends(require_permission("location.update"))])
