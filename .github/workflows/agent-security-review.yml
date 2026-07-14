@@ -66,17 +66,25 @@ jobs:
           STAT=$(git diff "origin/$BASE_REF...HEAD" --stat | head -30)
           FULL=$(git diff "origin/$BASE_REF...HEAD" | head -c 10000)
           BODY=$(printf '%s' "$PR_BODY" | head -c 1500)
+          # Délimiteur aléatoire, pas un mot fixe : STAT/FULL/BODY viennent du diff et
+          # du corps de la PR, tous deux contrôlés par l'auteur (fork PR). Un délimiteur
+          # constant permettrait d'injecter une ligne qui lui est identique dans le
+          # diff/corps pour clore le bloc en avance et faire passer les lignes
+          # suivantes pour de nouvelles affectations de sortie d'étape (output
+          # injection). Générer un délimiteur imprévisible à chaque run neutralise
+          # cette classe de bug. Ne pas revenir à un mot fixe pour "simplifier".
+          DELIM="ghout_$(openssl rand -hex 16)"
           {
-            echo "stat<<EOF"
+            echo "stat<<$DELIM"
             echo "$STAT"
-            echo "EOF"
-            echo "full<<EOF"
+            echo "$DELIM"
+            echo "full<<$DELIM"
             echo "$FULL"
-            echo "EOF"
-            echo "body<<EOF"
+            echo "$DELIM"
+            echo "body<<$DELIM"
             echo "$BODY"
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
+            echo "$DELIM"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Run AI security review
         id: ai
