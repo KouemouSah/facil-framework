@@ -367,10 +367,15 @@ async def test_site_list_sort_by_unknown_custom_field_is_422(client, org_a, site
 
 
 @pytest.mark.asyncio
-async def test_party_list_sort_by_custom_field_without_definitions_org_id_is_422(client):
+async def test_party_list_sort_by_custom_field_is_always_422(client):
+    # `party.custom_fields` is not an extensible target (Fix wave 1 — see
+    # `EXTENSIBLE_TARGETS`'s docstring): Party has no organisation to resolve
+    # definitions against, so `list_parties` always passes `specs=None` and a
+    # `sort=custom_fields.*` request is unconditionally refused — there is no
+    # org id, past or future, that could ever make this succeed.
     r = await client.get("/api/v1/modules/party/parties?sort=custom_fields.segment",
                          headers=AUTH)
-    assert r.status_code == 422 and "definitions_org_id" in r.text
+    assert r.status_code == 422 and "custom field" in r.text
 
 
 @pytest.mark.asyncio

@@ -14,6 +14,7 @@ export interface OrgUnit {
   depth: number;
   external_ref: string | null;
   metadata: Record<string, unknown>;
+  custom_fields: Record<string, unknown>;
   is_active: boolean;
   etag?: string;
 }

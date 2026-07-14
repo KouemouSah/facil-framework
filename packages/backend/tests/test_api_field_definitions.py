@@ -379,45 +379,54 @@ async def test_organization_self_custom_field_create_and_update(client, admin_he
     assert bad.status_code == 422
 
 
-# --- party's custom_fields (no organization_id of its own) -----------------
+# --- party is NOT an extensible target (Fix wave 1 — design correction) ----
+#
+# `Party` is a GLOBAL directory row with no `organization_id` of its own, but
+# a `FieldDefinition` is ALWAYS org-owned (`organization_id` NOT NULL — SP1's
+# formal statement of tenant isolation: "there is no such thing as a global
+# custom field"). "Which organisation's schema governs a global party row?"
+# has no answer, so `party.custom_fields` was removed from
+# `EXTENSIBLE_TARGETS` (see its docstring). These two tests replace the old
+# `test_party_custom_field_requires_the_definitions_org` /
+# `test_party_custom_field_is_allowlisted_when_organization_id_given` /
+# `test_party_empty_custom_fields_clear_requires_the_org`, which all assumed
+# the now-removed `definitions_org_id` allowlist flow.
 
 @pytest.mark.asyncio
-async def test_party_custom_field_requires_the_definitions_org(client, org_a, admin_headers):
-    # NOTE the param is `definitions_org_id`, NOT `organization_id` — and that is
-    # load-bearing, not cosmetic: `rbac.scope.raw_scope_ids` harvests any query
-    # param named `org_id`/`organization_id` and feeds it to `require_permission`
-    # as the request SCOPE. Naming it `organization_id` here would silently narrow
-    # the scope of every party write from global to that org, downgrading the
-    # router-level `party.create`/`party.update` check from "needs a GLOBAL grant"
-    # (correct for global directory data) to "any org-scoped grant will do" — a
-    # tenant admin could then mutate the shared directory. See `_party_specs`.
+async def test_party_target_is_refused_by_the_definitions_allowlist(
+        client, org_a, admin_headers):
+    r = await client.post(
+        f"/api/v1/admin/field-definitions/?organization_id={org_a.id}",
+        json=_body(key="segment", target="party.custom_fields"),
+        headers=admin_headers)
+    assert r.status_code == 422 and "not extensible" in r.text
+
+
+@pytest.mark.asyncio
+async def test_party_custom_fields_write_is_always_rejected_on_create(
+        client, admin_headers):
     r = await client.post(
         "/api/v1/modules/party/parties",
         json={"name": "Acme SARL", "custom_fields": {"anything": "x"}},
         headers=admin_headers)
     assert r.status_code == 422
-    assert "definitions_org_id" in r.text
+    assert "not an extensible target" in r.text
 
 
 @pytest.mark.asyncio
-async def test_party_custom_field_is_allowlisted_when_organization_id_given(
-        client, org_a, admin_headers):
-    await client.post(
-        f"/api/v1/admin/field-definitions/?organization_id={org_a.id}",
-        json=_body(key="segment", target="party.custom_fields"),
-        headers=admin_headers)
-    ok = await client.post(
-        f"/api/v1/modules/party/parties?definitions_org_id={org_a.id}",
-        json={"name": "Acme SARL", "custom_fields": {"segment": "gov"}},
-        headers=admin_headers)
-    assert ok.status_code == 201, ok.text
-    assert ok.json()["custom_fields"] == {"segment": "gov"}
+async def test_party_custom_fields_write_is_always_rejected_on_update(
+        client, admin_headers):
+    made = await client.post(
+        "/api/v1/modules/party/parties", json={"name": "Acme SARL"}, headers=admin_headers)
+    assert made.status_code == 201, made.text
+    pid = made.json()["id"]
 
-    bad = await client.post(
-        f"/api/v1/modules/party/parties?definitions_org_id={org_a.id}",
-        json={"name": "Other SARL", "custom_fields": {"undeclared": "x"}},
-        headers=admin_headers)
-    assert bad.status_code == 422
+    # Even an EMPTY dict (a "clear" under the old semantics) is refused — no
+    # organisation could ever validate it, so there is nothing to clear.
+    r = await client.put(f"/api/v1/modules/party/parties/{pid}",
+                         json={"custom_fields": {}}, headers=admin_headers)
+    assert r.status_code == 422
+    assert "not an extensible target" in r.text
 
 
 # --- If-Match concurrency ---------------------------------------------------
@@ -729,35 +738,6 @@ async def test_richtext_is_sanitized_in_document_identity_too(client, admin_head
     assert "<p>ok</p>" in stored
 
 
-@pytest.mark.asyncio
-async def test_party_empty_custom_fields_clear_requires_the_org(client, org_a,
-                                                                admin_headers):
-    """An empty dict is a CLEAR (a declared key absent from the payload is REMOVED
-    from the stored blob — `validate_blob`'s documented sentinel), not a no-op.
-    Accepting `{}` without an org would resolve zero specs, so `merge_blob` would
-    preserve every existing key and the clear would be SILENTLY IGNORED behind a
-    200 — exactly the silent failure the repo forbids."""
-    await client.post(
-        f"/api/v1/admin/field-definitions/?organization_id={org_a.id}",
-        json=_body(key="segment", target="party.custom_fields"), headers=admin_headers)
-    made = await client.post(
-        f"/api/v1/modules/party/parties?definitions_org_id={org_a.id}",
-        json={"name": "Acme", "custom_fields": {"segment": "gov"}},
-        headers=admin_headers)
-    assert made.status_code == 201, made.text
-    pid = made.json()["id"]
-
-    silent = await client.put(f"/api/v1/modules/party/parties/{pid}",
-                              json={"custom_fields": {}}, headers=admin_headers)
-    assert silent.status_code == 422, silent.text
-
-    cleared = await client.put(
-        f"/api/v1/modules/party/parties/{pid}?definitions_org_id={org_a.id}",
-        json={"custom_fields": {}}, headers=admin_headers)
-    assert cleared.status_code == 200, cleared.text
-    assert cleared.json()["custom_fields"] == {}
-
-
 # --- Cap bypass via archive/unarchive (Fix wave 1 review finding) ----------
 
 @pytest.mark.asyncio
@@ -837,21 +817,24 @@ async def test_purging_frees_capacity(client, org_a, admin_headers, seed_50_fiel
 
 @pytest.mark.asyncio
 async def test_party_write_still_requires_a_global_grant(client, _env, org_a):
-    """The custom-fields param on party MUST NOT be named `organization_id`.
+    """Party writes must stay GLOBALLY gated, never narrowable by a query param.
 
     A `Party` is GLOBAL directory data (no `organization_id` column). Its writes
     are gated by `require_permission("party.update")`, whose scope comes from
     `raw_scope_ids` — which harvests any query param called `org_id`/
-    `organization_id`. With no such param the request scope is GLOBAL, and
-    `covers()` correctly rejects an org-scoped grant (only a global `party.*`
-    grant may touch the shared directory).
+    `organization_id`. With no such param present the request scope is GLOBAL,
+    and `covers()` correctly rejects an org-scoped grant (only a global
+    `party.*` grant may touch the shared directory).
 
-    Had the Task-13 param been called `organization_id`, a tenant admin holding
-    `party.update` on their OWN org could pass `?organization_id=<their org>` to
-    narrow the request scope to that org, making `covers()` succeed — and mutate
-    arbitrary rows in the global directory. This test pins that the rename to
-    `definitions_org_id` keeps the pre-existing (correct) scope semantics: an
-    org-scoped grant is still refused, with or without the param.
+    Historically (Task 13/15) `update_party` also accepted a `definitions_org_id`
+    query param for the now-removed `party.custom_fields` allowlist flow —
+    deliberately NOT named `organization_id` for exactly this reason. Fix wave 1
+    removed `party.custom_fields` as an extensible target entirely (see
+    `EXTENSIBLE_TARGETS`'s docstring), so `update_party` no longer declares that
+    param at all; FastAPI silently drops an undeclared query param, so passing it
+    here is now a no-op. This test still pins the load-bearing guarantee: no
+    query param, past or hypothetical, may narrow a party write's scope from
+    GLOBAL to org-scoped.
     """
     db, _ = _env
     from app.modules.party.models import Party
@@ -869,7 +852,8 @@ async def test_party_write_still_requires_a_global_grant(client, _env, org_a):
                              json={"name": "hijacked"}, headers=hdr)
     assert plain.status_code == 403, plain.text
 
-    # The escalation attempt: name my own org, hoping it narrows the scope.
+    # The escalation attempt: name my own org via the (now-inert) legacy param,
+    # hoping it narrows the scope.
     escalate = await client.put(
         f"/api/v1/modules/party/parties/{pid}?definitions_org_id={org_a.id}",
         json={"name": "hijacked"}, headers=hdr)

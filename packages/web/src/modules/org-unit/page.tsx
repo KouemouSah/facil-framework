@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Plus, Trash2, CornerDownRight } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
@@ -15,14 +15,42 @@ import { OrgCombobox } from "@/components/ui/org-combobox";
 import { ExportMenu, RecordForm, RecordSurface, type FieldDef } from "@/components/shared";
 import { usePermissions } from "@/lib/use-permissions";
 import { useFirstOrg } from "@/lib/use-organizations";
+import { getSchema } from "@/lib/schema/api";
+import { fieldSpecToFieldDef } from "@/lib/schema/to-field-def";
+import type { Locale } from "@/lib/schema/types";
+import { flattenCustomInitial, splitCustomPayload } from "@/modules/fields/fields";
 import { orderForTree, validParents } from "./tree";
 import {
   createUnit, deleteUnit, getUnit, listUnits, unitsExportPath, updateUnit, type OrgUnit,
 } from "./api";
 
-function useUnitFields(parents: OrgUnit[]): FieldDef[] {
+/** The declared base column names — see `SITE_BASE_KEYS`'s twin docstring
+ *  (`modules/location/fields.ts`) for why the split at submit time matters. */
+const UNIT_BASE_KEYS = [
+  "code", "name", "unit_type", "parent_id", "description", "external_ref",
+  "is_active", "metadata",
+];
+
+/**
+ * `organizationId` (Fix wave 1, Task 15) merges in this org's
+ * `org_unit.custom_fields` definitions, resolved server-side
+ * (`GET /api/v1/schema/org_unit.custom_fields`) — `org_unit` IS an
+ * extensible target (unlike `party`), but this merge was missing, so a
+ * defined field never rendered anywhere: an orphaned capability. Mirrors
+ * `useSiteFields`/`useOrgFields` exactly (same hook shape, same
+ * `getSchema` + `fieldSpecToFieldDef` merge, base fields first then custom).
+ */
+function useUnitFields(parents: OrgUnit[], organizationId?: string): FieldDef[] {
   const t = useTranslations("org_units");
-  return [
+  const locale = useLocale() as Locale;
+  const schema = useQuery({
+    queryKey: ["schema", "org_unit.custom_fields", organizationId],
+    queryFn: () => getSchema("org_unit.custom_fields", organizationId),
+    enabled: Boolean(organizationId),
+  });
+  const custom = (schema.data?.fields ?? []).map((s) => fieldSpecToFieldDef(s, locale));
+
+  const base: FieldDef[] = [
     { name: "code", label: t("f.code"), required: true, immutable: true, zod: codeField, hint: t("f.code_hint") },
     { name: "name", label: t("f.name"), required: true, zod: requiredText("Name") },
     { name: "unit_type", label: t("f.unit_type"), placeholder: "department" },
@@ -33,6 +61,7 @@ function useUnitFields(parents: OrgUnit[]): FieldDef[] {
     { name: "is_active", label: t("f.is_active"), type: "checkbox" },
     { name: "metadata", label: t("f.metadata"), type: "json" },
   ];
+  return [...base, ...custom];
 }
 
 export default function OrgUnitsPage() {
@@ -182,7 +211,7 @@ function UnitCreateSurface({ orgId, units, presetParent, onClose, onSaved }: {
 }) {
   const t = useTranslations("org_units");
   const qc = useQueryClient();
-  const fields = useUnitFields(validParents(units));
+  const fields = useUnitFields(validParents(units), orgId);
   return (
     <RecordSurface title={t("new_title")} resourceKey="org-units" onClose={onClose}>
       <RecordForm
@@ -192,7 +221,14 @@ function UnitCreateSurface({ orgId, units, presetParent, onClose, onSaved }: {
         enableSaveNew
         submitLabel={t("new")}
         initial={{ unit_type: "department", parent_id: presetParent, is_active: true }}
-        onSubmit={(payload) => createUnit(orgId, payload)}
+        onSubmit={(payload) => {
+          // Custom-field values nest under `custom_fields` on the wire
+          // (OrgUnitIn.custom_fields: dict), never flat top-level keys — see
+          // modules/fields/fields.ts:splitCustomPayload.
+          const { base, customFields } = splitCustomPayload(payload, UNIT_BASE_KEYS);
+          const body = Object.keys(customFields).length ? { ...base, custom_fields: customFields } : base;
+          return createUnit(orgId, body);
+        }}
         onSuccess={({ again }) => {
           qc.invalidateQueries({ queryKey: ["org-units", orgId] });
           onSaved();
@@ -211,7 +247,7 @@ function UnitEditSurface({ unitId, orgId, units, readOnly, onClose }: {
   const t = useTranslations("org_units");
   const qc = useQueryClient();
   const { data, isError } = useQuery({ queryKey: ["org-unit", unitId], queryFn: () => getUnit(unitId) });
-  const fields = useUnitFields(validParents(units, unitId));
+  const fields = useUnitFields(validParents(units, unitId), orgId);
 
   return (
     <RecordSurface title={data ? `${data.code} · ${data.name}` : t("edit_title")} resourceKey="org-units" onClose={onClose}>
@@ -224,9 +260,13 @@ function UnitEditSurface({ unitId, orgId, units, readOnly, onClose }: {
           mode="edit"
           layout="rich"
           readOnly={readOnly}
-          initial={data as unknown as Record<string, unknown>}
+          initial={flattenCustomInitial(data as unknown as Record<string, unknown>)}
           etag={data.etag}
-          onSubmit={(payload, etag) => updateUnit(unitId, payload, etag)}
+          onSubmit={(payload, etag) => {
+            const { base, customFields } = splitCustomPayload(payload, UNIT_BASE_KEYS);
+            const body = Object.keys(customFields).length ? { ...base, custom_fields: customFields } : base;
+            return updateUnit(unitId, body, etag);
+          }}
           onSuccess={() => {
             qc.invalidateQueries({ queryKey: ["org-unit", unitId] });
             qc.invalidateQueries({ queryKey: ["org-units", orgId] });

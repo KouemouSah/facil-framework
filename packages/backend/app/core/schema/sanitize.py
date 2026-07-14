@@ -76,9 +76,10 @@ def clean_richtext(html: str) -> str:
 
 def clean_richtext_fields(specs: list[dict], blob: dict) -> dict:
     """Apply `clean_richtext` to every `richtext`-typed value in an already
-    validated custom-fields blob — called on WRITE, in every entity module
-    that accepts `custom_fields` (organization/org_unit/site/party), right
-    after `validate_blob`/`merge_blob` produces the clean dict. Defence in
+    validated custom-fields blob — called on WRITE, in every extensible entity
+    module (organization/org_unit/site — `party` is deliberately not one, see
+    `registry.EXTENSIBLE_TARGETS`), right after `validate_blob`/`merge_blob`
+    produces the clean dict. Defence in
     depth: the row in the DB must already be clean; a later render path
     sanitising again is a second layer, not a substitute for this one (see
     module docstring)."""

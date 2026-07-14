@@ -16,16 +16,11 @@ from app.api.concurrency import enforce_if_match, row_etag
 from app.api.deps import get_session
 from app.api.list_query import keyset_page, resolve_entity_sort
 from app.auth import audit
-from app.core.schema import repository as schema_repo
-from app.core.schema.indexing import CUSTOM_FIELD_SORT_PREFIX
-from app.core.schema.merge import merge_blob
-from app.core.schema.pydantic_gen import SchemaViolation, validate_blob
-from app.core.schema.sanitize import clean_richtext_fields
 from app.modules.party import repository as repo
 from app.modules.party import schemas
 from app.modules.party.models import Address, Party, PartyAddress, PartyRole
 from app.security.auth_dep import require_auth
-from app.security.permission_dep import require_permission, visible_orgs
+from app.security.permission_dep import require_permission
 
 router = APIRouter(prefix="/api/v1/modules/party", tags=["party"])
 
@@ -59,100 +54,40 @@ async def _keyset(session, stmt, *, sort, allowed, default, limit, cursor,
 async def list_parties(q: str | None = None, party_type: str | None = None,
                        active: int | None = None, sort: str = "name",
                        limit: int = 50, cursor: str | None = None,
-                       definitions_org_id: str | None = None,
-                       principal: dict = Depends(require_auth),
                        session: AsyncSession = Depends(get_session)) -> dict:
-    # `sort=custom_fields.<key>` (Task 14): `Party` is GLOBAL directory data
-    # (no `organization_id` of its own — see `_party_specs`'s docstring), so
-    # the caller must NAME which organisation's `party.custom_fields`
-    # definitions to resolve the sort against, via the SAME `definitions_org_id`
-    # param already used for create/update (never `organization_id` — that
-    # name is scope-harvested by `raw_scope_ids`, see `_party_specs`).
+    # `party.custom_fields` is not an extensible target (see
+    # `registry.EXTENSIBLE_TARGETS`'s docstring — Party is a global directory
+    # with no organisation to resolve definitions against), so `specs=None`
+    # unconditionally: `resolve_entity_sort` already turns a
+    # `sort=custom_fields.<key>` request into a 422 whenever `specs` is None.
     stmt = repo.parties_select(q=q, party_type=party_type, active=_bool(active))
-    specs = None
-    if sort.lstrip("-").startswith(CUSTOM_FIELD_SORT_PREFIX):
-        if not definitions_org_id:
-            raise HTTPException(
-                422, "sorting parties by a custom field requires definitions_org_id "
-                     "(party.custom_fields definitions are organisation-scoped)")
-        specs = await _party_specs(session, principal, definitions_org_id)
     return await _keyset(session, stmt, sort=sort, allowed=_PARTY_SORT,
                          default="name", limit=limit, cursor=cursor,
-                         id_col=Party.id, specs=specs)
+                         id_col=Party.id, specs=None)
 
 
-async def _party_specs(session: AsyncSession, principal: dict,
-                       definitions_org_id: str | None) -> list[dict]:
-    """Resolve which organisation's `party.custom_fields` definitions apply.
-
-    A `Party` is GLOBAL directory data with no `organization_id` of its own
-    (V1, "not tenant-scoped" — see this module's docstring), but a
-    `FieldDefinition` is ALWAYS org-owned (`organization_id` NOT NULL — the
-    formal statement of tenant isolation). So the caller must NAME the
-    organisation whose definitions apply.
-
-    The parameter is called `definitions_org_id`, NOT `organization_id`, and
-    that is load-bearing: `rbac.scope.raw_scope_ids` harvests any query param
-    named `org_id`/`organization_id` and feeds it to `require_permission` as
-    the REQUEST SCOPE. Naming it `organization_id` would silently narrow the
-    scope of every party write from global to that org — turning the
-    router-level `party.create`/`party.update` check from "needs a GLOBAL
-    grant" (correct for global directory data: `covers()` rejects an
-    org-scoped grant against a global request) into "an org-scoped grant on
-    ANY org you control is enough", letting a tenant admin mutate the shared
-    directory. The name must stay invisible to `raw_scope_ids`.
-
-    It is still authorization-checked in its own right: the caller must be
-    able to SEE that organisation, or they could use the 422 "key not
-    declared" vs. success signal as an oracle to enumerate another tenant's
-    custom-field keys. 404, not 403 (same anti-enumeration rule as
-    `GET /api/v1/schema`, whose gate this mirrors).
-    """
-    if not definitions_org_id:
-        return []
-    allowed = await visible_orgs(session, principal, "organization.read")
-    if allowed is not None and definitions_org_id not in allowed:
-        raise HTTPException(404, f"organization {definitions_org_id!r} not found")
-    return [r.as_spec() for r in await schema_repo.definitions_for(
-        session, "party.custom_fields", definitions_org_id)]
-
-
-def _require_definitions_org(custom_fields: dict | None,
-                             definitions_org_id: str | None) -> None:
-    """`definitions_org_id` is required whenever `custom_fields` is present AT
-    ALL — including `{}`. An empty dict is a CLEAR (per `validate_blob`'s
-    documented sentinel: a declared key absent from the payload is removed from
-    the stored blob), not a no-op. Accepting `{}` without an org would resolve
-    zero specs, so `merge_blob` would preserve every existing key and the clear
-    would be SILENTLY IGNORED while still returning 200 — exactly the silent
-    failure the repo forbids. Demand the org so the clear is real."""
-    if custom_fields is not None and not definitions_org_id:
-        raise HTTPException(
-            422, "definitions_org_id is required whenever custom_fields is sent on a "
-                 "party (party.custom_fields definitions are organisation-scoped; "
-                 "an empty object is a CLEAR, not a no-op)")
+def _reject_custom_fields(custom_fields: dict | None) -> None:
+    """`party.custom_fields` is NOT an extensible target (removed from
+    `registry.EXTENSIBLE_TARGETS` — see its docstring for why: Party is a
+    global directory with no organisation to own a definition set). The
+    `custom_fields` COLUMN still exists on the model (pre-dates SP1; dropping
+    it would be destructive to historic data), so it must be actively guarded
+    rather than left reachable: without this, removing the old allowlist
+    wiring would let a caller write ARBITRARY free-form JSON into it. Any
+    attempt to write the key at all (present in the payload, including an
+    empty `{}`) is refused — there is no organisation whose schema could ever
+    validate it."""
+    if custom_fields is not None:
+        raise HTTPException(422, "party is not an extensible target")
 
 
 @router.post("/parties", status_code=201, dependencies=[_CREATE])
-async def create_party(body: schemas.PartyIn, definitions_org_id: str | None = None,
-                       principal: dict = Depends(require_auth),
+async def create_party(body: schemas.PartyIn,
                        session: AsyncSession = Depends(get_session)) -> dict:
-    # `custom_fields` (Task 13) allowlist against `party.custom_fields` DB
-    # definitions — unconditional, exactly like every other extensible target.
-    # Omitting the key entirely means "not configured" and is skipped; sending
-    # it (even as `{}`) requires `definitions_org_id` — see the two helpers.
-    touched = bool(body.custom_fields)
-    if touched:
-        _require_definitions_org(body.custom_fields, definitions_org_id)
-        specs = await _party_specs(session, principal, definitions_org_id)
-        try:
-            body.custom_fields = clean_richtext_fields(
-                specs, validate_blob(specs, body.custom_fields))
-        except SchemaViolation as e:
-            raise HTTPException(422, detail=e.errors) from e
+    if body.custom_fields:
+        _reject_custom_fields(body.custom_fields)
     row = Party(**body.model_dump())
-    return await _save_new(session, row, principal=principal if touched else None,
-                           entity="party")
+    return await _save_new(session, row, entity="party")
 
 
 @router.get("/parties/{pid}", dependencies=[_READ])
@@ -162,32 +97,14 @@ async def get_party(pid: str, session: AsyncSession = Depends(get_session)) -> d
 
 @router.put("/parties/{pid}", dependencies=[_UPDATE])
 async def update_party(pid: str, body: schemas.PartyUpdate, request: Request,
-                       definitions_org_id: str | None = None,
-                       principal: dict = Depends(require_auth),
                        session: AsyncSession = Depends(get_session)) -> dict:
     row = await session.get(Party, pid)
     if row is None:
         raise HTTPException(404, f"party '{pid}' not found")
     enforce_if_match(request, row_etag(row))
-    # `custom_fields` (Task 13): same allowlist as create, merge-preserve like
-    # organization/org_unit/site. `definitions_org_id` (NOT `organization_id`
-    # — see `_party_specs`) is required whenever the key is present, including
-    # for an empty-dict CLEAR.
-    touched = body.custom_fields is not None
-    if touched:
-        _require_definitions_org(body.custom_fields, definitions_org_id)
-        specs = await _party_specs(session, principal, definitions_org_id)
-        try:
-            body.custom_fields = clean_richtext_fields(specs, merge_blob(
-                row.custom_fields or {}, body.custom_fields, specs))
-        except SchemaViolation as e:
-            raise HTTPException(422, detail=e.errors) from e
+    _reject_custom_fields(body.custom_fields)
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(row, k, v)
-    if touched:
-        await audit.record(session, audit.CUSTOM_FIELDS_CHANGED,
-                           account_id=principal.get("sub"),
-                           detail={"entity": "party", "id": pid})
     try:
         await session.commit()
     except IntegrityError as e:

@@ -12,11 +12,22 @@ from typing import Any
 # Opt-in allowlist: which (entity, json column) pairs may carry USER-DEFINED
 # fields. Deliberately excludes RBAC, settings, accounts and audit — a tenant
 # must never be able to bolt fields onto security tables.
+# `party.custom_fields` is deliberately ABSENT: `Party` is a global directory
+# with no `organization_id` of its own, but a `FieldDefinition` is ALWAYS
+# org-owned (`organization_id` NOT NULL — the formal statement of SP1's
+# tenant-isolation model: "there is no such thing as a global custom field").
+# "Which organisation's schema governs a global party row?" has no answer —
+# two admins in different organisations would see different custom fields on
+# the SAME party record, and a key declared with different types by two
+# organisations would 422 or silently reinterpret stored values across
+# tenants. Re-admitting `party` here requires deciding Party's tenancy first
+# (giving it an `organization_id`), not picking an arbitrary org to answer
+# with. See `app/modules/party/api/__init__.py` for the write-side guard that
+# now rejects any `custom_fields` write on party outright.
 EXTENSIBLE_TARGETS: dict[str, str] = {
     "organization.custom_fields": "organization",
     "org_unit.custom_fields": "org_unit",
     "site.custom_fields": "site",
-    "party.custom_fields": "party",
 }
 
 

@@ -669,8 +669,7 @@
     "target": {
       "organization.custom_fields": "Organisation",
       "org_unit.custom_fields": "Unité org.",
-      "site.custom_fields": "Site",
-      "party.custom_fields": "Tiers"
+      "site.custom_fields": "Site"
     },
     "type": {
       "string": "Texte",
@@ -785,7 +784,6 @@
       "sat": "Samedi",
       "sun": "Dimanche"
     },
-    "open": "Ouvert",
     "closed": "Fermé",
     "add_shift": "Ajouter un créneau",
     "remove_shift": "Retirer le créneau",

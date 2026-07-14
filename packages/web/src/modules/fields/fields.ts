@@ -277,9 +277,10 @@ export function flattenCustomInitial(row: Record<string, unknown>): Record<strin
 }
 
 /** Splits a flat `RecordForm` payload into the entity's own (declared) base
- *  columns and everything else — the custom-field values. The four
- *  extensible entities store custom values NESTED under a `custom_fields`
- *  dict (`app/modules/{organization,location,party}/schemas.py`), never as
+ *  columns and everything else — the custom-field values. The three
+ *  extensible entities (organization, org_unit, site — NOT party, see
+ *  `TARGETS`'s docstring) store custom values NESTED under a `custom_fields`
+ *  dict (`app/modules/{organization,location}/schemas.py`), never as
  *  flat top-level columns; pydantic silently DROPS an undeclared top-level
  *  field (no `extra="forbid"`), so submitting the merged, flat RecordForm
  *  payload as-is would silently lose every custom value. This is the
@@ -331,4 +332,20 @@ export function filterDefinitions(rows: Definition[], q: string, locale: Locale)
   if (!needle) return rows;
   return rows.filter((r) =>
     r.key.toLowerCase().includes(needle) || tr(r.label, locale).toLowerCase().includes(needle));
+}
+
+/**
+ * Fix wave 1 (Task 15, Important #3): whether the live, submittable
+ * `CreateSurface` may render. `?new=1&sel=<anything>` makes the page's
+ * `surfaceOpen` true via the `sel` disjunct regardless of `canManage` — the
+ * dispatch then branched on `isNew` alone, so a caller with no `fields.manage`
+ * could still get `CreateSurface` on screen (the backend still rejects the
+ * write, but the repo rule is that the UI hides the action too, exactly like
+ * `location/page.tsx`'s `isNew ? (canCreate && <SiteCreateSurface .../>) : ...`
+ * and `party/page.tsx`'s equivalent). Extracted as a pure predicate (rather
+ * than inlining `isNew && canManage` at the call site) so the exact
+ * regression scenario — `isNew` true AND `canManage` false — is pinned by a
+ * test independent of any component render. */
+export function canRenderCreateSurface(isNew: boolean, canManage: boolean): boolean {
+  return isNew && canManage;
 }

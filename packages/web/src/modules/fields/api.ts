@@ -12,12 +12,14 @@ export const FIELD_DEF_BASE = "/api/v1/admin/field-definitions";
 
 /** `EXTENSIBLE_TARGETS` (app/core/schema/registry.py) — the only (entity, json
  *  column) pairs a tenant may bolt custom fields onto. Order is the Studio's
- *  tab order. */
+ *  tab order. `party.custom_fields` is deliberately ABSENT: `Party` is a
+ *  global directory row with no `organization_id` of its own, so no single
+ *  organisation's schema can govern it (see the backend registry's docstring
+ *  for the full case — Fix wave 1, SP1 Task 15). */
 export const TARGETS = [
   "organization.custom_fields",
   "org_unit.custom_fields",
   "site.custom_fields",
-  "party.custom_fields",
 ] as const;
 export type Target = (typeof TARGETS)[number];
 

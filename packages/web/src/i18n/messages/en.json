@@ -669,8 +669,7 @@
     "target": {
       "organization.custom_fields": "Organization",
       "org_unit.custom_fields": "Org unit",
-      "site.custom_fields": "Site",
-      "party.custom_fields": "Party"
+      "site.custom_fields": "Site"
     },
     "type": {
       "string": "Text",
@@ -785,7 +784,6 @@
       "sat": "Saturday",
       "sun": "Sunday"
     },
-    "open": "Open",
     "closed": "Closed",
     "add_shift": "Add shift",
     "remove_shift": "Remove shift",

@@ -47,22 +47,16 @@ export const listParties = (p: { q: string; sort: string; limit: number; cursor:
 
 export const getParty = (id: string) => apiFetch<Party>(`${PARTY_BASE}/parties/${id}`);
 
-// `definitionsOrgId` (Task 15): required whenever `body.custom_fields` is
-// present (even `{}` — an empty object is a CLEAR, not a no-op) — see
-// `_require_definitions_org` (`app/modules/party/api/__init__.py`). Deliberately
-// NOT named `organization_id` in the query string: that name is scope-harvested
-// by `rbac.scope.raw_scope_ids` and would silently narrow party.create/update
-// from a GLOBAL permission check to an org-scoped one (see the backend
-// `_party_specs` docstring for the confused-deputy this avoids).
-export const createParty = (body: Record<string, unknown>, definitionsOrgId?: string) =>
-  apiFetch<Party>(
-    `${PARTY_BASE}/parties${definitionsOrgId ? `?definitions_org_id=${encodeURIComponent(definitionsOrgId)}` : ""}`,
-    { method: "POST", body: JSON.stringify(body) });
-export const updateParty = (
-  id: string, body: Record<string, unknown>, etag?: string, definitionsOrgId?: string,
-) =>
-  apiFetch<Party>(
-    `${PARTY_BASE}/parties/${id}${definitionsOrgId ? `?definitions_org_id=${encodeURIComponent(definitionsOrgId)}` : ""}`,
+// `party.custom_fields` is NOT an extensible target (Fix wave 1, SP1 Task 15
+// — see `app/core/schema/registry.py`'s `EXTENSIBLE_TARGETS` docstring: Party
+// is a global directory row with no organisation to own a definition set).
+// No `definitions_org_id` query param here any more — the backend now
+// rejects any `custom_fields` write on party outright, so there is nothing
+// to scope.
+export const createParty = (body: Record<string, unknown>) =>
+  apiFetch<Party>(`${PARTY_BASE}/parties`, { method: "POST", body: JSON.stringify(body) });
+export const updateParty = (id: string, body: Record<string, unknown>, etag?: string) =>
+  apiFetch<Party>(`${PARTY_BASE}/parties/${id}`,
     { method: "PUT", headers: etag ? { "If-Match": etag } : undefined, body: JSON.stringify(body) });
 export const deleteParty = (id: string) => apiFetch(`${PARTY_BASE}/parties/${id}`, { method: "DELETE" });
 

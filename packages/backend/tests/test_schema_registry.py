@@ -31,14 +31,18 @@ def test_registering_a_duplicate_key_is_refused():
 
 def test_extensible_targets_are_an_explicit_opt_in_allowlist():
     # Not every table may carry custom fields. RBAC, settings and audit tables
-    # must never be user-extensible.
+    # must never be user-extensible. `party` is DELIBERATELY absent: Party is
+    # a global directory row with no `organization_id` of its own, but a
+    # `FieldDefinition` is ALWAYS org-owned — "which organisation's schema
+    # governs a global party row?" has no answer, so it cannot be re-admitted
+    # without first giving Party a tenancy. Do NOT "helpfully" re-add it; see
+    # `EXTENSIBLE_TARGETS`'s own docstring in registry.py for the full case.
     assert EXTENSIBLE_TARGETS == {
         "organization.custom_fields": "organization",
         "org_unit.custom_fields": "org_unit",
         "site.custom_fields": "site",
-        "party.custom_fields": "party",
     }
-    assert not any(t.startswith(("role.", "permission.", "settings.", "account."))
+    assert not any(t.startswith(("role.", "permission.", "settings.", "account.", "party."))
                    for t in EXTENSIBLE_TARGETS)
 
 

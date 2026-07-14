@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildFieldDefFields, flattenDefinition, isSortable, splitCustomPayload,
-  TARGETS, TYPE_OPTIONS, widgetsFor,
+  buildDefinitionPayload, buildFieldDefFields, canRenderCreateSurface, flattenDefinition,
+  isSortable, splitCustomPayload, TARGETS, TYPE_OPTIONS, widgetsFor,
 } from "./fields";
 import type { Definition } from "./api";
 
@@ -31,11 +31,31 @@ describe("the field-creation form is itself schema-driven", () => {
   });
 });
 
+describe("canRenderCreateSurface (Fix wave 1, Important #3)", () => {
+  it("never renders the create surface without fields.manage, even when isNew", () => {
+    // The exact regression: `?new=1&sel=<anything>` makes the page's
+    // `surfaceOpen` true via the `sel` disjunct, and the render dispatch then
+    // branches on `isNew` alone — this predicate is the fix, gating the
+    // CreateSurface render itself on `canManage` too.
+    expect(canRenderCreateSurface(true, false)).toBe(false);
+  });
+  it("renders when the caller can manage and is creating", () => {
+    expect(canRenderCreateSurface(true, true)).toBe(true);
+  });
+  it("is false outside create (the edit branch is gated by readOnly instead)", () => {
+    expect(canRenderCreateSurface(false, true)).toBe(false);
+    expect(canRenderCreateSurface(false, false)).toBe(false);
+  });
+});
+
 describe("EXTENSIBLE_TARGETS mirror", () => {
-  it("lists exactly the four opt-in targets (mirrors app/core/schema/registry.py)", () => {
+  it("lists exactly the three opt-in targets (mirrors app/core/schema/registry.py)", () => {
+    // `party.custom_fields` is deliberately absent — Party is a global
+    // directory row with no organisation to own a definition set (Fix wave 1,
+    // SP1 Task 15). Do not re-add it here without re-admitting it server-side
+    // first.
     expect(TARGETS).toEqual([
-      "organization.custom_fields", "org_unit.custom_fields",
-      "site.custom_fields", "party.custom_fields",
+      "organization.custom_fields", "org_unit.custom_fields", "site.custom_fields",
     ]);
   });
 });
@@ -76,6 +96,68 @@ describe("splitCustomPayload — nests custom values under custom_fields, never 
   it("returns an empty customFields object when nothing beyond the base keys is present", () => {
     const { customFields } = splitCustomPayload({ code: "HQ" }, ["code"]);
     expect(customFields).toEqual({});
+  });
+});
+
+describe("buildDefinitionPayload — flat RecordForm payload -> DefinitionIn (Also: Minor)", () => {
+  const base = {
+    key: "floor", type: "number", widget: "plain",
+    label_en: "Floor", label_fr: "Étage", label_es: "Piso",
+    hint_en: "", hint_fr: "", hint_es: "",
+    required: true, group: "geo", order: "2", col_span: "2", indexed: true,
+    inherit_to_suborgs: true,
+    relation_resource: "", relation_filter: {}, rules: {},
+    options: { items: [] }, default: { value: null },
+  };
+
+  it("re-nests the flat label_en/fr/es and hint_en/fr/es back into i18n dicts", () => {
+    const out = buildDefinitionPayload(base, "site.custom_fields");
+    expect(out.label).toEqual({ en: "Floor", fr: "Étage", es: "Piso" });
+    expect(out.hint).toEqual({ en: "", fr: "", es: "" });
+  });
+
+  it("coerces required/indexed/inherit_to_suborgs to real booleans (not just truthy)", () => {
+    const out = buildDefinitionPayload(base, "site.custom_fields");
+    expect(out.required).toBe(true);
+    expect(out.indexed).toBe(true);
+    expect(out.inherit_to_suborgs).toBe(true);
+    const off = buildDefinitionPayload({ ...base, required: "true" }, "site.custom_fields");
+    // A stray string "true" (not the literal boolean) must NOT coerce to true —
+    // RecordForm's checkbox always sends a real boolean, but this pins the
+    // adapter doesn't silently truthy-coerce a differently-shaped payload.
+    expect(off.required).toBe(false);
+  });
+
+  it("coerces order/col_span to numbers, defaulting order to 0 and col_span to 1", () => {
+    const out = buildDefinitionPayload(base, "site.custom_fields");
+    expect(out.order).toBe(2);
+    expect(out.col_span).toBe(2);
+    const blank = buildDefinitionPayload({ ...base, order: "", col_span: "" }, "site.custom_fields");
+    expect(blank.order).toBe(0);
+    expect(blank.col_span).toBe(1);
+  });
+
+  it("unwraps the JSON envelope for options (array) and default (Any) — the inverse of "
+    + "flattenDefinition's wrap", () => {
+    const withOptions = buildDefinitionPayload(
+      { ...base, type: "select",
+        options: { items: [{ value: "a", label: { en: "A", fr: "A", es: "A" } }] },
+        default: { value: "a" } },
+      "site.custom_fields");
+    expect(withOptions.options).toEqual([{ value: "a", label: { en: "A", fr: "A", es: "A" } }]);
+    expect(withOptions.default).toBe("a");
+  });
+
+  it("defaults default/options/relation_filter/rules when the envelope is malformed or absent", () => {
+    const out = buildDefinitionPayload({ key: "k", type: "string" }, "site.custom_fields");
+    expect(out.default).toBeNull();
+    expect(out.options).toEqual([]);
+    expect(out.relation_filter).toEqual({});
+    expect(out.rules).toEqual({});
+  });
+
+  it("stamps the caller-supplied target onto the payload", () => {
+    expect(buildDefinitionPayload(base, "org_unit.custom_fields").target).toBe("org_unit.custom_fields");
   });
 });
 

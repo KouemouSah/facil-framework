@@ -669,8 +669,7 @@
     "target": {
       "organization.custom_fields": "Organización",
       "org_unit.custom_fields": "Unidad org.",
-      "site.custom_fields": "Sede",
-      "party.custom_fields": "Tercero"
+      "site.custom_fields": "Sede"
     },
     "type": {
       "string": "Texto",
@@ -785,7 +784,6 @@
       "sat": "Sábado",
       "sun": "Domingo"
     },
-    "open": "Abierto",
     "closed": "Cerrado",
     "add_shift": "Añadir turno",
     "remove_shift": "Quitar turno",

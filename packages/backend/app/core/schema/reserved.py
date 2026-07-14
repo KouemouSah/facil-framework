@@ -22,12 +22,12 @@ def _model_for(target: str) -> type:
     if not _MODELS:
         from app.modules.location.models import Site
         from app.modules.organization.models import Organization, OrgUnit
-        from app.modules.party.models import Party
+        # `party.custom_fields` deliberately absent — Party is no longer an
+        # extensible target (see `registry.EXTENSIBLE_TARGETS`'s docstring).
         _MODELS.update({
             "organization.custom_fields": Organization,
             "org_unit.custom_fields": OrgUnit,
             "site.custom_fields": Site,
-            "party.custom_fields": Party,
         })
     return _MODELS[target]
 

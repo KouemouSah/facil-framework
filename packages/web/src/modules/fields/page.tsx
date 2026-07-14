@@ -18,14 +18,14 @@ import { OrgCombobox } from "@/components/ui/org-combobox";
 import { useFirstOrg } from "@/lib/use-organizations";
 import { usePermissions } from "@/lib/use-permissions";
 import { fieldSpecToFieldDef } from "@/lib/schema/to-field-def";
-import { tr, type Locale } from "@/lib/schema/types";
+import { tr, type FieldSpecType, type Locale } from "@/lib/schema/types";
 import {
   TARGETS, archiveDefinition, buildIndex, createDefinition, getDefinition, listDefinitions,
   purgeDefinition, unarchiveDefinition, updateDefinition, type Definition, type Target,
 } from "./api";
 import {
-  buildDefinitionPayload, filterDefinitions, flattenDefinition, isSortable, sortDefinitions,
-  useFieldDefFields,
+  buildDefinitionPayload, canRenderCreateSurface, filterDefinitions, flattenDefinition,
+  isSortable, sortDefinitions, useFieldDefFields,
 } from "./fields";
 
 /**
@@ -167,8 +167,8 @@ export default function FieldsStudioPage() {
         )}
         {surfaceOpen && (
           isNew
-            ? <CreateSurface orgId={effectiveOrgId} target={target} onClose={closeSurface}
-                onCreated={() => list.refetch()} />
+            ? (canRenderCreateSurface(isNew, canManage) && <CreateSurface orgId={effectiveOrgId} target={target} onClose={closeSurface}
+                onCreated={() => list.refetch()} />)
             : <EditSurface key={sel} definitionId={sel} target={target} readOnly={!canManage}
                 onClose={closeSurface} onChanged={() => list.refetch()} />
         )}
@@ -214,7 +214,14 @@ function CreateSurface({ orgId, target, onClose, onCreated }: {
 }) {
   const t = useTranslations("fields");
   const qc = useQueryClient();
-  const fields = useFieldDefFields();
+  // Fix wave 1 (Task 15, Important #4): narrow the `widget` choices to the
+  // LIVE `type` selection, not just the full cross-type union. `RecordForm`
+  // exposes its in-progress scalar values via the additive `onValuesChange`
+  // callback (see its docstring) — `liveType` mirrors the `type` field as the
+  // user picks it, seeding `useFieldDefFields` exactly like `EditSurface`
+  // already does with the row's SAVED `type`.
+  const [liveType, setLiveType] = useState<FieldSpecType | undefined>(undefined);
+  const fields = useFieldDefFields(liveType);
   const [savedRow, setSavedRow] = useState<Definition | null>(null);
 
   return (
@@ -227,6 +234,7 @@ function CreateSurface({ orgId, target, onClose, onCreated }: {
           enableSaveNew
           submitLabel={t("new")}
           initial={{ col_span: "1" }}
+          onValuesChange={(v) => setLiveType((v.type || undefined) as FieldSpecType | undefined)}
           onSubmit={async (payload) => {
             const body = buildDefinitionPayload(payload, target);
             const created = await createDefinition(orgId, body);
@@ -237,7 +245,11 @@ function CreateSurface({ orgId, target, onClose, onCreated }: {
             qc.invalidateQueries({ queryKey: ["field-definitions"] });
             onCreated();
             toast({ variant: "success", title: t("toast.created") });
-            if (!again) onClose();
+            // "Save & New" resets RecordForm's own fields (including `type`)
+            // back to blank — mirror that here so the widget list resets to
+            // the full union for the next entry too.
+            if (again) setLiveType(undefined);
+            else onClose();
           }}
           onCancel={onClose}
         />

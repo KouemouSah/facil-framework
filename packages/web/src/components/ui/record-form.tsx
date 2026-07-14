@@ -97,6 +97,16 @@ export interface RecordFormProps {
   /** Permission-driven: render every field disabled and hide the save actions
    *  (the user may read but not write). The backend still enforces. */
   readOnly?: boolean;
+  /** Additive, optional (default undefined — no behaviour change for any
+   *  existing caller): fired with the live scalar `values` state after every
+   *  `setField` call. RecordForm otherwise keeps its in-progress values
+   *  internal; a parent that needs a per-keystroke live view of a SCALAR
+   *  field (e.g. the field-definition Studio narrowing its `widget` choices
+   *  to the just-picked `type` during CREATE, see `modules/fields/page.tsx`)
+   *  can read it here instead of RecordForm growing a bespoke prop for that
+   *  one case. Does not include `jsonValues` (json fields have their own
+   *  `onChange` at the call site already). */
+  onValuesChange?: (values: Record<string, string>) => void;
 }
 
 // Types whose value is a plain string/number the zod rule (`fieldRule`, hand-
@@ -135,6 +145,7 @@ function initialValue(f: FieldDef, initial?: Record<string, unknown>): string {
 export function RecordForm({
   fields, mode, initial, etag, onSubmit, onSuccess, onCancel, onConflict,
   submitLabel = "Save", enableSaveNew = false, layout = "compact", readOnly = false,
+  onValuesChange,
 }: RecordFormProps) {
   const jsonFields = useMemo(() => fields.filter((f) => f.type === "json"), [fields]);
 
@@ -164,7 +175,11 @@ export function RecordForm({
   const [resetKey, setResetKey] = useState(0);
 
   function setField(name: string, v: string) {
-    setValues((s) => ({ ...s, [name]: v }));
+    setValues((s) => {
+      const next = { ...s, [name]: v };
+      onValuesChange?.(next);
+      return next;
+    });
     setErrors((e) => (e[name] ? { ...e, [name]: "" } : e));
     setDirty(true); setSaved(false);
   }
@@ -361,10 +376,17 @@ export function RecordForm({
     // generic raw-textarea `JsonField` below. Same `jsonValues`/`jsonOk` state
     // as every other json field — only the CONTROL differs, not the plumbing
     // (validate/buildPayload/reset-on-"Save & New" all already handle any
-    // `f.type === "json"` uniformly). `specDriven` is not required here (a
-    // hand-written FieldDef may also opt into this widget, e.g.
-    // `SITE_FIELD_SPECS.operating_hours`), so this checks `f.widget` directly.
-    if (f.type === "json" && f.widget === "weekly_hours")
+    // `f.type === "json"` uniformly). Gated through `specDriven` like every
+    // other branch above (Fix wave 1, Important — consistency with the file's
+    // own mandatory gate): logically redundant here, since `controlKindFor`
+    // returns "spec" the moment `f.widget !== undefined`, and this condition
+    // already requires `f.widget === "weekly_hours"` (a defined value) — but
+    // spelling it out keeps the invariant visible at every dispatch site
+    // rather than relying on a reader noticing the implication. A
+    // hand-written FieldDef MAY opt into this widget (e.g.
+    // `SITE_FIELD_SPECS.operating_hours` does), which is exactly why the gate
+    // is on `f.widget`, not on "came from the server".
+    if (specDriven && f.type === "json" && f.widget === "weekly_hours")
       return (
         <WeeklyHoursField key={`${f.name}-${resetKey}`} id={id} label={f.label} hint={f.hint}
           disabled={fieldRO} value={jsonValues[f.name]}

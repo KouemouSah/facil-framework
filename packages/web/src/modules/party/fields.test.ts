@@ -17,8 +17,10 @@ describe("PARTY_FIELD_SPECS (directory)", () => {
     expect(by("is_active")?.type).toBe("checkbox");
   });
 
-  it("no longer carries a raw custom_fields JSON blob — superseded by the Studio's "
-    + "schema-driven custom fields (Task 15), merged in by usePartyFields, not hand-declared here", () => {
+  it("never carries a raw custom_fields JSON blob — party.custom_fields is not "
+    + "an extensible target (Fix wave 1, Task 15): Party is a global directory "
+    + "row with no organisation to own a definition set, so usePartyFields "
+    + "returns exactly this base set, no schema merge", () => {
     expect(by("custom_fields")).toBeUndefined();
   });
 });
