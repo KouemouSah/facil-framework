@@ -407,8 +407,14 @@ async def list_definitions(organization_id: str, target: str | None = None,
     returns `as_spec()`, which deliberately carries no `id`, so without this
     route the PUT/archive/purge endpoints below would be unaddressable and an
     ARCHIVED definition would be permanently unreachable, contradicting
-    "archive is reversible"). Scope comes from `?organization_id=`, enforced by
-    the router-level `fields.manage` dependency (`raw_scope_ids` reads it).
+    "archive is reversible"). Scope comes from `?organization_id=`, enforced
+    IN-HANDLER by `_authorize_org` below, bound to that same query parameter
+    — same confused-deputy reasoning as `_authorize_org`'s own docstring
+    (MINORS fix, final fix wave: this used to claim a router-level
+    `fields.manage` dependency reading `raw_scope_ids`, which does not exist
+    on this router — see the module docstring above. A stale claim like that
+    would talk a future reader back into the exact confused-deputy hole
+    `_authorize_org` closes).
 
     Inherited (ancestor `inherit_to_suborgs`) definitions are NOT listed: this
     is the MANAGEMENT surface — you may only manage what you own. Use
@@ -533,7 +539,7 @@ async def update_definition(definition_id: str, body: FieldDefinitionIn,
     row.indexed = body.indexed
     if type_changed and was_indexed:
         background_tasks.add_task(indexing.drop_index, request.app.state.db.engine,
-                                  row.target, row.key)
+                                  row.target, row.key, row.organization_id)
 
     _apply_spec(row, body)
     row.updated_by = principal.get("sub")
@@ -612,7 +618,7 @@ async def _set_archived(definition_id: str, request: Request, background_tasks: 
     if archived and row.indexed:
         row.index_state = "none"
         background_tasks.add_task(indexing.drop_index, request.app.state.db.engine,
-                                  row.target, row.key)
+                                  row.target, row.key, row.organization_id)
     await audit.record(session, action, account_id=principal.get("sub"),
                        detail={"id": definition_id, "target": row.target,
                                "key": row.key})
@@ -669,12 +675,12 @@ async def purge_definition(definition_id: str, request: Request,
     detail = {"id": definition_id, "target": row.target, "key": row.key,
               "organization_id": row.organization_id}
     had_index = row.indexed
-    target, key = row.target, row.key
+    target, key, organization_id = row.target, row.key, row.organization_id
     await session.delete(row)
     await audit.record(session, audit.FIELD_DEFINITION_PURGED,
                        account_id=principal.get("sub"), detail=detail)
     await _commit(session, key=row.key, target=row.target)
     if had_index:
         background_tasks.add_task(indexing.drop_index, request.app.state.db.engine,
-                                  target, key)
+                                  target, key, organization_id)
     return {"deleted": definition_id}

@@ -46,9 +46,9 @@ def test_only_indexed_and_ready_keys_are_sortable():
 
 
 def test_index_name_is_deterministic_and_bounded():
-    n = index_name("site", "convention_no")
-    assert n == "ix_site_cf_convention_no"
-    assert len(index_name("organization", "a" * 60)) <= 63  # Postgres identifier limit
+    n = index_name("site", "convention_no", "org-a")
+    assert n.startswith("ix_site_cf_convention_no_")
+    assert len(index_name("organization", "a" * 60, "org-a")) <= 63  # PG identifier limit
 
 
 def test_index_name_truncation_is_still_deterministic_and_collision_resistant():
@@ -56,8 +56,18 @@ def test_index_name_truncation_is_still_deterministic_and_collision_resistant():
     onto the same truncated name — the sha1 digest suffix is what prevents it."""
     key_a = "a" * 60
     key_b = "a" * 34 + "b" * 26  # same first 34 chars as key_a
-    name_a = index_name("organization", key_a)
-    name_b = index_name("organization", key_b)
+    name_a = index_name("organization", key_a, "org-a")
+    name_b = index_name("organization", key_b, "org-a")
+    assert name_a != name_b
+    assert len(name_a) <= 63 and len(name_b) <= 63
+
+
+def test_index_name_is_scoped_by_organization():
+    """CRITICAL fix: the SAME (table, key) for TWO DIFFERENT orgs must produce
+    DIFFERENT index names — this is the whole point of the fix, since the
+    index itself is PARTIAL per organisation."""
+    name_a = index_name("site", "rank", "org-a")
+    name_b = index_name("site", "rank", "org-b")
     assert name_a != name_b
     assert len(name_a) <= 63 and len(name_b) <= 63
 
@@ -490,13 +500,56 @@ async def seeded_100k(pg_engine):
 
 @pytest.mark.postgres
 @pytest.mark.asyncio
-async def test_sorting_on_an_indexed_custom_field_uses_the_index(pg_engine, seeded_100k):
+async def test_sorting_on_an_indexed_custom_field_uses_the_index(seeded_100k):
+    """IMPORTANT-3 fix: this used to EXPLAIN a HAND-WRITTEN string with a
+    LITERAL `WHERE organization_id = 'org-a'`. Postgres can trivially prove a
+    partial index's predicate against a value known at PARSE time — that is
+    NOT what the app ever sends. The real path (`list_query.keyset_page`,
+    which every entity-list endpoint funnels through) compiles
+    `Site.organization_id == organization_id` to `WHERE organization_id =
+    $1` and sends it over asyncpg's extended query protocol as a genuine
+    BOUND PARAMETER. A partial index can only be proven under a CUSTOM plan
+    (replanned per actual bind value); Postgres's `plan_cache_mode=auto`
+    default can switch a repeatedly-executed prepared statement to a GENERIC
+    plan after ~5 executions — which does NOT know the parameter is 'org-a'
+    and, in principle, cannot prove the partial index's predicate applies.
+
+    So: build the EXACT statement shape `keyset_page` emits (same
+    `custom_sort_column` cast, same ORDER BY/LIMIT construction) and drive it
+    through the SAME pooled connection >5 times BEFORE the EXPLAIN — the way
+    a real pooled connection under repeat traffic behaves — so the plan
+    asserted on below is the one Postgres actually picks, not just the
+    always-custom first execution.
+    """
+    from sqlalchemy import select
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.core.schema.indexing import custom_sort_column
+    from app.modules.location.models import Site
+
+    spec = {"type": "number", "key": "rank"}
+    organization_id = "org-a"
+
+    stmt = (select(Site.id)
+           .where(Site.organization_id == organization_id)
+           .order_by(custom_sort_column(spec).asc().nulls_last(), Site.id.asc())
+           .limit(50))
+
+    async with AsyncSession(seeded_100k) as session:
+        conn = await session.connection()
+        dialect = conn.sync_connection.dialect
+        compiled = stmt.compile(dialect=dialect, compile_kwargs={"literal_binds": False})
+        sql = str(compiled)
+        ordered_params = tuple(compiled.params[name] for name in compiled.positiontup)
+        # Warm the SAME server-side prepared statement past Postgres's
+        # 5-execution custom/generic decision point (plan_cache_mode=auto) —
+        # asyncpg's per-connection statement cache reuses this exact SQL text.
+        for _ in range(6):
+            await conn.execute(stmt)
+        plan = [row[0] for row in
+               (await conn.exec_driver_sql(f"EXPLAIN {sql}", ordered_params))]
+
     # If this fails, the storage model is WRONG — and we must know before prod.
-    async with pg_engine.connect() as conn:
-        plan = (await conn.exec_driver_sql(
-            "EXPLAIN SELECT id FROM site "
-            "WHERE organization_id = 'org-a' "
-            "ORDER BY ((custom_fields->>'rank')::numeric) LIMIT 50")).scalars().all()
     assert not any("Seq Scan" in line for line in plan), "\n".join(plan)
 
 
@@ -552,7 +605,7 @@ async def test_rebuilding_over_an_existing_index_produces_a_VALID_index(org_and_
 
     from app.core.schema import indexing
 
-    name = indexing.index_name("site", "rank")
+    name = indexing.index_name("site", "rank", "org-a")
     async with org_and_site_pg.connect() as conn:
         await conn.execute(text("COMMIT"))  # CONCURRENTLY needs no open tx
         # The decoy: same name, WRONG expression (text cast, not numeric) —
@@ -592,12 +645,97 @@ async def test_index_validity_is_verified_before_reporting_ready(org_and_site_pg
 
     # No index built yet under this key -> not valid (doesn't exist at all).
     assert await indexing.index_is_valid(
-        org_and_site_pg, "site.custom_fields", "no_such_key") is False
+        org_and_site_pg, "site.custom_fields", "no_such_key", "org-a") is False
 
     await indexing.create_index(org_and_site_pg, "site.custom_fields",
                                 {"type": "number", "key": "rank"}, "org-a")
     assert await indexing.index_is_valid(
-        org_and_site_pg, "site.custom_fields", "rank") is True
+        org_and_site_pg, "site.custom_fields", "rank", "org-a") is True
+
+
+@pytest_asyncio.fixture
+async def two_orgs_pg(pg_engine):
+    """org-a + org-b, each with one site, each site carrying the SAME custom
+    field key (`rank`) — the exact shape the CRITICAL-1 bug required: two
+    tenants independently declaring the same key on the same table."""
+    from sqlalchemy import text
+    async with pg_engine.begin() as conn:
+        for org_id in ("org-a", "org-b"):
+            await conn.execute(text(
+                "INSERT INTO organization "
+                "(id, code, legal_name, document_identity, settings, custom_fields, is_active) "
+                "VALUES (:id, :id, :id, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, true)"
+            ), {"id": org_id})
+        for org_id, site_id in (("org-a", "site-a"), ("org-b", "site-b")):
+            await conn.execute(text(
+                "INSERT INTO site (id, organization_id, code, name, site_type, "
+                "operating_hours, metadata, custom_fields, is_primary, is_active) "
+                "VALUES (:sid, :oid, :sid, :sid, 'branch', '{}'::jsonb, '{}'::jsonb, "
+                "jsonb_build_object('rank', 1), false, true)"
+            ), {"sid": site_id, "oid": org_id})
+    return pg_engine
+
+
+async def _pg_indexes_named_like(conn, like: str) -> list[dict]:
+    from sqlalchemy import text
+    rows = (await conn.execute(text(
+        "SELECT indexname, indexdef FROM pg_indexes WHERE indexname LIKE :like"
+    ), {"like": like})).mappings().all()
+    return [dict(r) for r in rows]
+
+
+@pytest.mark.postgres
+@pytest.mark.asyncio
+async def test_two_orgs_with_the_SAME_key_get_SEPARATE_indexes(two_orgs_pg):
+    # The index is PARTIAL per organisation, but its name was derived from
+    # (table, key) only — so org B building `rank` used to DROP org A's index and
+    # recreate it for B, while org A's row still said "ready". Every subsequent
+    # sort for org A silently sequential-scanned, reported as healthy.
+    from sqlalchemy import text
+
+    from app.core.schema import indexing
+
+    await indexing.create_index(two_orgs_pg, "site.custom_fields",
+                                {"type": "number", "key": "rank"}, "org-a")
+    await indexing.create_index(two_orgs_pg, "site.custom_fields",
+                                {"type": "number", "key": "rank"}, "org-b")
+
+    async with two_orgs_pg.connect() as conn:
+        rows = await _pg_indexes_named_like(conn, "ix_site_cf_rank%")
+
+    assert len(rows) == 2, f"expected 2 separate indexes, got: {rows}"
+    names = {r["indexname"] for r in rows}
+    assert len(names) == 2, "org A and org B must NOT share one index name"
+    defs = {r["indexname"]: r["indexdef"] for r in rows}
+    assert all("org-a" in d or "org-b" in d for d in defs.values())
+    org_a_def = next(d for d in defs.values() if "org-a" in d)
+    org_b_def = next(d for d in defs.values() if "org-b" in d)
+    assert org_a_def != org_b_def  # different WHERE predicates
+
+    # Org A's index (built FIRST) must still be VALID after org B's build —
+    # this is the exact regression: org B's build used to DROP org A's index.
+    assert await indexing.index_is_valid(
+        two_orgs_pg, "site.custom_fields", "rank", "org-a") is True
+    assert await indexing.index_is_valid(
+        two_orgs_pg, "site.custom_fields", "rank", "org-b") is True
+
+
+@pytest.mark.postgres
+@pytest.mark.asyncio
+async def test_org_B_purging_rank_leaves_org_A_index_intact(two_orgs_pg):
+    from app.core.schema import indexing
+
+    await indexing.create_index(two_orgs_pg, "site.custom_fields",
+                                {"type": "number", "key": "rank"}, "org-a")
+    await indexing.create_index(two_orgs_pg, "site.custom_fields",
+                                {"type": "number", "key": "rank"}, "org-b")
+
+    await indexing.drop_index(two_orgs_pg, "site.custom_fields", "rank", "org-b")
+
+    assert await indexing.index_is_valid(
+        two_orgs_pg, "site.custom_fields", "rank", "org-a") is True
+    assert await indexing.index_is_valid(
+        two_orgs_pg, "site.custom_fields", "rank", "org-b") is False
 
 
 @pytest.mark.postgres

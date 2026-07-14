@@ -55,14 +55,33 @@ CUSTOM_FIELD_SORT_PREFIX = "custom_fields."
 _ORG_ID_RE = re.compile(r"^[a-zA-Z0-9-]{1,36}$")
 
 
-def index_name(table: str, key: str) -> str:
+def index_name(table: str, key: str, organization_id: str) -> str:
     """Deterministic, <=63 chars (Postgres identifier limit — a longer name is
-    silently TRUNCATED, which would make two fields collide on one index)."""
-    name = f"ix_{table}_cf_{key}"
+    silently TRUNCATED, which would make two fields collide on one index).
+
+    ORG-SCOPED (CRITICAL fix): the index itself is PARTIAL per organisation
+    (`WHERE organization_id = '…'`), but the name used to be derived from
+    `(table, key)` alone. Two tenants declaring the same key (a routine
+    occurrence — `rank`, `status`, `priority`…) would then share ONE index
+    name: org B building `rank` would `DROP INDEX CONCURRENTLY` org A's index
+    and recreate it scoped to B, while org A's `FieldDefinition` row still
+    said `index_state == "ready"` — every subsequent sort for org A silently
+    degraded to a sequential scan, reported as healthy. The name must include
+    an org component so two tenants NEVER collide on one index object.
+
+    A short sha1 digest of `organization_id` (not the raw id) keeps the name
+    short and identifier-safe regardless of what the id looks like."""
+    _assert_safe_org_id(organization_id)
+    org_digest = hashlib.sha1(organization_id.encode()).hexdigest()[:8]
+    suffix = f"_{org_digest}"
+    name = f"ix_{table}_cf_{key}{suffix}"
     if len(name) <= 63:
         return name
-    digest = hashlib.sha1(key.encode()).hexdigest()[:8]
-    return f"ix_{table}_cf_{key[:63 - len(f'ix_{table}_cf_') - 9]}_{digest}"
+    prefix = f"ix_{table}_cf_"
+    key_digest = hashlib.sha1(key.encode()).hexdigest()[:8]
+    tail = f"_{key_digest}{suffix}"
+    budget = max(63 - len(prefix) - len(tail), 0)
+    return f"{prefix}{key[:budget]}{tail}"
 
 
 def sortable_keys(specs: list[dict]) -> set[str]:
@@ -93,14 +112,22 @@ class IndexBuildFailed(RuntimeError):
     `index_state = "failed"` — it must never be mistaken for success."""
 
 
-async def index_is_valid(engine: AsyncEngine, target: str, key: str) -> bool:
-    """True iff an index exists under this (target, key)'s deterministic name
-    AND is VALID. False both when no such index exists and when one exists
-    but is INVALID — both mean "not safe to use for a sort". Postgres-only;
-    always False elsewhere (SQLite never has a real index to check)."""
+async def index_is_valid(engine: AsyncEngine, target: str, key: str,
+                         organization_id: str) -> bool:
+    """True iff an index exists under this (target, key, organization_id)'s
+    deterministic name AND is VALID. False both when no such index exists and
+    when one exists but is INVALID — both mean "not safe to use for a sort".
+    Postgres-only; always False elsewhere (SQLite never has a real index to
+    check).
+
+    `organization_id` is REQUIRED (CRITICAL fix): the index name is now
+    org-scoped (see `index_name`), so checking validity without it would
+    either check the wrong tenant's index or silently report False for a
+    perfectly valid one."""
     if engine.dialect.name != "postgresql":
         return False
-    name = index_name(EXTENSIBLE_TARGETS[target], key)
+    _assert_safe_key(key)
+    name = index_name(EXTENSIBLE_TARGETS[target], key, organization_id)
     autocommit = engine.execution_options(isolation_level="AUTOCOMMIT")
     async with autocommit.connect() as conn:
         row = (await conn.exec_driver_sql(
@@ -147,7 +174,7 @@ async def create_index(engine: AsyncEngine, target: str, spec: dict,
 
     table = EXTENSIBLE_TARGETS[target]
     expr = INDEX_CAST[ftype].format(key=key)
-    name = index_name(table, key)
+    name = index_name(table, key, organization_id)
     # organization_id IS interpolated raw here — Postgres DDL cannot bind
     # parameters (no prepared-statement placeholders in CREATE INDEX ... WHERE).
     # Safety comes from `_assert_safe_org_id` above (guarded by `_ORG_ID_RE`),
@@ -160,22 +187,27 @@ async def create_index(engine: AsyncEngine, target: str, spec: dict,
             f'CREATE INDEX CONCURRENTLY "{name}" ON "{table}" ({expr}) '
             f"WHERE organization_id = '{organization_id}'")
 
-    if not await index_is_valid(engine, target, key):
+    if not await index_is_valid(engine, target, key, organization_id):
         raise IndexBuildFailed(
             f"CREATE INDEX CONCURRENTLY {name!r} completed without raising "
             "but the resulting index is INVALID (pg_index.indisvalid=false); "
             "refusing to report it ready")
 
 
-async def drop_index(engine: AsyncEngine, target: str, key: str) -> None:
+async def drop_index(engine: AsyncEngine, target: str, key: str,
+                     organization_id: str) -> None:
     """Drop the partial expression index (idempotent — `IF EXISTS`). Postgres
     only; a no-op elsewhere. Called on archive (the index becomes non-live —
     the 10-indexed cap deliberately excludes archived rows, so an archived
-    field must not keep occupying a live index) and on purge."""
+    field must not keep occupying a live index) and on purge.
+
+    `organization_id` is REQUIRED (CRITICAL fix): without it, this used to
+    drop whichever tenant happened to share the (table, key) name — e.g. org
+    B purging its `rank` field would delete org A's live, `ready` index too."""
     if engine.dialect.name != "postgresql":
         return
     _assert_safe_key(key)
-    name = index_name(EXTENSIBLE_TARGETS[target], key)
+    name = index_name(EXTENSIBLE_TARGETS[target], key, organization_id)
     autocommit = engine.execution_options(isolation_level="AUTOCOMMIT")
     async with autocommit.connect() as conn:
         await conn.exec_driver_sql(f'DROP INDEX CONCURRENTLY IF EXISTS "{name}"')
