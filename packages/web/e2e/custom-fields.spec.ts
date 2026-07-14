@@ -19,15 +19,28 @@ import { expect, test, type Page } from "@playwright/test";
  * regexes (en/fr), exactly like the rest of this suite.
  */
 
-const ADMIN_EMAIL = "admin1@facil.local";
-const ADMIN_PASSWORD = "REDACTED-ROTATED-CRED";
-// Low-privilege account provisioned for this task via the real admin API
-// (POST /api/v1/admin/accounts + POST /api/v1/rbac/accounts/{id}/roles,
-// role = "Member" — whose only grants are location.read/organization.read,
-// confirmed against the live role_permission table; `fields.manage` is not
-// among them). See the task report for the exact provisioning commands.
-const READONLY_EMAIL = "e2e-readonly@facil.local";
-const READONLY_PASSWORD = "REDACTED-ROTATED-CRED";
+// CRITICAL fix (final fix wave): this used to hardcode a real local admin
+// account's password straight into the spec (now in this branch's git
+// history — see the task report for the rotation notice) AND assume two
+// accounts (`admin1@facil.local`, `e2e-readonly@facil.local`) that only ever
+// existed on a developer's local stack. CI's e2e job (`.github/workflows/
+// ci.yml`) seeds exactly ONE super-admin, `e2e@x.com` — neither hardcoded
+// account exists there, so both tests below silently timed out in CI.
+//
+// Parameterised from `process.env`, following `playwright.config.ts`'s own
+// `E2E_BASE_URL` convention. The admin default matches the account CI
+// already seeds (role "admin" -> `['*']` grants, see `rbac/seeds/empty.
+// yaml`), so the first test runs out of the box in both CI and local dev
+// (`docker compose` local stack seeds the same super-admin — see README).
+// There is NO safe default for the low-privilege account: CI must seed one
+// explicitly (see the "Seed a low-privilege account" step added to
+// `ci.yml`) and pass it through `E2E_READONLY_EMAIL`/`E2E_READONLY_PASSWORD`;
+// locally, export the two vars yourself. Absent -> `test.skip()` with an
+// explicit reason (never a silent pass).
+const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "e2e@x.com";
+const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "Sup3rStr0ng!pw";
+const READONLY_EMAIL = process.env.E2E_READONLY_EMAIL;
+const READONLY_PASSWORD = process.env.E2E_READONLY_PASSWORD;
 
 async function login(page: Page, email: string, password: string) {
   await page.goto("/login");
@@ -134,7 +147,13 @@ test("define a custom field on Site, fill it on a Site's form, reload — the va
 });
 
 test("a user without fields.manage sees neither the nav entry nor the create action — including the ?new=1&sel= URL", async ({ page }) => {
-  await login(page, READONLY_EMAIL, READONLY_PASSWORD);
+  test.skip(
+    !READONLY_EMAIL || !READONLY_PASSWORD,
+    "E2E_READONLY_EMAIL/E2E_READONLY_PASSWORD not set — no low-privilege " +
+    "account to test permission-gating against (see ci.yml's low-privilege " +
+    "seed step; set both env vars locally to run this test).",
+  );
+  await login(page, READONLY_EMAIL!, READONLY_PASSWORD!);
 
   // No nav entry.
   await page.goto("/");
