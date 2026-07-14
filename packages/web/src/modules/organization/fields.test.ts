@@ -41,4 +41,12 @@ describe("ORG_FIELD_SPECS (pilot 1 — Company canonical form)", () => {
     // DocumentIdentityForm, driven by the server-served product schema.
     expect(byName("document_identity")).toBeUndefined();
   });
+
+  it("no longer edits settings as raw JSON — it is its own generated-form tab", () => {
+    // Task 9 (SP1/M3): settings moved out of this form into
+    // OrganizationSettingsForm, driven by the server-served product schema.
+    expect(byName("settings")).toBeUndefined();
+    const rawJsonField = ORG_FIELD_SPECS.find((f) => f.type === "json");
+    expect(rawJsonField).toBeUndefined();
+  });
 });

@@ -150,6 +150,16 @@ async def create_organization(body: OrganizationCreate, request: Request,
             body.document_identity = validate_blob(specs, body.document_identity)
         except SchemaViolation as e:
             raise HTTPException(422, detail=e.errors) from e
+    # `settings` (Task 9) is the same unconditional allowlist as `document_identity`
+    # (Task 8): the create path is not exempt, or a caller could seed an
+    # undeclared key that `merge_blob` would then preserve forever on every PUT.
+    # Empty means "not configured" and is skipped, not rejected.
+    if body.settings:
+        specs = request.app.state.schema_registry.get("organization.settings")
+        try:
+            body.settings = validate_blob(specs, body.settings)
+        except SchemaViolation as e:
+            raise HTTPException(422, detail=e.errors) from e
     try:
         org = await service.create_organization(session, body)
     except service.OrgError as e:
@@ -225,6 +235,15 @@ async def update_organization(org_id: str, body: OrganizationUpdate, request: Re
         try:
             body.document_identity = merge_blob(
                 existing.document_identity or {}, body.document_identity, specs)
+        except SchemaViolation as e:
+            raise HTTPException(422, detail=e.errors) from e
+    # `settings` (Task 9): same schema-validated, merge-preserve blob as
+    # `document_identity` — only declared keys can be written by the request
+    # (422 otherwise); a pre-existing undeclared key (historic data) survives.
+    if body.settings is not None:
+        specs = request.app.state.schema_registry.get("organization.settings")
+        try:
+            body.settings = merge_blob(existing.settings or {}, body.settings, specs)
         except SchemaViolation as e:
             raise HTTPException(422, detail=e.errors) from e
     try:

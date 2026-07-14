@@ -229,6 +229,10 @@
       "tab": "Document identity",
       "description": "The letterhead/footer/seal identity printed on every generated report for this organization."
     },
+    "settings": {
+      "tab": "Settings",
+      "description": "Per-organization settings: default document locale, document numbering prefix, fiscal year start month."
+    },
     "col": {
       "code": "Code",
       "name": "Legal name",
@@ -258,11 +262,9 @@
       "default_locale": "Default locale",
       "timezone": "Timezone",
       "hq_address_id": "Head office address",
-      "settings": "Settings (JSON)",
       "code_hint": "Immutable identifier.",
       "party_id_hint": "Party holding tax id / registration / contacts.",
-      "parent_id_hint": "Owning company for multi-company groups.",
-      "settings_hint": "Free-form organization settings."
+      "parent_id_hint": "Owning company for multi-company groups."
     }
   },
   "sites": {

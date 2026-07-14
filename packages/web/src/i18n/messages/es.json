@@ -229,6 +229,10 @@
       "tab": "Identidad documental",
       "description": "La identidad (encabezado/pie de página/sello) impresa en cada informe generado para esta organización."
     },
+    "settings": {
+      "tab": "Ajustes",
+      "description": "Ajustes por organización: idioma predeterminado de los documentos, prefijo de numeración, mes de inicio del ejercicio."
+    },
     "col": {
       "code": "Código",
       "name": "Razón social",
@@ -258,11 +262,9 @@
       "default_locale": "Idioma predeterminado",
       "timezone": "Zona horaria",
       "hq_address_id": "Dirección de la sede",
-      "settings": "Ajustes (JSON)",
       "code_hint": "Identificador inmutable.",
       "party_id_hint": "Tercero con NIF / registro / contactos.",
-      "parent_id_hint": "Empresa matriz para grupos multiempresa.",
-      "settings_hint": "Ajustes libres de la organización."
+      "parent_id_hint": "Empresa matriz para grupos multiempresa."
     }
   },
   "sites": {

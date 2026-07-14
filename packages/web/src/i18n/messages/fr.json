@@ -229,6 +229,10 @@
       "tab": "Identité documentaire",
       "description": "L'identité (en-tête/pied de page/sceau) imprimée sur chaque rapport généré pour cette organisation."
     },
+    "settings": {
+      "tab": "Paramètres",
+      "description": "Paramètres par organisation : langue par défaut des documents, préfixe de numérotation, mois de début d'exercice."
+    },
     "col": {
       "code": "Code",
       "name": "Raison sociale",
@@ -258,11 +262,9 @@
       "default_locale": "Langue par défaut",
       "timezone": "Fuseau horaire",
       "hq_address_id": "Adresse du siège",
-      "settings": "Paramètres (JSON)",
       "code_hint": "Identifiant immuable.",
       "party_id_hint": "Tiers portant le NIF / immatriculation / contacts.",
-      "parent_id_hint": "Société mère pour les groupes multi-sociétés.",
-      "settings_hint": "Paramètres libres de l'organisation."
+      "parent_id_hint": "Société mère pour les groupes multi-sociétés."
     }
   },
   "sites": {

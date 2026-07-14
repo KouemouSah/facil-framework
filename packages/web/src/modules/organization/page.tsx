@@ -17,6 +17,7 @@ import { usePermissions } from "@/lib/use-permissions";
 import { useState } from "react";
 import { useOrgFields } from "./fields";
 import { DocumentIdentityForm } from "./document-identity-form";
+import { OrganizationSettingsForm } from "./settings-form";
 import {
   ORG_BASE, createOrg, deleteOrg, getOrg, listOrgs, updateOrg, type Org,
 } from "./api";
@@ -199,7 +200,7 @@ function OrgCreateSurface({ onClose, onCreated }: { onClose: () => void; onCreat
   );
 }
 
-type OrgTab = "details" | "documentIdentity";
+type OrgTab = "details" | "documentIdentity" | "settings";
 
 function OrgEditSurface({ orgId, onClose, readOnly }: { orgId: string; onClose: () => void; readOnly: boolean }) {
   const t = useTranslations("organizations");
@@ -225,14 +226,17 @@ function OrgEditSurface({ orgId, onClose, readOnly }: { orgId: string; onClose: 
       {!data && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
       {data && (
         <div className="space-y-4">
-          {/* document_identity is its own tab (master-detail rule, repo convention):
-              rich, schema-generated config, not a raw-JSON field in the main form. */}
+          {/* document_identity and settings are each their own tab (master-detail
+              rule, repo convention): rich, schema-generated config, not a raw-JSON
+              field in the main form. */}
           <div className="flex gap-1 border-b">
-            {(["details", "documentIdentity"] as OrgTab[]).map((tk) => (
+            {(["details", "documentIdentity", "settings"] as OrgTab[]).map((tk) => (
               <button key={tk} type="button" onClick={() => setTab(tk)}
                 className={cn("border-b-2 px-3 py-1.5 text-sm font-medium",
                   tab === tk ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
-                {tk === "details" ? t("tab.details") : t("documentIdentity.tab")}
+                {tk === "details" ? t("tab.details")
+                  : tk === "documentIdentity" ? t("documentIdentity.tab")
+                  : t("settings.tab")}
               </button>
             ))}
           </div>
@@ -254,13 +258,27 @@ function OrgEditSurface({ orgId, onClose, readOnly }: { orgId: string; onClose: 
               }}
               onConflict={() => qc.invalidateQueries({ queryKey: ["org", orgId] })}
             />
-          ) : (
+          ) : tab === "documentIdentity" ? (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">{t("documentIdentity.description")}</p>
               <DocumentIdentityForm
                 key={String(etag ?? orgId)}
                 orgId={orgId}
                 documentIdentity={(data.document_identity as Record<string, unknown>) ?? {}}
+                etag={etag}
+                onSaved={() => {
+                  qc.invalidateQueries({ queryKey: ["org", orgId] });
+                  qc.invalidateQueries({ queryKey: ["orgs"] });
+                }}
+              />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">{t("settings.description")}</p>
+              <OrganizationSettingsForm
+                key={String(etag ?? orgId)}
+                orgId={orgId}
+                settings={(data.settings as Record<string, unknown>) ?? {}}
                 etag={etag}
                 onSaved={() => {
                   qc.invalidateQueries({ queryKey: ["org", orgId] });

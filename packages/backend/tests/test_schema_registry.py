@@ -60,12 +60,12 @@ def test_a_db_field_cannot_shadow_a_code_field():
 
 def test_default_registry_carries_exactly_the_shipped_product_schemas():
     # M0 shipped this registry empty (product schemas land in M2/M3). M2 wires
-    # `organization.document_identity` in — this test now pins the exact set of
-    # targets so a stray `register()` call is caught immediately instead of
-    # silently colliding with a later one.
+    # `organization.document_identity` in, M3 wires `organization.settings` in
+    # — this test now pins the exact set of targets so a stray `register()`
+    # call is caught immediately instead of silently colliding with a later one.
     r = default_schema_registry()
     assert isinstance(r, SchemaRegistry)
-    assert r.targets == ["organization.document_identity"]
+    assert r.targets == ["organization.document_identity", "organization.settings"]
 
 
 def test_registry_state_cannot_be_mutated_through_get_or_register():

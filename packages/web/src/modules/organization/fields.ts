@@ -31,11 +31,10 @@ export const ORG_FIELD_SPECS: Omit<FieldDef, "label" | "hint">[] = [
   { name: "default_locale", type: "select" },
   { name: "timezone", type: "timezone" },
   { name: "hq_address_id", type: "address" },
-  { name: "settings", type: "json" },
 ];
 
 // Fields that carry an explanatory hint (localized as `<name>_hint`).
-const HINTED = new Set(["code", "party_id", "parent_id", "settings"]);
+const HINTED = new Set(["code", "party_id", "parent_id"]);
 
 export function useOrgFields(): FieldDef[] {
   const t = useTranslations("organizations.f");
