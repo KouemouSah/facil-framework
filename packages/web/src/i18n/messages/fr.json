@@ -104,6 +104,7 @@
     "collapse_sidebar": "Réduire le menu",
     "expand_sidebar": "Développer le menu",
     "language": "Langue",
+    "contact": "Contact",
     "support": "Support"
   },
   "errors": {
@@ -477,6 +478,7 @@
     "toast_save_failed": "Échec de l’enregistrement.",
     "secret_ref_hint": "Référence dans le coffre (optionnel) — pas la valeur.",
     "curated_note": "Cette clé a un éditeur dédié (Branding / Fournisseurs). L’éditer brut ici fonctionne mais est risqué.",
+    "curated_link": "Ouvrir l’éditeur dédié",
     "delete": {
       "title": "Supprimer le réglage ?",
       "body": "Ceci supprime définitivement {key}. Saisissez sa clé pour confirmer.",
