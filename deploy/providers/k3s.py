@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import json
 import shutil
 import subprocess
 import sys
@@ -205,20 +206,38 @@ def apply_manifest(kubectl: str, ns: str, manifest: str) -> int:
 
 
 def release_exists(helm: str, namespace: str) -> bool:
-    """True si la release Helm `facil` existe deja dans ce namespace.
+    """True si une revision `facil` **deployee avec succes** existe deja.
 
-    Lecture seule (`helm status`, aucun effet de bord). Determine si --apply
-    doit faire la danse deux-passes a 0 replica (A1 : SEULEMENT au 1er
-    install) ou une simple mise a jour a une passe (release existante : les
-    hooks pre-upgrade tournent AVANT que --wait n'evalue le Deployment, donc
-    aucun deadlock a contourner -- voir le commentaire du bloc appelant dans
-    main() pour le detail du deadlock reel que la danse deux-passes resout).
+    Lecture seule (`helm status -o json`, aucun effet de bord). Determine si
+    --apply doit faire la danse deux-passes a 0 replica (A1 : SEULEMENT au 1er
+    install reussi) ou une simple mise a jour a une passe (release existante :
+    les hooks pre-upgrade tournent AVANT que --wait n'evalue le Deployment,
+    donc aucun deadlock a contourner -- voir le commentaire du bloc appelant
+    dans main() pour le detail du deadlock reel que la danse deux-passes resout).
+
+    BUG REEL CORRIGE (smoke k3d task-E1, 2026-07-14) : `helm status` renvoie
+    returncode==0 pour une release au statut "failed" (ex. un --apply
+    precedent qui a echoue AVANT meme d'atteindre --atomic, donc sans
+    rollback -- comme un pre-install hook bloque). L'ancienne version de cette
+    fonction traitait alors une release jamais reellement installee comme
+    "deja existante" -> --apply suivant prenait le chemin une-passe (single-
+    pass --atomic), backend a son replica REEL des le depart, sur un cluster
+    vierge sans role/migration -> EXACTEMENT le deadlock original (task-V1)
+    que la danse deux-passes existe pour eviter. Un statut "failed" ou
+    "pending-*" doit redeclencher la danse deux-passes comme un vrai 1er
+    install (idempotent : reprendre a 0 replica ne fait de mal a rien).
     """
     proc = subprocess.run(
-        [helm, "status", "facil", "-n", namespace],
+        [helm, "status", "facil", "-n", namespace, "-o", "json"],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
-    return proc.returncode == 0
+    if proc.returncode != 0:
+        return False
+    try:
+        status = json.loads(proc.stdout).get("info", {}).get("status")
+    except (json.JSONDecodeError, AttributeError):
+        return False
+    return status == "deployed"
 
 
 def ensure_namespace(kubectl: str, ns: str) -> int:

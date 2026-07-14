@@ -475,6 +475,11 @@ def test_apply_passes_values_onprem_overlay_to_helm_upgrade(monkeypatch, tmp_pat
 
     def fake_run(cmd, **kwargs):
         captured_cmds.append(cmd)
+        if "status" in cmd:
+            # release_exists() lit .info.status (JSON) -- "deployed" pour
+            # rester sur le chemin une-passe que ce test exerce.
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout='{"info":{"status":"deployed"}}', stderr="")
         if "create" in cmd and "secret" in cmd:
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
         return subprocess.CompletedProcess(cmd, 0)
@@ -569,9 +574,17 @@ def test_plan_renders_in_the_target_namespace(monkeypatch, tmp_path):
 def test_apply_uses_atomic_for_auto_rollback(monkeypatch, tmp_path):
     # SEC-022 : sans --atomic une release en echec reste en place, pods casses.
     calls = []
-    monkeypatch.setattr(k3s.subprocess, "run",
-                        lambda cmd, **kw: calls.append(list(cmd)) or
-                        subprocess.CompletedProcess(cmd, 0, stdout=""))
+
+    def fake_run(cmd, **kw):
+        calls.append(list(cmd))
+        if "status" in cmd:
+            # release_exists() lit .info.status (JSON) -- "deployed" pour
+            # rester sur le chemin une-passe que ce test exerce.
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout='{"info":{"status":"deployed"}}', stderr="")
+        return subprocess.CompletedProcess(cmd, 0, stdout="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
     monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
     monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
     monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
@@ -1011,7 +1024,13 @@ def test_apply_upgrade_of_existing_release_uses_single_pass_no_downtime(monkeypa
 
     def fake_run(cmd, **kw):
         calls.append(list(cmd))
-        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")  # "helm status" -> existe
+        if "status" in cmd:
+            # release_exists() exige desormais info.status == "deployed"
+            # (pas seulement returncode==0 -- une release "failed" ne doit
+            # PAS emprunter le chemin une-passe, cf. le bug corrige task-E1).
+            return subprocess.CompletedProcess(cmd, 0, stdout='{"info":{"status":"deployed"}}',
+                                               stderr="")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
     monkeypatch.setattr(k3s.subprocess, "run", fake_run)
     monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
@@ -1031,6 +1050,43 @@ def test_apply_upgrade_of_existing_release_uses_single_pass_no_downtime(monkeypa
         "d'une release existante -- ce serait une coupure de service inutile "
         "(502 cote frontend) puisqu'il n'y a pas de deadlock a contourner ici")
     assert "--atomic" in upgrade_calls[0]
+
+
+def test_apply_treats_failed_prior_release_as_absent_reruns_two_pass_dance(
+    monkeypatch, tmp_path,
+):
+    # BUG REEL CORRIGE (smoke k3d task-E1, 2026-07-14) : `helm status` renvoie
+    # returncode==0 MEME pour une release au statut "failed" (ex. un --apply
+    # precedent qui a echoue au pre-install, avant tout --atomic/rollback).
+    # release_exists() doit lire `.info.status` (JSON), pas seulement le
+    # returncode -- sinon un --apply de reprise apres un 1er echec prend le
+    # chemin une-passe (backend a son replica REEL d'emblee) sur un cluster
+    # encore vierge -> reproduit tel quel le deadlock original (task-V1) que
+    # la danse deux-passes existe pour eviter.
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(list(cmd))
+        if "status" in cmd:
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout='{"info":{"status":"failed"}}', stderr="")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+
+    rc = k3s.main(["--apply", "--config", str(_write_cfg_file(tmp_path)),
+                   "--yes", "--allow-dev-vault"])
+    assert rc == 0
+
+    upgrade_calls = [c for c in calls if "upgrade" in c]
+    assert len(upgrade_calls) == 2, (
+        "une release au statut 'failed' doit etre traitee comme ABSENTE -- "
+        "la danse deux-passes (1er install) doit rejouer, pas le chemin "
+        "une-passe reserve a une release DEJA deployee avec succes")
+    assert "backend.replicas=0" in upgrade_calls[0]
 
 
 def test_apply_first_install_pass2_failure_warns_backend_left_at_zero_replicas(
