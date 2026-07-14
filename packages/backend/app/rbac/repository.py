@@ -28,21 +28,35 @@ async def unit_path(session: AsyncSession, unit_id: str | None) -> str | None:
 
 async def resolve_scope(session: AsyncSession, raw: dict) -> Scope:
     """Turn raw scope ids (from the request) into a full Scope: derive the org
-    from a unit/site and load the unit's materialized path for subtree checks."""
+    from a unit/site and load the unit's materialized path for subtree checks.
+
+    SECURITY INVARIANT (confused-deputy fix, see rbac-confused-deputy-report.md):
+    for an id-addressed route, the organisation on the TARGET ROW (site/unit) is
+    authoritative. `raw["organization_id"]` may have travelled here from the
+    caller (path or query) rather than from any row — once a row is actually
+    found, its org REPLACES the caller-supplied value; it never merely fills a
+    gap via `or`. The previous `org = org or site.organization_id` let a
+    caller-supplied org "win" over the real owner whenever it was non-empty,
+    which is exactly backwards: a caller must never be able to assert their own
+    scope onto somebody else's row.
+    """
     org = raw.get("organization_id")
     unit = raw.get("org_unit_id")
     site_id = raw.get("site_id")
     path = None
+    row_org: str | None = None
     if site_id:
         site = await session.get(Site, site_id)
         if site is not None:
-            org = org or site.organization_id
+            row_org = site.organization_id
             unit = unit or site.org_unit_id
     if unit:
         u = await session.get(OrgUnit, unit)
         if u is not None:
-            org = org or u.organization_id
+            row_org = row_org if row_org is not None else u.organization_id
             path = u.path
+    if row_org is not None:
+        org = row_org
     return Scope(organization_id=org, org_unit_id=unit, unit_path=path, site_id=site_id)
 
 
