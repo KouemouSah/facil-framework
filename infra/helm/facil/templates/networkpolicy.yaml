@@ -38,8 +38,21 @@ metadata:
   labels: {{- include "facil.labels" . | nindent 4 }}
 spec:
   # Les datastores n'acceptent QUE le backend et les Jobs de hook (migrations +
-  # creation du role applicatif) -- sinon le deploiement se bloque (les Jobs
-  # doivent joindre Postgres pour db-role/db-init).
+  # creation du role applicatif + sauvegarde) -- sinon le deploiement se bloque
+  # (les Jobs doivent joindre Postgres pour db-role/db-init, et le Job de
+  # sauvegarde doit joindre Postgres ET MinIO pour dumper/mirrorer AVANT eux).
+  #
+  # "backup" MANQUAIT ICI (BUG REEL, PAS THEORIQUE) : verifie en conditions
+  # reelles sur le smoke k3d task-E1 (2026-07-14) -- le Job de sauvegarde
+  # (voir backup-job.yaml) recevait ECONNREFUSED sur le Service Postgres
+  # ("pg_dump: error: connection ... Connection refused"), echouait
+  # (BackoffLimitExceeded), et le hook pre-upgrade avortait l'upgrade -- MAIS
+  # db-role/db-init avaient DEJA tourne (annotes post-install ET pre-upgrade,
+  # ils s'executent aussi a l'installation initiale, hors de portee de cette
+  # NetworkPolicy-ci qui bloquait seulement "backup"). Aucun test unitaire/
+  # `helm template` ne pouvait detecter ce trou : seul un Job REELLEMENT
+  # execute contre une vraie NetworkPolicy appliquee par le controleur
+  # kube-router de k3s le revele.
   podSelector:
     matchExpressions:
       - key: facil.component
@@ -52,7 +65,7 @@ spec:
             matchExpressions:
               - key: facil.component
                 operator: In
-                values: [backend, db-init, db-role]
+                values: [backend, db-init, db-role, backup]
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
