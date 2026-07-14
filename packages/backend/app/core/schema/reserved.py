@@ -1,0 +1,45 @@
+"""Reserved key names — DERIVED from the real columns, never hardcoded.
+
+A hardcoded denylist drifts the moment someone adds a column. Introspecting the
+mapped model (via `sqlalchemy.inspect`) means the guard can never fall out of
+sync with the schema: a custom field can never shadow a real column, including
+one added by a future migration nobody remembered to also update here.
+"""
+
+from __future__ import annotations
+
+from sqlalchemy import inspect
+
+from app.core.schema.registry import EXTENSIBLE_TARGETS
+
+_MODELS: dict[str, type] = {}
+
+
+def _model_for(target: str) -> type:
+    if target not in EXTENSIBLE_TARGETS:
+        raise ValueError(
+            f"target {target!r} is not extensible; one of {sorted(EXTENSIBLE_TARGETS)}")
+    if not _MODELS:
+        from app.modules.location.models import Site
+        from app.modules.organization.models import Organization, OrgUnit
+        from app.modules.party.models import Party
+        _MODELS.update({
+            "organization.custom_fields": Organization,
+            "org_unit.custom_fields": OrgUnit,
+            "site.custom_fields": Site,
+            "party.custom_fields": Party,
+        })
+    return _MODELS[target]
+
+
+def reserved_keys(target: str) -> set[str]:
+    """Every real column name on the mapped model for `target`, introspected —
+    never a maintained list. `id`/`etag` are added defensively in case a base
+    class exposes them as properties rather than mapped columns."""
+    return {c.key for c in inspect(_model_for(target)).columns} | {"id", "etag"}
+
+
+def assert_key_allowed(target: str, key: str) -> None:
+    if key in reserved_keys(target):
+        raise ValueError(
+            f"key {key!r} is reserved on {target!r} (it shadows a real column)")
