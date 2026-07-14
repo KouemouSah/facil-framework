@@ -1,4 +1,7 @@
 {{- if and .Values.backup.enabled .Values.postgres.enabled }}
+{{- if lt (int .Values.backup.retain) 1 }}
+{{- fail "backup.retain doit etre >= 1 (B3) : avec 0, le script de retention purge le dump QU'IL VIENT DE CREER (le repertoire horodate du jour compte parmi les candidats), laissant la sauvegarde pre-upgrade vide alors que le Job sort 0 -- fail-OPEN silencieux, exactement ce que ce hook existe pour empecher. Utiliser une valeur >= 1." }}
+{{- end }}
 {{/*
 Sauvegarde AVANT migration. C'est la seule chose qui separe un client d'une perte
 de donnees irreversible : `--atomic` rollback les MANIFESTES, jamais la BASE. Une
@@ -130,6 +133,18 @@ spec:
                   echo "purge de la sauvegarde ${old}" >&2
                   rm -rf "$old"
                 done
+              fi
+              # FAIL-CLOSED (B3), APRES la purge : le rendu refuse deja
+              # backup.retain<1 (voir le `fail` en tete de ce fichier), mais on ne
+              # se fie pas seulement a la validation amont -- bout en bout. Le
+              # compte ci-dessus inclut le repertoire "${TS}" QUI VIENT D'ETRE CREE
+              # (`ls -1d 2*Z` liste aussi la sauvegarde du jour) : une regression qui
+              # laisserait passer retain=0 purgerait cette meme sauvegarde qu'on
+              # vient de dumper, et le Job sortirait 0 (le `rm` a reussi) alors
+              # qu'il ne reste plus AUCUN dump exploitable -- fail-OPEN silencieux.
+              if [ ! -s "${DEST}/postgres.dump" ]; then
+                echo "FAIL: le dump Postgres a disparu apres la purge de retention -- upgrade avorte AVANT migration." >&2
+                exit 1
               fi
           volumeMounts:
             - { name: backups, mountPath: /backups }

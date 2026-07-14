@@ -415,6 +415,46 @@ def test_real_backup_job_has_no_or_true_anywhere(default_render):
     assert guard_backup.check(default_render) == []
 
 
+# --- B3 : backup.retain doit etre >= 1, et le dump re-verifie APRES la purge -
+
+def test_retain_zero_is_refused_at_render_time(default_render):
+    # Mutation-guard (B3) : retain=0 purgerait le dump du jour lui-meme (le
+    # repertoire horodate qui vient d'etre cree est compte parmi les
+    # candidats de la retention) -- le rendu doit refuser cette valeur
+    # AVANT meme que le Job ne tourne (`{{ fail ... }}` -> `helm template`
+    # sort non-zero).
+    with pytest.raises(subprocess.CalledProcessError) as excinfo:
+        _helm_template("--set", "backup.retain=0")
+    stderr = (excinfo.value.stderr or "")
+    assert "backup.retain doit etre >= 1" in stderr
+
+
+def test_retain_one_is_the_minimum_accepted_value():
+    # Non-regression : 1 (la plus petite valeur permise) rend toujours,
+    # contrairement a 0.
+    rendered = _helm_template("--set", "backup.retain=1")
+    assert "facil-backup" in rendered
+
+
+def test_default_render_re_verifies_the_dump_after_the_retention_purge(default_render):
+    # B3(b) : la garde fail-closed historique (dump vide juste apres pg_dump)
+    # NE SUFFISAIT PAS -- la purge de retention peut supprimer ce meme dump
+    # ensuite. Cette 2e verification, placee APRES la boucle `rm -rf`, doit
+    # etre presente dans le rendu reel.
+    docs = list(yaml.safe_load_all(default_render))
+    backup_doc = next(
+        d for d in docs if isinstance(d, dict) and d.get("kind") == "Job"
+        and (d.get("metadata") or {}).get("name") == "facil-backup")
+    dump_container = next(
+        c for c in backup_doc["spec"]["template"]["spec"]["initContainers"]
+        if c.get("name") == "dump-postgres")
+    argv = guard_backup._container_argv_text(dump_container)
+    # Deux verifications `[ ! -s ... ]` distinctes : une juste apres pg_dump,
+    # une seconde apres la purge de retention.
+    assert argv.count('[ ! -s "${DEST}/postgres.dump" ]') == 2, argv
+    assert "disparu apres la purge de retention" in argv
+
+
 # --- Fail-closed quand le composant est desactive (pas de faux positif) ------
 
 def test_no_problem_when_backup_disabled():
