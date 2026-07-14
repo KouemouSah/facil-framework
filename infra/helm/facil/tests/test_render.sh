@@ -135,6 +135,15 @@ assert_job_hook "db-role" "facil/templates/db-role-job.yaml" "-1"
 assert_job_hook "db-init" "facil/templates/db-init-job.yaml" "0"
 # P2 : la sauvegarde doit tourner AVANT les migrations, sinon elle ne protege rien.
 assert_job_hook "backup" "facil/templates/backup-job.yaml" "-2" "pre-upgrade" "false"
+# P2/A3 : les assertions grep ci-dessus ne comparent que des POIDS ATTENDUS en
+# dur (litteraux "-2"/"-1"/"0") -- elles ne prouvent pas l'ORDRE relatif entre
+# les Jobs, et une comparaison textuelle serait de toute facon un piege
+# ("-2" < "-1" est FAUX en tri lexicographique). Garde parsee dediee : compare
+# les hook-weight NUMERIQUEMENT (backup strictement < db-role ET db-init) et
+# verifie le fail-closed (restartPolicy: Never, backoffLimit borne, aucun
+# `|| true`). Voir infra/helm/facil/tests/guard_backup.py +
+# tests/test_guard_backup.py (preuve par mutation de chaque invariant).
+python infra/helm/facil/tests/guard_backup.py < "$OUT_FILE"
 
 # Garde negative globale (style d'annotation normalise non-quote sur les deux
 # Jobs -- cf. commentaire ci-dessus) : aucun `pre-install` nulle part dans le
