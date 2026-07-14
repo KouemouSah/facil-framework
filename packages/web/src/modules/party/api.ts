@@ -46,12 +46,24 @@ export const listParties = (p: { q: string; sort: string; limit: number; cursor:
     (p.cursor ? `&cursor=${encodeURIComponent(p.cursor)}` : ""));
 
 export const getParty = (id: string) => apiFetch<Party>(`${PARTY_BASE}/parties/${id}`);
-export const createParty = (body: Record<string, unknown>) =>
-  apiFetch<Party>(`${PARTY_BASE}/parties`, { method: "POST", body: JSON.stringify(body) });
-export const updateParty = (id: string, body: Record<string, unknown>, etag?: string) =>
-  apiFetch<Party>(`${PARTY_BASE}/parties/${id}`, {
-    method: "PUT", headers: etag ? { "If-Match": etag } : undefined, body: JSON.stringify(body),
-  });
+
+// `definitionsOrgId` (Task 15): required whenever `body.custom_fields` is
+// present (even `{}` — an empty object is a CLEAR, not a no-op) — see
+// `_require_definitions_org` (`app/modules/party/api/__init__.py`). Deliberately
+// NOT named `organization_id` in the query string: that name is scope-harvested
+// by `rbac.scope.raw_scope_ids` and would silently narrow party.create/update
+// from a GLOBAL permission check to an org-scoped one (see the backend
+// `_party_specs` docstring for the confused-deputy this avoids).
+export const createParty = (body: Record<string, unknown>, definitionsOrgId?: string) =>
+  apiFetch<Party>(
+    `${PARTY_BASE}/parties${definitionsOrgId ? `?definitions_org_id=${encodeURIComponent(definitionsOrgId)}` : ""}`,
+    { method: "POST", body: JSON.stringify(body) });
+export const updateParty = (
+  id: string, body: Record<string, unknown>, etag?: string, definitionsOrgId?: string,
+) =>
+  apiFetch<Party>(
+    `${PARTY_BASE}/parties/${id}${definitionsOrgId ? `?definitions_org_id=${encodeURIComponent(definitionsOrgId)}` : ""}`,
+    { method: "PUT", headers: etag ? { "If-Match": etag } : undefined, body: JSON.stringify(body) });
 export const deleteParty = (id: string) => apiFetch(`${PARTY_BASE}/parties/${id}`, { method: "DELETE" });
 
 // --- Party roles (nested) ---

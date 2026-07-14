@@ -15,7 +15,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useServerTable, type ServerPage } from "@/lib/use-server-table";
 import { usePermissions } from "@/lib/use-permissions";
 import { useState } from "react";
-import { useOrgFields } from "./fields";
+import { flattenCustomInitial, splitCustomPayload } from "@/modules/fields/fields";
+import { ORG_BASE_KEYS, useOrgFields } from "./fields";
 import { DocumentIdentityForm } from "./document-identity-form";
 import { OrganizationSettingsForm } from "./settings-form";
 import {
@@ -205,7 +206,7 @@ type OrgTab = "details" | "documentIdentity" | "settings";
 function OrgEditSurface({ orgId, onClose, readOnly }: { orgId: string; onClose: () => void; readOnly: boolean }) {
   const t = useTranslations("organizations");
   const qc = useQueryClient();
-  const fields = useOrgFields();
+  const fields = useOrgFields(orgId);
   const [tab, setTab] = useState<OrgTab>("details");
   const { data, isError } = useQuery<Record<string, unknown>>({
     queryKey: ["org", orgId],
@@ -249,9 +250,16 @@ function OrgEditSurface({ orgId, onClose, readOnly }: { orgId: string; onClose: 
               mode="edit"
               layout="rich"
               readOnly={readOnly}
-              initial={data}
+              initial={flattenCustomInitial(data)}
               etag={etag}
-              onSubmit={(payload, tag) => updateOrg(orgId, payload, tag)}
+              onSubmit={(payload, tag) => {
+                // Custom-field values nest under `custom_fields` on the wire
+                // (OrganizationUpdate.custom_fields: dict) — never flat
+                // top-level keys; see fields.ts:splitCustomPayload.
+                const { base, customFields } = splitCustomPayload(payload, ORG_BASE_KEYS);
+                const body = Object.keys(customFields).length ? { ...base, custom_fields: customFields } : base;
+                return updateOrg(orgId, body, tag);
+              }}
               onSuccess={() => {
                 qc.invalidateQueries({ queryKey: ["org", orgId] });
                 qc.invalidateQueries({ queryKey: ["orgs"] });

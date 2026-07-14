@@ -1,7 +1,11 @@
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { useQuery } from "@tanstack/react-query";
 import { codeField, requiredText } from "@/lib/form-schemas";
 import { locales } from "@/i18n/config";
 import type { FieldDef } from "@/components/ui/record-form";
+import { getSchema } from "@/lib/schema/api";
+import { fieldSpecToFieldDef } from "@/lib/schema/to-field-def";
+import type { Locale } from "@/lib/schema/types";
 
 /**
  * Canonical Company fields (ERP-grade F.3), shared by create + edit (§11bis DRY).
@@ -36,9 +40,23 @@ export const ORG_FIELD_SPECS: Omit<FieldDef, "label" | "hint">[] = [
 // Fields that carry an explanatory hint (localized as `<name>_hint`).
 const HINTED = new Set(["code", "party_id", "parent_id"]);
 
-export function useOrgFields(): FieldDef[] {
+/**
+ * `organizationId` (Task 15) merges in `organization.custom_fields`
+ * definitions scoped to THIS org, i.e. its OWN id — never available on
+ * create (the row does not exist yet), so custom fields only ever appear
+ * when editing. Every existing call site (create) keeps working unchanged.
+ */
+export function useOrgFields(organizationId?: string): FieldDef[] {
   const t = useTranslations("organizations.f");
-  return ORG_FIELD_SPECS.map((s) => ({
+  const locale = useLocale() as Locale;
+  const schema = useQuery({
+    queryKey: ["schema", "organization.custom_fields", organizationId],
+    queryFn: () => getSchema("organization.custom_fields", organizationId),
+    enabled: Boolean(organizationId),
+  });
+  const custom = (schema.data?.fields ?? []).map((s) => fieldSpecToFieldDef(s, locale));
+
+  const base = ORG_FIELD_SPECS.map((s) => ({
     ...s,
     label: t(s.name),
     ...(HINTED.has(s.name) ? { hint: t(`${s.name}_hint`) } : {}),
@@ -47,4 +65,9 @@ export function useOrgFields(): FieldDef[] {
       ? { selectOptions: locales.map((l) => ({ value: l, label: l })) }
       : {}),
   }));
+  return [...base, ...custom];
 }
+
+/** The declared base column names — see `SITE_BASE_KEYS`'s twin docstring
+ *  (`modules/location/fields.ts`) for why the split at submit time matters. */
+export const ORG_BASE_KEYS = ORG_FIELD_SPECS.map((s) => s.name);

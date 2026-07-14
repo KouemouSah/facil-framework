@@ -16,6 +16,7 @@
     "configuration": "Configuration",
     "org_units": "Unités org.",
     "directory": "Annuaire",
+    "fields": "Champs personnalisés",
     "group": {
       "overview": "Vue d'ensemble",
       "organization": "Organisation",
@@ -562,7 +563,6 @@
       "email": "Courriel",
       "phone": "Téléphone",
       "website": "Site web",
-      "custom_fields": "Champs personnalisés (JSON)",
       "is_active": "Actif"
     },
     "title": "Annuaire",
@@ -651,6 +651,146 @@
       "unlink_failed": "Impossible de délier l’adresse.",
       "unavailable": "Adresse indisponible (#{id})"
     }
+  },
+  "fields": {
+    "title": "Champs personnalisés",
+    "subtitle": "Laisser cette organisation ajouter ses propres champs aux formulaires — sans code, sans déploiement.",
+    "org_placeholder": "Rechercher une organisation…",
+    "empty_no_org": "Sélectionnez une organisation.",
+    "org_load_error": "Impossible de charger les organisations. Réessayez.",
+    "search_placeholder": "Rechercher une clé ou un libellé…",
+    "include_archived": "Afficher les archivés",
+    "new": "Nouveau champ",
+    "new_title": "Nouveau champ",
+    "edit_title": "Champ",
+    "loading": "Chargement…",
+    "load_error": "Échec du chargement du champ.",
+    "empty": "Aucun champ personnalisé pour l’instant.",
+    "target": {
+      "organization.custom_fields": "Organisation",
+      "org_unit.custom_fields": "Unité org.",
+      "site.custom_fields": "Site",
+      "party.custom_fields": "Tiers"
+    },
+    "type": {
+      "string": "Texte",
+      "text": "Texte long",
+      "richtext": "Texte enrichi",
+      "number": "Nombre",
+      "decimal": "Décimal",
+      "money": "Montant",
+      "boolean": "Oui / Non",
+      "date": "Date",
+      "datetime": "Date et heure",
+      "time": "Heure",
+      "select": "Choix",
+      "multiselect": "Choix multiple",
+      "relation": "Relation",
+      "file": "Fichier",
+      "json": "Donnée structurée"
+    },
+    "col": {
+      "key": "Clé",
+      "type": "Type",
+      "widget": "Widget",
+      "label": "Libellé",
+      "group": "Groupe",
+      "required": "Requis",
+      "indexed": "Index",
+      "status": "Statut",
+      "actions": "Actions"
+    },
+    "index_state": {
+      "none": "Non indexé",
+      "pending": "Construction…",
+      "ready": "Triable",
+      "failed": "Échec de l’index"
+    },
+    "not_sortable": "Non triable tant que l’index n’est pas prêt.",
+    "archived_badge": "Archivé",
+    "yes": "Oui",
+    "no": "Non",
+    "f": {
+      "key": "Clé",
+      "key_hint": "snake_case, minuscules, commence par une lettre, ≤60 caractères — immuable après création (renommer orphelinerait les valeurs déjà stockées).",
+      "type": "Type",
+      "widget": "Widget",
+      "widget_hint": "Laissez vide pour utiliser le widget par défaut du type choisi. Doit être valide pour ce type — un choix incompatible est rejeté à l’enregistrement.",
+      "label_en": "Libellé (anglais)",
+      "label_fr": "Libellé (français)",
+      "label_es": "Libellé (espagnol)",
+      "hint_en": "Indice (anglais)",
+      "hint_fr": "Indice (français)",
+      "hint_es": "Indice (espagnol)",
+      "required": "Requis",
+      "group": "Groupe",
+      "group_hint": "Les champs partageant un groupe sont affichés ensemble sur le formulaire métier.",
+      "order": "Ordre",
+      "col_span": "Largeur",
+      "indexed": "Indexé (triable)",
+      "indexed_hint": "Demande un index base de données pour trier ce champ à grande échelle. Non disponible sur texte long / texte enrichi / choix multiple / fichier / donnée structurée.",
+      "inherit_to_suborgs": "Hériter vers les sous-organisations",
+      "relation_resource": "Cible de la relation",
+      "relation_filter": "Filtre de relation (JSON)",
+      "relation_filter_hint": "Filtre clé/valeur optionnel appliqué au sélecteur, ex. {\"region_id\": \"...\"}",
+      "options": "Options",
+      "options_hint": "JSON : {\"items\": [{\"value\": \"code\", \"label\": {\"en\": \"...\", \"fr\": \"...\", \"es\": \"...\"}}]}",
+      "rules": "Règles de validation (JSON)",
+      "rules_hint": "min / max / min_length / max_length / pattern / precision / visible_if / required_if — voir docs/adr pour la forme exacte.",
+      "default": "Valeur par défaut",
+      "default_hint": "JSON : {\"value\": ...} — n’importe quelle valeur (texte, nombre, booléen, tableau, objet ou null)."
+    },
+    "col_span_option": {
+      "1": "Normale (1 colonne)",
+      "2": "Large (2 colonnes)"
+    },
+    "action": {
+      "archive": "Archiver",
+      "unarchive": "Désarchiver",
+      "index": "Construire l’index",
+      "purge": "Purger"
+    },
+    "archive_confirm": {
+      "title": "Archiver ce champ ?",
+      "body": "Il disparaît immédiatement de tous les formulaires métier. Les valeurs stockées sont conservées — désarchivez pour le restaurer."
+    },
+    "purge_confirm": {
+      "title": "Purger ce champ ?",
+      "body": "Ceci supprime définitivement la définition de « {key} ». Les valeurs déjà stockées sur les fiches NE sont PAS supprimées — seule la définition l’est. Action irréversible.",
+      "confirm": "Purger"
+    },
+    "toast": {
+      "created": "Champ créé.",
+      "saved": "Champ enregistré.",
+      "archived": "Champ archivé.",
+      "unarchived": "Champ restauré.",
+      "purged": "Champ purgé.",
+      "index_requested": "Construction de l’index lancée.",
+      "save_failed": "Échec de l’enregistrement.",
+      "action_failed": "Échec de l’action."
+    },
+    "preview": {
+      "title": "Aperçu en direct",
+      "subtitle": "Reflète la dernière version enregistrée de ce champ, rendue par le même composant de formulaire que les formulaires métier.",
+      "empty": "Enregistrez le champ pour voir son rendu ici."
+    }
+  },
+  "weekly_hours": {
+    "day": {
+      "mon": "Lundi",
+      "tue": "Mardi",
+      "wed": "Mercredi",
+      "thu": "Jeudi",
+      "fri": "Vendredi",
+      "sat": "Samedi",
+      "sun": "Dimanche"
+    },
+    "open": "Ouvert",
+    "closed": "Fermé",
+    "add_shift": "Ajouter un créneau",
+    "remove_shift": "Retirer le créneau",
+    "from": "De",
+    "to": "À"
   },
   "branding": {
     "title": "Marque",

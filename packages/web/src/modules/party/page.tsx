@@ -16,7 +16,8 @@ import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useServerTable } from "@/lib/use-server-table";
 import { usePermissions } from "@/lib/use-permissions";
-import { usePartyFields } from "./fields";
+import { flattenCustomInitial, splitCustomPayload } from "@/modules/fields/fields";
+import { PARTY_BASE_KEYS, usePartyCustomFieldsOrgId, usePartyFields } from "./fields";
 import {
   PARTY_TYPES, createParty, deleteParty, getParty, listParties, updateParty, type Party,
 } from "./api";
@@ -147,12 +148,21 @@ function PartiesTab({ sel, isNew, openCreate, openEdit, closeSurface }: TabProps
 function PartyCreateSurface({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const t = useTranslations("directory");
   const partyFields = usePartyFields();
+  const definitionsOrgId = usePartyCustomFieldsOrgId();
   const qc = useQueryClient();
   return (
     <RecordSurface title={t("p.new_title")} resourceKey="parties" onClose={onClose}>
       <RecordForm fields={partyFields} mode="create" layout="rich" enableSaveNew submitLabel={t("p.new")}
         initial={{ party_type: "organization", is_active: true }}
-        onSubmit={(payload) => createParty(payload)}
+        onSubmit={(payload) => {
+          // Custom-field values nest under `custom_fields` on the wire
+          // (PartyIn.custom_fields: dict), never flat top-level keys — see
+          // modules/fields/fields.ts:splitCustomPayload.
+          const { base, customFields } = splitCustomPayload(payload, PARTY_BASE_KEYS);
+          const hasCustom = Object.keys(customFields).length > 0;
+          const body = hasCustom ? { ...base, custom_fields: customFields } : base;
+          return createParty(body, hasCustom ? definitionsOrgId : undefined);
+        }}
         onSuccess={({ again }) => { qc.invalidateQueries({ queryKey: ["parties"] }); onSaved(); toast({ variant: "success", title: t("toast.created") }); if (!again) onClose(); }}
         onCancel={onClose} />
     </RecordSurface>
@@ -162,6 +172,7 @@ function PartyCreateSurface({ onClose, onSaved }: { onClose: () => void; onSaved
 function PartyEditSurface({ partyId, readOnly, onClose }: { partyId: string; readOnly: boolean; onClose: () => void }) {
   const t = useTranslations("directory");
   const partyFields = usePartyFields();
+  const definitionsOrgId = usePartyCustomFieldsOrgId();
   const qc = useQueryClient();
   const { can } = usePermissions();
   const { data, isError } = useQuery({ queryKey: ["party", partyId], queryFn: () => getParty(partyId) });
@@ -172,8 +183,13 @@ function PartyEditSurface({ partyId, readOnly, onClose }: { partyId: string; rea
       {data && (
         <div className="space-y-4">
           <RecordForm key={data.etag ?? partyId} fields={partyFields} mode="edit" layout="rich" readOnly={readOnly}
-            initial={data as unknown as Record<string, unknown>} etag={data.etag}
-            onSubmit={(payload, etag) => updateParty(partyId, payload, etag)}
+            initial={flattenCustomInitial(data as unknown as Record<string, unknown>)} etag={data.etag}
+            onSubmit={(payload, etag) => {
+              const { base, customFields } = splitCustomPayload(payload, PARTY_BASE_KEYS);
+              const hasCustom = Object.keys(customFields).length > 0;
+              const body = hasCustom ? { ...base, custom_fields: customFields } : base;
+              return updateParty(partyId, body, etag, hasCustom ? definitionsOrgId : undefined);
+            }}
             onSuccess={() => { qc.invalidateQueries({ queryKey: ["party", partyId] }); qc.invalidateQueries({ queryKey: ["parties"] }); toast({ variant: "success", title: t("toast.saved") }); }}
             onConflict={() => qc.invalidateQueries({ queryKey: ["party", partyId] })} />
           <PartyRolesSection pid={partyId} canCreate={can("party.create")} canDelete={can("party.delete")} />

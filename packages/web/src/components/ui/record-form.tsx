@@ -16,6 +16,7 @@ import { TimezoneField } from "@/components/ui/timezone-field";
 import { PartyCombobox } from "@/components/ui/party-combobox";
 import { AddressField } from "@/components/ui/address-field";
 import { FileUpload } from "@/components/ui/file-upload";
+import { WeeklyHoursField } from "@/components/ui/weekly-hours-field";
 
 /**
  * Generic, schema-driven create/edit form (ENGINEERING_STANDARDS §11bis). One
@@ -355,9 +356,25 @@ export function RecordForm({
     // 13 built-in providers declare several `type="boolean"` config fields.
     if (specDriven && f.type === "boolean")
       return renderCheckboxControl(f, fieldRO);
-    // NOTE: `json` + widget `weekly_hours` (Site.operating_hours, spec §12) is
-    // declared in WIDGETS_BY_TYPE but not yet used by any registered field —
-    // its bespoke `WeeklyHoursField` control ships with M2, not here.
+    // `json` + widget `weekly_hours` (Site.operating_hours, spec §12): the
+    // bespoke `WeeklyHoursField` control (Task 15 — the Studio) instead of the
+    // generic raw-textarea `JsonField` below. Same `jsonValues`/`jsonOk` state
+    // as every other json field — only the CONTROL differs, not the plumbing
+    // (validate/buildPayload/reset-on-"Save & New" all already handle any
+    // `f.type === "json"` uniformly). `specDriven` is not required here (a
+    // hand-written FieldDef may also opt into this widget, e.g.
+    // `SITE_FIELD_SPECS.operating_hours`), so this checks `f.widget` directly.
+    if (f.type === "json" && f.widget === "weekly_hours")
+      return (
+        <WeeklyHoursField key={`${f.name}-${resetKey}`} id={id} label={f.label} hint={f.hint}
+          disabled={fieldRO} value={jsonValues[f.name]}
+          onChange={(v, ok) => {
+            setJsonValues((s) => ({ ...s, [f.name]: v }));
+            setJsonOk((s) => ({ ...s, [f.name]: ok }));
+            setDirty(true); setSaved(false);
+            if (ok) setErrors((e) => (e[f.name] ? { ...e, [f.name]: "" } : e));
+          }} />
+      );
     switch (f.type) {
       case "json":
         return (

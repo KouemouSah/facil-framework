@@ -11,10 +11,14 @@ describe("PARTY_FIELD_SPECS (directory)", () => {
     expect(pt?.immutable).toBe(true);
     expect(pt?.selectOptions?.map((o) => o.value).sort()).toEqual(["organization", "person"]);
   });
-  it("requires the name and exposes the contact + custom_fields", () => {
+  it("requires the name and exposes the contact fields", () => {
     expect(by("name")?.required).toBe(true);
     expect(by("email")?.type).toBe("email");
-    expect(by("custom_fields")?.type).toBe("json");
     expect(by("is_active")?.type).toBe("checkbox");
+  });
+
+  it("no longer carries a raw custom_fields JSON blob — superseded by the Studio's "
+    + "schema-driven custom fields (Task 15), merged in by usePartyFields, not hand-declared here", () => {
+    expect(by("custom_fields")).toBeUndefined();
   });
 });

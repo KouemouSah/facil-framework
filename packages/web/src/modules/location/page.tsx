@@ -15,7 +15,8 @@ import { OrgCombobox } from "@/components/ui/org-combobox";
 import { useFirstOrg } from "@/lib/use-organizations";
 import { useServerTable, type ServerPage } from "@/lib/use-server-table";
 import { usePermissions } from "@/lib/use-permissions";
-import { useSiteFields } from "./fields";
+import { flattenCustomInitial, splitCustomPayload } from "@/modules/fields/fields";
+import { SITE_BASE_KEYS, useSiteFields } from "./fields";
 import {
   SITE_BASE, createSite, deleteSite, getSite, listSites, updateSite, type Site,
 } from "./api";
@@ -164,7 +165,7 @@ export default function LocationsPage() {
         {surfaceOpen && (
           isNew
             ? (canCreate && <SiteCreateSurface orgId={orgId} onClose={closeSurface} onCreated={() => { table.refetch(); }} />)
-            : <SiteEditSurface key={sel} siteId={sel} onClose={closeSurface} readOnly={!canUpdate} />
+            : <SiteEditSurface key={sel} siteId={sel} orgId={orgId} onClose={closeSurface} readOnly={!canUpdate} />
         )}
       </div>
 
@@ -191,7 +192,7 @@ function SiteCreateSurface({ orgId, onClose, onCreated }: {
 }) {
   const t = useTranslations("sites");
   const qc = useQueryClient();
-  const fields = useSiteFields();
+  const fields = useSiteFields(orgId);
   return (
     <RecordSurface title={t("new_title")} resourceKey="sites" mode="page" onClose={onClose}>
       <RecordForm
@@ -201,7 +202,15 @@ function SiteCreateSurface({ orgId, onClose, onCreated }: {
         enableSaveNew
         submitLabel={t("new")}
         initial={{ site_type: "branch" }}
-        onSubmit={(payload) => createSite(orgId, payload)}
+        onSubmit={(payload) => {
+          // Custom-field values are NOT flat top-level columns — they live
+          // nested under `custom_fields` (SiteCreate.custom_fields: dict).
+          // Pydantic silently drops an undeclared top-level key, so this
+          // split is required, not cosmetic (see fields.ts:splitCustomPayload).
+          const { base, customFields } = splitCustomPayload(payload, SITE_BASE_KEYS);
+          const body = Object.keys(customFields).length ? { ...base, custom_fields: customFields } : base;
+          return createSite(orgId, body);
+        }}
         onSuccess={({ again }) => {
           qc.invalidateQueries({ queryKey: ["sites"] });
           onCreated();
@@ -214,10 +223,12 @@ function SiteCreateSurface({ orgId, onClose, onCreated }: {
   );
 }
 
-function SiteEditSurface({ siteId, onClose, readOnly }: { siteId: string; onClose: () => void; readOnly: boolean }) {
+function SiteEditSurface({ siteId, orgId, onClose, readOnly }: {
+  siteId: string; orgId: string; onClose: () => void; readOnly: boolean;
+}) {
   const t = useTranslations("sites");
   const qc = useQueryClient();
-  const fields = useSiteFields();
+  const fields = useSiteFields(orgId);
   const { data, isError } = useQuery<Record<string, unknown>>({
     queryKey: ["site", siteId],
     queryFn: () => getSite(siteId),
@@ -239,9 +250,13 @@ function SiteEditSurface({ siteId, onClose, readOnly }: { siteId: string; onClos
           mode="edit"
           layout="rich"
           readOnly={readOnly}
-          initial={data}
+          initial={flattenCustomInitial(data)}
           etag={data.etag ? String(data.etag) : undefined}
-          onSubmit={(payload, etag) => updateSite(siteId, payload, etag)}
+          onSubmit={(payload, etag) => {
+            const { base, customFields } = splitCustomPayload(payload, SITE_BASE_KEYS);
+            const body = Object.keys(customFields).length ? { ...base, custom_fields: customFields } : base;
+            return updateSite(siteId, body, etag);
+          }}
           onSuccess={() => {
             qc.invalidateQueries({ queryKey: ["site", siteId] });
             qc.invalidateQueries({ queryKey: ["sites"] });

@@ -6,7 +6,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Network, Settings, Globe, Plug, SlidersHorizontal, FolderTree, BookUser, Search, Menu, ChevronDown } from "lucide-react";
+import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Network, Settings, Globe, Plug, SlidersHorizontal, FolderTree, BookUser, Search, Menu, ChevronDown, PencilRuler } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import { usePermissions } from "@/lib/use-permissions";
@@ -115,6 +115,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     { key: "system", items: [
       { href: "/reference", label: t("reference"), icon: Globe, perm: "reference.read" },
       { href: "/providers", label: t("providers"), icon: Plug, perm: "provider.read" },
+      { href: "/fields", label: t("fields"), icon: PencilRuler, perm: "fields.manage" },
       { href: "/config", label: t("configuration"), icon: SlidersHorizontal, perm: "settings.read" },
       { href: "/settings", label: t("settings"), icon: Settings, perm: "branding.manage" },
     ] },

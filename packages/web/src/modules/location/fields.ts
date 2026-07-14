@@ -1,6 +1,10 @@
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { useQuery } from "@tanstack/react-query";
 import { codeField, requiredText } from "@/lib/form-schemas";
 import type { FieldDef } from "@/components/ui/record-form";
+import { getSchema } from "@/lib/schema/api";
+import { fieldSpecToFieldDef } from "@/lib/schema/to-field-def";
+import type { Locale } from "@/lib/schema/types";
 
 // Canonical site-type values; option labels are localized in `useSiteFields`
 // (`sites.f.type.<value>`). The English `label` here is a non-rendered fallback.
@@ -32,15 +36,36 @@ export const SITE_FIELD_SPECS: Omit<FieldDef, "label" | "hint">[] = [
   { name: "timezone", type: "timezone" },
   { name: "address_id", type: "address" },
   { name: "notes", type: "textarea", colSpan: 2 },
-  { name: "operating_hours", type: "json" },
+  // `widget: "weekly_hours"` (Task 15 — the Studio): the bespoke
+  // `WeeklyHoursField` control instead of a raw JSON textarea for exactly the
+  // shape this field motivated (spec §12: `{"mon": ["09:00-17:00"], ...}`).
+  // Setting `widget` here does not change the wire shape or backend
+  // validation (this column is plain JSONB, not a `FieldSpec`-checked
+  // target) — RecordForm dispatches on it purely to pick the control.
+  { name: "operating_hours", type: "json", widget: "weekly_hours" },
   { name: "metadata", type: "json" },
 ];
 
 const HINTED = new Set(["code", "operating_hours", "metadata"]);
 
-export function useSiteFields(): FieldDef[] {
+/**
+ * `organizationId` (Task 15) merges in this org's `site.custom_fields`
+ * definitions, resolved server-side (`GET /api/v1/schema/site.custom_fields`)
+ * — the Studio's screen B. Omitted (or before an org is chosen) => base
+ * fields only, exactly today's behaviour; every existing call site keeps
+ * working unchanged.
+ */
+export function useSiteFields(organizationId?: string): FieldDef[] {
   const t = useTranslations("sites.f");
-  return SITE_FIELD_SPECS.map((s) => ({
+  const locale = useLocale() as Locale;
+  const schema = useQuery({
+    queryKey: ["schema", "site.custom_fields", organizationId],
+    queryFn: () => getSchema("site.custom_fields", organizationId),
+    enabled: Boolean(organizationId),
+  });
+  const custom = (schema.data?.fields ?? []).map((s) => fieldSpecToFieldDef(s, locale));
+
+  const base = SITE_FIELD_SPECS.map((s) => ({
     ...s,
     label: t(s.name),
     ...(HINTED.has(s.name) ? { hint: t(`${s.name}_hint`) } : {}),
@@ -49,4 +74,10 @@ export function useSiteFields(): FieldDef[] {
       ? { selectOptions: SITE_TYPES.map((o) => ({ value: o.value, label: t(`type.${o.value}`) })) }
       : {}),
   }));
+  return [...base, ...custom];
 }
+
+/** The declared base column names — everything else in a `useSiteFields()`
+ *  payload is a custom-field key and must be nested under `custom_fields`
+ *  before it reaches the API (see `modules/fields/fields.ts:splitCustomPayload`). */
+export const SITE_BASE_KEYS = SITE_FIELD_SPECS.map((s) => s.name);

@@ -16,6 +16,7 @@
     "configuration": "Configuración",
     "org_units": "Unidades org.",
     "directory": "Directorio",
+    "fields": "Campos personalizados",
     "group": {
       "overview": "Resumen",
       "organization": "Organización",
@@ -562,7 +563,6 @@
       "email": "Correo",
       "phone": "Teléfono",
       "website": "Sitio web",
-      "custom_fields": "Campos personalizados (JSON)",
       "is_active": "Activo"
     },
     "title": "Directorio",
@@ -651,6 +651,146 @@
       "unlink_failed": "No se pudo desvincular la dirección.",
       "unavailable": "Dirección no disponible (#{id})"
     }
+  },
+  "fields": {
+    "title": "Campos personalizados",
+    "subtitle": "Deje que esta organización añada sus propios campos a los formularios — sin código, sin despliegue.",
+    "org_placeholder": "Buscar organización…",
+    "empty_no_org": "Seleccione una organización.",
+    "org_load_error": "No se pudieron cargar las organizaciones. Reintente.",
+    "search_placeholder": "Buscar clave o etiqueta…",
+    "include_archived": "Mostrar archivados",
+    "new": "Nuevo campo",
+    "new_title": "Nuevo campo",
+    "edit_title": "Campo",
+    "loading": "Cargando…",
+    "load_error": "Error al cargar el campo.",
+    "empty": "Aún no hay campos personalizados.",
+    "target": {
+      "organization.custom_fields": "Organización",
+      "org_unit.custom_fields": "Unidad org.",
+      "site.custom_fields": "Sede",
+      "party.custom_fields": "Tercero"
+    },
+    "type": {
+      "string": "Texto",
+      "text": "Texto largo",
+      "richtext": "Texto enriquecido",
+      "number": "Número",
+      "decimal": "Decimal",
+      "money": "Importe",
+      "boolean": "Sí / No",
+      "date": "Fecha",
+      "datetime": "Fecha y hora",
+      "time": "Hora",
+      "select": "Selección",
+      "multiselect": "Selección múltiple",
+      "relation": "Relación",
+      "file": "Archivo",
+      "json": "Dato estructurado"
+    },
+    "col": {
+      "key": "Clave",
+      "type": "Tipo",
+      "widget": "Widget",
+      "label": "Etiqueta",
+      "group": "Grupo",
+      "required": "Obligatorio",
+      "indexed": "Índice",
+      "status": "Estado",
+      "actions": "Acciones"
+    },
+    "index_state": {
+      "none": "Sin indexar",
+      "pending": "Construyendo…",
+      "ready": "Ordenable",
+      "failed": "Error de índice"
+    },
+    "not_sortable": "No ordenable hasta que el índice esté listo.",
+    "archived_badge": "Archivado",
+    "yes": "Sí",
+    "no": "No",
+    "f": {
+      "key": "Clave",
+      "key_hint": "snake_case, minúsculas, empieza por una letra, ≤60 caracteres — inmutable tras crearse (renombrarla dejaría huérfanos los valores ya guardados).",
+      "type": "Tipo",
+      "widget": "Widget",
+      "widget_hint": "Déjelo en blanco para usar el widget por defecto del tipo elegido. Debe ser válido para ese tipo — una elección incompatible se rechaza al guardar.",
+      "label_en": "Etiqueta (inglés)",
+      "label_fr": "Etiqueta (francés)",
+      "label_es": "Etiqueta (español)",
+      "hint_en": "Ayuda (inglés)",
+      "hint_fr": "Ayuda (francés)",
+      "hint_es": "Ayuda (español)",
+      "required": "Obligatorio",
+      "group": "Grupo",
+      "group_hint": "Los campos que comparten grupo se muestran juntos en el formulario de negocio.",
+      "order": "Orden",
+      "col_span": "Ancho",
+      "indexed": "Indexado (ordenable)",
+      "indexed_hint": "Solicita un índice de base de datos para poder ordenar este campo a gran escala. No disponible en texto largo / texto enriquecido / selección múltiple / archivo / dato estructurado.",
+      "inherit_to_suborgs": "Heredar a sub-organizaciones",
+      "relation_resource": "Destino de la relación",
+      "relation_filter": "Filtro de relación (JSON)",
+      "relation_filter_hint": "Filtro clave/valor opcional aplicado al selector, p. ej. {\"region_id\": \"...\"}",
+      "options": "Opciones",
+      "options_hint": "JSON: {\"items\": [{\"value\": \"code\", \"label\": {\"en\": \"...\", \"fr\": \"...\", \"es\": \"...\"}}]}",
+      "rules": "Reglas de validación (JSON)",
+      "rules_hint": "min / max / min_length / max_length / pattern / precision / visible_if / required_if — vea docs/adr para la forma exacta.",
+      "default": "Valor por defecto",
+      "default_hint": "JSON: {\"value\": ...} — cualquier valor (texto, número, booleano, array, objeto o null)."
+    },
+    "col_span_option": {
+      "1": "Normal (1 columna)",
+      "2": "Ancho (2 columnas)"
+    },
+    "action": {
+      "archive": "Archivar",
+      "unarchive": "Desarchivar",
+      "index": "Construir índice",
+      "purge": "Purgar"
+    },
+    "archive_confirm": {
+      "title": "¿Archivar este campo?",
+      "body": "Desaparece de inmediato de todos los formularios de negocio. Los valores guardados se conservan — desarchive para restaurarlo."
+    },
+    "purge_confirm": {
+      "title": "¿Purgar este campo?",
+      "body": "Esto elimina permanentemente la definición de «{key}». Los valores ya guardados en los registros NO se eliminan — solo la definición. Esta acción no se puede deshacer.",
+      "confirm": "Purgar"
+    },
+    "toast": {
+      "created": "Campo creado.",
+      "saved": "Campo guardado.",
+      "archived": "Campo archivado.",
+      "unarchived": "Campo restaurado.",
+      "purged": "Campo purgado.",
+      "index_requested": "Construcción del índice iniciada.",
+      "save_failed": "Error al guardar.",
+      "action_failed": "Error en la acción."
+    },
+    "preview": {
+      "title": "Vista previa en vivo",
+      "subtitle": "Refleja la última versión guardada de este campo, renderizada por el mismo componente de formulario que los formularios de negocio.",
+      "empty": "Guarde el campo para ver aquí su renderizado."
+    }
+  },
+  "weekly_hours": {
+    "day": {
+      "mon": "Lunes",
+      "tue": "Martes",
+      "wed": "Miércoles",
+      "thu": "Jueves",
+      "fri": "Viernes",
+      "sat": "Sábado",
+      "sun": "Domingo"
+    },
+    "open": "Abierto",
+    "closed": "Cerrado",
+    "add_shift": "Añadir turno",
+    "remove_shift": "Quitar turno",
+    "from": "Desde",
+    "to": "Hasta"
   },
   "branding": {
     "title": "Marca",
