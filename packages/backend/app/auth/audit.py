@@ -37,6 +37,17 @@ PROVIDER_DELETED = "provider_deleted"
 PROVIDER_DEFAULT_SET = "provider_default_set"
 SETTING_CHANGED = "setting_changed"
 SETTING_DELETED = "setting_deleted"
+# Field-definition (SP1 custom fields, Task 13) mutations — a tenant defining
+# its own fields is itself a sensitive, auditable admin action.
+FIELD_DEFINITION_CREATED = "field_definition_created"
+FIELD_DEFINITION_CHANGED = "field_definition_changed"
+FIELD_DEFINITION_ARCHIVED = "field_definition_archived"
+FIELD_DEFINITION_PURGED = "field_definition_purged"
+FIELD_DEFINITION_INDEXED = "field_definition_indexed"
+# The VALUES an admin writes into those custom fields (on organization / org_unit /
+# site / party) — a tenant-defined, free-form data channel. Auditing the DEFINITION
+# but not the DATA written through it would leave the sensitive half untraced.
+CUSTOM_FIELDS_CHANGED = "custom_fields_changed"
 
 
 async def record(db: AsyncSession, action: str, *, account_id: str | None = None,

@@ -18,8 +18,11 @@ from app.api.concurrency import enforce_if_match, row_etag
 from app.api.csv_export import EXPORT_CAP, export_response
 from app.api.deps import get_session
 from app.api.list_query import apply_sort, keyset_page, paginated, resolve_sort
+from app.auth import audit
+from app.core.schema import repository as schema_repo
 from app.core.schema.merge import merge_blob
 from app.core.schema.pydantic_gen import SchemaViolation, validate_blob
+from app.core.schema.sanitize import clean_richtext_fields
 from app.modules.organization import repository as repo
 from app.modules.organization import service
 from app.modules.organization.models import Organization
@@ -136,6 +139,7 @@ async def organization_labels(ids: str = "",
 
 @router.post("/", status_code=201, dependencies=[_CREATE])
 async def create_organization(body: OrganizationCreate, request: Request,
+                              principal: dict = Depends(require_auth),
                               session: AsyncSession = Depends(get_session)) -> dict:
     # `document_identity` allowlist (Task 8) applies to create too — the
     # invariant ("the schema IS the allowlist") is unconditional, not PUT-only.
@@ -147,7 +151,15 @@ async def create_organization(body: OrganizationCreate, request: Request,
     if body.document_identity:
         specs = request.app.state.schema_registry.get("organization.document_identity")
         try:
-            body.document_identity = validate_blob(specs, body.document_identity)
+            # `clean_richtext_fields` applies here too, not only to `custom_fields`:
+            # `DOCUMENT_IDENTITY` declares `legal_mentions` as a real `richtext`
+            # field (product_schemas.py), and `_coerce` treats richtext as a plain
+            # string — so without this, raw <script>/<img src=...> would be stored
+            # verbatim in a code-declared, always-active product schema. Sanitising
+            # only the DB-defined custom fields would have left the one richtext
+            # field the product itself ships wide open.
+            body.document_identity = clean_richtext_fields(
+                specs, validate_blob(specs, body.document_identity))
         except SchemaViolation as e:
             raise HTTPException(422, detail=e.errors) from e
     # `settings` (Task 9) is the same unconditional allowlist as `document_identity`
@@ -157,13 +169,34 @@ async def create_organization(body: OrganizationCreate, request: Request,
     if body.settings:
         specs = request.app.state.schema_registry.get("organization.settings")
         try:
-            body.settings = validate_blob(specs, body.settings)
+            body.settings = clean_richtext_fields(
+                specs, validate_blob(specs, body.settings))
         except SchemaViolation as e:
             raise HTTPException(422, detail=e.errors) from e
+    # `custom_fields` (Task 13) allowlist against DB-defined
+    # `organization.custom_fields` definitions — unconditional like the two
+    # blobs above (empty = "not configured", never rejected). Org-scoped by
+    # the org's OWN id, which does not exist until the row is flushed (an
+    # inherited definition is resolved by walking `parent_id` FROM that id) —
+    # so neutralise the raw value here, create the row, then validate+apply
+    # once `org.id` is real, before the single commit below.
+    custom_fields_in = body.custom_fields
+    body.custom_fields = {}
     try:
         org = await service.create_organization(session, body)
     except service.OrgError as e:
         raise _http(e) from e
+    if custom_fields_in:
+        specs = [r.as_spec() for r in await schema_repo.definitions_for(
+            session, "organization.custom_fields", org.id)]
+        try:
+            org.custom_fields = clean_richtext_fields(
+                specs, validate_blob(specs, custom_fields_in))
+        except SchemaViolation as e:
+            raise HTTPException(422, detail=e.errors) from e
+        await audit.record(session, audit.CUSTOM_FIELDS_CHANGED,
+                           account_id=principal.get("sub"),
+                           detail={"entity": "organization", "id": org.id})
     await _commit(session)
     return org.as_dict()
 
@@ -180,16 +213,31 @@ async def get_unit(unit_id: str, session: AsyncSession = Depends(get_session)) -
 
 @router.put("/units/{unit_id}", dependencies=[_UPDATE])
 async def update_unit(unit_id: str, body: OrgUnitUpdate, request: Request,
+                      principal: dict = Depends(require_auth),
                       session: AsyncSession = Depends(get_session)) -> dict:
     # Optimistic concurrency (parity with organization PUT): reject a stale write.
     existing = await repo.get_unit(session, unit_id)
     if existing is None:
         raise HTTPException(404, f"unit '{unit_id}' not found")
     enforce_if_match(request, row_etag(existing))
+    # `custom_fields` (Task 13) allowlist against `org_unit.custom_fields`
+    # DB definitions, scoped by the unit's own organisation.
+    if body.custom_fields is not None:
+        specs = [r.as_spec() for r in await schema_repo.definitions_for(
+            session, "org_unit.custom_fields", existing.organization_id)]
+        try:
+            body.custom_fields = clean_richtext_fields(specs, merge_blob(
+                existing.custom_fields or {}, body.custom_fields, specs))
+        except SchemaViolation as e:
+            raise HTTPException(422, detail=e.errors) from e
     try:
         unit = await service.update_unit(session, unit_id, body)
     except service.OrgError as e:
         raise _http(e) from e
+    if body.custom_fields is not None:
+        await audit.record(session, audit.CUSTOM_FIELDS_CHANGED,
+                           account_id=principal.get("sub"),
+                           detail={"entity": "org_unit", "id": unit_id})
     await session.commit()
     return {**unit.as_dict(), "etag": row_etag(unit)}
 
@@ -221,6 +269,7 @@ async def get_organization(org_id: str,
 
 @router.put("/{org_id}", dependencies=[_UPDATE])
 async def update_organization(org_id: str, body: OrganizationUpdate, request: Request,
+                              principal: dict = Depends(require_auth),
                               session: AsyncSession = Depends(get_session)) -> dict:
     # Optimistic concurrency: reject if the row changed since the client loaded it.
     existing = await repo.get_organization(session, org_id)
@@ -229,12 +278,13 @@ async def update_organization(org_id: str, body: OrganizationUpdate, request: Re
     enforce_if_match(request, row_etag(existing))
     # `document_identity` is now a schema-validated, merge-preserve blob (Task 8):
     # only declared keys can be written by the request (422 otherwise); a
-    # pre-existing undeclared key (historic data) survives untouched.
+    # pre-existing undeclared key (historic data) survives untouched. `richtext`
+    # values (DOCUMENT_IDENTITY declares `legal_mentions`) are sanitised on write.
     if body.document_identity is not None:
         specs = request.app.state.schema_registry.get("organization.document_identity")
         try:
-            body.document_identity = merge_blob(
-                existing.document_identity or {}, body.document_identity, specs)
+            body.document_identity = clean_richtext_fields(specs, merge_blob(
+                existing.document_identity or {}, body.document_identity, specs))
         except SchemaViolation as e:
             raise HTTPException(422, detail=e.errors) from e
     # `settings` (Task 9): same schema-validated, merge-preserve blob as
@@ -243,13 +293,31 @@ async def update_organization(org_id: str, body: OrganizationUpdate, request: Re
     if body.settings is not None:
         specs = request.app.state.schema_registry.get("organization.settings")
         try:
-            body.settings = merge_blob(existing.settings or {}, body.settings, specs)
+            body.settings = clean_richtext_fields(specs, merge_blob(
+                existing.settings or {}, body.settings, specs))
+        except SchemaViolation as e:
+            raise HTTPException(422, detail=e.errors) from e
+    # `custom_fields` (Task 13): same schema-validated, merge-preserve blob as
+    # `document_identity`/`settings` above — org-scoped by the org's OWN id
+    # (`organization.custom_fields` definitions belong to the org itself, or
+    # an ancestor with `inherit_to_suborgs`). `richtext` values are sanitised
+    # here too (defence in depth — the row must be clean before it is stored).
+    if body.custom_fields is not None:
+        specs = [r.as_spec() for r in await schema_repo.definitions_for(
+            session, "organization.custom_fields", org_id)]
+        try:
+            body.custom_fields = clean_richtext_fields(specs, merge_blob(
+                existing.custom_fields or {}, body.custom_fields, specs))
         except SchemaViolation as e:
             raise HTTPException(422, detail=e.errors) from e
     try:
         org = await service.update_organization(session, org_id, body)
     except service.OrgError as e:
         raise _http(e) from e
+    if body.custom_fields is not None:
+        await audit.record(session, audit.CUSTOM_FIELDS_CHANGED,
+                           account_id=principal.get("sub"),
+                           detail={"entity": "organization", "id": org_id})
     await _commit(session)
     # No etag here: updated_at is server-onupdate (expired after flush; reading it
     # would need async IO). The client refetches GET for the rotated etag.
@@ -290,10 +358,27 @@ async def export_units(org_id: str, format: str = "csv",
 
 @router.post("/{org_id}/units", status_code=201, dependencies=[_CREATE])
 async def create_unit(org_id: str, body: OrgUnitCreate,
+                      principal: dict = Depends(require_auth),
                       session: AsyncSession = Depends(get_session)) -> dict:
+    # `custom_fields` (Task 13) allowlist against `org_unit.custom_fields` DB
+    # definitions — unconditional like every other extensible target (empty =
+    # "not configured"). The unit's organisation is already known (path param),
+    # unlike Organization's own self-scoped case, so no two-phase flush is needed.
+    if body.custom_fields:
+        specs = [r.as_spec() for r in await schema_repo.definitions_for(
+            session, "org_unit.custom_fields", org_id)]
+        try:
+            body.custom_fields = clean_richtext_fields(
+                specs, validate_blob(specs, body.custom_fields))
+        except SchemaViolation as e:
+            raise HTTPException(422, detail=e.errors) from e
     try:
         unit = await service.create_unit(session, org_id, body)
     except service.OrgError as e:
         raise _http(e) from e
+    if body.custom_fields:
+        await audit.record(session, audit.CUSTOM_FIELDS_CHANGED,
+                           account_id=principal.get("sub"),
+                           detail={"entity": "org_unit", "id": unit.id})
     await session.commit()
     return unit.as_dict()

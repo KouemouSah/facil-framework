@@ -16,6 +16,11 @@ from app.api.concurrency import enforce_if_match, row_etag
 from app.api.csv_export import EXPORT_CAP, export_response
 from app.api.deps import get_session
 from app.api.list_query import apply_sort, keyset_page, paginated, resolve_sort
+from app.auth import audit
+from app.core.schema import repository as schema_repo
+from app.core.schema.merge import merge_blob
+from app.core.schema.pydantic_gen import SchemaViolation, validate_blob
+from app.core.schema.sanitize import clean_richtext_fields
 from app.modules.location import repository as repo
 from app.modules.location import service
 from app.modules.location.models import Site
@@ -98,10 +103,25 @@ async def create_site(body: SiteCreate, request: Request,
         session, {"organization_id": body.organization_id,
                   "org_unit_id": body.org_unit_id, "site_id": None})
     await enforce(session, principal, "location.create", scope)
+    # `custom_fields` (Task 13) allowlist against `site.custom_fields` DB
+    # definitions — unconditional (empty = "not configured"). The site's
+    # organisation is already known (payload), no two-phase flush needed.
+    if body.custom_fields:
+        specs = [r.as_spec() for r in await schema_repo.definitions_for(
+            session, "site.custom_fields", body.organization_id)]
+        try:
+            body.custom_fields = clean_richtext_fields(
+                specs, validate_blob(specs, body.custom_fields))
+        except SchemaViolation as e:
+            raise HTTPException(422, detail=e.errors) from e
     try:
         site = await service.create_site(session, body)
     except service.LocError as e:
         raise _http(e) from e
+    if body.custom_fields:
+        await audit.record(session, audit.CUSTOM_FIELDS_CHANGED,
+                           account_id=principal.get("sub"),
+                           detail={"entity": "site", "id": site.id})
     await _commit(session)
     return site.as_dict()
 
@@ -116,16 +136,32 @@ async def get_site(site_id: str, session: AsyncSession = Depends(get_session)) -
 
 @router.put("/sites/{site_id}", dependencies=[Depends(require_permission("location.update"))])
 async def update_site(site_id: str, body: SiteUpdate, request: Request,
+                      principal: dict = Depends(require_auth),
                       session: AsyncSession = Depends(get_session)) -> dict:
     # Optimistic concurrency: reject if the row changed since the client loaded it.
     existing = await repo.get_site(session, site_id)
     if existing is None:
         raise HTTPException(404, f"site '{site_id}' not found")
     enforce_if_match(request, row_etag(existing))
+    # `custom_fields` (Task 13) allowlist against `site.custom_fields` DB
+    # definitions, scoped by the site's own organisation. `richtext` values
+    # are sanitised here too (defence in depth).
+    if body.custom_fields is not None:
+        specs = [r.as_spec() for r in await schema_repo.definitions_for(
+            session, "site.custom_fields", existing.organization_id)]
+        try:
+            body.custom_fields = clean_richtext_fields(specs, merge_blob(
+                existing.custom_fields or {}, body.custom_fields, specs))
+        except SchemaViolation as e:
+            raise HTTPException(422, detail=e.errors) from e
     try:
         site = await service.update_site(session, site_id, body)
     except service.LocError as e:
         raise _http(e) from e
+    if body.custom_fields is not None:
+        await audit.record(session, audit.CUSTOM_FIELDS_CHANGED,
+                           account_id=principal.get("sub"),
+                           detail={"entity": "site", "id": site_id})
     await _commit(session)
     # No etag here (updated_at is server-onupdate; expired after flush). The client
     # refetches GET for the rotated etag.

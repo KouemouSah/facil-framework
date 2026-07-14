@@ -97,3 +97,15 @@ class FieldDefinition(UUIDAuditBase):
             "indexed": self.indexed if self.indexed is not None else False,
             "index_state": self.index_state or "none",
         }
+
+    def as_dict(self) -> dict:
+        """DB row -> admin API dict — `as_spec()` (the FieldSpec shape) plus the
+        row-identity fields the CRUD API needs that a resolved spec never
+        carries (id, owning org, target, archive state). Used by `row_etag`
+        (via its `as_dict()` duck-type), so the etag is a real CONTENT hash —
+        it rotates on every field that matters, not just `id`."""
+        return {
+            **self.as_spec(), "id": self.id, "organization_id": self.organization_id,
+            "target": self.target, "inherit_to_suborgs": self.inherit_to_suborgs,
+            "archived": self.archived, "is_active": self.is_active,
+        }

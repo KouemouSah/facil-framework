@@ -74,6 +74,21 @@ def clean_richtext(html: str) -> str:
     )
 
 
+def clean_richtext_fields(specs: list[dict], blob: dict) -> dict:
+    """Apply `clean_richtext` to every `richtext`-typed value in an already
+    validated custom-fields blob — called on WRITE, in every entity module
+    that accepts `custom_fields` (organization/org_unit/site/party), right
+    after `validate_blob`/`merge_blob` produces the clean dict. Defence in
+    depth: the row in the DB must already be clean; a later render path
+    sanitising again is a second layer, not a substitute for this one (see
+    module docstring)."""
+    richtext_keys = {s["key"] for s in specs if s.get("type") == "richtext"}
+    if not richtext_keys:
+        return blob
+    return {k: (clean_richtext(v) if k in richtext_keys and isinstance(v, str) else v)
+            for k, v in blob.items()}
+
+
 def assert_not_secretish(key: str) -> None:
     """A custom field must never become a plaintext credential store — mirrors
     the `_SECRET_INDICATORS` guard already enforced on config-store settings

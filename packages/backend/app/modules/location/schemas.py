@@ -30,6 +30,8 @@ class SiteCreate(BaseModel):
     is_primary: bool = False
     notes: str | None = None
     metadata: dict = Field(default_factory=dict)
+    # User-defined fields (SP1) — allowlisted against `site.custom_fields`.
+    custom_fields: dict = Field(default_factory=dict)
 
     @field_validator("code")
     @classmethod
@@ -69,6 +71,7 @@ class SiteUpdate(BaseModel):
     is_primary: bool | None = None
     notes: str | None = None
     metadata: dict | None = None
+    custom_fields: dict | None = None
     is_active: bool | None = None
 
     @field_validator("org_unit_id", "parent_site_id", "address_id", mode="before")

@@ -18,6 +18,7 @@ from app.api import (
     admin_accounts,
     admin_branding,
     admin_federation,
+    admin_field_definitions,
     admin_providers,
     admin_settings,
     assets,
@@ -211,6 +212,7 @@ app.include_router(admin_providers.router)
 app.include_router(admin_accounts.router)
 app.include_router(admin_federation.router)
 app.include_router(admin_branding.router)
+app.include_router(admin_field_definitions.router)
 app.include_router(assets.router)
 app.include_router(auth.router)
 app.include_router(rbac.router)
