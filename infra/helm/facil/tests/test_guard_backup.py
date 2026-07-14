@@ -401,6 +401,100 @@ spec:
     ), problems
 
 
+def _job_with(dump_args: str = "", mirror_args: str = "") -> str:
+    """Job facil-backup minimal, poids corrects, pour muter UNE seule chose."""
+    return f"""
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: facil-backup
+  annotations:
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-2"
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: dump-postgres
+          command: ["sh", "-c"]
+          args:
+            - |
+{dump_args}
+        - name: mirror-minio
+          command: ["sh", "-c"]
+          args:
+            - |
+{mirror_args}
+"""
+
+
+_GOOD_DUMP = """              set -eu
+              pg_dump -Fc -f "${DEST}/postgres.dump"
+              if [ ! -s "${DEST}/postgres.dump" ]; then exit 1; fi
+              rm -rf "$old"
+              if [ ! -s "${DEST}/postgres.dump" ]; then exit 1; fi"""
+_GOOD_MIRROR = """              set -eu
+              SRC_N="$(mc ls --recursive facil | wc -l)"
+              mc mirror --quiet facil "$DEST"
+              DST_N="$(find "$DEST" -type f | wc -l)"
+              if [ "$SRC_N" -ne "$DST_N" ]; then exit 1; fi"""
+
+
+def test_the_synthetic_reference_job_is_itself_clean():
+    # Sans ceci, les mutations ci-dessous pourraient "passer" pour une raison
+    # etrangere a ce qu'elles pretendent prouver.
+    assert guard_backup.check(_job_with(_GOOD_DUMP, _GOOD_MIRROR)) == []
+
+
+@pytest.mark.parametrize("suppression", ["|| :", "; true", "set +e"])
+def test_guard_catches_every_form_of_exit_code_suppression(suppression):
+    # La garde ne cherchait QUE le littéral `|| true`. `|| :` (`:` = no-op
+    # POSIX), `; true` et `set +e` annulent le fail-closed exactement pareil.
+    mutated = _GOOD_MIRROR + f"\n              mc mirror facil x {suppression}"
+    problems = guard_backup.check(_job_with(_GOOD_DUMP, mutated))
+    assert any("mirror-minio" in p and "annule le code de sortie" in p for p in problems), problems
+
+
+def test_guard_catches_a_dump_step_that_dropped_set_eu():
+    mutated = _GOOD_DUMP.replace("              set -eu\n", "")
+    problems = guard_backup.check(_job_with(mutated, _GOOD_MIRROR))
+    assert any("dump-postgres" in p and "set -eu" in p for p in problems), problems
+
+
+def test_guard_catches_the_removal_of_the_post_purge_dump_assertion():
+    # LE point du lot : la 2e assertion (apres la purge de retention) est celle
+    # sans laquelle retain=0 purgerait le dump qu'on vient de prendre, Job
+    # sortant 0. Elle etait deja verifiee par un test pytest -- mais SEULEMENT
+    # sur le rendu par defaut ; la garde, elle, tourne sur TOUT rendu.
+    mutated = "\n".join(_GOOD_DUMP.splitlines()[:-1])
+    problems = guard_backup.check(_job_with(mutated, _GOOD_MIRROR))
+    assert any("dump-postgres" in p and "non-vacuite" in p for p in problems), problems
+
+
+def test_guard_catches_a_mirror_that_never_checks_what_it_copied():
+    # `mc mirror` sort 0 quand il ne copie RIEN.
+    mutated = """              set -eu
+              mc mirror --quiet facil "$DEST\""""
+    problems = guard_backup.check(_job_with(_GOOD_DUMP, mutated))
+    assert any("mirror-minio" in p and "copie" in p for p in problems), problems
+
+
+def test_real_render_verifies_the_minio_mirror_actually_copied_something(default_render):
+    # Non-regression sur le rendu REEL (pas seulement sur un Job synthetique).
+    docs = list(yaml.safe_load_all(default_render))
+    backup_doc = next(
+        d for d in docs if isinstance(d, dict) and d.get("kind") == "Job"
+        and (d.get("metadata") or {}).get("name") == "facil-backup")
+    mirror = next(
+        c for c in backup_doc["spec"]["template"]["spec"]["initContainers"]
+        if c.get("name") == "mirror-minio")
+    argv = guard_backup._container_argv_text(mirror)
+    assert "SRC_N" in argv and "DST_N" in argv, argv
+    assert "mirror MinIO incomplet" in argv
+
+
 def test_real_backup_job_has_no_or_true_anywhere(default_render):
     # Non-regression explicite sur le rendu REEL : le mirror-minio du chart
     # utilise `|| { echo FAIL... ; exit 1 ; }`, jamais `|| true`.

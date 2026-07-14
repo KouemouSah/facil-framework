@@ -49,6 +49,7 @@ Exit 0 = ordre et fail-closed intacts, 1 = invariant viole.
 """
 from __future__ import annotations
 
+import re
 import sys
 
 import yaml
@@ -62,6 +63,20 @@ MIGRATION_JOB_NAMES = ("facil-db-role", "facil-db-init")
 # revient en pratique a un retry quasi-infini -- pas fail-closed, meme si la
 # valeur est techniquement finie. Le chart reel utilise 1.
 MAX_BACKOFF_LIMIT = 5
+
+DUMP_CONTAINER = "dump-postgres"
+MIRROR_CONTAINER = "mirror-minio"
+
+# Toutes les facons courantes d'annuler un code de sortie d'echec -- pas
+# seulement `|| true`. `|| :` (`:` est le no-op POSIX), `; true` et `set +e`
+# produisent EXACTEMENT le meme effet : le Job sort 0 sur une sauvegarde ratee.
+_EXIT_SUPPRESSION_RE = re.compile(r"\|\|\s*(true|:)|;\s*true\b|set\s+\+e")
+_SET_EU_RE = re.compile(r"set\s+-[a-z]*e[a-z]*u|set\s+-[a-z]*u[a-z]*e|set\s+-e\b.*\n.*set\s+-u\b")
+# L'assertion de non-vacuite du dump, exigee DEUX fois (apres pg_dump, puis
+# apres la purge de retention).
+_DUMP_NONEMPTY_ASSERT = '[ ! -s "${DEST}/postgres.dump" ]'
+# Le mirror doit comparer ce qu'il a copie a ce qu'il y avait a copier.
+_MIRROR_COMPLETE_RE = re.compile(r'\$SRC_N|\$\{SRC_N\}|"\$SRC_N"')
 
 
 def _iter_jobs(stream: str):
@@ -193,13 +208,50 @@ def check(stream: str) -> list[str]:
             f"n'est pas fail-closed, meme si la valeur est finie.")
 
     for c in list(pod_spec.get("initContainers") or []) + list(pod_spec.get("containers") or []):
+        name = c.get("name", "?")
         argv_text = _container_argv_text(c)
-        if "|| true" in argv_text:
+
+        # (a) Suppression du code de sortie. Ne cherchait QUE le littéral
+        # `|| true` : `|| :`, `; true` et `set +e` passaient tranquillement,
+        # alors qu'ils annulent exactement de la meme facon le fail-closed.
+        suppression = _EXIT_SUPPRESSION_RE.search(argv_text)
+        if suppression:
             problems.append(
-                f"{BACKUP_JOB_NAME}/{c.get('name', '?')}: command/args contient "
-                f"`|| true` -- annule le code de sortie d'echec de la commande "
-                f"precedente ; un dump ou un mirror rate serait rapporte comme "
-                f"un succes, rompant le fail-closed du hook.")
+                f"{BACKUP_JOB_NAME}/{name}: command/args contient "
+                f"`{suppression.group(0).strip()}` -- annule le code de sortie "
+                f"d'echec de la commande precedente ; un dump ou un mirror rate "
+                f"serait rapporte comme un succes, rompant le fail-closed du hook.")
+
+        # (b) `set -eu` sur les etapes qui PRODUISENT la sauvegarde : sans lui,
+        # une commande peut echouer sans arreter le script, et tout le
+        # raisonnement fail-closed s'effondre. Volontairement limite a ces deux
+        # conteneurs : l'exiger de `wait-postgres` (une boucle `until`) ou de
+        # `backup-complete` (un `echo`) serait un faux positif -- et une garde
+        # qui crie a tort est une garde qu'on finit par desactiver.
+        if name in (DUMP_CONTAINER, MIRROR_CONTAINER) and not _SET_EU_RE.search(argv_text):
+            problems.append(
+                f"{BACKUP_JOB_NAME}/{name}: command/args ne pose pas `set -eu` -- "
+                f"sans lui une commande peut echouer sans interrompre l'etape, et "
+                f"le Job sortirait 0 sur une sauvegarde incomplete.")
+
+        # (c) L'assertion de NON-VACUITE, qui porte tout le design du lot ("une
+        # sauvegarde vide est pire que pas de sauvegarde : fausse confiance").
+        # Elle etait certes deja verifiee par un test pytest -- mais seulement
+        # sur le rendu PAR DEFAUT. Ici elle est exigee sur TOUT rendu (donc
+        # aussi sous `--set`), ou qu'il vienne.
+        if name == DUMP_CONTAINER and argv_text.count(_DUMP_NONEMPTY_ASSERT) < 2:
+            problems.append(
+                f"{BACKUP_JOB_NAME}/{name}: il manque une des DEUX assertions de "
+                f"non-vacuite du dump (`{_DUMP_NONEMPTY_ASSERT}`) -- une juste "
+                f"apres pg_dump, une SECONDE apres la purge de retention (qui "
+                f"pourrait sinon supprimer le dump qu'on vient de prendre, le Job "
+                f"sortant 0 sans qu'aucun dump exploitable ne subsiste).")
+        if name == MIRROR_CONTAINER and not _MIRROR_COMPLETE_RE.search(argv_text):
+            problems.append(
+                f"{BACKUP_JOB_NAME}/{name}: aucune verification que le mirror a "
+                f"reellement copie les objets -- `mc mirror` sort 0 quand il ne "
+                f"copie RIEN. L'invariant 'une sauvegarde vide est pire que pas "
+                f"de sauvegarde' doit valoir pour MinIO comme pour Postgres.")
 
     return problems
 

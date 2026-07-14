@@ -190,10 +190,23 @@ spec:
               DEST="/backups/${TS}/minio"
               mkdir -p "$DEST"
               echo "mirror MinIO -> ${DEST}" >&2
+              # Compte les objets SOURCE avant le mirror : `mc mirror` sort 0
+              # quand il ne copie RIEN (bucket devenu invisible au root, policy
+              # cassee, alias qui resout mais n'expose rien). L'invariant de ce
+              # Job -- "une sauvegarde vide est pire que pas de sauvegarde" --
+              # n'etait applique qu'a la moitie Postgres.
+              SRC_N="$(mc ls --recursive facil | wc -l)"
               mc mirror --quiet facil "$DEST" || {
                 echo "FAIL: le mirror MinIO a echoue -- upgrade avorte AVANT migration." >&2
                 exit 1
               }
+              DST_N="$(find "$DEST" -type f | wc -l)"
+              # FAIL-CLOSED, symetrique du dump : 0 objet source = 0 fichier
+              # mirore reste vert (install neuve sans objet -- pas de faux positif).
+              if [ "$SRC_N" -ne "$DST_N" ]; then
+                echo "FAIL: mirror MinIO incomplet (${DST_N}/${SRC_N} objets) -- upgrade avorte AVANT migration." >&2
+                exit 1
+              fi
               echo "sauvegarde ${TS} terminee." >&2
           volumeMounts:
             - { name: backups, mountPath: /backups }

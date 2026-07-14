@@ -501,3 +501,40 @@ def test_cli_exits_zero_on_clean_render(default_render):
     )
     assert result.returncode == 0
     assert "OK garde-secret" in result.stdout
+
+
+# --- SEC-006 : la garde doit connaitre `mc`, que ce lot fait entrer dans le chart
+
+@pytest.mark.parametrize("faulty", [
+    'mc alias set facil http://facil-minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"',
+    'mc --access-key "$USER" --secret-key "$PW" ls facil',
+])
+def test_guard_catches_minio_credentials_passed_on_the_command_line(faulty):
+    # Le Job de sauvegarde actuel est CORRECT (MC_HOST_facil en env via
+    # secretKeyRef). Mais la garde ne connaissait pas `mc` : la forme fautive
+    # evidente qu'un futur dev ecrira ne matchait AUCUN marqueur. Un credential
+    # dans l'argv est lisible par tout process du noeud (/proc/<pid>/cmdline).
+    # Ce canal a deja ete rouvert trois fois dans ce repo.
+    doc = f"""
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: facil-backup
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: mirror-minio
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              {faulty}
+"""
+    problems = guard_secrets.check(doc)
+    assert problems, f"credential mc en argv NON detecte : {faulty}"
+
+
+def test_the_real_chart_still_passes_the_widened_guard(default_render):
+    # Pas de faux positif : le Job reel utilise MC_HOST_facil (env), pas `alias set`.
+    assert guard_secrets.check(default_render) == []

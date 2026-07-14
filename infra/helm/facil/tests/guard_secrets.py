@@ -86,6 +86,16 @@ CREDENTIAL_ARGV_MARKERS = (
     "--pass",          # forme longue courte generique (ex. `mytool --pass "$SECRET"`)
     "-v app_pw=",      # psql -v (deja ferme dans db-role-job.yaml -- garde de non-regression)
     "PGPASSWORD=",     # assignation d'env INLINE dans la ligne de commande (PGPASSWORD=x psql ...)
+    # `mc` (MinIO client) entre dans le chart avec le Job de sauvegarde (P2).
+    # Le Job actuel est CORRECT (MC_HOST_facil en env via secretKeyRef), mais la
+    # garde ne connaissait pas l'outil : la forme fautive evidente qu'un futur
+    # dev ecrira -- `mc alias set facil http://minio:9000 "$USER" "$PW"` -- ne
+    # matchait AUCUN marqueur. Ce canal (credential lisible dans
+    # /proc/<pid>/cmdline) a deja ete rouvert trois fois ici : la garde doit
+    # apprendre l'outil EN MEME TEMPS qu'il est introduit, pas apres l'incident.
+    "alias set",       # mc alias set <nom> <url> <ACCESS_KEY> <SECRET_KEY>
+    "--secret-key",    # mc / aws-cli
+    "--access-key",    # mc / aws-cli
 )
 
 # `-a`/`-p` sont des flags CLI courts qui vehiculent un credential quand une
