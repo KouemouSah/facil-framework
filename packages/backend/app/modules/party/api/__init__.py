@@ -84,6 +84,12 @@ def _reject_custom_fields(custom_fields: dict | None) -> None:
 @router.post("/parties", status_code=201, dependencies=[_CREATE])
 async def create_party(body: schemas.PartyIn,
                        session: AsyncSession = Depends(get_session)) -> dict:
+    # On CREATE, PartyIn.custom_fields defaults to {} (empty dict via default_factory).
+    # An empty dict is falsy and carries no keys — there is no free-form JSON to leak.
+    # Changing this guard to `is not None` would reject every ordinary party creation
+    # that omits custom_fields (because {} is not None). This asymmetry with UPDATE is
+    # deliberate: UPDATE's PartyUpdate.custom_fields defaults to None (omitted), so
+    # _reject_custom_fields(None) correctly does nothing there. Pin with tests.
     if body.custom_fields:
         _reject_custom_fields(body.custom_fields)
     row = Party(**body.model_dump())
