@@ -55,6 +55,11 @@ class Site(UUIDAuditBase):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     meta: Mapped[dict] = mapped_column("metadata", JSONType, default=dict)
 
+    # User-defined fields (SP1). Kept SEPARATE from `meta`/`metadata`, which is an
+    # UNCONTROLLED extension bag: mixing schema'd fields into it would destroy the
+    # allowlist guarantee (an undeclared key could no longer be rejected).
+    custom_fields: Mapped[dict] = mapped_column(JSONType, default=dict)
+
     def as_dict(self) -> dict:
         return {
             "id": self.id, "organization_id": self.organization_id,
@@ -69,5 +74,6 @@ class Site(UUIDAuditBase):
             "phone": self.phone, "email": self.email,
             "operating_hours": self.operating_hours or {}, "timezone": self.timezone,
             "is_primary": self.is_primary, "notes": self.notes,
-            "metadata": self.meta or {}, "is_active": self.is_active,
+            "metadata": self.meta or {}, "custom_fields": self.custom_fields or {},
+            "is_active": self.is_active,
         }

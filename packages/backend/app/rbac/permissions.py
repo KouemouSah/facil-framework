@@ -38,6 +38,8 @@ CORE_PERMISSIONS: list[dict] = [
      "description": "View provider registry (LLM/storage/email/…)"},
     {"code": "provider.manage", "module": "core",
      "description": "Edit providers and defaults"},
+    {"code": "fields.manage", "module": "core",
+     "description": "Define, archive and index custom fields for an organisation"},
 ]
 
 
