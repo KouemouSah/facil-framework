@@ -7,7 +7,19 @@ Invariants verifies sur TOUS les conteneurs (init inclus) de TOUS les manifests 
   2. aucune URL ne porte de credential inline (`scheme://user:pass@host`), sauf
      interpolation k8s `$(VAR)` -- qui, elle, resout depuis un secretKeyRef ;
   3. le chart ne definit AUCUN `kind: Secret` (les Secrets sont crees hors Helm
-     par deploy/providers/k3s.py -- sinon les valeurs finiraient versionnees).
+     par deploy/providers/k3s.py -- sinon les valeurs finiraient versionnees) ;
+  4. aucun `command`/`args` de conteneur ne porte un flag/assignation CONNU
+     pour vehiculer un credential en clair (CWE-214 -- redis.yaml en portait
+     un jusqu'a ce correctif : `redis-server --requirepass "$REDIS_PASSWORD"`
+     interpole AVANT l'exec, la valeur finit dans l'argv du process resultant,
+     lisible via /proc/<pid>/cmdline par tout process co-localise / EDR /
+     scraper d'audit -- meme canal deja ferme deux fois sur ce projet,
+     `kubectl create secret --from-literal` puis `psql -v app_pw=`). L'ancienne
+     garde (`test_render.sh`) ne cherchait que `-v app_pw=` -- structurellement
+     incapable d'attraper une AUTRE forme du meme canal (ex. `--requirepass`).
+     Voir CREDENTIAL_ARGV_MARKERS : denylist ouverte de motifs connus, pas une
+     analyse exhaustive (un futur programme avec un flag inedit resterait un
+     angle mort tant qu'il n'est pas ajoute ici).
 
 L'ancienne garde (grep) ratait : les connection strings (REDIS_URL/DATABASE_URL
 rendent en `value:`, jamais verifiees -- faux negatif le plus dangereux), ne
@@ -55,6 +67,34 @@ ALLOWED_LITERAL = {
 # (capturee par TDD : voir test_catches_inline_credential_in_redis_url).
 INLINE_CRED_RE = re.compile(r"://[^/\s:]*:(?!\$\()[^/\s@]+@")
 
+# Denylist OUVERTE (pas une liste exhaustive) de motifs connus pour faire
+# transiter un credential par l'argv d'un process (CWE-214), quel que soit le
+# programme -- shell interpole la variable AVANT l'exec, la valeur finit dans
+# l'argv du process resultant. Chaque entree est un substring simple (pas de
+# regex) : ces scripts sont ecrits par nous, pas du texte arbitraire a
+# parser -- meme convention que ALLOWED_LITERAL ci-dessus.
+CREDENTIAL_ARGV_MARKERS = (
+    "--requirepass",   # redis-server (CLI) -- corrige dans redis.yaml (ce commit)
+    "--password",      # mysql/psql/... generique
+    "-a ",             # redis-cli/mysql `-a <valeur>` (espace = suivi d'une valeur)
+    "-v app_pw=",      # psql -v (deja ferme dans db-role-job.yaml -- garde de non-regression)
+    "PGPASSWORD=",     # assignation d'env INLINE dans la ligne de commande (PGPASSWORD=x psql ...)
+)
+
+
+def _container_argv_text(c: dict) -> str:
+    """Concatene `command` + `args` d'un conteneur en un seul texte -- les deux
+    sont des listes de chaines (parfois un script multi-lignes complet dans un
+    seul element `args[0]`, ex. redis.yaml/db-role-job.yaml)."""
+    parts: list[str] = []
+    for key in ("command", "args"):
+        val = c.get(key)
+        if isinstance(val, list):
+            parts.extend(str(v) for v in val)
+        elif isinstance(val, str):
+            parts.append(val)
+    return "\n".join(parts)
+
 
 def iter_containers(doc: dict):
     spec = (doc.get("spec") or {})
@@ -92,6 +132,15 @@ def check(stream: str) -> list[str]:
                     problems.append(
                         f"{name}/{c.get('name')}: credential inline dans l'URL de "
                         f"`{ename}` (attendu : $(VAR) resolue depuis un secretKeyRef).")
+
+            argv_text = _container_argv_text(c)
+            for marker in CREDENTIAL_ARGV_MARKERS:
+                if marker in argv_text:
+                    problems.append(
+                        f"{name}/{c.get('name')}: command/args contient `{marker}` "
+                        f"-- motif connu pour vehiculer un credential en argv "
+                        f"(CWE-214), lisible via /proc/<pid>/cmdline par tout "
+                        f"process co-localise.")
     return problems
 
 

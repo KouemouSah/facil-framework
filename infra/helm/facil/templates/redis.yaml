@@ -44,9 +44,27 @@ spec:
             readOnlyRootFilesystem: true
             capabilities: { drop: ["ALL"] }
           resources: {{- toYaml .Values.resources.cache | nindent 12 }}
-          # TODO(security): move requirepass to a mounted config file so the
-          # password stops appearing on this process's argv (CWE-214) — tracked, P2 hardening.
-          command: ["sh", "-c", "exec redis-server --requirepass \"$REDIS_PASSWORD\""]
+          # CWE-214 : passer le mot de passe en flag CLI interpolerait la valeur
+          # AVANT l'exec -- elle finirait dans l'argv du process redis-server
+          # resultant, lisible via /proc/<pid>/cmdline par tout process
+          # co-localise / EDR / scraper d'audit (meme canal de fuite deja ferme
+          # deux fois sur ce projet : `kubectl create secret --from-literal`,
+          # puis le mdp applicatif passe a psql via `\getenv`, cf. db-role-job.
+          # yaml). On ecrit plutot la directive dans un fichier de conf sur
+          # l'emptyDir /tmp (deja monte, readOnlyRootFilesystem) : `cat` lit le
+          # mot de passe depuis un heredoc sur SON STDIN (jamais un argument --
+          # son argv reste `["cat"]`, quel que soit le shell), donc aucun
+          # process n'a jamais le mot de passe dans son argv. `chmod 600` avant
+          # l'exec final de redis-server sur CE fichier (jamais de flag).
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              cat > /tmp/redis.conf <<CONF
+              requirepass ${REDIS_PASSWORD}
+              CONF
+              chmod 600 /tmp/redis.conf
+              exec redis-server /tmp/redis.conf
           env:
             - name: REDIS_PASSWORD
               valueFrom:
