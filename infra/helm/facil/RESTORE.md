@@ -78,10 +78,29 @@ place.
   `pre-upgrade`. Toute donnée écrite **après** l'horodatage restauré est
   perdue — le message de confirmation le rappelle explicitement.
 - **La restauration écrase, elle ne fusionne pas.** `pg_restore --clean
-  --if-exists` supprime les objets existants avant de les recréer ; `mc mirror
-  --overwrite` écrase les objets MinIO déjà présents. Restaurer sur une base
-  qui contient des données plus récentes que la sauvegarde **détruit** ces
-  données plus récentes.
+  --if-exists --single-transaction` supprime les objets existants avant de les
+  recréer ; `mc mirror --overwrite --remove` écrase les objets MinIO déjà
+  présents **et supprime ceux qui n'existaient pas à l'horodatage**. Restaurer
+  sur une base qui contient des données plus récentes que la sauvegarde
+  **détruit** ces données plus récentes — des deux côtés, Postgres comme MinIO.
+  *(Avant le durcissement E2, `mc mirror` n'avait pas `--remove` et
+  **fusionnait** : les objets créés après l'horodatage survivaient à une
+  restauration qui, côté Postgres, rembobinait tout — les deux datastores
+  finissaient à deux époques différentes, sous un même « [OK] ».)*
+- **La restauration Postgres est tout-ou-rien.** `--single-transaction` implique
+  `--exit-on-error` : si elle déraille en cours de route, ROLLBACK, et la base
+  d'avant la restauration est **intacte**. Sans cela, `--clean` ayant déjà
+  supprimé les objets, un échec à mi-parcours laissait la base à moitié détruite
+  et à moitié rechargée.
+- **Les étapes sont séquentielles et pré-volées.** Un conteneur `preflight`
+  vérifie que le dump existe et n'est pas vide (et que le volet MinIO est présent
+  quand MinIO doit être restauré) **avant** la première opération destructive.
+  Puis Postgres, puis MinIO — jamais en parallèle.
+- **`--list` distingue « vide » de « indéterminé ».** Si le Job de listage n'a
+  pas pu tourner (RBAC, nœud saturé, PVC déjà monté ailleurs), la commande sort
+  **2** et le dit — elle n'affirme **jamais** « aucune sauvegarde » sur la foi
+  d'une lecture qui a échoué. Exit 0 + « aucune sauvegarde » signifie que le PVC
+  a réellement été lu et qu'il est vide.
 - **Rétention bornée** (`backup.retain`, 5 par défaut) : une sauvegarde plus
   ancienne que les `retain` dernières a déjà été purgée par le Job lui-même —
   `--list` ne montre que ce qui existe réellement, jamais un horodatage fantôme.
@@ -96,8 +115,18 @@ place.
   ce document).
 - `infra/helm/facil/templates/backup-job.yaml` — le Job qui produit les
   sauvegardes consommées ici.
-- `infra/helm/facil/templates/backup-pvc.yaml` — le PVC `facil-backups`
-  (`helm.sh/resource-policy: keep` : survit à un `helm uninstall`).
+- **Le PVC `facil-backups` n'est PAS créé par Helm.** Il est appliqué par
+  `deploy/providers/k3s.py --apply` (`build_pvc_manifest()`, via `kubectl
+  apply`), hors du chart — sorti de Helm parce que, en hook `pre-install`, il
+  provoquait un interblocage avec `--wait`. Il survit donc à un `helm uninstall`
+  du seul fait qu'aucun `kubectl delete` ne le vise, **pas** grâce à une
+  annotation `helm.sh/resource-policy: keep` (le fichier
+  `templates/backup-pvc.yaml` qui la portait **n'existe plus**).
+  Conséquence opérationnelle : un `helm upgrade` lancé **directement** sur un
+  cluster où `k3s.py --apply` n'a jamais tourné n'a pas de PVC → le Job
+  `facil-backup` reste `Pending` → timeout → rollback `--atomic`. C'est
+  fail-closed (aucune migration ne passe), mais le diagnostic est opaque :
+  passer par `k3s.py --apply`.
 
 ## Smoke — résultats observés (task-E1, cluster k3d jetable, 2026-07-14)
 
@@ -185,9 +214,10 @@ l'autre Job n'a été recréé. La migration n'a jamais tourné.
    expirait systématiquement (5 min), **aucun Job jamais créé**. Essai rejeté :
    StorageClass `Immediate` dédiée — `rancher.io/local-path` ne la supporte pas
    (`configuration error, no node was specified`, erreur observée en direct).
-   Fix retenu : la PVC devient un hook `pre-install` **seul** (jamais
-   `pre-upgrade`, pour ne jamais être recréée/détruite à chaque upgrade) — les
-   hooks ne sont pas comptés par `--wait`. `infra/helm/facil/templates/backup-pvc.yaml`.
+   1er fix : la PVC devient un hook `pre-install` **seul** — les hooks ne sont
+   pas comptés par `--wait`. **Fix final** : la PVC sort de Helm entièrement
+   (`kubectl apply` depuis `k3s.py::build_pvc_manifest()`) ; `templates/backup-pvc.yaml`
+   n'existe plus.
 2. **NetworkPolicy `allow-datastores-from-backend` oubliait `backup`** — le Job
    de sauvegarde recevait `ECONNREFUSED` sur Postgres **et** MinIO
    (`pg_dump: ... Connection refused`). `infra/helm/facil/templates/networkpolicy.yaml`.
