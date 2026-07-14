@@ -13,6 +13,12 @@ Usage
     python deploy/providers/k3s.py --config=deploy/config.yaml --validate
     python deploy/providers/k3s.py --config=deploy/config.yaml --plan
     python deploy/providers/k3s.py --config=deploy/config.yaml --apply
+    python deploy/providers/k3s.py --rollback [--revision N] [--namespace ns]
+
+`--rollback` n'affecte QUE les manifestes Helm (`helm rollback`) -- jamais la
+base de donnees. Voir deploy/scripts/restore_backup.py pour restaurer les
+donnees depuis la sauvegarde pre-upgrade (jamais automatique -- decision
+humaine requise).
 
 Exit codes
 ----------
@@ -302,6 +308,11 @@ def main(argv: list[str] | None = None) -> int:
                       help="`helm template` (lecture seule) — n'imprime jamais de secret.")
     mode.add_argument("--apply", action="store_true",
                       help="Cree le Secret k8s (hors Helm) puis `helm upgrade --install`.")
+    mode.add_argument("--rollback", action="store_true",
+                      help="`helm rollback` vers la revision precedente. NE RESTAURE PAS "
+                           "la base : voir deploy/scripts/restore_backup.py.")
+    parser.add_argument("--revision", type=int, default=None,
+                        help="Revision Helm cible (defaut : la precedente).")
     parser.add_argument("--yes", action="store_true",
                         help="Confirme --apply sans prompt interactif.")
     parser.add_argument("--allow-dev-vault", action="store_true",
@@ -313,6 +324,31 @@ def main(argv: list[str] | None = None) -> int:
     if not helm:
         print("ERREUR: helm introuvable dans le PATH. Installer Helm v3.", file=sys.stderr)
         return 2
+
+    # --rollback n'a besoin d'aucune config applicative (deploy/config.yaml) :
+    # traite AVANT la lecture de la config pour rester utilisable meme quand ce
+    # fichier est absent (poste fraichement clone, CI) -- exactement le meme
+    # constat que pour --validate/--plan/--apply, mais ceux-la ont besoin du
+    # rendu des values, --rollback non.
+    if args.rollback:
+        subprocess.run([helm, "history", "facil", "-n", args.namespace], check=False)
+        rb = [helm, "rollback", "facil"]
+        if args.revision is not None:
+            rb.append(str(args.revision))
+        rb += ["-n", args.namespace, "--wait", "--timeout", "10m"]
+        rc = subprocess.run(rb, check=False).returncode
+        if rc != 0:
+            print("ERREUR: `helm rollback` a echoue.", file=sys.stderr)
+            return 2
+        print(
+            "\n*** ATTENTION : la BASE DE DONNEES n'est PAS restauree. ***\n"
+            "`helm rollback` rend les MANIFESTES a leur etat anterieur -- jamais les\n"
+            "donnees. Si la migration etait destructive (DROP COLUMN/TABLE), le schema\n"
+            "reste casse et le code rollbacke tournera dessus.\n"
+            "Pour restaurer la base depuis la sauvegarde pre-upgrade :\n"
+            "    python deploy/scripts/restore_backup.py --list\n"
+            "    python deploy/scripts/restore_backup.py --restore <horodatage>\n")
+        return 0
 
     if not args.config.exists():
         print(f"ERREUR: fichier de config introuvable: {args.config}", file=sys.stderr)
