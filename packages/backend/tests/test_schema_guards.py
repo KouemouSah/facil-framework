@@ -2,7 +2,11 @@
 
 import pytest
 
-from app.core.schema.reserved import assert_key_allowed, reserved_keys
+from app.core.schema.reserved import (
+    assert_key_allowed,
+    assert_relation_resource_allowed,
+    reserved_keys,
+)
 from app.core.schema.sanitize import assert_not_secretish, clean_richtext
 
 
@@ -41,3 +45,21 @@ def test_richtext_blocks_remote_resources_ssrf_vector():
 def test_richtext_keeps_legitimate_formatting():
     out = clean_richtext("<p><strong>Acme</strong> — <em>SARL</em></p><ul><li>x</li></ul>")
     assert "<strong>" in out and "<em>" in out and "<li>" in out
+
+
+def test_url_schemes_empty_strips_remote_src_even_if_a_tag_were_allowlisted():
+    # Pins the SECOND layer of the img defence. The tag is not allowlisted at all
+    # today; this proves that even a future allowlist slip would not open the SSRF.
+    import nh3
+    out = nh3.clean('<img src="http://169.254.169.254/latest/meta-data/">',
+                    tags={"p", "img"}, attributes={"img": {"src"}},
+                    url_schemes=set())
+    assert "169.254.169.254" not in out
+
+
+def test_relation_resource_must_be_an_allowlisted_reference():
+    with pytest.raises(ValueError, match="relation"):
+        assert_relation_resource_allowed("../../etc/passwd")
+    with pytest.raises(ValueError):
+        assert_relation_resource_allowed("accounts")     # a real table, still not a reference
+    assert_relation_resource_allowed("countries")        # does not raise

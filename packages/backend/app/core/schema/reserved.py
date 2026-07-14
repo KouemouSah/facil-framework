@@ -43,3 +43,20 @@ def assert_key_allowed(target: str, key: str) -> None:
     if key in reserved_keys(target):
         raise ValueError(
             f"key {key!r} is reserved on {target!r} (it shadows a real column)")
+
+
+# The ONLY resources a `relation` field may target. A free-form string would be
+# interpolated into a request path by the client picker — an allowlist, not a
+# denylist, is the only safe shape here. Verified against the actual reference
+# module routes (`app/modules/reference/api/__init__.py`: /countries, /currencies,
+# /regions) and the frontend `RefSelect`/`RecordForm` `resource` union
+# (`packages/web/src/components/ui/ref-select.tsx`) — these three are the entire
+# set of resources the picker knows how to render.
+RELATION_RESOURCES: frozenset[str] = frozenset({"countries", "currencies", "regions"})
+
+
+def assert_relation_resource_allowed(resource: str) -> None:
+    if resource not in RELATION_RESOURCES:
+        raise ValueError(
+            f"relation resource {resource!r} is not allowed; must be one of "
+            f"{sorted(RELATION_RESOURCES)}")

@@ -15,4 +15,8 @@ redis>=5.0
 openpyxl>=3.1
 pycountry>=24.6
 python-multipart>=0.0.9
-nh3>=0.2
+# nh3 sanitises richtext against XSS/SSRF (app/core/schema/sanitize.py) — a
+# SECURITY-CRITICAL dependency. Upper-bounded so a transitive major/minor bump
+# cannot silently change sanitiser semantics out from under the allowlist.
+# 0.3.6 is the version actually in use/tested.
+nh3>=0.2,<0.4

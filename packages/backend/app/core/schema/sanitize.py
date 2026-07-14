@@ -8,10 +8,13 @@ metadata endpoint from inside the network. Allowlist, never a denylist, both
 at write time and at render time.
 
 Sanitiser: `nh3` (Rust binding to Mozilla's `ammonia`) — no C toolchain
-dependency, actively maintained, ships a manylinux/win_amd64 wheel. Verified
-empirically (see `test_schema_guards.py`) that with `url_schemes=set()` a
-disallowed remote `<img>` is stripped ENTIRELY (the tag is not in the
-allowlist, so nh3 removes it outright rather than just filtering `src`).
+dependency, actively maintained, ships a manylinux/win_amd64 wheel. The `img`
+tag is defended in THREE independent layers below (`ALLOWED_TAGS` omits it,
+`ALLOWED_ATTRS` has no `img` entry, and `ALLOWED_URL_SCHEMES` is empty) —
+verified empirically (see `test_schema_guards.py`) that EACH layer alone is
+sufficient: an empty `url_schemes` strips a `src` attribute even on a tag that
+IS allowlisted, so a future edit that adds `img` back would still not reopen
+the SSRF unless it also widened `url_schemes`.
 """
 
 from __future__ import annotations
@@ -39,12 +42,20 @@ ALLOWED_TAGS: set[str] = {
     "table", "thead", "tbody", "tr", "th", "td",
     "span", "div", "a",
 }
-ALLOWED_ATTRS: dict[str, set[str]] = {"a": {"href", "title"}, "*": {"class"}}
+# `class` is DELIBERATELY excluded from every tag, including `"*"`. This app
+# ships Tailwind utility classes; allowlisting `class` would let an editor
+# apply ANY class the host stylesheet defines — hide content, reposition it,
+# re-theme it, or visually spoof surrounding UI. Richtext here is legal
+# mentions / document body; SP2 renders it inside the template's OWN CSS, not
+# the app's, so there is no legitimate use for an author-supplied class.
+ALLOWED_ATTRS: dict[str, set[str]] = {"a": {"href", "title"}}
 # Empty set => nh3 accepts NO url scheme at all on href (relative-only would
 # need "url_relative", not "url_schemes"); this strips javascript:/data:/http(s)
 # hrefs alike, which is intentional — richtext has no legitimate use for a
 # scheme'd link that a document reviewer's "formatting only" would ever need,
-# and it removes any ambiguity for the SP2 server-side PDF renderer.
+# and it removes any ambiguity for the SP2 server-side PDF renderer. This SAME
+# emptiness is also the second of the three `img` defence layers described
+# above: even on an allowlisted tag, an empty `url_schemes` strips `src`.
 ALLOWED_URL_SCHEMES: set[str] = set()
 
 
