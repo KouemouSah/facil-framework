@@ -44,6 +44,7 @@ import argparse
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
@@ -113,6 +114,90 @@ def _introspect_minio(kubectl: str, namespace: str) -> dict[str, str] | None:
     return {"image": image, "user": user}
 
 
+_TIMEOUT_RE = re.compile(r"^(\d+)([smh])$")
+
+
+def _parse_timeout_seconds(timeout: str) -> int:
+    """`"120s"`/`"15m"` -> secondes. Refuse tout format non reconnu (fail
+    fast) plutot que de laisser une valeur ambigue se propager en boucle."""
+    m = _TIMEOUT_RE.match(timeout.strip())
+    if not m:
+        raise ValueError(f"format de timeout invalide: {timeout!r} (attendu ex. '120s'/'15m')")
+    value, unit = int(m.group(1)), m.group(2)
+    return value * {"s": 1, "m": 60, "h": 3600}[unit]
+
+
+def _wait_for_job_completion(kubectl: str, namespace: str, job_name: str, *,
+                             timeout_seconds: int, poll_interval: float = 3.0,
+                             sleep_fn=time.sleep) -> bool:
+    """Interroge directement les champs `.status.succeeded`/`.status.failed`
+    du Job -- PAS `kubectl wait --for=condition=complete` seul.
+
+    BUG REEL CORRIGE (A3) : `kubectl wait --for=condition=complete` n'ecoute
+    QUE la condition `complete` -- quand le Job echoue (backoffLimit
+    depasse), `complete` n'apparait jamais, et l'ancienne implementation
+    attendait le timeout COMPLET (15 min pour le Job de restauration) avant
+    meme d'apprendre que quelque chose avait echoue. En pollant les DEUX
+    issues, l'echec est rapporte des que Kubernetes marque le Job en echec,
+    pas seulement au bout du timeout.
+
+    Fail-closed : un timeout est traite comme un echec (jamais suppose
+    reussi par defaut).
+    """
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        proc = subprocess.run(
+            [kubectl, "-n", namespace, "get", f"job/{job_name}",
+             "-o", "jsonpath={.status.succeeded}|{.status.failed}"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", check=False,
+        )
+        if proc.returncode == 0:
+            succeeded, _, failed = proc.stdout.partition("|")
+            if succeeded.strip() == "1":
+                return True
+            if failed.strip() not in ("", "0"):
+                return False
+        if time.monotonic() >= deadline:
+            return False
+        sleep_fn(poll_interval)
+
+
+def _container_exit_summary(kubectl: str, namespace: str, job_name: str) -> str:
+    """Statut de fin PAR CONTENEUR du pod d'un Job (A3).
+
+    Le Job de restauration lance `restore-postgres` ET `restore-minio` comme
+    deux `containers` -- donc en PARALLELE (pas des initContainers
+    sequentiels). Si l'un des deux echoue, un simple "le Job a echoue" ne dit
+    PAS laquelle des deux moities a reellement ete appliquee (la base
+    restauree mais pas les objets -- ou l'inverse). Retourne une ligne
+    lisible par conteneur ; chaine vide si l'introspection elle-meme echoue
+    (ne doit jamais faire planter le rapport global d'erreur).
+    """
+    jsonpath = ('{range .items[*].status.containerStatuses[*]}'
+                '{.name}={.state.terminated.exitCode}{"\\n"}{end}')
+    proc = subprocess.run(
+        [kubectl, "-n", namespace, "get", "pods", "-l", f"job-name={job_name}",
+         "-o", f"jsonpath={jsonpath}"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace", check=False,
+    )
+    if proc.returncode != 0 or not proc.stdout.strip():
+        return ""
+    lines: list[str] = []
+    for entry in proc.stdout.strip().splitlines():
+        name, _, code = entry.partition("=")
+        name, code = name.strip(), code.strip()
+        if not name:
+            continue
+        if code in ("", "<no value>"):
+            status = "statut inconnu"
+        elif code == "0":
+            status = "OK (exit 0)"
+        else:
+            status = f"ECHEC (exit {code})"
+        lines.append(f"{name}={status}")
+    return "Statut par conteneur : " + ", ".join(lines) if lines else ""
+
+
 def _run_job(kubectl: str, namespace: str, job_name: str, manifest: str, *,
             timeout: str = "120s") -> tuple[int, str]:
     """Applique un Job jetable (manifest sur STDIN, jamais l'argv -- SEC-006),
@@ -137,23 +222,27 @@ def _run_job(kubectl: str, namespace: str, job_name: str, manifest: str, *,
               file=sys.stderr)
         return 2, ""
 
-    wait = subprocess.run(
-        [kubectl, "-n", namespace, "wait", f"job/{job_name}",
-         "--for=condition=complete", f"--timeout={timeout}"],
-        capture_output=True, text=True, encoding="utf-8", errors="replace", check=False,
-    )
+    ok = _wait_for_job_completion(
+        kubectl, namespace, job_name,
+        timeout_seconds=_parse_timeout_seconds(timeout))
     logs = subprocess.run(
         [kubectl, "-n", namespace, "logs", f"job/{job_name}", "--all-containers=true"],
         capture_output=True, text=True, encoding="utf-8", errors="replace", check=False,
     )
+
+    if not ok:
+        container_summary = _container_exit_summary(kubectl, namespace, job_name)
+        subprocess.run([kubectl, "-n", namespace, "delete", "job", job_name, "--ignore-not-found"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace",
+                       check=False)
+        print(f"ERREUR: le Job '{job_name}' a echoue ou a expire (timeout={timeout}).\n"
+              + (f"{container_summary}\n" if container_summary else "")
+              + f"{logs.stdout}", file=sys.stderr)
+        return 2, logs.stdout
+
     subprocess.run([kubectl, "-n", namespace, "delete", "job", job_name, "--ignore-not-found"],
                    capture_output=True, text=True, encoding="utf-8", errors="replace",
                    check=False)
-
-    if wait.returncode != 0:
-        print(f"ERREUR: le Job '{job_name}' a echoue ou a expire (timeout={timeout}).\n"
-              f"{logs.stdout}", file=sys.stderr)
-        return 2, logs.stdout
     return 0, logs.stdout
 
 

@@ -30,11 +30,26 @@ def _cp(cmd, returncode=0, stdout="", stderr=""):
 
 
 def _make_fake_run(*, postgres_ok=True, minio_ok=True, list_output="",
-                   restore_logs="", wait_rc=0, apply_rc=0, calls=None):
+                   restore_logs="", wait_rc=0, restore_wait_rc=None, apply_rc=0,
+                   calls=None, container_statuses=""):
     """Builds a dispatching fake for `subprocess.run`, keyed on argv content --
-    mirrors deploy/providers/test_k3s.py's fake_run pattern (capture + branch)."""
+    mirrors deploy/providers/test_k3s.py's fake_run pattern (capture + branch).
+
+    `wait_rc` keeps its old meaning (0=Job succeeds, 1=Job fails), now
+    translated into the polled `.status.succeeded`/`.status.failed` jsonpath
+    output `_wait_for_job_completion()` reads (A3: no more `kubectl wait
+    --for=condition=complete`) -- applied to the LIST_JOB (list_backups()'s
+    own Job). `restore_wait_rc` (defaults to `wait_rc` when unset) applies
+    independently to the RESTORE_JOB, so a test can simulate the restore Job
+    failing WITHOUT starving `list_backups()`'s own "available backups"
+    check (called first, from `--restore`, to validate the requested
+    timestamp even exists).
+    `container_statuses` is the raw jsonpath stdout `_container_exit_summary()`
+    reads (e.g. "restore-postgres=0\\nrestore-minio=1\\n")."""
     if calls is None:
         calls = []
+    if restore_wait_rc is None:
+        restore_wait_rc = wait_rc
 
     def fake_run(cmd, **kw):
         calls.append((list(cmd), kw.get("input")))
@@ -47,12 +62,16 @@ def _make_fake_run(*, postgres_ok=True, minio_ok=True, list_output="",
             if not minio_ok:
                 return _cp(cmd, 1, stderr="not found")
             return _cp(cmd, 0, stdout=MINIO_JSONPATH_OUT)
+        if "get" in cmd and "pods" in cmd:
+            return _cp(cmd, 0, stdout=container_statuses)
+        if "get" in cmd and any(a.startswith("job/") for a in cmd):
+            if f"job/{rb.LIST_JOB}" in joined:
+                return _cp(cmd, 0, stdout="1|" if wait_rc == 0 else "|1")
+            return _cp(cmd, 0, stdout="1|" if restore_wait_rc == 0 else "|1")
         if "delete" in cmd:
             return _cp(cmd, 0)
         if "apply" in cmd:
             return _cp(cmd, apply_rc)
-        if "wait" in cmd:
-            return _cp(cmd, wait_rc)
         if "logs" in cmd:
             if rb.LIST_JOB in joined:
                 return _cp(cmd, 0, stdout=list_output)
@@ -65,6 +84,108 @@ def _make_fake_run(*, postgres_ok=True, minio_ok=True, list_output="",
 def _patch_kubectl(monkeypatch, fake_run):
     monkeypatch.setattr(rb.subprocess, "run", fake_run)
     monkeypatch.setattr(rb, "find_kubectl", lambda: "kubectl")
+
+
+# --- A3: _parse_timeout_seconds / _wait_for_job_completion / per-container --
+
+def test_parse_timeout_seconds_parses_seconds_minutes_hours():
+    assert rb._parse_timeout_seconds("120s") == 120
+    assert rb._parse_timeout_seconds("15m") == 900
+    assert rb._parse_timeout_seconds("1h") == 3600
+
+
+def test_parse_timeout_seconds_rejects_bad_format():
+    with pytest.raises(ValueError):
+        rb._parse_timeout_seconds("not-a-timeout")
+
+
+def test_wait_for_job_completion_detects_failure_without_waiting_full_timeout(monkeypatch):
+    # BUG REEL CORRIGE (A3) : `kubectl wait --for=condition=complete` seul
+    # n'ecoute PAS `condition=failed` -- l'operateur attendait le timeout
+    # COMPLET avant d'apprendre l'echec. La preuve directe : un `sleep_fn`
+    # qui leve si jamais appele -- si le code pollait au lieu de rapporter
+    # l'echec des le premier `.status.failed`, ce test planterait.
+    def fake_run(cmd, **kw):
+        return subprocess.CompletedProcess(cmd, 0, stdout="|1", stderr="")
+
+    def sleep_must_not_be_called(_seconds):
+        raise AssertionError("ne doit jamais dormir : l'echec est deja connu au 1er poll")
+
+    monkeypatch.setattr(rb.subprocess, "run", fake_run)
+    ok = rb._wait_for_job_completion(
+        "kubectl", "facil", "some-job", timeout_seconds=900,
+        sleep_fn=sleep_must_not_be_called)
+    assert ok is False
+
+
+def test_wait_for_job_completion_succeeds_immediately_on_succeeded_field(monkeypatch):
+    def fake_run(cmd, **kw):
+        return subprocess.CompletedProcess(cmd, 0, stdout="1|", stderr="")
+
+    def sleep_must_not_be_called(_seconds):
+        raise AssertionError("ne doit jamais dormir : le succes est deja connu au 1er poll")
+
+    monkeypatch.setattr(rb.subprocess, "run", fake_run)
+    ok = rb._wait_for_job_completion(
+        "kubectl", "facil", "some-job", timeout_seconds=900,
+        sleep_fn=sleep_must_not_be_called)
+    assert ok is True
+
+
+def test_wait_for_job_completion_fails_closed_on_timeout(monkeypatch):
+    # Ni succeeded ni failed ne se presentent jamais (Job coince en Running) :
+    # doit finir par renvoyer False, jamais bloquer indefiniment ni supposer
+    # un succes par defaut.
+    fake_now = [0.0]
+
+    def fake_monotonic():
+        return fake_now[0]
+
+    def fake_sleep(seconds):
+        fake_now[0] += seconds
+
+    monkeypatch.setattr(rb.time, "monotonic", fake_monotonic)
+    monkeypatch.setattr(
+        rb.subprocess, "run",
+        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout="|", stderr=""))
+    ok = rb._wait_for_job_completion(
+        "kubectl", "facil", "some-job", timeout_seconds=10,
+        poll_interval=3, sleep_fn=fake_sleep)
+    assert ok is False
+
+
+def test_container_exit_summary_reports_which_container_failed(monkeypatch):
+    monkeypatch.setattr(
+        rb.subprocess, "run",
+        lambda cmd, **kw: subprocess.CompletedProcess(
+            cmd, 0, stdout="restore-postgres=0\nrestore-minio=1\n", stderr=""))
+    summary = rb._container_exit_summary("kubectl", "facil", rb.RESTORE_JOB)
+    assert "restore-postgres=OK (exit 0)" in summary
+    assert "restore-minio=ECHEC (exit 1)" in summary
+
+
+def test_container_exit_summary_empty_when_introspection_fails(monkeypatch):
+    monkeypatch.setattr(
+        rb.subprocess, "run",
+        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1, stdout="", stderr="denied"))
+    assert rb._container_exit_summary("kubectl", "facil", rb.RESTORE_JOB) == ""
+
+
+def test_restore_failure_reports_per_container_status_in_stderr(monkeypatch, capsys):
+    # Integration : le Job de restauration echoue (restore-minio a plante),
+    # postgres OK -- le rapport d'erreur doit dire LAQUELLE des deux moities
+    # a reellement ete appliquee, pas juste "le Job a echoue".
+    ts = "20260701T000000Z"
+    fake_run, calls = _make_fake_run(
+        list_output=f"{ts}\n", restore_wait_rc=1,
+        container_statuses="restore-postgres=0\nrestore-minio=1\n")
+    _patch_kubectl(monkeypatch, fake_run)
+    monkeypatch.setattr("builtins.input", lambda prompt="": ts)
+    rc = rb.main(["--restore", ts])
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "restore-postgres=OK (exit 0)" in err
+    assert "restore-minio=ECHEC (exit 1)" in err
 
 
 # --- list_backups() ----------------------------------------------------------
@@ -303,8 +424,8 @@ def test_restore_fails_closed_when_postgres_statefulset_disappears_after_confirm
             return _cp(cmd, 0)
         if "apply" in cmd:
             return _cp(cmd, 0)
-        if "wait" in cmd:
-            return _cp(cmd, 0)
+        if "get" in cmd and any(a.startswith("job/") for a in cmd):
+            return _cp(cmd, 0, stdout="1|")
         if "logs" in cmd:
             return _cp(cmd, 0, stdout=f"{ts}\n" if rb.LIST_JOB in " ".join(cmd) else "")
         raise AssertionError(cmd)
