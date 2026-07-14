@@ -312,7 +312,8 @@ def _apply_spec(row: FieldDefinition, body: FieldDefinitionIn) -> None:
 
 
 async def _run_index_build(db: Database, definition_id: str, target: str,
-                          spec: dict, organization_id: str) -> None:
+                          spec: dict, organization_id: str,
+                          actor: str | None) -> None:
     """The background job Task 14 promised: `CREATE INDEX CONCURRENTLY` cannot
     run inside the request's transaction, so this runs AFTER the response
     (via `BackgroundTasks`), on the app's own engine, in its own AUTOCOMMIT
@@ -322,11 +323,22 @@ async def _run_index_build(db: Database, definition_id: str, target: str,
     Never swallows a failure: on ANY exception the reason is logged
     (`logger.exception`, full traceback) and `index_state` is set to
     `"failed"` — an operator can see it, never a silently stuck "pending".
+    `indexing.create_index` now VERIFIES the built index is actually valid
+    (`pg_index.indisvalid`) before returning normally, so `"failed"` also
+    catches the case where `CREATE INDEX CONCURRENTLY` raised nothing but
+    left an unusable index behind (`indexing.IndexBuildFailed`) — a retry
+    that used to be reported `ready` on a genuinely broken index.
 
     Postgres-only by construction (`indexing.create_index` no-ops under any
     other dialect) — under SQLite (the test suite) this leaves `index_state`
     at `"none"`, NOT `"ready"`: a no-op must never be reported as success, or
     `sortable_keys()` would treat an unindexed column as safely sortable.
+
+    Audits the TERMINAL outcome (`ready`/`failed`) — never `"none"`, which is
+    the SQLite dialect no-op, not a real production state transition. A
+    field silently losing (or gaining) sortability is exactly the kind of
+    state change the repo rule "every sensitive mutation -> audit.record"
+    is for.
     """
     terminal = "none" if db.engine.dialect.name != "postgresql" else "failed"
     try:
@@ -340,6 +352,14 @@ async def _run_index_build(db: Database, definition_id: str, target: str,
         row = await session.get(FieldDefinition, definition_id)
         if row is not None and row.index_state == "pending":
             row.index_state = terminal
+            if terminal in ("ready", "failed"):
+                action = (audit.FIELD_DEFINITION_INDEXED if terminal == "ready"
+                         else audit.FIELD_DEFINITION_CHANGED)
+                await audit.record(session, action, account_id=actor,
+                                   detail={"id": definition_id, "target": target,
+                                           "key": spec.get("key"),
+                                           "organization_id": organization_id,
+                                           "action": f"index_build_{terminal}"})
             await session.commit()
 
 
@@ -373,7 +393,8 @@ async def build_index(definition_id: str, background_tasks: BackgroundTasks,
                                "key": row.key, "action": "index_build_requested"})
     await _commit(session, key=row.key, target=row.target)
     background_tasks.add_task(_run_index_build, request.app.state.db, definition_id,
-                              row.target, row.as_spec(), row.organization_id)
+                              row.target, row.as_spec(), row.organization_id,
+                              principal.get("sub"))
     return _public(row)
 
 
@@ -458,7 +479,7 @@ async def create_definition(organization_id: str, body: FieldDefinitionIn,
 
 @router.put("/{definition_id}")
 async def update_definition(definition_id: str, body: FieldDefinitionIn,
-                            request: Request,
+                            request: Request, background_tasks: BackgroundTasks,
                             principal: dict = Depends(require_auth),
                             session: AsyncSession = Depends(get_session)) -> dict:
     row = await _get_or_404(session, definition_id)
@@ -486,9 +507,33 @@ async def update_definition(definition_id: str, body: FieldDefinitionIn,
         # 50 must not be refused (and told "you already have 50 fields", which
         # would be an actively misleading error for an index request).
         await _check_indexed_cap(session, row.target, row.organization_id)
-    if body.indexed != row.indexed:
-        row.indexed = body.indexed
+
+    # CRITICAL (Fix wave 1): `type` changing while `indexed` stays `True` is
+    # JUST AS DANGEROUS as the `indexed` flip above, and `FieldSpec._coherent`
+    # does NOT catch it — it only forbids `indexed=True` on a non-indexable
+    # type, never a type DRIFT on an already-indexed field. A live Postgres
+    # index carries `INDEX_CAST[row.type]` (the OLD type); `custom_sort_column`
+    # would immediately start emitting `INDEX_CAST[body.type]` (the NEW type)
+    # for this same key. Byte-for-byte mismatch -> Postgres silently stops
+    # using the index for ORDER BY, while `sortable_keys()` still reports
+    # `ready` -> a seq scan on millions of rows, reported as healthy. Treat it
+    # exactly like the `indexed` flip: reset `index_state` to "none" (not
+    # sortable again until an explicit re-`/index`) and drop any live index
+    # object under the (immutable) key/target — `drop_index` is `IF EXISTS`,
+    # a harmless no-op if nothing was ever actually built.
+    #
+    # `widget` changing does NOT trigger any of this: `widget` has no entry
+    # in `INDEX_CAST` (it is presentation-only, per `types.py`'s "does it
+    # change storage, comparison or indexing?" admission test) and cannot
+    # desync the index expression from the ORDER BY expression.
+    type_changed = body.type != row.type
+    was_indexed = row.indexed
+    if body.indexed != row.indexed or (row.indexed and type_changed):
         row.index_state = "none"
+    row.indexed = body.indexed
+    if type_changed and was_indexed:
+        background_tasks.add_task(indexing.drop_index, request.app.state.db.engine,
+                                  row.target, row.key)
 
     _apply_spec(row, body)
     row.updated_by = principal.get("sub")

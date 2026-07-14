@@ -241,6 +241,60 @@ async def test_archive_resets_index_state_to_none(client, session, org_a):
 
 
 @pytest.mark.asyncio
+async def test_changing_the_type_of_a_ready_indexed_field_drops_the_index(
+        client, session, org_a, site_a):
+    """CRITICAL: the live Postgres index carries the OLD `INDEX_CAST[old_type]`
+    expression. If `type` changes while `indexed` stays `True`, the generated
+    ORDER BY would carry the NEW cast — a byte-for-byte mismatch means
+    Postgres silently stops using the index, while `sortable_keys()` still
+    says `ready`. Explicitly unavailable beats silently slow: the type change
+    must reset `index_state` to `"none"` exactly like the `indexed` flip
+    already does, and the field must drop out of the sort whitelist."""
+    from app.models.field_definition import FieldDefinition
+    row = await _create_definition(client, org_a.id, key="rank", type="number",
+                                   indexed=True)
+    db_row = await session.get(FieldDefinition, row["id"])
+    db_row.index_state = "ready"
+    await session.commit()
+
+    body = _body(key="rank", type="string", indexed=True)
+    # No If-Match: we mutated the row directly via `session` above (the only
+    # way to reach `"ready"` under SQLite), which already rotated the etag
+    # the earlier `POST` response captured.
+    r = await client.put(f"/api/v1/admin/field-definitions/{row['id']}",
+                         json=body, headers=AUTH)
+    assert r.status_code == 200, r.text
+    assert r.json()["type"] == "string"
+    assert r.json()["index_state"] == "none"
+
+    sort = await client.get(
+        f"/api/v1/modules/location/sites?organization_id={org_a.id}"
+        f"&sort=custom_fields.rank", headers=AUTH)
+    assert sort.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_changing_only_the_widget_of_a_ready_indexed_field_keeps_the_index(
+        client, session, org_a):
+    """`widget` is presentation-only — it has no entry in `INDEX_CAST`, so it
+    cannot desync the index expression from the generated ORDER BY. Unlike a
+    `type` change, it must NOT reset `index_state`."""
+    from app.models.field_definition import FieldDefinition
+    row = await _create_definition(client, org_a.id, key="rank", type="number",
+                                   indexed=True, widget="plain")
+    db_row = await session.get(FieldDefinition, row["id"])
+    db_row.index_state = "ready"
+    await session.commit()
+
+    body = _body(key="rank", type="number", indexed=True, widget="percent")
+    r = await client.put(f"/api/v1/admin/field-definitions/{row['id']}",
+                         json=body, headers=AUTH)
+    assert r.status_code == 200, r.text
+    assert r.json()["widget"] == "percent"
+    assert r.json()["index_state"] == "ready"
+
+
+@pytest.mark.asyncio
 async def test_unarchive_does_not_auto_rebuild_the_index(client, session, org_a):
     """Chosen lifecycle (documented, see report): unarchive does NOT
     auto-rebuild — the field comes back `indexed=True, index_state="none"`,
@@ -454,6 +508,91 @@ async def test_order_by_expression_matches_the_index_expression_byte_for_byte(se
     spec = {"type": "number", "key": "rank"}
     generated = str(custom_sort_column(spec))
     assert generated == INDEX_CAST["number"].format(key="rank")
+
+
+@pytest_asyncio.fixture
+async def org_and_site_pg(pg_engine):
+    """The minimal `organization` + `site` rows `create_index`'s partial
+    predicate (`WHERE organization_id = 'org-a'`) refers to — cheap sibling
+    of `seeded_100k` for the two tests below, which only care about the
+    INDEX OBJECT itself, not sort correctness over volume."""
+    from sqlalchemy import text
+    async with pg_engine.begin() as conn:
+        await conn.execute(text(
+            "INSERT INTO organization "
+            "(id, code, legal_name, document_identity, settings, custom_fields, is_active) "
+            "VALUES ('org-a', 'org-a', 'Org A', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, true)"))
+        await conn.execute(text(
+            "INSERT INTO site (id, organization_id, code, name, site_type, "
+            "operating_hours, metadata, custom_fields, is_primary, is_active) "
+            "VALUES ('site-1', 'org-a', 'site-1', 'Site 1', 'branch', "
+            "'{}'::jsonb, '{}'::jsonb, jsonb_build_object('rank', 1), false, true)"))
+    return pg_engine
+
+
+@pytest.mark.postgres
+@pytest.mark.asyncio
+async def test_rebuilding_over_an_existing_index_produces_a_VALID_index(org_and_site_pg):
+    """CRITICAL: a failed `CREATE INDEX CONCURRENTLY` build leaves an INVALID
+    index object under the deterministic name. `IF NOT EXISTS` is a NAME-ONLY
+    check, so a retry used to see the name taken and silently no-op — never
+    raising, never fixing anything — and the caller would go on to report
+    `ready`. We cannot easily force Postgres to leave a genuinely INVALID
+    index on demand, so we prove the mechanism directly: plant a DECOY index
+    under the exact same name but a DIFFERENT (wrong) expression, then call
+    `create_index()` for real and assert the index that survives carries the
+    CORRECT expression — i.e. it was actually DROPPED and REBUILT, not
+    silently left alone."""
+    from sqlalchemy import text
+
+    from app.core.schema import indexing
+
+    name = indexing.index_name("site", "rank")
+    async with org_and_site_pg.connect() as conn:
+        await conn.execute(text("COMMIT"))  # CONCURRENTLY needs no open tx
+        # The decoy: same name, WRONG expression (text cast, not numeric) —
+        # what a genuinely different/stale index under this name looks like.
+        await conn.exec_driver_sql(
+            f'CREATE INDEX CONCURRENTLY "{name}" ON site ((custom_fields->>\'decoy\')) '
+            "WHERE organization_id = 'org-a'")
+
+    await indexing.create_index(org_and_site_pg, "site.custom_fields",
+                                {"type": "number", "key": "rank"}, "org-a")
+
+    async with org_and_site_pg.connect() as conn:
+        indexdef = (await conn.exec_driver_sql(
+            f"SELECT indexdef FROM pg_indexes WHERE indexname = '{name}'")).scalar_one()
+        valid = (await conn.exec_driver_sql(
+            "SELECT indisvalid FROM pg_index JOIN pg_class "
+            "ON pg_class.oid = pg_index.indexrelid "
+            f"WHERE pg_class.relname = '{name}'")).scalar_one()
+    assert "decoy" not in indexdef, (
+        f"the decoy expression survived — create_index() no-op'd instead of "
+        f"rebuilding: {indexdef}")
+    assert "rank" in indexdef and "numeric" in indexdef
+    assert valid is True
+
+
+@pytest.mark.postgres
+@pytest.mark.asyncio
+async def test_index_validity_is_verified_before_reporting_ready(org_and_site_pg):
+    """`create_index` must itself check `pg_index.indisvalid` and refuse to
+    return normally (i.e. refuse to let the caller report `ready`) on an
+    invalid index — proven two ways: (1) `index_is_valid` reports the TRUE
+    state of a real, successfully-built index; (2) `index_is_valid` reports
+    False for a name that doesn't exist at all (the same "not safe to sort
+    by" verdict as an invalid one), so the check cannot be fooled by
+    optimistically assuming existence == validity."""
+    from app.core.schema import indexing
+
+    # No index built yet under this key -> not valid (doesn't exist at all).
+    assert await indexing.index_is_valid(
+        org_and_site_pg, "site.custom_fields", "no_such_key") is False
+
+    await indexing.create_index(org_and_site_pg, "site.custom_fields",
+                                {"type": "number", "key": "rank"}, "org-a")
+    assert await indexing.index_is_valid(
+        org_and_site_pg, "site.custom_fields", "rank") is True
 
 
 @pytest.mark.postgres

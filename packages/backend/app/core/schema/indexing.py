@@ -83,11 +83,60 @@ def _assert_safe_org_id(organization_id: str) -> None:
                          f"{organization_id!r}")
 
 
+class IndexBuildFailed(RuntimeError):
+    """Raised when `CREATE INDEX CONCURRENTLY` returns without error but the
+    resulting index is INVALID (`pg_index.indisvalid = false`). Postgres can
+    do this: a `CONCURRENTLY` build that finds constraint/uniqueness trouble
+    only on its second table pass leaves the index object behind, marked
+    invalid, rather than raising. `_run_index_build` (admin_field_definitions)
+    catches this exactly like any other build failure and sets
+    `index_state = "failed"` — it must never be mistaken for success."""
+
+
+async def index_is_valid(engine: AsyncEngine, target: str, key: str) -> bool:
+    """True iff an index exists under this (target, key)'s deterministic name
+    AND is VALID. False both when no such index exists and when one exists
+    but is INVALID — both mean "not safe to use for a sort". Postgres-only;
+    always False elsewhere (SQLite never has a real index to check)."""
+    if engine.dialect.name != "postgresql":
+        return False
+    name = index_name(EXTENSIBLE_TARGETS[target], key)
+    autocommit = engine.execution_options(isolation_level="AUTOCOMMIT")
+    async with autocommit.connect() as conn:
+        row = (await conn.exec_driver_sql(
+            "SELECT indisvalid FROM pg_index "
+            "JOIN pg_class ON pg_class.oid = pg_index.indexrelid "
+            f"WHERE pg_class.relname = '{name}'")).first()
+    return bool(row and row[0])
+
+
 async def create_index(engine: AsyncEngine, target: str, spec: dict,
                        organization_id: str) -> None:
     """Create the partial expression index. Postgres only; a no-op elsewhere
     (SQLite, the test suite) — the repo rule that Postgres-specific SQL is
-    guarded by dialect, never emitted blind."""
+    guarded by dialect, never emitted blind.
+
+    Genuinely idempotent and self-healing, NOT `CREATE ... IF NOT EXISTS`:
+    a FAILED `CREATE INDEX CONCURRENTLY` leaves an INVALID index object under
+    the same name (documented Postgres behaviour — see the Postgres manual on
+    `CREATE INDEX`: "If a problem arises... the index will be left in an
+    invalid state"). `IF NOT EXISTS` is a NAME-ONLY check — the same manual
+    warns "there is no guarantee that the existing index is anything like the
+    one that would have been created" — so a naive retry over that leftover
+    would see the name taken, silently no-op, raise nothing, and the caller
+    would report `ready` on an index Postgres refuses to use. Every
+    subsequent sort would then silently sequential-scan while the state says
+    `ready` — exactly the failure this module exists to prevent.
+
+    So: DROP any leftover first (idempotent, `IF EXISTS` — this is what
+    actually clears an INVALID leftover), then CREATE fresh WITHOUT `IF NOT
+    EXISTS` (a genuine failure now RAISES instead of being swallowed), then
+    VERIFY the result is actually valid (`index_is_valid`) before returning
+    normally — a `CONCURRENTLY` build that raises no exception but still
+    leaves an INVALID index (see `IndexBuildFailed`) must not be reported as
+    success either. Both DDL statements run on the same AUTOCOMMIT
+    connection; neither can run inside a transaction.
+    """
     if engine.dialect.name != "postgresql":
         return                                   # SQLite (tests) — clean degradation
     ftype, key = spec["type"], spec["key"]
@@ -99,14 +148,23 @@ async def create_index(engine: AsyncEngine, target: str, spec: dict,
     table = EXTENSIBLE_TARGETS[target]
     expr = INDEX_CAST[ftype].format(key=key)
     name = index_name(table, key)
-    # organization_id is a UUID string from our own DB, never user input — but it
-    # is still quoted, never interpolated raw, as a matter of principle.
-    sql = (f'CREATE INDEX CONCURRENTLY IF NOT EXISTS "{name}" ON "{table}" ({expr}) '
-           f"WHERE organization_id = '{organization_id}'")
-
+    # organization_id IS interpolated raw here — Postgres DDL cannot bind
+    # parameters (no prepared-statement placeholders in CREATE INDEX ... WHERE).
+    # Safety comes from `_assert_safe_org_id` above (guarded by `_ORG_ID_RE`),
+    # never from quoting alone — quoting a string that could still contain a
+    # closing quote would not help.
     autocommit = engine.execution_options(isolation_level="AUTOCOMMIT")
     async with autocommit.connect() as conn:
-        await conn.exec_driver_sql(sql)
+        await conn.exec_driver_sql(f'DROP INDEX CONCURRENTLY IF EXISTS "{name}"')
+        await conn.exec_driver_sql(
+            f'CREATE INDEX CONCURRENTLY "{name}" ON "{table}" ({expr}) '
+            f"WHERE organization_id = '{organization_id}'")
+
+    if not await index_is_valid(engine, target, key):
+        raise IndexBuildFailed(
+            f"CREATE INDEX CONCURRENTLY {name!r} completed without raising "
+            "but the resulting index is INVALID (pg_index.indisvalid=false); "
+            "refusing to report it ready")
 
 
 async def drop_index(engine: AsyncEngine, target: str, key: str) -> None:
