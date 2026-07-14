@@ -1218,28 +1218,58 @@ class TestBackupWiredIntoApply:
             "declencher la sauvegarde -- stack_running()=False n'est pas "
             "synonyme de 'rien a proteger'")
 
-    def test_external_database_mode_never_calls_backup(
-        self, tmp_path, minimal_config_dict, monkeypatch,
-    ):
-        # database_mode=external : aucun conteneur Postgres facil-manage a
-        # sauvegarder par ce chemin (la base vit ailleurs) -- pas de fausse
-        # confiance en pretendant sauvegarder quelque chose qu'on ne peut
-        # pas atteindre ainsi. postgres_data_state() force a True pour
-        # prouver que c'est bien le garde database_mode qui bloque ici, pas
-        # une coincidence de valeur par defaut.
+    def _external(self, tmp_path, minimal_config_dict, monkeypatch):
         minimal_config_dict["docker_local"] = {"database_mode": "external"}
         cfg_file = self._mocks(tmp_path, minimal_config_dict, monkeypatch)
-        calls = []
-        monkeypatch.setattr(dl, "backup_postgres", lambda cfg, **kw: (calls.append(cfg) or (True, "ok")))
+        monkeypatch.setattr(dl, "backup_postgres",
+                            lambda cfg, **kw: pytest.fail(
+                                "ce tier ne peut PAS sauvegarder une base externe"))
         monkeypatch.setattr(dl, "postgres_data_state", lambda cfg, **kw: "has_data")
+        return cfg_file
+
+    def _apply(self, cfg_file, *extra):
+        composed = []
+
+        def fake_run_compose(args, **kw):
+            composed.append(list(args))
+            return 0
+
         with patch("docker_local.find_docker", return_value="/usr/bin/docker"), \
              patch("docker_local.docker_compose_available", return_value=True), \
              patch("docker_local.stack_running", return_value=True), \
              patch("docker_local.subprocess.run", return_value=MagicMock(returncode=0)), \
-             patch("docker_local.run_compose", return_value=0):
-            rc = dl.main(["--config", str(cfg_file), "--apply", "--yes"])
+             patch("docker_local.run_compose", side_effect=fake_run_compose):
+            rc = dl.main(["--config", str(cfg_file), "--apply", "--yes", *extra])
+        return rc, composed
+
+    def test_external_database_mode_refuses_to_migrate_without_a_backup(
+        self, tmp_path, minimal_config_dict, monkeypatch,
+    ):
+        # SEC-003 (revue E2) + arbitrage fail-closed. En mode external,
+        # generate_compose n'emet PAS de service postgres mais emet TOUJOURS
+        # `db-init` avec un DATABASE_URL pointant sur la base externe -- souvent
+        # une base MANAGEE EN PRODUCTION. `alembic upgrade head` y tournait donc
+        # sans la moindre sauvegarde, sans un mot, en sortant 0. Le tier k3s,
+        # lui, desactive AUSSI db-init quand postgres.enabled=false : l'asymetrie
+        # n'etait visible nulle part.
+        cfg_file = self._external(tmp_path, minimal_config_dict, monkeypatch)
+        rc, composed = self._apply(cfg_file)
+        assert rc == 1
+        assert not any("db-init" in args for args in composed), (
+            "la migration Alembic ne doit pas atteindre une base externe non "
+            f"sauvegardee -- invocations compose : {composed}")
+
+    def test_external_database_mode_proceeds_when_the_risk_is_declared(
+        self, tmp_path, minimal_config_dict, monkeypatch,
+    ):
+        # L'echappatoire est EXPLICITE et auditable : l'operateur qui a
+        # sauvegarde sa base externe par ses propres moyens le declare. Un
+        # [WARN] n'aurait pas suffi -- dans un pipeline, il se lit APRES la
+        # perte de donnees.
+        cfg_file = self._external(tmp_path, minimal_config_dict, monkeypatch)
+        rc, composed = self._apply(cfg_file, "--no-backup")
         assert rc == 0
-        assert calls == []
+        assert any("db-init" in args for args in composed)
 
     def test_failed_backup_aborts_the_apply_before_app_tier_comes_up(
         self, tmp_path, minimal_config_dict, monkeypatch,

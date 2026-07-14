@@ -244,6 +244,27 @@ def chart_pvc_defaults() -> tuple[str, str]:
     return storage_class, storage
 
 
+def backup_is_enabled() -> bool:
+    """`backup.enabled` ET `postgres.enabled` effectifs — memes sources que
+    `chart_pvc_defaults()` (values.yaml + overlay values-onprem.yaml), jamais un
+    litteral duplique ici qui pourrait diverger du chart en silence.
+
+    Sert au garde-fou de `--apply` : le Job `facil-backup` est gate par
+    `{{- if and .Values.backup.enabled .Values.postgres.enabled }}`. Desactiver
+    l'un ou l'autre supprime la sauvegarde -- et `helm upgrade` migrait quand
+    meme, en silence, en sortant 0, TOUTES les gardes restant vertes (elles
+    verifient l'ORDRE du Job, pas son EXISTENCE).
+    """
+    base = vc.load_yaml(CHART_DIR / "values.yaml")
+    overlay = vc.load_yaml(VALUES_ONPREM)
+    merged = {}
+    for section in ("backup", "postgres"):
+        merged[section] = {**(base.get(section) or {}),
+                           **((overlay.get(section) or {}))}
+    return (bool(merged["backup"].get("enabled", True))
+            and bool(merged["postgres"].get("enabled", True)))
+
+
 def apply_manifest(kubectl: str, ns: str, manifest: str) -> int:
     """`kubectl apply -f -` sur stdin. N'imprime JAMAIS le manifest ni le stderr brut
     de kubectl (SEC-016 : kubectl reemet parfois ses entrees dans ses messages d'erreur)."""
@@ -437,7 +458,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--revision", type=int, default=None,
                         help="Revision Helm cible (defaut : la precedente).")
     parser.add_argument("--yes", action="store_true",
-                        help="Confirme --apply sans prompt interactif.")
+                        help="Confirme --apply sans prompt interactif. NE COUVRE PAS "
+                             "--rollback, qui exige toujours une confirmation humaine "
+                             "(il ne restaure pas la base).")
+    parser.add_argument("--no-backup", action="store_true",
+                        help="Assume EXPLICITEMENT de migrer une release existante sans "
+                             "sauvegarde pre-upgrade (backup.enabled=false). Sans ce "
+                             "drapeau, --apply refuse : une migration destructive sur une "
+                             "base non sauvegardee est sans recours.")
     parser.add_argument("--allow-dev-vault", action="store_true",
                         help="Autorise OpenBao en dev-mode (stockage in-memory, HTTP "
                              "en clair). SMOKE/DEV UNIQUEMENT — jamais en production.")
@@ -469,12 +497,26 @@ def main(argv: list[str] | None = None) -> int:
             "JAMAIS automatique) :\n"
             "    python deploy/scripts/restore_backup.py --list\n"
             "    python deploy/scripts/restore_backup.py --restore <horodatage>\n")
-        if not args.yes:
-            ans = input("Continuer le rollback des manifestes ? [y/N] ").strip().lower()
-            if ans not in ("y", "yes"):
-                print("Annule.")
-                return 4
-        subprocess.run([helm, "history", "facil", "-n", args.namespace], check=False)
+        # `--yes` ne couvre PAS --rollback (arbitrage explicite, revue E2). Il est
+        # documente comme "confirme --apply", et --rollback est l'operation la
+        # plus risquee du provider : il rend les manifestes SANS restaurer la
+        # base. L'avertissement A4 ci-dessus ne sert a rien si un pipeline le
+        # court-circuite -- or c'est precisement dans un pipeline que personne ne
+        # le lit. Un rollback reste donc une decision humaine, toujours.
+        ans = input("Continuer le rollback des manifestes ? [y/N] ").strip().lower()
+        if ans not in ("y", "yes"):
+            print("Annule.")
+            return 4
+        # Le returncode de `helm history` etait jete : sur une release/namespace
+        # inexistant, l'operateur ne voyait RIEN s'afficher, puis `helm rollback`
+        # echouait derriere. On s'arrete ici, avec la cause.
+        hist = subprocess.run([helm, "history", "facil", "-n", args.namespace], check=False)
+        if hist.returncode != 0:
+            print(f"ERREUR: `helm history facil -n {args.namespace}` a echoue "
+                  f"(code {hist.returncode}) -- aucune release 'facil' deployee dans "
+                  f"ce namespace ? Rollback AVORTE : rien n'a ete touche.",
+                  file=sys.stderr)
+            return 2
         rb = [helm, "rollback", "facil"]
         if args.revision is not None:
             rb.append(str(args.revision))
@@ -555,6 +597,27 @@ def main(argv: list[str] | None = None) -> int:
     if missing:
         print(f"ERREUR: secrets requis absents de .env.secrets: {missing}\n"
               f"Lancer: python deploy/scripts/ensure_secrets.py", file=sys.stderr)
+        return 1
+
+    # GARDE-FOU : migrer une release EXISTANTE sans sauvegarde possible. Le Job
+    # facil-backup est gate par `backup.enabled` ET `postgres.enabled` ; un
+    # `--set`, un overlay ou une regression sur values-onprem.yaml le fait
+    # disparaitre -- et `helm upgrade` lancait alors `alembic upgrade head` sur
+    # une base de production sans le moindre dump, EN SILENCE, en sortant 0.
+    # Toutes les gardes restaient vertes : elles verifient l'ORDRE du Job, pas
+    # son EXISTENCE. Un [WARN] ne suffit pas ici -- dans un pipeline, il se lit
+    # apres la perte de donnees. On refuse, et l'operateur qui assume le risque
+    # le declare : --no-backup. (Une PREMIERE installation ne protege rien : pas
+    # de garde-fou, rien a perdre.)
+    if not backup_is_enabled() and not args.no_backup and release_exists(helm, args.namespace):
+        print("ERREUR: la sauvegarde pre-upgrade est DESACTIVEE (backup.enabled=false "
+              "ou postgres.enabled=false) sur une release deja deployee.\n"
+              "`helm upgrade` lancerait la migration Alembic sans aucune sauvegarde : "
+              "une migration destructive (DROP COLUMN/TABLE) detruirait les donnees "
+              "SANS RECOURS.\n"
+              "  - reactiver backup.enabled dans values-onprem.yaml, OU\n"
+              "  - assumer explicitement le risque : --no-backup\n"
+              "Update AVORTE : rien n'a ete touche.", file=sys.stderr)
         return 1
 
     print(f"Sur le point de creer/mettre a jour {len(literals)} Secret(s) k8s (un par "

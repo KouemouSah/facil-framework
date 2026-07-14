@@ -799,7 +799,8 @@ def test_rollback_invokes_helm_rollback_in_the_target_namespace(monkeypatch):
                         subprocess.CompletedProcess(cmd, 0, stdout=""))
     monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
     monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
-    assert k3s.main(["--rollback", "--yes", "--namespace", "custom-ns"]) == 0
+    monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+    assert k3s.main(["--rollback", "--namespace", "custom-ns"]) == 0
     rb = next(c for c in calls if "rollback" in c)
     assert rb[rb.index("-n") + 1] == "custom-ns"
 
@@ -811,7 +812,8 @@ def test_rollback_warns_that_the_database_is_NOT_restored(monkeypatch, capsys):
                         lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout=""))
     monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
     monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
-    k3s.main(["--rollback", "--yes"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+    k3s.main(["--rollback"])
     out = capsys.readouterr().out.lower()
     assert "base de donnees" in out
     assert "ne restaure pas" in out or "n'a pas ete" in out
@@ -846,16 +848,45 @@ def test_rollback_proceeds_when_confirmed_without_yes(monkeypatch):
     assert any("rollback" in c for c in calls)
 
 
-def test_rollback_yes_flag_skips_the_prompt(monkeypatch):
-    # --yes : coherent avec --apply, jamais bloque sur un `input()` en CI/script.
-    def boom(prompt=""):
-        raise AssertionError("--yes ne doit jamais invoquer input()")
-
-    monkeypatch.setattr("builtins.input", boom)
+def test_yes_does_NOT_skip_the_rollback_confirmation(monkeypatch):
+    # Arbitrage explicite (revue E2). --yes est documente comme "confirme
+    # --apply". --rollback est l'operation la PLUS risquee du provider : il rend
+    # les manifestes SANS restaurer la base -- c'est tout le piege que
+    # l'avertissement A4 existe pour signaler. Le laisser court-circuiter par
+    # --yes, c'est garantir que personne ne le lira jamais dans un pipeline,
+    # c'est-a-dire precisement la ou le rollback est declenche.
+    asked = []
+    monkeypatch.setattr("builtins.input", lambda prompt="": asked.append(prompt) or "n")
+    calls = []
     monkeypatch.setattr(k3s.subprocess, "run",
-                        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout=""))
+                        lambda cmd, **kw: calls.append(list(cmd)) or
+                        subprocess.CompletedProcess(cmd, 0, stdout=""))
     monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
-    assert k3s.main(["--rollback", "--yes"]) == 0
+    rc = k3s.main(["--rollback"])
+    assert rc == 4, "--yes ne doit PAS auto-confirmer un rollback"
+    assert asked, "la confirmation doit etre demandee meme avec --yes"
+    assert calls == [], "aucun appel cluster apres un refus"
+
+
+def test_rollback_aborts_when_helm_history_fails_instead_of_rolling_back_blindly(monkeypatch):
+    # Le returncode de `helm history` etait jete : sur une release inexistante,
+    # l'operateur ne voyait rien s'afficher, confirmait, et `helm rollback`
+    # echouait derriere. On s'arrete avec la cause -- et SURTOUT sans jamais
+    # appeler `helm rollback`.
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(list(cmd))
+        rc = 1 if "history" in cmd else 0
+        return subprocess.CompletedProcess(cmd, rc, stdout="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+    rc = k3s.main(["--rollback"])
+    assert rc == 2
+    assert not any("rollback" in c for c in calls), (
+        f"un `helm history` en echec ne doit JAMAIS mener a un rollback -- {calls}")
 
 
 def test_rollback_warning_appears_before_the_success_confirmation(monkeypatch, capsys):
@@ -878,7 +909,8 @@ def test_rollback_targets_specific_revision_when_given(monkeypatch):
                         lambda cmd, **kw: calls.append(list(cmd)) or
                         subprocess.CompletedProcess(cmd, 0, stdout=""))
     monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
-    assert k3s.main(["--rollback", "--yes", "--revision", "3"]) == 0
+    monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+    assert k3s.main(["--rollback", "--revision", "3"]) == 0
     rb = next(c for c in calls if "rollback" in c)
     assert rb[rb.index("rollback") + 1:rb.index("rollback") + 3] == ["facil", "3"]
 
@@ -891,7 +923,8 @@ def test_rollback_fails_closed_when_helm_rollback_errors(monkeypatch, capsys):
 
     monkeypatch.setattr(k3s.subprocess, "run", fake_run)
     monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
-    rc = k3s.main(["--rollback", "--yes"])
+    rc = monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+    rc = k3s.main(["--rollback"])
     assert rc == 2
     out = capsys.readouterr()
     # A4 : l'avertissement pre-action est maintenant affiche AVANT de savoir si
@@ -910,6 +943,7 @@ def test_rollback_does_not_require_deploy_config_yaml(monkeypatch, tmp_path):
                         lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout=""))
     monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
     missing_config = tmp_path / "does-not-exist.yaml"
+    monkeypatch.setattr("builtins.input", lambda prompt="": "y")
     assert k3s.main(["--rollback", "--yes", "--config", str(missing_config)]) == 0
 
 
@@ -1295,3 +1329,65 @@ def test_apply_first_install_pass2_failure_warns_backend_left_at_zero_replicas(
                    "--yes", "--allow-dev-vault"])
     assert rc == 2
     assert "0 replica" in capsys.readouterr().err.lower()
+
+
+# --- Garde-fou : migrer une release existante SANS sauvegarde (SEC-003/H3) ---
+
+def _apply_env(monkeypatch, tmp_path, backup_enabled, existing_release):
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0, stdout="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+    monkeypatch.setattr(k3s, "backup_is_enabled", lambda: backup_enabled)
+    monkeypatch.setattr(k3s, "release_exists", lambda h, ns: existing_release)
+    return calls
+
+
+def _run_apply(tmp_path, *extra):
+    # --allow-dev-vault : ces tests portent sur le garde-fou de sauvegarde, pas
+    # sur la garde SEC-002 dev-mode d'OpenBao.
+    return k3s.main(["--apply", "--config", str(_write_cfg_file(tmp_path)),
+                     "--yes", "--allow-dev-vault", *extra])
+
+
+def test_apply_refuses_to_migrate_an_existing_release_without_backup(monkeypatch, tmp_path, capsys):
+    # Le Job facil-backup est gate par `backup.enabled` ET `postgres.enabled`.
+    # Un --set, un overlay ou une regression sur values-onprem.yaml le fait
+    # disparaitre -- et `helm upgrade` lancait alors alembic sur une base de
+    # production sans le moindre dump, EN SILENCE, exit 0. Toutes les gardes
+    # restaient vertes : elles verifient l'ORDRE du Job, pas son EXISTENCE.
+    calls = _apply_env(monkeypatch, tmp_path, backup_enabled=False, existing_release=True)
+    rc = _run_apply(tmp_path)
+    assert rc == 1
+    assert not any("upgrade" in c for c in calls), (
+        f"aucun `helm upgrade` ne doit partir sans sauvegarde -- {calls}")
+    assert "AVORTE" in capsys.readouterr().err
+
+
+def test_apply_proceeds_without_backup_when_the_risk_is_declared(monkeypatch, tmp_path):
+    calls = _apply_env(monkeypatch, tmp_path, backup_enabled=False, existing_release=True)
+    assert _run_apply(tmp_path, "--no-backup") == 0
+    assert any("upgrade" in c for c in calls)
+
+
+def test_a_first_install_without_backup_is_not_blocked(monkeypatch, tmp_path):
+    # Une PREMIERE installation ne protege rien : il n'y a pas de donnees a
+    # perdre. Bloquer ici serait une garde qui crie a tort -- donc une garde
+    # qu'on finit par desactiver.
+    calls = _apply_env(monkeypatch, tmp_path, backup_enabled=False, existing_release=False)
+    assert _run_apply(tmp_path) == 0
+    assert any("upgrade" in c for c in calls)
+
+
+def test_the_guard_does_not_fire_when_backup_is_enabled(monkeypatch, tmp_path):
+    # Anti-faux-positif : le chemin nominal (sauvegarde active) ne doit jamais
+    # etre bloque.
+    calls = _apply_env(monkeypatch, tmp_path, backup_enabled=True, existing_release=True)
+    assert _run_apply(tmp_path) == 0
+    assert any("upgrade" in c for c in calls)

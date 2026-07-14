@@ -736,6 +736,10 @@ def main(argv: list[str] | None = None) -> int:
                              "(WIPES the local DB).")
     parser.add_argument("--yes", action="store_true",
                         help="Skip interactive confirmations.")
+    parser.add_argument("--no-backup", action="store_true",
+                        help="Avec --apply et database_mode=external : assume "
+                             "EXPLICITEMENT de migrer une base externe que ce tier ne "
+                             "peut pas sauvegarder. Sans ce drapeau, --apply refuse.")
     parser.add_argument("--no-bootstrap", action="store_true",
                         help="With --apply: skip the data-plane provisioning "
                              "(MinIO bucket/SA, OpenBao kv/policy/AppRole, "
@@ -767,7 +771,8 @@ def main(argv: list[str] | None = None) -> int:
         return _do_plan(cfg)
 
     if args.apply:
-        return _do_apply(cfg, yes=args.yes, no_bootstrap=args.no_bootstrap)
+        return _do_apply(cfg, yes=args.yes, no_bootstrap=args.no_bootstrap,
+                         no_backup=args.no_backup)
 
     if args.down:
         return _do_down(remove_volumes=args.volumes)
@@ -865,7 +870,8 @@ def _openbao_required_but_failed(cfg: vc.DeployConfig, state) -> bool:
     return step is None or step.status != "ok"
 
 
-def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) -> int:
+def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False,
+              no_backup: bool = False) -> int:
     if not SECRETS_FILE.exists():
         print(
             f"ERROR: missing secrets file: {SECRETS_FILE}\n"
@@ -995,6 +1001,27 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
         # (`docker compose down` + `--apply` is a normal update flow that
         # would otherwise skip the backup entirely; see
         # postgres_data_state()'s docstring for the two bugs this replaces).
+        # GARDE-FOU (mode external) : `generate_compose` n'emet PAS de service
+        # postgres, mais emet TOUJOURS `db-init` avec un DATABASE_URL pointant
+        # sur la base externe -- `alembic upgrade head` s'execute donc sur une
+        # base souvent managee et en production. Ce tier ne sait pas la
+        # sauvegarder (aucun conteneur postgres a `exec`), et il ne disait RIEN :
+        # migration destructive possible, sans dump, sans un mot. Le tier k3s, lui,
+        # desactive AUSSI db-init quand postgres.enabled=false -- l'asymetrie
+        # n'etait visible nulle part. On refuse ; qui assume le risque le declare.
+        if cfg.docker_local.database_mode == "external" and not no_backup:
+            print("ERREUR: database_mode=external — ce tier ne peut pas sauvegarder une "
+                  "base externe (aucun conteneur Postgres a dumper), mais `db-init` y "
+                  "lancerait quand meme `alembic upgrade head`.\n"
+                  "Une migration destructive sur une base de production non sauvegardee "
+                  "est SANS RECOURS.\n"
+                  "  - sauvegarder la base externe par vos propres moyens, puis relancer "
+                  "avec --no-backup, OU\n"
+                  "  - passer en database_mode=local (sauvegarde automatique avant "
+                  "migration).\n"
+                  "Update AVORTE : rien n'a ete touche.", file=sys.stderr)
+            return 1
+
         if cfg.docker_local.database_mode == "local":
             state = postgres_data_state(cfg)
             if state == "unknown":
