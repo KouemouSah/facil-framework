@@ -14,9 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.concurrency import enforce_if_match, row_etag
 from app.api.deps import get_session
-from app.api.list_query import keyset_page, resolve_sort
+from app.api.list_query import keyset_page, resolve_entity_sort
 from app.auth import audit
 from app.core.schema import repository as schema_repo
+from app.core.schema.indexing import CUSTOM_FIELD_SORT_PREFIX
 from app.core.schema.merge import merge_blob
 from app.core.schema.pydantic_gen import SchemaViolation, validate_blob
 from app.core.schema.sanitize import clean_richtext_fields
@@ -41,10 +42,13 @@ def _bool(v: int | None) -> bool | None:
     return None if v is None else bool(v)
 
 
-async def _keyset(session, stmt, *, sort, allowed, default, limit, cursor) -> dict:
-    sort_col, sort_desc = resolve_sort(sort, allowed=allowed, default=default)
+async def _keyset(session, stmt, *, sort, allowed, default, limit, cursor,
+                  id_col=None, specs=None) -> dict:
+    sort_col, sort_desc, id_col, value_of = resolve_entity_sort(
+        sort, allowed=allowed, default=default, id_col=id_col, specs=specs)
     items, next_cursor, count, capped = await keyset_page(
-        session, stmt, sort_col=sort_col, sort_desc=sort_desc, cursor=cursor, limit=limit)
+        session, stmt, sort_col=sort_col, sort_desc=sort_desc, cursor=cursor,
+        limit=limit, id_col=id_col, value_of=value_of)
     return {"items": [i.as_dict() for i in items], "next_cursor": next_cursor,
             "count": count, "capped": capped}
 
@@ -55,10 +59,26 @@ async def _keyset(session, stmt, *, sort, allowed, default, limit, cursor) -> di
 async def list_parties(q: str | None = None, party_type: str | None = None,
                        active: int | None = None, sort: str = "name",
                        limit: int = 50, cursor: str | None = None,
+                       definitions_org_id: str | None = None,
+                       principal: dict = Depends(require_auth),
                        session: AsyncSession = Depends(get_session)) -> dict:
+    # `sort=custom_fields.<key>` (Task 14): `Party` is GLOBAL directory data
+    # (no `organization_id` of its own — see `_party_specs`'s docstring), so
+    # the caller must NAME which organisation's `party.custom_fields`
+    # definitions to resolve the sort against, via the SAME `definitions_org_id`
+    # param already used for create/update (never `organization_id` — that
+    # name is scope-harvested by `raw_scope_ids`, see `_party_specs`).
     stmt = repo.parties_select(q=q, party_type=party_type, active=_bool(active))
+    specs = None
+    if sort.lstrip("-").startswith(CUSTOM_FIELD_SORT_PREFIX):
+        if not definitions_org_id:
+            raise HTTPException(
+                422, "sorting parties by a custom field requires definitions_org_id "
+                     "(party.custom_fields definitions are organisation-scoped)")
+        specs = await _party_specs(session, principal, definitions_org_id)
     return await _keyset(session, stmt, sort=sort, allowed=_PARTY_SORT,
-                         default="name", limit=limit, cursor=cursor)
+                         default="name", limit=limit, cursor=cursor,
+                         id_col=Party.id, specs=specs)
 
 
 async def _party_specs(session: AsyncSession, principal: dict,

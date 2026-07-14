@@ -37,7 +37,9 @@ to guess, never its contents.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+import logging
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import field_validator, model_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -46,17 +48,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.concurrency import enforce_if_match, row_etag
 from app.api.deps import get_session
 from app.auth import audit
+from app.core.schema import indexing
 from app.core.schema import repository as schema_repo
 from app.core.schema.registry import EXTENSIBLE_TARGETS
 from app.core.schema.reserved import assert_key_allowed, assert_relation_resource_allowed
 from app.core.schema.sanitize import assert_not_secretish
 from app.core.schema.spec import FieldSpec
 from app.core.schema.types import DEFAULT_WIDGET
+from app.db.engine import Database
 from app.models.field_definition import FieldDefinition
 from app.modules.organization.models import Organization
 from app.rbac.scope import Scope
 from app.security.auth_dep import require_auth
 from app.security.permission_dep import enforce, visible_orgs
+
+logger = logging.getLogger(__name__)
 
 # Per (organization_id, target) — an org cannot saturate the database for every
 # other tenant, and an unbounded set of `indexed` fields cannot force unbounded
@@ -305,6 +311,72 @@ def _apply_spec(row: FieldDefinition, body: FieldDefinitionIn) -> None:
     row.inherit_to_suborgs = body.inherit_to_suborgs
 
 
+async def _run_index_build(db: Database, definition_id: str, target: str,
+                          spec: dict, organization_id: str) -> None:
+    """The background job Task 14 promised: `CREATE INDEX CONCURRENTLY` cannot
+    run inside the request's transaction, so this runs AFTER the response
+    (via `BackgroundTasks`), on the app's own engine, in its own AUTOCOMMIT
+    connection (`indexing.create_index`). It then opens a FRESH session (the
+    request's session is long gone) to record the outcome.
+
+    Never swallows a failure: on ANY exception the reason is logged
+    (`logger.exception`, full traceback) and `index_state` is set to
+    `"failed"` — an operator can see it, never a silently stuck "pending".
+
+    Postgres-only by construction (`indexing.create_index` no-ops under any
+    other dialect) — under SQLite (the test suite) this leaves `index_state`
+    at `"none"`, NOT `"ready"`: a no-op must never be reported as success, or
+    `sortable_keys()` would treat an unindexed column as safely sortable.
+    """
+    terminal = "none" if db.engine.dialect.name != "postgresql" else "failed"
+    try:
+        await indexing.create_index(db.engine, target, spec, organization_id)
+        terminal = "none" if db.engine.dialect.name != "postgresql" else "ready"
+    except Exception:
+        logger.exception(
+            "index build failed for field definition %s (%s.%s, org %s)",
+            definition_id, target, spec.get("key"), organization_id)
+    async with db.session_factory() as session:
+        row = await session.get(FieldDefinition, definition_id)
+        if row is not None and row.index_state == "pending":
+            row.index_state = terminal
+            await session.commit()
+
+
+@router.post("/{definition_id}/index")
+async def build_index(definition_id: str, background_tasks: BackgroundTasks,
+                      request: Request,
+                      principal: dict = Depends(require_auth),
+                      session: AsyncSession = Depends(get_session)) -> dict:
+    """Kick off a CONCURRENT partial expression index build for this
+    definition. `indexed` must already be `True` (flip it via PUT first — the
+    10-indexed cap check lives there, not here). Sets `index_state =
+    "pending"` and commits BEFORE launching the build — the build itself runs
+    in a background job on its own AUTOCOMMIT connection (see
+    `_run_index_build`), never inside this request's transaction."""
+    row = await _get_or_404(session, definition_id)
+    await _authorize_target(session, principal, row.organization_id)
+    enforce_if_match(request, row_etag(row))
+    if not row.indexed:
+        raise HTTPException(
+            422, "field is not marked `indexed`; PUT `indexed: true` first "
+                 "(the 10-indexed-per-target cap is enforced there)")
+    if row.archived:
+        raise HTTPException(422, "cannot build an index for an archived definition")
+    if row.index_state == "pending":
+        raise HTTPException(409, "an index build is already pending for this field")
+    row.index_state = "pending"
+    row.updated_by = principal.get("sub")
+    await audit.record(session, audit.FIELD_DEFINITION_CHANGED,
+                       account_id=principal.get("sub"),
+                       detail={"id": definition_id, "target": row.target,
+                               "key": row.key, "action": "index_build_requested"})
+    await _commit(session, key=row.key, target=row.target)
+    background_tasks.add_task(_run_index_build, request.app.state.db, definition_id,
+                              row.target, row.as_spec(), row.organization_id)
+    return _public(row)
+
+
 @router.get("/")
 async def list_definitions(organization_id: str, target: str | None = None,
                            include_archived: bool = False,
@@ -465,8 +537,9 @@ async def _check_unarchive_caps(session: AsyncSession, row: FieldDefinition) -> 
                      "before restoring this one")
 
 
-async def _set_archived(definition_id: str, request: Request, principal: dict,
-                        session: AsyncSession, *, archived: bool, action: str) -> dict:
+async def _set_archived(definition_id: str, request: Request, background_tasks: BackgroundTasks,
+                        principal: dict, session: AsyncSession, *,
+                        archived: bool, action: str) -> dict:
     row = await _get_or_404(session, definition_id)
     await _authorize_target(session, principal, row.organization_id)
     enforce_if_match(request, row_etag(row))
@@ -474,6 +547,27 @@ async def _set_archived(definition_id: str, request: Request, principal: dict,
         await _check_unarchive_caps(session, row)
     row.archived = archived
     row.updated_by = principal.get("sub")
+    # ARCHIVE DROPS THE INDEX (Task 14 lifecycle). The 10-indexed cap
+    # (`MAX_INDEXED_PER_TARGET` above) deliberately EXCLUDES archived rows —
+    # an archived field is not sortable, so it must not keep occupying a live
+    # database index; otherwise an org could archive-and-recreate to
+    # accumulate unbounded live Postgres indexes, the exact hole the cap
+    # exists to close. `row.indexed` (not `index_state`) gates the drop: a
+    # `pending`/`failed` build can leave a half-built/INVALID index object
+    # under the same name, which `DROP INDEX CONCURRENTLY IF EXISTS` cleans
+    # up too. `index_state` resets to "none" so the whitelist (`indexing.
+    # sortable_keys`) immediately stops offering the field for sorting.
+    #
+    # UNARCHIVE deliberately does NOT auto-rebuild: the field comes back with
+    # `index_state == "none"` (not sortable — the whitelist already enforces
+    # that) until the admin explicitly re-requests `/index`. Simpler and more
+    # honest than a silent background rebuild the admin never asked for;
+    # `_check_unarchive_caps` above already re-validates the INDEXED cap
+    # before allowing the field back onto the active form.
+    if archived and row.indexed:
+        row.index_state = "none"
+        background_tasks.add_task(indexing.drop_index, request.app.state.db.engine,
+                                  row.target, row.key)
     await audit.record(session, action, account_id=principal.get("sub"),
                        detail={"id": definition_id, "target": row.target,
                                "key": row.key})
@@ -483,17 +577,20 @@ async def _set_archived(definition_id: str, request: Request, principal: dict,
 
 @router.post("/{definition_id}/archive")
 async def archive_definition(definition_id: str, request: Request,
+                             background_tasks: BackgroundTasks,
                              principal: dict = Depends(require_auth),
                              session: AsyncSession = Depends(get_session)) -> dict:
     """`archived = True` only. NEVER touches the entity rows' `custom_fields`
     JSONB — the field leaves the form, the VALUES STAY PUT (spec §3 principle
-    7: "rien n'est détruit"). Reversible via `/unarchive` below."""
-    return await _set_archived(definition_id, request, principal, session,
-                               archived=True, action=audit.FIELD_DEFINITION_ARCHIVED)
+    7: "rien n'est détruit"). Reversible via `/unarchive` below. Also drops
+    the field's live index, if any — see `_set_archived`'s comment."""
+    return await _set_archived(definition_id, request, background_tasks, principal,
+                               session, archived=True, action=audit.FIELD_DEFINITION_ARCHIVED)
 
 
 @router.post("/{definition_id}/unarchive")
 async def unarchive_definition(definition_id: str, request: Request,
+                               background_tasks: BackgroundTasks,
                                principal: dict = Depends(require_auth),
                                session: AsyncSession = Depends(get_session)) -> dict:
     """Puts an archived field back on the form. This is what makes archive
@@ -501,13 +598,16 @@ async def unarchive_definition(definition_id: str, request: Request,
     values never left the JSONB, so restoring the definition restores the
     field intact. Without this route, `archived` would be a trapdoor — and
     since `GET /schema` filters archived rows out, the field would be
-    unreachable forever."""
-    return await _set_archived(definition_id, request, principal, session,
-                               archived=False, action=audit.FIELD_DEFINITION_CHANGED)
+    unreachable forever. Does NOT rebuild the index — see `_set_archived`'s
+    comment; the field is `indexed` again but not yet sortable until an
+    explicit `POST /{id}/index`."""
+    return await _set_archived(definition_id, request, background_tasks, principal,
+                               session, archived=False, action=audit.FIELD_DEFINITION_CHANGED)
 
 
 @router.post("/{definition_id}/purge")
 async def purge_definition(definition_id: str, request: Request,
+                           background_tasks: BackgroundTasks,
                            principal: dict = Depends(require_auth),
                            session: AsyncSession = Depends(get_session)) -> dict:
     """Definitive deletion of the DEFINITION row — explicit, audited, `If-Match`
@@ -515,14 +615,21 @@ async def purge_definition(definition_id: str, request: Request,
     never destroy anything). Still does not touch any entity's stored
     `custom_fields` VALUES; a purge only stops the key from being offered and
     validated going forward — it does not scrub historic data (consistent with
-    `merge_blob` preserving undeclared keys forever)."""
+    `merge_blob` preserving undeclared keys forever). Also drops the field's
+    live index, if any — a purged definition cannot be un-purged, so a
+    leftover index would be a permanent, unrecoverable leak (see `_set_archived`)."""
     row = await _get_or_404(session, definition_id)
     await _authorize_target(session, principal, row.organization_id)
     enforce_if_match(request, row_etag(row))
     detail = {"id": definition_id, "target": row.target, "key": row.key,
               "organization_id": row.organization_id}
+    had_index = row.indexed
+    target, key = row.target, row.key
     await session.delete(row)
     await audit.record(session, audit.FIELD_DEFINITION_PURGED,
                        account_id=principal.get("sub"), detail=detail)
     await _commit(session, key=row.key, target=row.target)
+    if had_index:
+        background_tasks.add_task(indexing.drop_index, request.app.state.db.engine,
+                                  target, key)
     return {"deleted": definition_id}

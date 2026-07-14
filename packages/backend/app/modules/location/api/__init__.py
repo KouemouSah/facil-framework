@@ -15,8 +15,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.concurrency import enforce_if_match, row_etag
 from app.api.csv_export import EXPORT_CAP, export_response
 from app.api.deps import get_session
-from app.api.list_query import apply_sort, keyset_page, paginated, resolve_sort
+from app.api.list_query import (
+    apply_sort,
+    keyset_page,
+    paginated,
+    resolve_entity_sort,
+    resolve_sort,
+)
 from app.auth import audit
+from app.core.schema.indexing import CUSTOM_FIELD_SORT_PREFIX
 from app.core.schema import repository as schema_repo
 from app.core.schema.merge import merge_blob
 from app.core.schema.pydantic_gen import SchemaViolation, validate_blob
@@ -70,10 +77,24 @@ async def list_sites(organization_id: str | None = None,
     visible = await visible_orgs(session, principal, "location.read")
     stmt = repo.sites_select(organization_id=organization_id, org_unit_id=org_unit_id,
                              parent_site_id=parent_site_id, org_ids=visible, q=q)
-    sort_col, sort_desc = resolve_sort(sort, allowed=_SITE_SORT, default="code")
+    # `sort=custom_fields.<key>` (Task 14) needs ONE organisation's field
+    # definitions to resolve against — `site.custom_fields` is org-owned, and
+    # this list can otherwise span every visible org. Require `organization_id`
+    # explicitly for that sort form; `resolve_entity_sort` 422s a non-ready/
+    # non-indexed/unknown key regardless (never a silent sequential scan).
+    specs = None
+    if sort.lstrip("-").startswith(CUSTOM_FIELD_SORT_PREFIX):
+        if not organization_id:
+            raise HTTPException(
+                422, "sorting sites by a custom field requires organization_id "
+                     "(site.custom_fields definitions are organisation-scoped)")
+        specs = [r.as_spec() for r in await schema_repo.definitions_for(
+            session, "site.custom_fields", organization_id)]
+    sort_col, sort_desc, id_col, value_of = resolve_entity_sort(
+        sort, allowed=_SITE_SORT, default="code", id_col=Site.id, specs=specs)
     items, next_cursor, count, capped = await keyset_page(
-        session, stmt, sort_col=sort_col, sort_desc=sort_desc,
-        cursor=cursor, limit=limit)
+        session, stmt, sort_col=sort_col, sort_desc=sort_desc, cursor=cursor,
+        limit=limit, id_col=id_col, value_of=value_of)
     return {"items": [s.as_dict() for s in items], "next_cursor": next_cursor,
             "count": count, "capped": capped}
 
