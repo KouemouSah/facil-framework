@@ -25,7 +25,7 @@ import {
 } from "./api";
 import {
   buildDefinitionPayload, canRenderCreateSurface, filterDefinitions, flattenDefinition,
-  isSortable, sortDefinitions, useFieldDefFields,
+  isSortable, sortDefinitions, targetLabelKey, useFieldDefFields,
 } from "./fields";
 
 /**
@@ -125,7 +125,7 @@ export default function FieldsStudioPage() {
           <button key={tk} type="button" onClick={() => setTarget(tk)}
             className={cn("border-b-2 px-3 py-1.5 text-sm font-medium",
               target === tk ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
-            {t(`target.${tk}`)}
+            {t(`target.${targetLabelKey(tk)}`)}
           </button>
         ))}
       </div>
@@ -307,7 +307,7 @@ function EditSurface({ definitionId, target, readOnly, onClose, onChanged }: {
   });
 
   return (
-    <RecordSurface title={data ? data.key : t("edit_title")} subtitle={data ? t(`target.${data.target}`) : undefined}
+    <RecordSurface title={data ? data.key : t("edit_title")} subtitle={data ? t(`target.${targetLabelKey(data.target)}`) : undefined}
       resourceKey="field-definitions" onClose={onClose}>
       {isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
       {!data && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}

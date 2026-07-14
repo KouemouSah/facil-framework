@@ -255,7 +255,16 @@ function UnitEditSurface({ unitId, orgId, units, readOnly, onClose }: {
       {!data && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
       {data && (
         <RecordForm
-          key={data.etag ?? unitId}
+          // `fields.length` in the key — same fix, same root cause, as
+          // `location/page.tsx`'s `SiteEditSurface` (Task 16 e2e finding):
+          // this surface can mount with `orgId=""` before the parent page's
+          // async `useFirstOrg()` resolves (`surfaceOpen` opens off `!!sel`
+          // alone), so `useUnitFields(..., orgId)` may first return the base
+          // columns only; without the fields-count in the key, RecordForm
+          // never remounts once the custom-fields schema arrives late, and a
+          // custom field's stored value would render permanently blank (and
+          // be silently erased if the form is then saved).
+          key={`${data.etag ?? unitId}-${fields.length}`}
           fields={fields}
           mode="edit"
           layout="rich"

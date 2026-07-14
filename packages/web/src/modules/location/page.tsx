@@ -245,7 +245,27 @@ function SiteEditSurface({ siteId, orgId, onClose, readOnly }: {
       {!data && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
       {data && (
         <RecordForm
-          key={String(data.etag ?? siteId)}
+          // `fields.length` in the key (not just the row's etag) — Task 16
+          // e2e caught a real bug here: `SiteEditSurface` can mount before
+          // `orgId` (async `useFirstOrg()`, resolved by the PARENT page, not
+          // this component) is known — `LocationsPage`'s `surfaceOpen` opens
+          // this surface off `!!sel` alone, so a hard reload/deep-link lands
+          // here with `orgId=""` on the first render. `useSiteFields("")`
+          // then returns ONLY the base columns (its schema query is `enabled:
+          // Boolean(organizationId)`); RecordForm's `values` state is seeded
+          // ONCE, from whatever `fields` it was first mounted with (a lazy
+          // `useState` initializer, not an effect) — so once `orgId` resolves
+          // a moment later and a custom field's `FieldDef` appears, RecordForm
+          // does NOT remount (same key) and never seeds that field's stored
+          // value from `initial`, showing it permanently blank. Worse: saving
+          // the form afterward would submit that blank and silently ERASE the
+          // real value. Including `fields.length` forces a remount (fresh
+          // `values` seed from `initial`, using the now-complete `fields`)
+          // the moment the custom-fields schema finishes loading; once
+          // `fields` is stable (the common case — orgId already resolved
+          // before this surface ever mounted) the key never changes again, so
+          // no extra remounts are introduced for the already-working path.
+          key={`${String(data.etag ?? siteId)}-${fields.length}`}
           fields={fields}
           mode="edit"
           layout="rich"

@@ -667,9 +667,9 @@
     "load_error": "Error al cargar el campo.",
     "empty": "Aún no hay campos personalizados.",
     "target": {
-      "organization.custom_fields": "Organización",
-      "org_unit.custom_fields": "Unidad org.",
-      "site.custom_fields": "Sede"
+      "organization": "Organización",
+      "org_unit": "Unidad org.",
+      "site": "Sede"
     },
     "type": {
       "string": "Texto",

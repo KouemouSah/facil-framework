@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildDefinitionPayload, buildFieldDefFields, canRenderCreateSurface, flattenDefinition,
-  isSortable, splitCustomPayload, TARGETS, TYPE_OPTIONS, widgetsFor,
+  isSortable, splitCustomPayload, targetLabelKey, TARGETS, TYPE_OPTIONS, widgetsFor,
 } from "./fields";
 import type { Definition } from "./api";
 
@@ -57,6 +57,18 @@ describe("EXTENSIBLE_TARGETS mirror", () => {
     expect(TARGETS).toEqual([
       "organization.custom_fields", "org_unit.custom_fields", "site.custom_fields",
     ]);
+  });
+});
+
+describe("targetLabelKey — dot-free key for next-intl (Task 16 e2e regression)", () => {
+  it("strips the .custom_fields suffix so next-intl doesn't mis-parse the dot as nesting", () => {
+    expect(targetLabelKey("organization.custom_fields")).toBe("organization");
+    expect(targetLabelKey("org_unit.custom_fields")).toBe("org_unit");
+    expect(targetLabelKey("site.custom_fields")).toBe("site");
+  });
+  it("stays unique across all three targets (no collision in the messages object)", () => {
+    const keys = TARGETS.map(targetLabelKey);
+    expect(new Set(keys).size).toBe(TARGETS.length);
   });
 });
 

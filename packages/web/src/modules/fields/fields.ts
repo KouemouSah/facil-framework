@@ -11,6 +11,29 @@ import { TARGETS, type Definition, type DefinitionIn, type IndexState, type Targ
 export { TARGETS, type Target };
 
 /**
+ * next-intl (and the pure `ft()` walker below) resolve a translation key by
+ * splitting it on "." to descend through nested messages — a key segment
+ * that itself CONTAINS a literal "." breaks that resolution, because it gets
+ * mis-parsed as extra nesting instead of one flat key. `Target` values
+ * (`"organization.custom_fields"`, `"org_unit.custom_fields"`,
+ * `"site.custom_fields"`) are exactly that: real API/URL values (must match
+ * the backend's `EXTENSIBLE_TARGETS` strings byte-for-byte) that happen to
+ * contain a dot. `t(\`target.${target}\`)` therefore never resolved and
+ * rendered the raw fallback key text (e.g. literally
+ * "fields.target.organization.custom_fields") instead of "Organization" —
+ * caught live by the Task 16 e2e, not by any unit test (this file's own
+ * vitest suite never renders through next-intl).
+ *
+ * The fix: index `fields.target.*` in the messages files by the dot-free
+ * PREFIX of the target (`"organization"` / `"org_unit"` / `"site"`), which
+ * is already unique across all three targets — no separate mapping table
+ * needed, and the wire-level `Target` strings are untouched.
+ */
+export function targetLabelKey(target: Target): string {
+  return target.split(".")[0];
+}
+
+/**
  * Mirror of `app/core/schema/types.py` (FIELD_TYPES / WIDGETS_BY_TYPE /
  * INDEXABLE_TYPES). Client-side only NARROWS the UI; the backend
  * (`FieldSpec._coherent`) is the sole authority and rejects an incoherent
