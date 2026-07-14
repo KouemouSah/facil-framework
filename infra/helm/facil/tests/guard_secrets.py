@@ -13,13 +13,20 @@ Invariants verifies sur TOUS les conteneurs (init inclus) de TOUS les manifests 
      un jusqu'a ce correctif : `redis-server --requirepass "$REDIS_PASSWORD"`
      interpole AVANT l'exec, la valeur finit dans l'argv du process resultant,
      lisible via /proc/<pid>/cmdline par tout process co-localise / EDR /
-     scraper d'audit -- meme canal deja ferme deux fois sur ce projet,
-     `kubectl create secret --from-literal` puis `psql -v app_pw=`). L'ancienne
-     garde (`test_render.sh`) ne cherchait que `-v app_pw=` -- structurellement
-     incapable d'attraper une AUTRE forme du meme canal (ex. `--requirepass`).
-     Voir CREDENTIAL_ARGV_MARKERS : denylist ouverte de motifs connus, pas une
-     analyse exhaustive (un futur programme avec un flag inedit resterait un
-     angle mort tant qu'il n'est pas ajoute ici).
+     scraper d'audit -- meme canal deja ferme trois fois sur ce projet,
+     `kubectl create secret --from-literal` puis `psql -v app_pw=` puis
+     `redis-server --requirepass`). L'ancienne garde (`test_render.sh`) ne
+     cherchait que `-v app_pw=` -- structurellement incapable d'attraper une
+     AUTRE forme du meme canal (ex. `--requirepass`). Voir
+     CREDENTIAL_ARGV_MARKERS/CREDENTIAL_ARGV_FLAG_PATTERNS : denylist OUVERTE
+     de motifs connus, pas une analyse exhaustive -- defense en profondeur,
+     pas une preuve d'absence (un futur programme avec un flag inedit
+     resterait un angle mort tant qu'il n'est pas ajoute ici). Une revue a
+     d'ailleurs demontre 3 contournements de la denylist initiale (voir
+     test_bypass1/2/3_* dans test_guard_secrets.py) : `-a"$VAR"` accole sans
+     espace (le marqueur substring `"-a "` suppose a tort un espace litteral),
+     une connection string inline dans l'argv (INLINE_CRED_RE n'etait
+     applique qu'aux `env[].value`), et `--pass` (absent de la liste).
 
 L'ancienne garde (grep) ratait : les connection strings (REDIS_URL/DATABASE_URL
 rendent en `value:`, jamais verifiees -- faux negatif le plus dangereux), ne
@@ -75,10 +82,28 @@ INLINE_CRED_RE = re.compile(r"://[^/\s:]*:(?!\$\()[^/\s@]+@")
 # parser -- meme convention que ALLOWED_LITERAL ci-dessus.
 CREDENTIAL_ARGV_MARKERS = (
     "--requirepass",   # redis-server (CLI) -- corrige dans redis.yaml (ce commit)
-    "--password",      # mysql/psql/... generique
-    "-a ",             # redis-cli/mysql `-a <valeur>` (espace = suivi d'une valeur)
+    "--password",      # psql/mysqladmin/... forme longue generique
+    "--pass",          # forme longue courte generique (ex. `mytool --pass "$SECRET"`)
     "-v app_pw=",      # psql -v (deja ferme dans db-role-job.yaml -- garde de non-regression)
     "PGPASSWORD=",     # assignation d'env INLINE dans la ligne de commande (PGPASSWORD=x psql ...)
+)
+
+# `-a`/`-p` sont des flags CLI courts qui vehiculent un credential quand une
+# valeur les suit IMMEDIATEMENT (`redis-cli -a "$PW"`, `redis-cli -a"$PW"`,
+# `mysql -p"$PW"`, `mysql -p$PW`) -- redis-cli utilise `-a`, mysql utilise
+# `-p` (PAS `-a` : cote client mysql, `-a` signifie mode ANSI, pas un mdp).
+# Mais `-a`/`-p` sont AUSSI des flags legitimes tres courants sans valeur
+# credential qui suit immediatement (`tar -a`, `cp -a`, `ls -a`,
+# `docker run -p 8080:80`) -- un simple substring `"-a "` les confondrait (et
+# les confondait : voir infra-debt-report.md, contournement demontre en
+# revue). On exige donc qu'un guillemet ou un `$` (forme quasi systematique
+# d'une valeur credential interpolee par un shell) suive IMMEDIATEMENT le
+# flag -- accole (`-a"$PW"`, `-a$PW`) ou apres un espace (`-a "$PW"`,
+# `-a $PW`) -- jamais un flag isole ou suivi d'un argument/port ordinaire
+# (`-a`, `-a -czf`, `-p 8080:80`, `-a /path`).
+CREDENTIAL_ARGV_FLAG_PATTERNS = (
+    ("-a ", re.compile(r'(?:^|\s)-a\s*["\'$]')),   # redis-cli -a"$PW" / -a $PW / -a "$PW"
+    ("-p ", re.compile(r'(?:^|\s)-p\s*["\'$]')),   # mysql -p"$PW" / -p$PW / -p "$PW"
 )
 
 
@@ -141,6 +166,19 @@ def check(stream: str) -> list[str]:
                         f"-- motif connu pour vehiculer un credential en argv "
                         f"(CWE-214), lisible via /proc/<pid>/cmdline par tout "
                         f"process co-localise.")
+            for label, pattern in CREDENTIAL_ARGV_FLAG_PATTERNS:
+                if pattern.search(argv_text):
+                    problems.append(
+                        f"{name}/{c.get('name')}: command/args contient `{label}` "
+                        f"suivi immediatement d'une valeur (guillemet/`$`) "
+                        f"-- motif connu pour vehiculer un credential en argv "
+                        f"(CWE-214), lisible via /proc/<pid>/cmdline par tout "
+                        f"process co-localise.")
+            if INLINE_CRED_RE.search(argv_text):
+                problems.append(
+                    f"{name}/{c.get('name')}: credential inline dans une URL "
+                    f"passee en command/args (scheme://user:pass@host) -- "
+                    f"meme risque CWE-214 qu'un `value:` d'env litteral.")
     return problems
 
 
