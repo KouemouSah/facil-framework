@@ -90,13 +90,25 @@ async def definitions_for(session: AsyncSession, target: str,
 
 
 async def count_for(session: AsyncSession, target: str, organization_id: str, *,
-                    indexed_only: bool = False) -> int:
+                    indexed_only: bool = False, include_archived: bool = False) -> int:
     """Count OWN definitions (caps are per-organisation — an org cannot be
-    penalised for what its parent defined)."""
+    penalised for what its parent defined).
+
+    `include_archived` defaults to `False` — the pre-existing meaning of this
+    function (see `test_count_for_excludes_archived_and_can_filter_indexed_only`)
+    is UNCHANGED for every caller that does not opt in. Pass `True` where the
+    caller means "how many rows does this org actually occupy", not "how many
+    rows are on the org's form right now" — the two differ precisely because
+    archive is a non-destructive flag flip (spec §3 principle 7: "rien n'est
+    détruit"), so an archived row still holds storage and the
+    `(organization_id, target, key)` unique constraint. `indexed_only` and
+    `include_archived` are independent axes; the caller decides both.
+    """
     stmt = select(func.count()).select_from(FieldDefinition).where(
         FieldDefinition.target == target,
-        FieldDefinition.organization_id == organization_id,
-        FieldDefinition.archived.is_(False))
+        FieldDefinition.organization_id == organization_id)
+    if not include_archived:
+        stmt = stmt.where(FieldDefinition.archived.is_(False))
     if indexed_only:
         stmt = stmt.where(FieldDefinition.indexed.is_(True))
     return (await session.execute(stmt)).scalar_one()

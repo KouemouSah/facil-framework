@@ -62,6 +62,22 @@ from app.security.permission_dep import enforce, visible_orgs
 # other tenant, and an unbounded set of `indexed` fields cannot force unbounded
 # concurrent index builds. Counted OWN definitions only (`repository.count_for`):
 # a child org is never penalised for what its parent already defined.
+#
+# The two caps count DIFFERENTLY on purpose (Fix wave 1 review finding):
+#   - MAX_FIELDS_PER_TARGET counts archived rows too (`include_archived=True`
+#     in `_check_field_cap`) — it bounds STORAGE and the `(org, target, key)`
+#     unique-constraint footprint, which an archived row still consumes
+#     (archive never destroys anything, spec §3 principle 7). Otherwise an
+#     org could create 50, archive all 50, create 50 more, forever. PURGE is
+#     the deliberate, explicit, audited escape valve — not archive.
+#   - MAX_INDEXED_PER_TARGET excludes archived rows — it bounds LIVE database
+#     indexes, and an archived field is not sortable, so it should not hold
+#     one. (Whether archiving actually DROPS the index is Task 14 work — see
+#     that task's notes; today `indexed`/`index_state` are metadata only,
+#     no DDL exists yet.)
+# `_set_archived` re-checks both on UNARCHIVE (not just on create/update) —
+# unarchiving pushes a row back into the counted-as-active set for whichever
+# cap excludes archived rows.
 MAX_FIELDS_PER_TARGET = 50
 MAX_INDEXED_PER_TARGET = 10
 
@@ -203,12 +219,22 @@ async def _check_field_cap(session: AsyncSession, target: str,
                            organization_id: str) -> None:
     """The 50-field cap. Checked on CREATE ONLY — an operation that adds no new
     field (e.g. flipping an existing one to `indexed`) must not be refused just
-    because the org is legitimately AT its limit."""
-    total = await schema_repo.count_for(session, target, organization_id)
+    because the org is legitimately AT its limit.
+
+    Counts ARCHIVED rows too (`include_archived=True`) — an archived row still
+    occupies storage and still holds the `(organization_id, target, key)`
+    unique constraint, so it must count against the cap that bounds total row
+    footprint. Without this, archive would be a free, repeatable way to reset
+    the cap: create 50, archive all 50, create 50 more, forever. PURGE is the
+    intended, explicit, audited way to actually free capacity.
+    """
+    total = await schema_repo.count_for(session, target, organization_id,
+                                        include_archived=True)
     if total >= MAX_FIELDS_PER_TARGET:
         raise HTTPException(
-            422, f"organization already has {total} field(s) on {target!r} "
-                 f"(max {MAX_FIELDS_PER_TARGET})")
+            422, f"organization already has {total} field(s) (including archived) "
+                 f"on {target!r} (max {MAX_FIELDS_PER_TARGET}); purge archived "
+                 "definitions to free capacity")
 
 
 async def _check_indexed_cap(session: AsyncSession, target: str,
@@ -401,11 +427,51 @@ async def update_definition(definition_id: str, body: FieldDefinitionIn,
     return _public(row)
 
 
+async def _check_unarchive_caps(session: AsyncSession, row: FieldDefinition) -> None:
+    """Un-archiving pushes `row` back into the counted-as-active set. Both
+    caps are re-checked with ACTIVE-only counts (`count_for`'s default,
+    archived excluded) — "does putting this row back on the form exceed the
+    cap", independent of how the row came to be archived.
+
+    TOTAL cap: in steady state this is structurally hard to hit — since
+    `_check_field_cap` now counts archived rows too, an org's total row count
+    can never exceed `MAX_FIELDS_PER_TARGET`, and active rows are a subset of
+    total rows. It is kept anyway as defence-in-depth for any org whose total
+    already exceeded the cap from BEFORE this fix shipped — which is exactly
+    the state the pre-fix exploit (archive-then-create in a loop) could have
+    left behind.
+
+    INDEXED cap: this is the one an org can concretely still hit post-fix,
+    precisely BECAUSE the indexed cap deliberately excludes archived rows
+    (see the constants' docstring above): fill the 10-indexed cap, archive
+    one indexed field (frees a slot for `count_for(indexed_only=True)`),
+    create a replacement indexed field to refill to 10, then un-archive the
+    first one — active-indexed count would go to 11 without this check.
+    """
+    active_total = await schema_repo.count_for(session, row.target, row.organization_id)
+    if active_total >= MAX_FIELDS_PER_TARGET:
+        raise HTTPException(
+            422, f"organization already has {active_total} active field(s) on "
+                 f"{row.target!r} (max {MAX_FIELDS_PER_TARGET}); purge archived "
+                 "definitions to free capacity")
+    if row.indexed:
+        active_indexed = await schema_repo.count_for(
+            session, row.target, row.organization_id, indexed_only=True)
+        if active_indexed >= MAX_INDEXED_PER_TARGET:
+            raise HTTPException(
+                422, f"organization already has {active_indexed} indexed field(s) "
+                     f"on {row.target!r} (max {MAX_INDEXED_PER_TARGET}); purge "
+                     "archived indexed definitions or un-index another field "
+                     "before restoring this one")
+
+
 async def _set_archived(definition_id: str, request: Request, principal: dict,
                         session: AsyncSession, *, archived: bool, action: str) -> dict:
     row = await _get_or_404(session, definition_id)
     await _authorize_target(session, principal, row.organization_id)
     enforce_if_match(request, row_etag(row))
+    if not archived and row.archived:
+        await _check_unarchive_caps(session, row)
     row.archived = archived
     row.updated_by = principal.get("sub")
     await audit.record(session, action, account_id=principal.get("sub"),

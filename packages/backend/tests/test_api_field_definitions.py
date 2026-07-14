@@ -758,6 +758,83 @@ async def test_party_empty_custom_fields_clear_requires_the_org(client, org_a,
     assert cleared.json()["custom_fields"] == {}
 
 
+# --- Cap bypass via archive/unarchive (Fix wave 1 review finding) ----------
+
+@pytest.mark.asyncio
+async def test_archive_then_create_cannot_bypass_the_field_cap(
+        client, session, org_a, admin_headers, seed_50_fields):
+    """The caps exist so ONE org cannot saturate the DB for every other
+    tenant. Archived rows still occupy storage and still hold the
+    (org, target, key) unique constraint — so they must count against the
+    total cap. Purge is the deliberate escape valve, not archive."""
+    from sqlalchemy import update
+
+    from app.models.field_definition import FieldDefinition
+
+    await session.execute(
+        update(FieldDefinition)
+        .where(FieldDefinition.organization_id == org_a.id)
+        .values(archived=True))
+    await session.commit()
+
+    r = await client.post(
+        f"/api/v1/admin/field-definitions/?organization_id={org_a.id}",
+        json=_body(key="one_more_after_archiving_all"), headers=admin_headers)
+    assert r.status_code == 422 and "50" in r.text, r.text
+
+
+@pytest.mark.asyncio
+async def test_unarchiving_beyond_the_active_cap_is_refused(
+        client, org_a, admin_headers, seed_10_indexed_fields):
+    """Un-archiving pushes a field back into the ACTIVE set. Under the chosen
+    fix (archived rows do NOT count against the INDEXED cap — an archived
+    field is not sortable, so it should not hold a live index), the indexed
+    cap can be quietly exceeded via archive/refill/unarchive unless
+    `_set_archived` re-checks it: fill the 10-indexed cap, archive one
+    indexed field (frees a slot), create a new indexed field to refill to 10,
+    then unarchive the first one — that pushes ACTIVE indexed count to 11 and
+    must be refused, not silently allowed."""
+    listed = await client.get(
+        f"/api/v1/admin/field-definitions/?organization_id={org_a.id}",
+        headers=admin_headers)
+    victim = listed.json()["items"][0]
+
+    arch = await client.post(
+        f"/api/v1/admin/field-definitions/{victim['id']}/archive",
+        headers=admin_headers)
+    assert arch.status_code == 200, arch.text
+
+    refill = await client.post(
+        f"/api/v1/admin/field-definitions/?organization_id={org_a.id}",
+        json=_body(key="refill_indexed", indexed=True), headers=admin_headers)
+    assert refill.status_code == 201, refill.text
+
+    unarch = await client.post(
+        f"/api/v1/admin/field-definitions/{victim['id']}/unarchive",
+        headers=admin_headers)
+    assert unarch.status_code == 422 and "10" in unarch.text, unarch.text
+
+
+@pytest.mark.asyncio
+async def test_purging_frees_capacity(client, org_a, admin_headers, seed_50_fields):
+    """Purge is the explicit, audited "I really mean it" operation — the
+    escape valve archive deliberately is not."""
+    listed = await client.get(
+        f"/api/v1/admin/field-definitions/?organization_id={org_a.id}",
+        headers=admin_headers)
+    victim = listed.json()["items"][0]
+
+    purge = await client.post(
+        f"/api/v1/admin/field-definitions/{victim['id']}/purge",
+        headers=admin_headers)
+    assert purge.status_code == 200, purge.text
+
+    r = await client.post(
+        f"/api/v1/admin/field-definitions/?organization_id={org_a.id}",
+        json=_body(key="after_purge"), headers=admin_headers)
+    assert r.status_code == 201, r.text
+
+
 @pytest.mark.asyncio
 async def test_party_write_still_requires_a_global_grant(client, _env, org_a):
     """The custom-fields param on party MUST NOT be named `organization_id`.
