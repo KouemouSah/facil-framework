@@ -56,20 +56,33 @@ def covers(assignment: Scope, request: Scope) -> bool:
 
 
 def _pick(request: Request, *keys: str) -> str | None:
-    """First non-empty value among the request's path then query params."""
+    """First non-empty value among the request's PATH params.
+
+    SECURITY (confused-deputy fix, see rbac-confused-deputy-report.md): this
+    used to also fall back to the QUERY STRING when no path param matched. The
+    query string is caller-controlled free text with no binding to which row
+    the request actually targets — a caller could append e.g.
+    `?organization_id=<their own org>` to any id-addressed route (PUT
+    /sites/{site_id}, PUT /units/{unit_id}, PUT /parties/{pid}, ...) and have
+    `resolve_scope`/`covers()` authorize a write against a row they don't own.
+    A PATH param, by contrast, is bound by FastAPI's routing to the actual URL
+    being called, so it is safe to trust as a scope hint (`resolve_scope` still
+    re-derives the org from the row itself when one exists — see there). No
+    caller of `raw_scope_ids` relies on the query fallback for a legitimate
+    body/row-scoped write; those routes (create_site, create_organization,
+    bulk-status, ...) build their `raw` dict explicitly from the request body
+    or the fetched row, not from this helper.
+    """
     for key in keys:
         val = request.path_params.get(key)
         if val:
             return str(val)
-    for key in keys:
-        val = request.query_params.get(key)
-        if val:
-            return val
     return None
 
 
 def raw_scope_ids(request: Request) -> dict[str, str | None]:
-    """Extract the scope-bearing ids from the request (path + query), no DB hit.
+    """Extract the scope-bearing ids from the request's PATH (no query string,
+    no DB hit — see `_pick`).
 
     Maps the route conventions used across the API:
     org_id|organization_id -> org; unit_id|org_unit_id -> unit; site_id -> site.
