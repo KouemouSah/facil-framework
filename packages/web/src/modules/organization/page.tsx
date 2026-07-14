@@ -16,7 +16,7 @@ import { useServerTable, type ServerPage } from "@/lib/use-server-table";
 import { usePermissions } from "@/lib/use-permissions";
 import { useState } from "react";
 import { flattenCustomInitial, splitCustomPayload } from "@/modules/fields/fields";
-import { ORG_BASE_KEYS, useOrgFields } from "./fields";
+import { ORG_BASE_KEYS, useOrgFields, useOrgFieldsSchemaError } from "./fields";
 import { DocumentIdentityForm } from "./document-identity-form";
 import { OrganizationSettingsForm } from "./settings-form";
 import {
@@ -207,11 +207,16 @@ function OrgEditSurface({ orgId, onClose, readOnly }: { orgId: string; onClose: 
   const t = useTranslations("organizations");
   const qc = useQueryClient();
   const fields = useOrgFields(orgId);
+  const customFieldsError = useOrgFieldsSchemaError(orgId);
   const [tab, setTab] = useState<OrgTab>("details");
-  const { data, isError } = useQuery<Record<string, unknown>>({
+  const { data, isError: rowError } = useQuery<Record<string, unknown>>({
     queryKey: ["org", orgId],
     queryFn: () => getOrg(orgId),
   });
+  // IMPORTANT-4 fix: a failed custom-fields schema load must surface too, not
+  // just a failed row load — otherwise the form silently renders with no
+  // custom fields and no error state.
+  const isError = rowError || customFieldsError;
 
   const title = (data?.display_name as string) || (data?.legal_name as string) || t("edit_title");
   const etag = data?.etag ? String(data.etag) : undefined;
@@ -244,8 +249,22 @@ function OrgEditSurface({ orgId, onClose, readOnly }: { orgId: string; onClose: 
 
           {tab === "details" ? (
             <RecordForm
-              // Remount on a fresh load (post-save / post-conflict) to reseed initial + etag.
-              key={String(etag ?? orgId)}
+              // `fields.length` in the key (not just the row's etag) — CRITICAL
+              // fix (final fix wave): `useOrgFields(orgId)` merges in the ASYNC
+              // `GET /schema/organization.custom_fields` schema. RecordForm seeds
+              // its `values` state ONCE, from whatever `fields` it was first
+              // mounted with (a lazy `useState` initializer, not an effect). If
+              // the schema resolves AFTER this surface's first render (a real
+              // race on first open), the form mounts base-fields-only, the
+              // custom-field controls then appear — but blank — and
+              // `buildPayload` posts `null` for each -> `merge_blob` REMOVES
+              // those declared keys -> the stored custom-field values are
+              // silently ERASED on save. Same root cause, same fix, as Site
+              // (`modules/location/page.tsx`) and Org Unit (`modules/org-unit/
+              // page.tsx`): include `fields.length` so a remount happens the
+              // moment the async schema finishes loading, forcing a fresh
+              // `values` seed from `initial` using the now-complete `fields`.
+              key={`${String(etag ?? orgId)}-${fields.length}`}
               fields={fields}
               mode="edit"
               layout="rich"

@@ -1,0 +1,35 @@
+{
+  "_comment": "MINORS fix (final fix wave): contract fixture pinning the hand-mirrored type tables (FIELD_TYPES / WIDGETS_BY_TYPE / INDEXABLE_TYPES / RELATION_RESOURCES) shared between app/core/schema/types.py + reserved.py (backend, source of truth) and modules/fields/fields.ts (frontend, hand-duplicated mirror with a 'keep in sync' comment and no test until now). ONE committed JSON, asserted against from BOTH sides — packages/backend/tests/test_field_type_contract_fixture.py (backend) and modules/fields/fields.test.ts (frontend). Update this file by hand, in the SAME commit as any backend types.py/reserved.py change; both tests fail on drift instead of an admin hitting an unexplained 422.",
+  "FIELD_TYPES": [
+    "string", "text", "richtext",
+    "number", "decimal", "money",
+    "boolean",
+    "date", "datetime", "time",
+    "select", "multiselect",
+    "relation",
+    "file",
+    "json"
+  ],
+  "WIDGETS_BY_TYPE": {
+    "string": ["plain", "email", "password", "url", "phone", "color", "timezone", "badge", "copyable", "masked"],
+    "text": ["plain", "code"],
+    "richtext": ["editor"],
+    "number": ["plain", "percent", "rating", "progress", "slider"],
+    "decimal": ["plain", "percent"],
+    "money": ["plain"],
+    "boolean": ["checkbox", "switch"],
+    "date": ["date", "month", "quarter", "year"],
+    "datetime": ["datetime"],
+    "time": ["time"],
+    "select": ["dropdown", "radio", "segmented"],
+    "multiselect": ["tags", "checkboxes"],
+    "relation": ["combobox", "radio", "cards"],
+    "file": ["document", "image", "avatar", "gallery"],
+    "json": ["raw", "weekly_hours"]
+  },
+  "INDEXABLE_TYPES": [
+    "string", "text", "number", "decimal", "money", "boolean",
+    "date", "datetime", "time", "select", "relation"
+  ],
+  "RELATION_RESOURCES": ["countries", "currencies", "regions"]
+}

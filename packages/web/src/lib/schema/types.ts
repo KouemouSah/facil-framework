@@ -47,6 +47,12 @@ export interface FieldSpec {
   order: number;
   col_span: number;
   indexed: boolean;
+  // MINORS fix (final fix wave): `as_spec()` (models/field_definition.py)
+  // has always carried this on the wire — omitting it here contradicted this
+  // file's own "exact mirror" claim above and left every caller unable to
+  // type `spec.index_state` (e.g. `sortable_keys`-equivalent client logic)
+  // without an `as unknown as` cast.
+  index_state: "none" | "pending" | "ready" | "failed";
 }
 
 /** Pick a localised string, falling back to English then to the raw key. */

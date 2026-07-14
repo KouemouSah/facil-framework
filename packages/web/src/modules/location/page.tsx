@@ -16,7 +16,7 @@ import { useFirstOrg } from "@/lib/use-organizations";
 import { useServerTable, type ServerPage } from "@/lib/use-server-table";
 import { usePermissions } from "@/lib/use-permissions";
 import { flattenCustomInitial, splitCustomPayload } from "@/modules/fields/fields";
-import { SITE_BASE_KEYS, useSiteFields } from "./fields";
+import { SITE_BASE_KEYS, useSiteFields, useSiteFieldsSchemaError } from "./fields";
 import {
   SITE_BASE, createSite, deleteSite, getSite, listSites, updateSite, type Site,
 } from "./api";
@@ -193,8 +193,10 @@ function SiteCreateSurface({ orgId, onClose, onCreated }: {
   const t = useTranslations("sites");
   const qc = useQueryClient();
   const fields = useSiteFields(orgId);
+  const customFieldsError = useSiteFieldsSchemaError(orgId);
   return (
     <RecordSurface title={t("new_title")} resourceKey="sites" mode="page" onClose={onClose}>
+      {customFieldsError && <p className="text-sm text-destructive">{t("load_error")}</p>}
       <RecordForm
         fields={fields}
         mode="create"
@@ -229,10 +231,14 @@ function SiteEditSurface({ siteId, orgId, onClose, readOnly }: {
   const t = useTranslations("sites");
   const qc = useQueryClient();
   const fields = useSiteFields(orgId);
-  const { data, isError } = useQuery<Record<string, unknown>>({
+  const customFieldsError = useSiteFieldsSchemaError(orgId);
+  const { data, isError: rowError } = useQuery<Record<string, unknown>>({
     queryKey: ["site", siteId],
     queryFn: () => getSite(siteId),
   });
+  // IMPORTANT-4 fix: surface a failed custom-fields schema load too, not just
+  // a failed row load.
+  const isError = rowError || customFieldsError;
 
   return (
     <RecordSurface

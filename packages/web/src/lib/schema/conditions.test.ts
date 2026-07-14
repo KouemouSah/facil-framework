@@ -7,6 +7,7 @@ const base: FieldSpec = {
   key: "vat_no", type: "string", widget: "plain", label: L, hint: {},
   required: false, default: null, options: [], relation_resource: "",
   relation_filter: {}, group: "", order: 0, col_span: 1, indexed: false,
+  index_state: "none",
   rules: {
     visible_if: { field: "taxable", op: "eq", value: true },
     required_if: { field: "taxable", op: "eq", value: true },

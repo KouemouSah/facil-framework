@@ -51,6 +51,34 @@ export const FIELD_SPEC_TYPES: FieldSpecType[] = [
   "json",
 ];
 
+// IMPORTANT-1 fix (final fix wave): `RecordForm` (`components/ui/record-form.
+// tsx`) has no control for `money` (needs a `{amount, currency}` object) or
+// `multiselect` (needs a list) — both fall through to the default single-line
+// `<Input>`, which posts a plain STRING. The server's `_coerce`
+// (pydantic_gen.py) then rejects every save of the host entity with a 422 the
+// admin cannot fix from the UI (the only escape is archiving the field) — a
+// guaranteed-broken capability the Studio must not advertise (repo parity
+// rule: no UI toward a capability that cannot work). `FIELD_SPEC_TYPES`
+// itself stays the full backend mirror (used by `INDEXABLE_TYPES`/
+// `WIDGETS_BY_TYPE`, and by `widgetsFor` for a pre-existing money/multiselect
+// definition still being edited) — only the Studio's CREATE picker narrows.
+const STUDIO_UNSUPPORTED_TYPES: readonly FieldSpecType[] = ["money", "multiselect"];
+
+// The types RecordForm can actually round-trip end-to-end today (every type
+// EXCEPT the two above) — kept as an explicit, separately-testable constant
+// (`fields.test.ts` pins `STUDIO_OFFERED_TYPES` as a SUBSET of this) rather
+// than only ever expressed as "FIELD_SPEC_TYPES minus the unsupported ones",
+// so a future type added to `FIELD_SPEC_TYPES` without RecordForm support
+// fails that test instead of silently becoming offerable.
+export const RECORD_FORM_ROUND_TRIPPABLE_TYPES: FieldSpecType[] =
+  FIELD_SPEC_TYPES.filter((t) => !STUDIO_UNSUPPORTED_TYPES.includes(t));
+
+// What the Studio's "New field" `type` picker offers for a NEW field. An
+// EXISTING field already carrying an unsupported type (created before this
+// fix, or via a direct API call) is still fully editable — see
+// `buildFieldDefFields`'s `seedType` handling below, which re-admits it.
+export const STUDIO_OFFERED_TYPES: FieldSpecType[] = RECORD_FORM_ROUND_TRIPPABLE_TYPES;
+
 export const WIDGETS_BY_TYPE: Record<FieldSpecType, string[]> = {
   string: ["plain", "email", "password", "url", "phone", "color", "timezone", "badge", "copyable", "masked"],
   text: ["plain", "code"],
@@ -95,9 +123,11 @@ export function widgetsFor(type: string): string[] {
 
 // English-fallback options (mirrors SITE_TYPES/PARTY_TYPES convention) — the
 // raw constant a pure test can assert on; `buildFieldDefFields` overlays the
-// localized label at the point of use.
+// localized label at the point of use. Studio-offered set only (see
+// `STUDIO_OFFERED_TYPES` above) — `buildFieldDefFields` re-admits `seedType`
+// for editing a pre-existing money/multiselect definition.
 export const TYPE_OPTIONS: { value: FieldSpecType; label: string }[] =
-  FIELD_SPEC_TYPES.map((t) => ({ value: t, label: t }));
+  STUDIO_OFFERED_TYPES.map((t) => ({ value: t, label: t }));
 
 // --- Pure locale lookup (no React hook — this module is imported by a plain
 // vitest test with no component tree, and `buildFieldDefFields` must work
@@ -142,7 +172,15 @@ const KEY_RE = /^[a-z][a-z0-9_]{0,59}$/;
  */
 export function buildFieldDefFields(locale: Locale, seedType?: FieldSpecType): FieldDef[] {
   const t = (k: string) => ft(locale, `fields.f.${k}`);
-  const typeOptions = TYPE_OPTIONS.map((o) => ({ value: o.value, label: ft(locale, `fields.type.${o.value}`) }));
+  // `seedType` re-admitted even when it's outside `STUDIO_OFFERED_TYPES`: an
+  // EXISTING field of an unsupported type (money/multiselect — created before
+  // this fix, or via a direct API call) must stay editable. Without this, its
+  // `type` <select> would render with no matching option and silently coerce
+  // to whichever type happens to render first on save — corrupting the
+  // definition, not just hiding a create-time choice.
+  const offeredTypes = seedType && !STUDIO_OFFERED_TYPES.includes(seedType)
+    ? [...STUDIO_OFFERED_TYPES, seedType] : STUDIO_OFFERED_TYPES;
+  const typeOptions = offeredTypes.map((v) => ({ value: v, label: ft(locale, `fields.type.${v}`) }));
   const widgetChoices = seedType ? widgetsFor(seedType) : ALL_WIDGETS;
 
   return [

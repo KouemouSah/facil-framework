@@ -6,7 +6,7 @@ const L = { en: "X", fr: "X", es: "X" };
 const spec = (over: Partial<FieldSpec>): FieldSpec => ({
   key: "f", type: "string", widget: "plain", label: L, hint: {}, required: false,
   default: null, rules: {}, options: [], relation_resource: "", relation_filter: {},
-  group: "", order: 0, col_span: 1, indexed: false, ...over,
+  group: "", order: 0, col_span: 1, indexed: false, index_state: "none", ...over,
 });
 
 describe("rulesToZod", () => {

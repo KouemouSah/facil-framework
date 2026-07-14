@@ -6,7 +6,6 @@ import { RecordForm } from "@/components/ui/record-form";
 import { getSchema } from "@/lib/schema/api";
 import { fieldSpecToFieldDef } from "@/lib/schema/to-field-def";
 import type { Locale } from "@/lib/schema/types";
-import { usePermissions } from "@/lib/use-permissions";
 import { updateOrg } from "./api";
 
 /**

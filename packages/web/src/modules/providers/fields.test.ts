@@ -13,16 +13,16 @@ const L = (s: string) => ({ en: s, fr: s, es: s });
 const SCHEMA: ConfigField[] = [
   { key: "endpoint", type: "string", widget: "plain", label: L("Endpoint"), hint: L("http://minio:9000"),
     required: false, default: null, rules: {}, options: [], relation_resource: "", relation_filter: {},
-    group: "", order: 0, col_span: 1, indexed: false },
+    group: "", order: 0, col_span: 1, indexed: false, index_state: "none" },
   { key: "port", type: "number", widget: "plain", label: L("Port"), hint: {},
     required: false, default: 587, rules: {}, options: [], relation_resource: "", relation_filter: {},
-    group: "", order: 0, col_span: 1, indexed: false },
+    group: "", order: 0, col_span: 1, indexed: false, index_state: "none" },
   { key: "use_tls", type: "boolean", widget: "checkbox", label: L("Use TLS"), hint: {},
     required: false, default: true, rules: {}, options: [], relation_resource: "", relation_filter: {},
-    group: "", order: 0, col_span: 1, indexed: false },
+    group: "", order: 0, col_span: 1, indexed: false, index_state: "none" },
   { key: "paths", type: "json", widget: "raw", label: L("Paths"), hint: {},
     required: false, default: ["boot"], rules: {}, options: [], relation_resource: "", relation_filter: {},
-    group: "", order: 0, col_span: 1, indexed: false },
+    group: "", order: 0, col_span: 1, indexed: false, index_state: "none" },
 ];
 
 describe("configFieldToFieldDef", () => {

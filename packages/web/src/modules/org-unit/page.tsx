@@ -40,14 +40,28 @@ const UNIT_BASE_KEYS = [
  * `useSiteFields`/`useOrgFields` exactly (same hook shape, same
  * `getSchema` + `fieldSpecToFieldDef` merge, base fields first then custom).
  */
-function useUnitFields(parents: OrgUnit[], organizationId?: string): FieldDef[] {
-  const t = useTranslations("org_units");
-  const locale = useLocale() as Locale;
-  const schema = useQuery({
+function useUnitCustomFieldsSchema(organizationId?: string) {
+  return useQuery({
     queryKey: ["schema", "org_unit.custom_fields", organizationId],
     queryFn: () => getSchema("org_unit.custom_fields", organizationId),
     enabled: Boolean(organizationId),
   });
+}
+
+/**
+ * IMPORTANT-4 fix (final fix wave): see `organization/fields.ts:
+ * useOrgFieldsSchemaError`'s docstring — identical fix, identical reasoning.
+ * Same react-query cache entry as `useUnitFields` below (same `queryKey`), no
+ * extra network request.
+ */
+function useUnitFieldsSchemaError(organizationId?: string): boolean {
+  return useUnitCustomFieldsSchema(organizationId).isError;
+}
+
+function useUnitFields(parents: OrgUnit[], organizationId?: string): FieldDef[] {
+  const t = useTranslations("org_units");
+  const locale = useLocale() as Locale;
+  const schema = useUnitCustomFieldsSchema(organizationId);
   const custom = (schema.data?.fields ?? []).map((s) => fieldSpecToFieldDef(s, locale));
 
   const base: FieldDef[] = [
@@ -212,8 +226,10 @@ function UnitCreateSurface({ orgId, units, presetParent, onClose, onSaved }: {
   const t = useTranslations("org_units");
   const qc = useQueryClient();
   const fields = useUnitFields(validParents(units), orgId);
+  const customFieldsError = useUnitFieldsSchemaError(orgId);
   return (
     <RecordSurface title={t("new_title")} resourceKey="org-units" onClose={onClose}>
+      {customFieldsError && <p className="text-sm text-destructive">{t("load_error")}</p>}
       <RecordForm
         fields={fields}
         mode="create"
@@ -246,8 +262,12 @@ function UnitEditSurface({ unitId, orgId, units, readOnly, onClose }: {
 }) {
   const t = useTranslations("org_units");
   const qc = useQueryClient();
-  const { data, isError } = useQuery({ queryKey: ["org-unit", unitId], queryFn: () => getUnit(unitId) });
+  const { data, isError: rowError } = useQuery({ queryKey: ["org-unit", unitId], queryFn: () => getUnit(unitId) });
   const fields = useUnitFields(validParents(units, unitId), orgId);
+  const customFieldsError = useUnitFieldsSchemaError(orgId);
+  // IMPORTANT-4 fix: surface a failed custom-fields schema load too, not just
+  // a failed row load.
+  const isError = rowError || customFieldsError;
 
   return (
     <RecordSurface title={data ? `${data.code} · ${data.name}` : t("edit_title")} resourceKey="org-units" onClose={onClose}>

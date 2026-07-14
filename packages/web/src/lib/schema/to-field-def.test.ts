@@ -6,7 +6,7 @@ const L = { en: "Amount", fr: "Montant", es: "Importe" };
 const spec = (over: Partial<FieldSpec>): FieldSpec => ({
   key: "amount", type: "money", widget: "plain", label: L, hint: {}, required: true,
   default: null, rules: {}, options: [], relation_resource: "", relation_filter: {},
-  group: "billing", order: 2, col_span: 2, indexed: true, ...over,
+  group: "billing", order: 2, col_span: 2, indexed: true, index_state: "none", ...over,
 });
 
 describe("fieldSpecToFieldDef", () => {

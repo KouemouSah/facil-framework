@@ -48,6 +48,24 @@ export const SITE_FIELD_SPECS: Omit<FieldDef, "label" | "hint">[] = [
 
 const HINTED = new Set(["code", "operating_hours", "metadata"]);
 
+function useSiteCustomFieldsSchema(organizationId?: string) {
+  return useQuery({
+    queryKey: ["schema", "site.custom_fields", organizationId],
+    queryFn: () => getSchema("site.custom_fields", organizationId),
+    enabled: Boolean(organizationId),
+  });
+}
+
+/**
+ * IMPORTANT-4 fix (final fix wave): see `organization/fields.ts:
+ * useOrgFieldsSchemaError`'s docstring — identical fix, identical reasoning.
+ * Same react-query cache entry as `useSiteFields` below (same `queryKey`), no
+ * extra network request.
+ */
+export function useSiteFieldsSchemaError(organizationId?: string): boolean {
+  return useSiteCustomFieldsSchema(organizationId).isError;
+}
+
 /**
  * `organizationId` (Task 15) merges in this org's `site.custom_fields`
  * definitions, resolved server-side (`GET /api/v1/schema/site.custom_fields`)
@@ -58,11 +76,7 @@ const HINTED = new Set(["code", "operating_hours", "metadata"]);
 export function useSiteFields(organizationId?: string): FieldDef[] {
   const t = useTranslations("sites.f");
   const locale = useLocale() as Locale;
-  const schema = useQuery({
-    queryKey: ["schema", "site.custom_fields", organizationId],
-    queryFn: () => getSchema("site.custom_fields", organizationId),
-    enabled: Boolean(organizationId),
-  });
+  const schema = useSiteCustomFieldsSchema(organizationId);
   const custom = (schema.data?.fields ?? []).map((s) => fieldSpecToFieldDef(s, locale));
 
   const base = SITE_FIELD_SPECS.map((s) => ({

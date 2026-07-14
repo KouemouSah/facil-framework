@@ -93,7 +93,11 @@ async def create_party(body: schemas.PartyIn,
     if body.custom_fields:
         _reject_custom_fields(body.custom_fields)
     row = Party(**body.model_dump())
-    return await _save_new(session, row, entity="party")
+    # MINORS fix (final fix wave): `entity="party"` was dead — `_save_new`
+    # only ever reads `entity` inside its `if principal is not None:` branch
+    # (for the audit-record `detail`), and this call site never passes
+    # `principal` (defaults to `None`), so the value never had any effect.
+    return await _save_new(session, row)
 
 
 @router.get("/parties/{pid}", dependencies=[_READ])

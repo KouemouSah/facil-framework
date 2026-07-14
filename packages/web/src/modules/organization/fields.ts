@@ -40,6 +40,30 @@ export const ORG_FIELD_SPECS: Omit<FieldDef, "label" | "hint">[] = [
 // Fields that carry an explanatory hint (localized as `<name>_hint`).
 const HINTED = new Set(["code", "party_id", "parent_id"]);
 
+function useOrgCustomFieldsSchema(organizationId?: string) {
+  return useQuery({
+    queryKey: ["schema", "organization.custom_fields", organizationId],
+    queryFn: () => getSchema("organization.custom_fields", organizationId),
+    enabled: Boolean(organizationId),
+  });
+}
+
+/**
+ * IMPORTANT-4 fix (final fix wave): a 404/500 on `GET /schema/organization.
+ * custom_fields` used to be swallowed by `schema.data?.fields ?? []` — the
+ * form would silently render with NO custom fields and no error state,
+ * indistinguishable from "this org genuinely has none defined". Exposed
+ * separately (not baked into `useOrgFields`'s `FieldDef[]` return, which
+ * every existing call site destructures directly) so the surface can render
+ * the SAME inline error banner it already uses for its own row load
+ * (`{isError && <p className="text-destructive">…}`) — same react-query
+ * cache entry as `useOrgFields` below (same `queryKey`), so this costs no
+ * extra network request.
+ */
+export function useOrgFieldsSchemaError(organizationId?: string): boolean {
+  return useOrgCustomFieldsSchema(organizationId).isError;
+}
+
 /**
  * `organizationId` (Task 15) merges in `organization.custom_fields`
  * definitions scoped to THIS org, i.e. its OWN id — never available on
@@ -49,11 +73,7 @@ const HINTED = new Set(["code", "party_id", "parent_id"]);
 export function useOrgFields(organizationId?: string): FieldDef[] {
   const t = useTranslations("organizations.f");
   const locale = useLocale() as Locale;
-  const schema = useQuery({
-    queryKey: ["schema", "organization.custom_fields", organizationId],
-    queryFn: () => getSchema("organization.custom_fields", organizationId),
-    enabled: Boolean(organizationId),
-  });
+  const schema = useOrgCustomFieldsSchema(organizationId);
   const custom = (schema.data?.fields ?? []).map((s) => fieldSpecToFieldDef(s, locale));
 
   const base = ORG_FIELD_SPECS.map((s) => ({

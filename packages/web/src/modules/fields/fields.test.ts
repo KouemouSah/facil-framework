@@ -1,14 +1,63 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildDefinitionPayload, buildFieldDefFields, canRenderCreateSurface, flattenDefinition,
-  isSortable, splitCustomPayload, targetLabelKey, TARGETS, TYPE_OPTIONS, widgetsFor,
+  buildDefinitionPayload, buildFieldDefFields, canRenderCreateSurface, FIELD_SPEC_TYPES,
+  flattenDefinition, isSortable, INDEXABLE_TYPES, RECORD_FORM_ROUND_TRIPPABLE_TYPES,
+  RELATION_RESOURCES, splitCustomPayload, STUDIO_OFFERED_TYPES, targetLabelKey, TARGETS,
+  TYPE_OPTIONS, WIDGETS_BY_TYPE, widgetsFor,
 } from "./fields";
 import type { Definition } from "./api";
+import backendContract from "./__fixtures__/backend-field-contract.json";
+
+// MINORS fix (final fix wave): the contract test pinning the hand-mirrored
+// type tables against the backend. See `packages/backend/tests/
+// test_field_type_contract_fixture.py`'s module docstring for the mechanism
+// (one shared JSON fixture, asserted against from both sides, no live
+// network call). This half pins the TS mirror; the backend half pins the
+// fixture itself against the live Python constants.
+describe("hand-mirrored type tables match the backend contract fixture", () => {
+  it("FIELD_TYPES", () => {
+    expect(FIELD_SPEC_TYPES).toEqual(backendContract.FIELD_TYPES);
+  });
+  it("WIDGETS_BY_TYPE", () => {
+    expect(WIDGETS_BY_TYPE).toEqual(backendContract.WIDGETS_BY_TYPE);
+  });
+  it("INDEXABLE_TYPES", () => {
+    expect(new Set(INDEXABLE_TYPES)).toEqual(new Set(backendContract.INDEXABLE_TYPES));
+  });
+  it("RELATION_RESOURCES", () => {
+    expect(new Set(RELATION_RESOURCES)).toEqual(new Set(backendContract.RELATION_RESOURCES));
+  });
+});
 
 describe("the field-creation form is itself schema-driven", () => {
-  it("offers exactly the 15 types", () => {
-    expect(TYPE_OPTIONS).toHaveLength(15);
+  it("offers exactly the 13 types RecordForm can actually save (money/multiselect excluded)", () => {
+    expect(TYPE_OPTIONS).toHaveLength(13);
     expect(TYPE_OPTIONS.map((o) => o.value)).toContain("relation");
+  });
+
+  it("never offers money or multiselect — RecordForm cannot round-trip either (IMPORTANT-1 fix)", () => {
+    const offered = TYPE_OPTIONS.map((o) => o.value);
+    expect(offered).not.toContain("money");
+    expect(offered).not.toContain("multiselect");
+  });
+
+  it("the Studio's offered set is a SUBSET of what RecordForm can round-trip", () => {
+    // The parity rule, pinned: never advertise a type the form cannot save.
+    // Also guards the reverse drift — a future type added to FIELD_SPEC_TYPES
+    // (the backend mirror) without RecordForm support must fail here, not
+    // become silently offerable.
+    for (const t of STUDIO_OFFERED_TYPES) {
+      expect(RECORD_FORM_ROUND_TRIPPABLE_TYPES).toContain(t);
+    }
+  });
+
+  it("STUDIO_OFFERED_TYPES + money/multiselect together still cover all 15 backend types", () => {
+    // money/multiselect are excluded from the PICKER, not from the backend
+    // contract (document_identity still uses them) — this pins that the
+    // narrowing removed exactly those two, nothing more.
+    const covered = new Set([...STUDIO_OFFERED_TYPES, "money", "multiselect"]);
+    expect(covered.size).toBe(FIELD_SPEC_TYPES.length);
+    for (const t of FIELD_SPEC_TYPES) expect(covered.has(t)).toBe(true);
   });
 
   it("narrows the widget list to the selected type", () => {
@@ -20,6 +69,18 @@ describe("the field-creation form is itself schema-driven", () => {
   it("marks key immutable in edit mode (renaming would orphan stored values)", () => {
     const def = buildFieldDefFields("en").find((f) => f.name === "key");
     expect(def?.immutable).toBe(true);
+  });
+
+  it("re-admits seedType into the type picker even when it's money/multiselect", () => {
+    // An EXISTING money/multiselect definition (created before this fix, or
+    // via a direct API call) must stay editable — its `type` <select> must
+    // still offer its own current value, or saving the form would silently
+    // coerce it to whatever renders first.
+    const moneyField = buildFieldDefFields("en", "money").find((f) => f.name === "type");
+    expect(moneyField?.selectOptions?.map((o) => o.value)).toContain("money");
+    // A NEW field (no seedType) never gets the unsupported option.
+    const newField = buildFieldDefFields("en").find((f) => f.name === "type");
+    expect(newField?.selectOptions?.map((o) => o.value)).not.toContain("money");
   });
 
   it("requires the three locale labels", () => {

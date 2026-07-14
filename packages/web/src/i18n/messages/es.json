@@ -311,7 +311,7 @@
       "operating_hours": "Horario de apertura (JSON)",
       "metadata": "Metadatos (JSON)",
       "code_hint": "Identificador inmutable.",
-      "operating_hours_hint": "p. ej. {\"mon\": [\"09:00-17:00\"], \"sat\": []}",
+      "operating_hours_hint": "p. ej. '{\"mon\": [\"09:00-17:00\"], \"sat\": []}'",
       "metadata_hint": "Metadatos libres del sitio.",
       "type": {
         "branch": "Sucursal",
@@ -731,13 +731,13 @@
       "inherit_to_suborgs": "Heredar a sub-organizaciones",
       "relation_resource": "Destino de la relación",
       "relation_filter": "Filtro de relación (JSON)",
-      "relation_filter_hint": "Filtro clave/valor opcional aplicado al selector, p. ej. {\"region_id\": \"...\"}",
+      "relation_filter_hint": "Filtro clave/valor opcional aplicado al selector, p. ej. '{\"region_id\": \"...\"}'",
       "options": "Opciones",
-      "options_hint": "JSON: {\"items\": [{\"value\": \"code\", \"label\": {\"en\": \"...\", \"fr\": \"...\", \"es\": \"...\"}}]}",
+      "options_hint": "JSON: '{\"items\": [{\"value\": \"code\", \"label\": {\"en\": \"...\", \"fr\": \"...\", \"es\": \"...\"}}]}'",
       "rules": "Reglas de validación (JSON)",
       "rules_hint": "min / max / min_length / max_length / pattern / precision / visible_if / required_if — vea docs/adr para la forma exacta.",
       "default": "Valor por defecto",
-      "default_hint": "JSON: {\"value\": ...} — cualquier valor (texto, número, booleano, array, objeto o null)."
+      "default_hint": "JSON: '{\"value\": ...}' — cualquier valor (texto, número, booleano, array, objeto o null)."
     },
     "col_span_option": {
       "1": "Normal (1 columna)",

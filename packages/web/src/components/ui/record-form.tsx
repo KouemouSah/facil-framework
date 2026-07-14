@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { z } from "zod";
 import { Check } from "lucide-react";
 import { ApiError } from "@/lib/api";
-import { isVisible } from "@/lib/schema/conditions";
+import { isRequired, isVisible } from "@/lib/schema/conditions";
 import type { FieldRules, FieldSpec, FieldSpecType } from "@/lib/schema/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -184,9 +184,9 @@ export function RecordForm({
     setDirty(true); setSaved(false);
   }
 
-  function fieldRule(f: FieldDef): z.ZodTypeAny {
+  function fieldRule(f: FieldDef, vals: Record<string, string>): z.ZodTypeAny {
     if (f.zod) return f.zod;
-    if (f.required) return z.string().trim().min(1, `${f.label} is required`);
+    if (isRequiredDef(f, vals)) return z.string().trim().min(1, `${f.label} is required`);
     return z.string().optional();
   }
 
@@ -197,6 +197,21 @@ export function RecordForm({
   function isVisibleDef(f: FieldDef, vals: Record<string, string>): boolean {
     if (!f.rules) return true;
     return isVisible({ rules: f.rules } as unknown as FieldSpec, vals);
+  }
+
+  // IMPORTANT-2 fix (final fix wave): `conditions.ts` exports `isRequired`
+  // (server-mirrored `required_if`), but this component only ever imported
+  // `isVisible` — a conditionally-required spec-driven field (e.g.
+  // `relation_resource` required only when `type === "relation"`) passed
+  // client validation regardless and surfaced only as a 422 the UI never
+  // predicted. Only applies to spec-driven fields (`f.rules` present); a
+  // hand-written `FieldDef` has no `rules`, so `isRequired` reduces to plain
+  // `f.required` for it anyway (`isVisible` with no `rules` is always true,
+  // and `rules?.required_if` is undefined) — behaviourally identical to the
+  // old `f.required` check, not a change for that path.
+  function isRequiredDef(f: FieldDef, vals: Record<string, string>): boolean {
+    if (!f.rules) return Boolean(f.required);
+    return isRequired({ required: f.required, rules: f.rules } as unknown as FieldSpec, vals);
   }
 
   function validate(): boolean {
@@ -210,10 +225,10 @@ export function RecordForm({
         continue;
       }
       if (!SCALAR.has(f.type ?? "text")) {
-        if (f.required && !values[f.name]) next[f.name] = `${f.label} is required`;
+        if (isRequiredDef(f, values) && !values[f.name]) next[f.name] = `${f.label} is required`;
         continue;
       }
-      const res = fieldRule(f).safeParse(values[f.name]);
+      const res = fieldRule(f, values).safeParse(values[f.name]);
       if (!res.success) next[f.name] = res.error.issues[0]?.message ?? "Invalid value";
     }
     setErrors(next);
@@ -363,6 +378,30 @@ export function RecordForm({
     // out of this branch — see `controlKindFor`.
     if (specDriven && f.type === "text")
       return renderTextareaControl(f, fieldRO, id);
+    // IMPORTANT-1 fix (final fix wave): `date`/`datetime`/`time` used to fall
+    // all the way through to the `default:` single-line text `<Input>` below
+    // — functional-ish (the value round-trips as a string) but a poor,
+    // unvalidated control (free-text where a native date/time picker belongs).
+    // Cheap, no new dependency: the browser's own `<input type="date|
+    // datetime-local|time">`. The value it produces (`YYYY-MM-DD`, `YYYY-MM-
+    // DDTHH:mm`, `HH:mm`) is exactly what the server's `datetime.fromisoformat`
+    // family (`pydantic_gen.py`) parses — no adapter needed.
+    if (specDriven && f.type === "date")
+      return <Input id={id} type="date" value={values[f.name] ?? ""} disabled={fieldRO}
+               onChange={(e) => setField(f.name, e.target.value)} />;
+    if (specDriven && f.type === "datetime")
+      return <Input id={id} type="datetime-local" value={values[f.name] ?? ""} disabled={fieldRO}
+               onChange={(e) => setField(f.name, e.target.value)} />;
+    if (specDriven && f.type === "time")
+      return <Input id={id} type="time" value={values[f.name] ?? ""} disabled={fieldRO}
+               onChange={(e) => setField(f.name, e.target.value)} />;
+    // `richtext` — deliberately NOT a rich editor (out of scope for this fix
+    // wave, see the task report): a plain textarea is a strict upgrade over
+    // the single-line default it fell to before (e.g.
+    // `document_identity.legal_mentions` was authored as raw HTML in a
+    // one-line box).
+    if (specDriven && f.type === "richtext")
+      return renderTextareaControl(f, fieldRO, id);
     // `boolean` is a new type-axis value with no legacy switch case (the legacy
     // literal is the type "checkbox", not "boolean") — dispatch it here so a
     // server-served boolean config field (e.g. providers' `use_tls`) renders as
@@ -486,7 +525,7 @@ export function RecordForm({
             <div key={f.name} className={`space-y-1.5 ${span}`}>
               {f.type !== "address" && f.type !== "json" && f.type !== "checkbox" && f.type !== "boolean" && (
                 <Label htmlFor={`rf-${f.name}`}>
-                  {f.label}{f.required && <span className="text-destructive"> *</span>}
+                  {f.label}{isRequiredDef(f, values) && <span className="text-destructive"> *</span>}
                 </Label>
               )}
               {renderControl(f)}
