@@ -76,6 +76,34 @@ def _kubectl_get_field(kubectl: str, namespace: str, resource: str, jsonpath: st
     return value or None
 
 
+# SEC-002 : ces valeurs sont lues EN DIRECT sur le cluster puis interpolees dans
+# un manifeste YAML construit par f-string. Un attaquant ayant `patch
+# statefulsets` sur le namespace (role `edit` -- STRICTEMENT moins que
+# cluster-admin) peut y glisser un saut de ligne et injecter ses propres cles
+# dans le pod template ; le Job est ensuite cree par l'operateur AVEC SON
+# KUBECONFIG ADMIN, avec acces a tous les datastores et au Secret
+# superuser+root. On refuse donc tout ce qui ne ressemble pas STRICTEMENT a une
+# reference d'image / un identifiant -- jamais de "nettoyage" silencieux, qui ne
+# ferait que deplacer le probleme.
+_IMAGE_RE = re.compile(
+    r"^[A-Za-z0-9._\-/]+(:[A-Za-z0-9._\-]+)?(@sha256:[a-f0-9]{64})?$")
+_IDENT_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,63}$")
+
+
+def _validated(fields: dict[str, str], patterns: dict[str, re.Pattern],
+               source: str) -> dict[str, str] | None:
+    for key, value in fields.items():
+        if not patterns[key].match(value):
+            print(f"ERREUR: valeur inattendue lue sur {source} ({key}={value!r}) -- "
+                  "refus de construire un manifeste avec elle. Une valeur qui ne "
+                  "ressemble pas a une reference d'image / un identifiant peut "
+                  "injecter des cles arbitraires dans le pod template (SEC-002). "
+                  "Verifier qui a le droit de patcher ce StatefulSet.",
+                  file=sys.stderr)
+            return None
+    return fields
+
+
 def _introspect_postgres(kubectl: str, namespace: str) -> dict[str, str] | None:
     """Image/utilisateur/base REELLEMENT deployes (StatefulSet `facil-postgres`).
 
@@ -93,7 +121,9 @@ def _introspect_postgres(kubectl: str, namespace: str) -> dict[str, str] | None:
     image, user, db = parts
     if not image or not user or not db:
         return None
-    return {"image": image, "user": user, "db": db}
+    return _validated({"image": image, "user": user, "db": db},
+                      {"image": _IMAGE_RE, "user": _IDENT_RE, "db": _IDENT_RE},
+                      f"statefulset/{POSTGRES_STS}")
 
 
 def _introspect_minio(kubectl: str, namespace: str) -> dict[str, str] | None:
@@ -111,7 +141,9 @@ def _introspect_minio(kubectl: str, namespace: str) -> dict[str, str] | None:
     image, user = parts
     if not image or not user:
         return None
-    return {"image": image, "user": user}
+    return _validated({"image": image, "user": user},
+                      {"image": _IMAGE_RE, "user": _IDENT_RE},
+                      f"statefulset/{MINIO_STS}")
 
 
 _TIMEOUT_RE = re.compile(r"^(\d+)([smh])$")

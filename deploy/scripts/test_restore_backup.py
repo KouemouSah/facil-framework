@@ -434,6 +434,57 @@ def test_restore_job_includes_mc_mirror_when_minio_deployed(monkeypatch):
     assert "key: MINIO_ROOT_PASSWORD" in manifest
 
 
+class TestIntrospectedValuesAreUntrusted:
+    """SEC-002 (revue E2) : les valeurs sont lues EN DIRECT sur le StatefulSet
+    (`kubectl get sts -o jsonpath`) puis collees telles quelles dans un YAML
+    construit par f-string. Seule verification : "non vide".
+
+    Un attaquant disposant de `patch statefulsets` dans le namespace (role k8s
+    `edit`, CI compromise, operateur tiers -- STRICTEMENT moins que
+    cluster-admin) patche MINIO_ROOT_USER ou l'image avec un saut de ligne et
+    de l'indentation, et injecte ses propres cles dans le pod template. Quand
+    l'operateur lance plus tard `restore_backup.py` AVEC SON KUBECONFIG ADMIN,
+    `kubectl apply` cree le Job attaque : conteneur monte sur `hostPath: /`, ou
+    `privileged: true` -> root sur le noeud -> admin.kubeconfig -> cluster-admin.
+    Le pod porte deja le label qui lui ouvre la NetworkPolicy vers TOUS les
+    datastores et reference le Secret superuser+root MinIO.
+
+    Meme motif que la vuln RBAC deja rencontree ici : l'outil admin fait
+    confiance a un etat que l'attaquant controle.
+    """
+
+    def test_refuses_a_yaml_injecting_image(self, monkeypatch, capsys):
+        payload = 'pg:16"\n          hostPath: {path: /}\n          x: "'
+        fake_run, calls = _make_fake_run()
+        monkeypatch.setattr(
+            rb, "_kubectl_get_field",
+            lambda k, ns, res, jp: f"{payload}|facil|facil")
+        assert rb._introspect_postgres("kubectl", "facil") is None
+        assert "refus" in capsys.readouterr().err.lower()
+
+    def test_refuses_a_yaml_injecting_minio_root_user(self, monkeypatch, capsys):
+        payload = 'root"\n            privileged: true\n          y: "'
+        monkeypatch.setattr(
+            rb, "_kubectl_get_field",
+            lambda k, ns, res, jp: f"minio/minio:latest|{payload}")
+        assert rb._introspect_minio("kubectl", "facil") is None
+        assert "refus" in capsys.readouterr().err.lower()
+
+    def test_accepts_the_real_digest_pinned_images_no_false_positive(self, monkeypatch):
+        # Le chart pinne ses images par digest : la validation doit les accepter,
+        # sinon on casse toute restauration reelle en croyant la securiser.
+        monkeypatch.setattr(
+            rb, "_kubectl_get_field",
+            lambda k, ns, res, jp: MINIO_JSONPATH_OUT)
+        assert rb._introspect_minio("kubectl", "facil") == {
+            "image": "minio/minio@sha256:" + "a" * 64, "user": "facil"}
+        monkeypatch.setattr(
+            rb, "_kubectl_get_field",
+            lambda k, ns, res, jp: POSTGRES_JSONPATH_OUT)
+        assert rb._introspect_postgres("kubectl", "facil") == {
+            "image": "pgvector/pgvector:pg16", "user": "facil", "db": "facil"}
+
+
 def _restore_manifest(monkeypatch, **kw) -> str:
     ts = kw.pop("ts", "20260701T000000Z")
     fake_run, calls = _make_fake_run(list_output=f"{ts}\n", **kw)

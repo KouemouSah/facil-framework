@@ -6,6 +6,7 @@ Run from repo root:
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -908,6 +909,67 @@ class TestBackupPostgres:
             assert MARKER not in arg
 
 
+class TestBackupFileHygiene:
+    @pytest.mark.skipif(
+        os.name == "nt",
+        reason="pas de permissions POSIX sur Windows ; la CI (Linux) fait foi")
+    def test_dump_is_not_readable_by_other_local_users(self, cfg, tmp_path, monkeypatch):
+        """SEC-004 (revue E2) : `mkdir()`/`write_bytes()` par defaut donnent 0755
+        et 0644. Or ce fichier est un `pg_dump` COMPLET et NON CHIFFRE de la
+        base -- hashes de mots de passe, secrets TOTP, PII, tokens -- pose sur
+        le serveur on-prem. Tout utilisateur local, tout service tournant sous
+        un autre compte, tout conteneur bind-montant le repo pouvait le lire.
+        Le .gitignore empeche de le COMMITER, pas de le LIRE."""
+        import stat as _stat
+        monkeypatch.setattr(dl, "find_docker", lambda: "/usr/bin/docker")
+        monkeypatch.setattr(
+            dl.subprocess, "run",
+            lambda cmd, **kw: MagicMock(returncode=0, stdout=b"PGDMP-not-empty", stderr=b""))
+        ok, _ = dl.backup_postgres(cfg, dest_dir=tmp_path,
+                                   compose_file=tmp_path / "docker-compose.local.yml")
+        assert ok
+        dump = next(tmp_path.rglob("postgres.dump"))
+        assert _stat.S_IMODE(dump.stat().st_mode) == 0o600, "le dump ne doit etre lisible que par son proprietaire"
+        assert _stat.S_IMODE(dump.parent.stat().st_mode) == 0o700, "ni le repertoire qui le contient"
+
+    def test_dump_is_created_with_owner_only_modes(self, cfg, tmp_path, monkeypatch):
+        # Pendant du test ci-dessus, qui est SKIPPE sur Windows (pas de
+        # permissions POSIX) : celui-ci tourne PARTOUT en verifiant les modes
+        # reellement demandes a l'OS. Sans lui, le correctif SEC-004 ne serait
+        # prouve que sur la CI et jamais sur le poste de dev.
+        monkeypatch.setattr(dl, "find_docker", lambda: "/usr/bin/docker")
+        monkeypatch.setattr(
+            dl.subprocess, "run",
+            lambda cmd, **kw: MagicMock(returncode=0, stdout=b"PGDMP-not-empty", stderr=b""))
+        opened: list[int] = []
+        chmodded: list[int] = []
+        real_open, real_chmod = dl.os.open, dl.os.chmod
+        monkeypatch.setattr(dl.os, "open",
+                            lambda p, f, m=0o777: (opened.append(m) or real_open(p, f, m)))
+        monkeypatch.setattr(dl.os, "chmod",
+                            lambda p, m: (chmodded.append(m) or real_chmod(p, m)))
+        ok, _ = dl.backup_postgres(cfg, dest_dir=tmp_path,
+                                   compose_file=tmp_path / "docker-compose.local.yml")
+        assert ok
+        assert opened == [0o600], "le dump doit etre CREE en 0600, pas chmode apres coup"
+        assert chmodded == [0o700], "mkdir(exist_ok=True) ne reapplique pas le mode -- chmod explicite"
+
+    def test_a_failed_dump_leaves_no_ghost_backup_directory(self, cfg, tmp_path, monkeypatch):
+        # Un repertoire horodate VIDE sous backups/ est exactement la forme
+        # "sauvegarde fantome" que le cote k3s combat (un dump vide est pire que
+        # pas de dump : fausse confiance).
+        monkeypatch.setattr(dl, "find_docker", lambda: "/usr/bin/docker")
+        monkeypatch.setattr(
+            dl.subprocess, "run",
+            lambda cmd, **kw: MagicMock(returncode=1, stdout=b"", stderr=b"boom"))
+        ok, _ = dl.backup_postgres(cfg, dest_dir=tmp_path,
+                                   compose_file=tmp_path / "docker-compose.local.yml")
+        assert not ok
+        assert list(tmp_path.iterdir()) == [], (
+            "un dump rate ne doit pas laisser un repertoire horodate vide "
+            "derriere lui -- il se lirait comme une sauvegarde")
+
+
 class TestPostgresDataState:
     """B4 : le signal reel de gating -- schema deja initialise, pas liveness
     du conteneur (stack_running()).
@@ -1070,6 +1132,31 @@ class TestBackupWiredIntoApply:
             rc = dl.main(["--config", str(cfg_file), "--apply", "--yes"])
         assert rc == 0
         assert calls == []
+
+    def test_warns_that_minio_objects_are_not_covered_by_the_lite_backup(
+        self, tmp_path, minimal_config_dict, monkeypatch, capsys,
+    ):
+        # M4 (revue E2) : le tier lite dumpe Postgres et RIEN d'autre, alors que
+        # storage.provider=minio est le DEFAUT du projet (le tier k3s, lui,
+        # mirrore MinIO). Apres avoir lu "=== Backing up Postgres ===" puis
+        # "[OK]", le modele mental de l'operateur est "je suis protege" -- alors
+        # que tous les documents uploades sont hors sauvegarde. L'asymetrie est
+        # assumable ; le SILENCE ne l'est pas.
+        cfg_file = self._mocks(tmp_path, minimal_config_dict, monkeypatch)
+        monkeypatch.setattr(dl, "postgres_data_state", lambda cfg, **kw: "has_data")
+        monkeypatch.setattr(dl, "backup_postgres", lambda cfg, **kw: (True, "ok: /tmp/x"))
+        with patch("docker_local.find_docker", return_value="/usr/bin/docker"), \
+             patch("docker_local.docker_compose_available", return_value=True), \
+             patch("docker_local.stack_running", return_value=True), \
+             patch("docker_local.subprocess.run", return_value=MagicMock(returncode=0)), \
+             patch("docker_local.run_compose", return_value=0):
+            rc = dl.main(["--config", str(cfg_file), "--apply", "--yes"])
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert "MinIO" in captured.out + captured.err
+        assert "PAS" in captured.out + captured.err, (
+            "l'operateur doit lire noir sur blanc que les objets MinIO ne sont "
+            "PAS couverts par la sauvegarde du tier lite")
 
     def test_probe_failure_aborts_the_apply_before_db_init(
         self, tmp_path, minimal_config_dict, monkeypatch,

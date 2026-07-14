@@ -147,7 +147,24 @@ def backup_postgres(cfg: vc.DeployConfig, *, dest_dir: Path = BACKUPS_DIR,
     ts = _dt.datetime.now(_dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     dest = dest_dir / ts
     dest.mkdir(parents=True, exist_ok=True)
+    # SEC-004: this dump is a COMPLETE, UNENCRYPTED `pg_dump` of the database —
+    # password hashes, TOTP secrets, PII, tokens — sitting on the on-prem host.
+    # `mkdir()`/`write_bytes()` defaults give 0755/0644: any local user, any
+    # service running as another account, any container bind-mounting the repo
+    # could read it. `.gitignore` stops it being COMMITTED, not being READ.
+    # `exist_ok=True` does NOT re-apply `mode`, so chmod explicitly.
+    os.chmod(dest, 0o700)
     dump_path = dest / "postgres.dump"
+
+    def _no_ghost() -> None:
+        # A stale empty timestamped directory under backups/ reads exactly like
+        # a backup that exists — the "false confidence" this whole feature
+        # exists to prevent.
+        dump_path.unlink(missing_ok=True)
+        try:
+            dest.rmdir()
+        except OSError:
+            pass
 
     proc = subprocess.run(
         [docker, "compose", "-f", str(compose_file), "exec", "-T", "postgres",
@@ -155,16 +172,21 @@ def backup_postgres(cfg: vc.DeployConfig, *, dest_dir: Path = BACKUPS_DIR,
         capture_output=True, check=False,
     )
     if proc.returncode != 0:
+        _no_ghost()
         stderr = (proc.stderr or b"").decode("utf-8", errors="replace").strip()
         return False, f"pg_dump a echoue (code {proc.returncode}): {stderr or '(aucune sortie)'}"
 
-    dump_path.write_bytes(proc.stdout or b"")
+    # Created 0600 from the start (never world-readable, not even for the
+    # instant between write and a later chmod).
+    fd = os.open(dump_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(proc.stdout or b"")
     # FAIL-CLOSED (mirrors backup-job.yaml): an empty dump is WORSE than no
     # dump at all (false confidence). A freshly-created database still
     # produces a SMALL dump (custom-format header + empty schema) but never
     # an empty one.
     if dump_path.stat().st_size == 0:
-        dump_path.unlink(missing_ok=True)
+        _no_ghost()
         return False, "le dump Postgres est vide — update avorte AVANT db-init."
 
     return True, f"sauvegarde Postgres -> {dump_path}"
@@ -994,6 +1016,17 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
                           file=sys.stderr)
                     return 1
                 print(f"[OK] {msg}")
+                # M4: this tier dumps Postgres and NOTHING else, while
+                # storage.provider=minio is the project default (the k3s tier
+                # DOES mirror MinIO). After reading "[OK]", an operator's mental
+                # model is "I'm protected" — while every uploaded document sits
+                # outside the backup. The asymmetry is defensible; the silence
+                # is not.
+                if cfg.storage.provider == "minio":
+                    print("[WARN] storage.provider=minio — les objets MinIO ne sont "
+                          "PAS sauvegardes sur le tier lite (seul Postgres l'est). "
+                          "Les documents uploades ne seront pas restaurables depuis "
+                          "cette sauvegarde. Le tier k3s, lui, mirrore MinIO.")
 
         print("\n=== Rendering backend env + starting app tier ===")
         # Fail loud (don't start a degraded backend) if the bootstrap's postgres
