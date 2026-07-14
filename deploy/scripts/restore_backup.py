@@ -165,15 +165,21 @@ def _wait_for_job_completion(kubectl: str, namespace: str, job_name: str, *,
 def _container_exit_summary(kubectl: str, namespace: str, job_name: str) -> str:
     """Statut de fin PAR CONTENEUR du pod d'un Job (A3).
 
-    Le Job de restauration lance `restore-postgres` ET `restore-minio` comme
-    deux `containers` -- donc en PARALLELE (pas des initContainers
-    sequentiels). Si l'un des deux echoue, un simple "le Job a echoue" ne dit
-    PAS laquelle des deux moities a reellement ete appliquee (la base
-    restauree mais pas les objets -- ou l'inverse). Retourne une ligne
-    lisible par conteneur ; chaine vide si l'introspection elle-meme echoue
-    (ne doit jamais faire planter le rapport global d'erreur).
+    Le Job de restauration enchaine `preflight` -> `restore-postgres` ->
+    `restore-minio` comme des initContainers SEQUENTIELS (M2). Si l'une des
+    etapes echoue, un simple "le Job a echoue" ne dit PAS laquelle -- donc pas
+    ce qui a reellement ete applique. Retourne une ligne lisible par conteneur ;
+    chaine vide si l'introspection elle-meme echoue (ne doit jamais faire
+    planter le rapport global d'erreur).
+
+    Lit `initContainerStatuses` **et** `containerStatuses` : les etapes de
+    restauration sont des initContainers, leurs statuts ne sont PAS dans
+    `containerStatuses` -- n'interroger que ce dernier rendrait le diagnostic
+    muet exactement quand il sert.
     """
-    jsonpath = ('{range .items[*].status.containerStatuses[*]}'
+    jsonpath = ('{range .items[*].status.initContainerStatuses[*]}'
+                '{.name}={.state.terminated.exitCode}{"\\n"}{end}'
+                '{range .items[*].status.containerStatuses[*]}'
                 '{.name}={.state.terminated.exitCode}{"\\n"}{end}')
     proc = subprocess.run(
         [kubectl, "-n", namespace, "get", "pods", "-l", f"job-name={job_name}",
@@ -314,7 +320,30 @@ def _restore_job_manifest(*, timestamp: str, postgres: dict[str, str],
     ce manifest.
     """
     dest = f"/backups/{timestamp}"
-    containers = [f"""        - name: restore-postgres
+    # PRE-VOL (M3) : verifier TOUS les artefacts AVANT la premiere operation
+    # destructive. Sans lui, restaurer une sauvegarde prise sans volet MinIO sur
+    # un cluster AVEC MinIO faisait echouer `mc mirror` (source absente) -- mais
+    # seulement APRES que `pg_restore` avait deja ecrase la base. On echoue
+    # maintenant AVANT d'avoir rien detruit.
+    minio_check = (f'\n              [ -d "{dest}/minio" ] || {{ echo "FAIL: cette sauvegarde ne '
+                   f'contient AUCUN volet MinIO ({dest}/minio absent) alors que MinIO est '
+                   f'deploye -- restauration avortee AVANT toute destruction." >&2; exit 1; }}'
+                   if minio is not None else "")
+    steps = [f"""        - name: preflight
+          image: "{postgres['image']}"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {{drop: ["ALL"]}}
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              [ -s "{dest}/postgres.dump" ] || {{ echo "FAIL: dump Postgres absent ou VIDE ({dest}/postgres.dump) -- restauration avortee AVANT toute destruction." >&2; exit 1; }}{minio_check}
+              echo "pre-vol OK : artefacts presents et non vides" >&2
+          volumeMounts:
+            - {{name: backups, mountPath: /backups, readOnly: true}}
+""", f"""        - name: restore-postgres
           image: "{postgres['image']}"
           securityContext:
             allowPrivilegeEscalation: false
@@ -351,13 +380,21 @@ def _restore_job_manifest(*, timestamp: str, postgres: dict[str, str],
                 sleep 2
               done
               echo "restauration Postgres depuis {dest}/postgres.dump" >&2
-              pg_restore --clean --if-exists --no-owner -d "$PGDATABASE" "{dest}/postgres.dump"
+              # --single-transaction (H1) : TOUT-OU-RIEN, et implique
+              # --exit-on-error. Sans lui, `pg_restore` a le comportement
+              # DOCUMENTE de continuer apres une erreur en les comptant -- or
+              # --clean DROP les objets d'abord. Une restauration qui deraille
+              # a mi-parcours laissait donc la base a moitie detruite et a
+              # moitie rechargee : le seul chemin de reprise apres sinistre du
+              # projet pouvait aggraver le sinistre. Avec --single-transaction,
+              # un echec ROLLBACK et la base d'avant reste INTACTE.
+              pg_restore --clean --if-exists --no-owner --single-transaction -d "$PGDATABASE" "{dest}/postgres.dump"
           volumeMounts:
             - {{name: backups, mountPath: /backups, readOnly: true}}
             - {{name: tmp, mountPath: /tmp}}
 """]
     if minio is not None:
-        containers.append(f"""        - name: restore-minio
+        steps.append(f"""        - name: restore-minio
           image: "{minio['image']}"
           securityContext:
             allowPrivilegeEscalation: false
@@ -380,12 +417,29 @@ def _restore_job_manifest(*, timestamp: str, postgres: dict[str, str],
             - |
               set -eu
               echo "restauration MinIO depuis {dest}/minio" >&2
-              mc mirror --quiet --overwrite "{dest}/minio" facil
+              # --remove (M1) : restaurer, c'est revenir a un POINT DANS LE
+              # TEMPS. Sans lui, `mc mirror` FUSIONNE : les objets crees APRES
+              # l'horodatage survivaient, alors que Postgres, lui, est rembobine
+              # par --clean -- les deux datastores finissaient a deux epoques
+              # differentes sous un meme "[OK] restauration terminee". RESTORE.md
+              # promettait deja "ecrase, ne fusionne pas" : le code tenait
+              # desormais la promesse de la doc.
+              mc mirror --quiet --overwrite --remove "{dest}/minio" facil
           volumeMounts:
             - {{name: backups, mountPath: /backups, readOnly: true}}
             - {{name: tmp, mountPath: /tmp}}
 """)
-    body = "\n".join(containers)
+    body = "\n".join(steps)
+    # Les etapes sont des initContainers, PAS des containers (M2) : Kubernetes
+    # lance des `containers` multiples EN PARALLELE -- c'est deja la raison pour
+    # laquelle backup-job.yaml utilise des initContainers, et la restauration
+    # faisait exactement l'inverse. Une restauration Postgres en echec
+    # n'empechait donc pas le rembobinage MinIO : systeme incoherent (base d'une
+    # epoque, objets d'une autre). Sequentiel : pre-vol -> Postgres -> MinIO,
+    # chaque etape ne demarrant que si la precedente a reussi. Le conteneur
+    # `done` final n'existe que parce qu'un pod DOIT avoir au moins un
+    # `containers` -- il ne s'execute que si toutes les etapes ont reussi, ce qui
+    # en fait aussi le seul endroit ou "termine" est affirme sans mentir.
     return f"""apiVersion: batch/v1
 kind: Job
 metadata:
@@ -414,8 +468,17 @@ spec:
         runAsUser: 999
         fsGroup: 999
         seccompProfile: {{type: RuntimeDefault}}
-      containers:
+      initContainers:
 {body}
+      containers:
+        - name: done
+          image: "{postgres['image']}"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {{drop: ["ALL"]}}
+          command: ["sh", "-c"]
+          args: ["echo 'restauration terminee (toutes les etapes ont reussi)'"]
       volumes:
         - name: backups
           persistentVolumeClaim: {{claimName: {BACKUPS_PVC}, readOnly: true}}

@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS_DIR))
@@ -395,6 +396,101 @@ def test_restore_job_includes_mc_mirror_when_minio_deployed(monkeypatch):
     assert "mc mirror" in manifest
     assert "MC_HOST_facil" in manifest
     assert "key: MINIO_ROOT_PASSWORD" in manifest
+
+
+def _restore_manifest(monkeypatch, **kw) -> str:
+    ts = kw.pop("ts", "20260701T000000Z")
+    fake_run, calls = _make_fake_run(list_output=f"{ts}\n", **kw)
+    _patch_kubectl(monkeypatch, fake_run)
+    monkeypatch.setattr("builtins.input", lambda prompt="": ts)
+    rb.main(["--restore", ts])
+    return next(m for c, m in calls if "apply" in c and m and rb.RESTORE_JOB in m)
+
+
+@pytest.mark.parametrize("minio", [None, {"image": "minio/minio:latest", "user": "root"}])
+def test_restore_job_manifest_is_valid_yaml_with_sequential_steps(minio):
+    """Le manifeste est construit par f-string : une indentation fautive
+    expedierait un Job casse au cluster sans qu'aucune assertion de sous-chaine
+    ne bronche (les tests voisins ne testent QUE des sous-chaines). On parse
+    reellement le YAML et on verifie la structure -- sinon ce fichier ne prouve
+    que la presence de mots."""
+    manifest = rb._restore_job_manifest(
+        timestamp="20260701T000000Z",
+        postgres={"image": "postgres:16", "user": "facil", "db": "facil"},
+        minio=minio)
+    spec = yaml.safe_load(manifest)["spec"]["template"]["spec"]
+    expected = ["preflight", "restore-postgres"] + (["restore-minio"] if minio else [])
+    assert [c["name"] for c in spec["initContainers"]] == expected
+    # Un pod DOIT avoir au moins un `containers` ; il ne tourne que si toutes
+    # les etapes ont reussi -- c'est le seul endroit ou "termine" ne ment pas.
+    assert [c["name"] for c in spec["containers"]] == ["done"]
+    assert spec["restartPolicy"] == "Never"
+
+
+def test_pg_restore_is_atomic_no_half_destroyed_database(monkeypatch):
+    """H1 (revue E2) : `pg_restore --clean` DROP d'abord, et son comportement
+    PAR DEFAUT sur erreur est de CONTINUER en comptant les erreurs. Sans
+    --single-transaction, une restauration qui echoue a mi-parcours laisse la
+    base cible a moitie detruite et a moitie rechargee -- le remede aggrave le
+    mal, sur le seul chemin de reprise apres sinistre du projet.
+
+    --single-transaction implique --exit-on-error : tout-ou-rien. Sur echec, la
+    base d'avant la restauration est INTACTE (ROLLBACK)."""
+    manifest = _restore_manifest(monkeypatch)
+    assert "--single-transaction" in manifest, (
+        "pg_restore doit etre tout-ou-rien : sans --single-transaction, un "
+        "echec en cours de route laisse la base a moitie detruite")
+
+
+def test_restore_steps_run_sequentially_postgres_before_minio(monkeypatch):
+    """M2 (revue E2) : backup-job.yaml utilise des initContainers en expliquant
+    que des `containers` multiples demarreraient EN PARALLELE. La restauration
+    faisait exactement l'inverse : un `pg_restore` en echec n'empechait pas le
+    `mc mirror` de rembobiner MinIO -> systeme incoherent."""
+    manifest = _restore_manifest(monkeypatch, minio_ok=True)
+    assert "initContainers:" in manifest
+    i_check = manifest.index("name: preflight")
+    i_pg = manifest.index("name: restore-postgres")
+    i_minio = manifest.index("name: restore-minio")
+    assert i_check < i_pg < i_minio, (
+        "ordre impose : pre-vol, puis Postgres, puis MinIO -- jamais en parallele")
+
+
+def test_preflight_refuses_a_backup_whose_artifacts_are_missing(monkeypatch):
+    """M3 (revue E2) : restaurer une sauvegarde prise SANS volet MinIO sur un
+    cluster AVEC MinIO faisait echouer `mc mirror` (source absente) -- mais
+    APRES que pg_restore, alors en parallele, avait deja ecrase la base. Le
+    pre-vol verifie TOUS les artefacts AVANT la premiere operation destructive."""
+    manifest = _restore_manifest(monkeypatch, minio_ok=True)
+    preflight = manifest.split("name: preflight")[1].split("- name: restore-postgres")[0]
+    assert '-s "/backups/20260701T000000Z/postgres.dump"' in preflight, (
+        "le pre-vol doit exiger un dump PRESENT ET NON VIDE")
+    assert '-d "/backups/20260701T000000Z/minio"' in preflight, (
+        "quand MinIO sera restaure, le pre-vol doit exiger que la sauvegarde "
+        "contienne bien un volet MinIO -- sinon on ecrase Postgres pour rien")
+
+
+def test_preflight_does_not_require_minio_when_minio_is_not_deployed(monkeypatch):
+    manifest = _restore_manifest(monkeypatch, minio_ok=False)
+    preflight = manifest.split("name: preflight")[1].split("- name: restore-postgres")[0]
+    assert "postgres.dump" in preflight
+    assert "/minio" not in preflight, (
+        "pas de MinIO deploye = pas d'exigence MinIO (sinon toute restauration "
+        "echouerait sur un cluster sans MinIO)")
+
+
+def test_minio_restore_is_point_in_time_not_a_merge(monkeypatch):
+    """M1 (revue E2) : sans --remove, `mc mirror` FUSIONNE -- les objets crees
+    APRES l'horodatage survivent, alors que Postgres, lui, est rembobine par
+    --clean. Les deux datastores finissaient a deux points dans le temps
+    differents, sous un "[OK] restauration terminee". Et RESTORE.md affirmait
+    deja "la restauration ecrase, elle ne fusionne pas" : le code mentait, ou
+    la doc mentait."""
+    manifest = _restore_manifest(monkeypatch, minio_ok=True)
+    # La COMMANDE, pas les lignes de commentaire shell qui la justifient.
+    mirror_line = next(l for l in manifest.splitlines() if l.strip().startswith("mc mirror"))
+    assert "--remove" in mirror_line, (
+        "restaurer = revenir a un point dans le temps, pas fusionner deux epoques")
 
 
 def test_restore_job_carries_backup_component_label_for_networkpolicy(monkeypatch):
