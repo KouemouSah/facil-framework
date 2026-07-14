@@ -45,6 +45,12 @@ module.exports = {
         'security',
         'release',
         'agents',
+        // Socle de déploiement : le repo a désormais un répertoire infra/ (chart
+        // Helm k3s) et un moteur deploy/ (providers, bootstrap). 'helm'/'deploy'
+        // étaient déjà utilisés par une trentaine de commits sans figurer ici.
+        'infra',
+        'deploy',
+        'helm',
         'phase-A.5',
         'phase-B',
         'phase-B.5',
