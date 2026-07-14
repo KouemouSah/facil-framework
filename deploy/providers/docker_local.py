@@ -49,6 +49,7 @@ Exit codes
 from __future__ import annotations
 
 import argparse
+import datetime as _dt
 import os
 import shutil
 import subprocess
@@ -70,6 +71,7 @@ CADDYFILE = REPO_ROOT / "Caddyfile"  # generated; mounted by the `edge` profile
 STATE_FILE = DEPLOY_DIR / ".bootstrap-state.json"  # bootstrap provisioning state
 SECRETS_FILE = REPO_ROOT / ".env.secrets"  # local-only, gitignored
 SECRETS_EXAMPLE = DEPLOY_DIR / ".env.secrets.example"
+BACKUPS_DIR = REPO_ROOT / "backups"  # local-only, gitignored (D1 — pre-update dump)
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +108,65 @@ def stack_running() -> bool:
         capture_output=True, text=True, check=False, cwd=REPO_ROOT,
     )
     return proc.returncode == 0 and bool(proc.stdout.strip())
+
+
+# ---------------------------------------------------------------------------
+# D1 — Postgres backup before an update (tier lite / compose, best-effort).
+#
+# The spec explicitly treats the compose tier as 2nd-class (best-effort, no
+# rolling update). But an on-prem customer WITHOUT ops staff is exactly who
+# ends up running this tier — and losing their data on an update is just as
+# bad as it would be on k3s. `--apply` IS this tier's update path (there is
+# no separate `--update` command: re-running `--apply` is how an operator
+# ships a new image/migration, the same "idempotent re-invoke" shape as
+# `helm upgrade --install`). This mirrors the k3s pre-upgrade backup Job
+# (infra/helm/facil/templates/backup-job.yaml): same fail-closed contract
+# (an empty dump is WORSE than no dump — false confidence), gated the same
+# way ("nothing to protect on a first install").
+# ---------------------------------------------------------------------------
+
+def backup_postgres(cfg: vc.DeployConfig, *, dest_dir: Path = BACKUPS_DIR,
+                    compose_file: Path = COMPOSE_FILE) -> tuple[bool, str]:
+    """Dumps Postgres via `docker compose exec` BEFORE the app tier (db-init's
+    Alembic migration) starts. Returns (ok, message); `ok=False` means the
+    caller MUST abort the update — never proceed with a failed/empty backup.
+
+    No PGPASSWORD anywhere (not env, not argv): `pg_dump` here connects via
+    the container's local UNIX socket (no `-h` given), which the official
+    Postgres image always accepts as `trust` regardless of POSTGRES_PASSWORD
+    — the EXACT same assumption this file's own Postgres healthcheck already
+    relies on (`pg_isready -U {project}`, also no `-h`). So there is no
+    secret to leak into argv here (CWE-214 is moot, not just mitigated).
+    """
+    docker = find_docker()
+    if not docker:
+        return False, "docker introuvable dans le PATH — sauvegarde impossible."
+
+    project = cfg.meta.project_name
+    ts = _dt.datetime.now(_dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    dest = dest_dir / ts
+    dest.mkdir(parents=True, exist_ok=True)
+    dump_path = dest / "postgres.dump"
+
+    proc = subprocess.run(
+        [docker, "compose", "-f", str(compose_file), "exec", "-T", "postgres",
+         "pg_dump", "-U", project, "-Fc", project],
+        capture_output=True, check=False,
+    )
+    if proc.returncode != 0:
+        stderr = (proc.stderr or b"").decode("utf-8", errors="replace").strip()
+        return False, f"pg_dump a echoue (code {proc.returncode}): {stderr or '(aucune sortie)'}"
+
+    dump_path.write_bytes(proc.stdout or b"")
+    # FAIL-CLOSED (mirrors backup-job.yaml): an empty dump is WORSE than no
+    # dump at all (false confidence). A freshly-created database still
+    # produces a SMALL dump (custom-format header + empty schema) but never
+    # an empty one.
+    if dump_path.stat().st_size == 0:
+        dump_path.unlink(missing_ok=True)
+        return False, "le dump Postgres est vide — update avorte AVANT db-init."
+
+    return True, f"sauvegarde Postgres -> {dump_path}"
 
 
 # ---------------------------------------------------------------------------
@@ -736,7 +797,12 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
     if generated:
         print(f"[OK] generated strong runtime secrets: {', '.join(generated)}")
 
-    if stack_running():
+    # D1: captured once, reused below to gate the pre-update backup — a stack
+    # that was ALREADY running before this --apply is an UPDATE (there's data
+    # to protect); one that wasn't is a first install (nothing to back up
+    # yet, same "pre-upgrade only" decision as backup-job.yaml on k3s).
+    was_running = stack_running()
+    if was_running:
         msg = ("[WARN] Stack already running. --apply on top can hit "
                "'port already allocated' errors.")
         if yes:
@@ -837,6 +903,22 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
     # bootstrap state, then bring up the app tier — only if it's present.
     backend_ctx = REPO_ROOT / "packages" / "backend"
     if backend_ctx.exists():
+        # D1: back up Postgres BEFORE db-init (Alembic migration) starts —
+        # fail-closed, an update on this tier must never risk data loss any
+        # more than the k3s tier does. Only when there's actually a
+        # facil-managed Postgres container to protect (database_mode=local)
+        # AND this is an update, not the first install (was_running, above).
+        if was_running and cfg.docker_local.database_mode == "local":
+            print("\n=== Backing up Postgres before update (tier lite, best-effort) ===")
+            ok, msg = backup_postgres(cfg)
+            if not ok:
+                print(f"ERROR: {msg}\n"
+                      f"Update ABORTED (fail-closed) — the data-plane stays up, no "
+                      f"migration has run. Fix the cause and re-run --apply.",
+                      file=sys.stderr)
+                return 1
+            print(f"[OK] {msg}")
+
         print("\n=== Rendering backend env + starting app tier ===")
         # Fail loud (don't start a degraded backend) if the bootstrap's postgres
         # step didn't yield a DATABASE_URL in local mode (the #1 silent-failure fix).

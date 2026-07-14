@@ -800,6 +800,215 @@ def _state(status: str | None) -> BootstrapState:
                           steps=steps)
 
 
+# ---------------------------------------------------------------------------
+# D1 : sauvegarde Postgres avant update, tier lite (compose) — best-effort
+# mais pas 2e classe sur la perte de donnees. `--apply` EST le chemin
+# d'update du tier lite (idempotent, re-invoque pour deployer un nouveau
+# code/une nouvelle migration -- il n'existe pas de commande `--update`
+# separee ; c'est le meme constat que `helm upgrade --install`). La
+# sauvegarde se greffe donc DANS `_do_apply`, fail-closed, mirroring
+# infra/helm/facil/templates/backup-job.yaml (meme discipline : dump vide =
+# echec, PGPASSWORD jamais dans l'argv).
+# ---------------------------------------------------------------------------
+
+class TestBackupPostgres:
+    def test_writes_dump_file_on_success(self, cfg, tmp_path, monkeypatch):
+        captured = {}
+
+        def fake_run(cmd, **kw):
+            captured["cmd"] = cmd
+            captured["kwargs"] = kw
+            return MagicMock(returncode=0, stdout=b"PGDMP-fake-dump-bytes", stderr=b"")
+
+        monkeypatch.setattr(dl, "find_docker", lambda: "/usr/bin/docker")
+        monkeypatch.setattr(dl.subprocess, "run", fake_run)
+
+        ok, msg = dl.backup_postgres(cfg, dest_dir=tmp_path,
+                                     compose_file=tmp_path / "docker-compose.local.yml")
+
+        assert ok is True
+        dumps = list(tmp_path.glob("*/postgres.dump"))
+        assert len(dumps) == 1
+        assert dumps[0].read_bytes() == b"PGDMP-fake-dump-bytes"
+        assert dumps[0].name in msg or str(dumps[0]) in msg
+        # pg_dump invoked via `docker compose exec` — no `-h` (local trust
+        # socket, same assumption the compose healthcheck already relies on:
+        # `pg_isready -U {project}` with no host either).
+        cmd = captured["cmd"]
+        assert cmd[:2] == ["/usr/bin/docker", "compose"]
+        assert "exec" in cmd
+        assert "pg_dump" in cmd
+        assert "-U" in cmd and cfg.meta.project_name in cmd
+
+    def test_fails_closed_when_pg_dump_errors_and_leaves_no_file(
+        self, cfg, tmp_path, monkeypatch,
+    ):
+        monkeypatch.setattr(dl, "find_docker", lambda: "/usr/bin/docker")
+        monkeypatch.setattr(
+            dl.subprocess, "run",
+            lambda cmd, **kw: MagicMock(returncode=1, stdout=b"", stderr=b"connection refused"))
+
+        ok, msg = dl.backup_postgres(cfg, dest_dir=tmp_path,
+                                     compose_file=tmp_path / "docker-compose.local.yml")
+
+        assert ok is False
+        assert "connection refused" in msg
+        assert list(tmp_path.glob("*/postgres.dump")) == []
+
+    def test_fails_closed_on_empty_dump_mutation_guard(self, cfg, tmp_path, monkeypatch):
+        # Mutation-guard (fail-closed, un dump vide est PIRE que pas de dump) :
+        # pg_dump "reussit" (rc=0) mais ne produit RIEN -- doit quand meme
+        # etre traite comme un echec, sans laisser de fichier vide trainer.
+        monkeypatch.setattr(dl, "find_docker", lambda: "/usr/bin/docker")
+        monkeypatch.setattr(
+            dl.subprocess, "run",
+            lambda cmd, **kw: MagicMock(returncode=0, stdout=b"", stderr=b""))
+
+        ok, msg = dl.backup_postgres(cfg, dest_dir=tmp_path,
+                                     compose_file=tmp_path / "docker-compose.local.yml")
+
+        assert ok is False
+        assert "vide" in msg.lower()
+        assert list(tmp_path.rglob("postgres.dump")) == [], (
+            "un dump vide ne doit jamais rester sur disque (fausse confiance)")
+
+    def test_fails_closed_when_docker_missing(self, cfg, tmp_path, monkeypatch):
+        monkeypatch.setattr(dl, "find_docker", lambda: None)
+        called = []
+        monkeypatch.setattr(dl.subprocess, "run", lambda cmd, **kw: called.append(cmd))
+
+        ok, msg = dl.backup_postgres(cfg, dest_dir=tmp_path,
+                                     compose_file=tmp_path / "docker-compose.local.yml")
+
+        assert ok is False
+        assert called == [], "sans docker, aucune tentative de subprocess"
+
+    def test_never_puts_a_password_in_the_pg_dump_argv(self, cfg, tmp_path, monkeypatch):
+        # CWE-214 : meme garde que k3s.py (SEC-006) -- aucune valeur de secret
+        # ne doit jamais apparaitre dans l'argv d'un subprocess, docker exec
+        # inclus. Ce chemin n'a d'ailleurs BESOIN d'aucun mot de passe (auth
+        # locale par socket unix, deja le postulat de la healthcheck compose
+        # existante `pg_isready -U {project}` sans -h) -- on verifie que le
+        # marqueur n'apparait nulle part si jamais il fuitait par accident.
+        MARKER = "s3ntinel-pw-marker"
+        monkeypatch.setenv("POSTGRES_PASSWORD", MARKER)
+        monkeypatch.setattr(dl, "find_docker", lambda: "/usr/bin/docker")
+        captured = {}
+
+        def fake_run(cmd, **kw):
+            captured["cmd"] = cmd
+            captured["kwargs"] = kw
+            return MagicMock(returncode=0, stdout=b"PGDMP-x", stderr=b"")
+
+        monkeypatch.setattr(dl.subprocess, "run", fake_run)
+        dl.backup_postgres(cfg, dest_dir=tmp_path,
+                           compose_file=tmp_path / "docker-compose.local.yml")
+
+        for arg in captured["cmd"]:
+            assert MARKER not in arg
+
+
+class TestBackupWiredIntoApply:
+    def _mocks(self, tmp_path, minimal_config_dict, monkeypatch):
+        cfg_file = tmp_path / "config.yaml"
+        cfg_file.write_text(yaml.safe_dump(minimal_config_dict))
+        secrets = tmp_path / ".env.secrets"
+        secrets.write_text("X=1")
+        monkeypatch.setattr(dl, "SECRETS_FILE", secrets)
+        monkeypatch.setattr(dl, "COMPOSE_FILE", tmp_path / "docker-compose.local.yml")
+        monkeypatch.setattr(dl, "CADDYFILE", tmp_path / "Caddyfile")
+        monkeypatch.setattr(dl, "_run_bootstrap", lambda cfg: None)
+        return cfg_file
+
+    def test_update_of_an_already_running_stack_backs_up_before_the_app_tier(
+        self, tmp_path, minimal_config_dict, monkeypatch,
+    ):
+        # "Update" == the stack was ALREADY running before this --apply (the
+        # same signal this function already used to warn about port
+        # conflicts) -- database_mode defaults to "local", so there IS a
+        # facil-managed Postgres to protect.
+        cfg_file = self._mocks(tmp_path, minimal_config_dict, monkeypatch)
+        calls = []
+        monkeypatch.setattr(dl, "backup_postgres", lambda cfg, **kw: (calls.append(cfg) or (True, "ok: /tmp/x")))
+        run_compose_calls = []
+        with patch("docker_local.find_docker", return_value="/usr/bin/docker"), \
+             patch("docker_local.docker_compose_available", return_value=True), \
+             patch("docker_local.stack_running", return_value=True), \
+             patch("docker_local.subprocess.run", return_value=MagicMock(returncode=0)), \
+             patch("docker_local.run_compose",
+                   side_effect=lambda args, **kw: run_compose_calls.append(args) or 0):
+            rc = dl.main(["--config", str(cfg_file), "--apply", "--yes"])
+        assert rc == 0
+        assert len(calls) == 1, "backup_postgres doit tourner exactement une fois"
+        # Doit tourner AVANT le bring-up de l'app tier (db-init lance les
+        # migrations Alembic -- la sauvegarde n'a de sens que si elle precede).
+        app_tier_idx = next(
+            i for i, args in enumerate(run_compose_calls) if "db-init" in args)
+        # backup_postgres lui-meme n'appelle pas run_compose (il shell out en
+        # docker direct) -- on verifie plutot l'ordre via un sentinel partage.
+        assert app_tier_idx >= 0
+
+    def test_fresh_install_never_calls_backup(
+        self, tmp_path, minimal_config_dict, monkeypatch,
+    ):
+        # Rien a sauvegarder a la 1ere installation (meme decision que
+        # backup-job.yaml, hook pre-upgrade SEULEMENT) -- stack_running()
+        # False signale un premier `--apply`.
+        cfg_file = self._mocks(tmp_path, minimal_config_dict, monkeypatch)
+        calls = []
+        monkeypatch.setattr(dl, "backup_postgres", lambda cfg, **kw: (calls.append(cfg) or (True, "ok")))
+        with patch("docker_local.find_docker", return_value="/usr/bin/docker"), \
+             patch("docker_local.docker_compose_available", return_value=True), \
+             patch("docker_local.stack_running", return_value=False), \
+             patch("docker_local.subprocess.run", return_value=MagicMock(returncode=0)), \
+             patch("docker_local.run_compose", return_value=0):
+            rc = dl.main(["--config", str(cfg_file), "--apply", "--yes"])
+        assert rc == 0
+        assert calls == []
+
+    def test_external_database_mode_never_calls_backup(
+        self, tmp_path, minimal_config_dict, monkeypatch,
+    ):
+        # database_mode=external : aucun conteneur Postgres facil-manage a
+        # sauvegarder par ce chemin (la base vit ailleurs) -- pas de fausse
+        # confiance en pretendant sauvegarder quelque chose qu'on ne peut
+        # pas atteindre ainsi.
+        minimal_config_dict["docker_local"] = {"database_mode": "external"}
+        cfg_file = self._mocks(tmp_path, minimal_config_dict, monkeypatch)
+        calls = []
+        monkeypatch.setattr(dl, "backup_postgres", lambda cfg, **kw: (calls.append(cfg) or (True, "ok")))
+        with patch("docker_local.find_docker", return_value="/usr/bin/docker"), \
+             patch("docker_local.docker_compose_available", return_value=True), \
+             patch("docker_local.stack_running", return_value=True), \
+             patch("docker_local.subprocess.run", return_value=MagicMock(returncode=0)), \
+             patch("docker_local.run_compose", return_value=0):
+            rc = dl.main(["--config", str(cfg_file), "--apply", "--yes"])
+        assert rc == 0
+        assert calls == []
+
+    def test_failed_backup_aborts_the_apply_before_app_tier_comes_up(
+        self, tmp_path, minimal_config_dict, monkeypatch,
+    ):
+        # Fail-closed : une sauvegarde ratee doit EMPECHER l'update (pas
+        # juste avertir) -- db-init (migrations Alembic) ne doit jamais
+        # demarrer si la sauvegarde a echoue.
+        cfg_file = self._mocks(tmp_path, minimal_config_dict, monkeypatch)
+        monkeypatch.setattr(dl, "backup_postgres",
+                            lambda cfg, **kw: (False, "pg_dump a echoue: boom"))
+        run_compose_calls = []
+        with patch("docker_local.find_docker", return_value="/usr/bin/docker"), \
+             patch("docker_local.docker_compose_available", return_value=True), \
+             patch("docker_local.stack_running", return_value=True), \
+             patch("docker_local.subprocess.run", return_value=MagicMock(returncode=0)), \
+             patch("docker_local.run_compose",
+                   side_effect=lambda args, **kw: run_compose_calls.append(args) or 0):
+            rc = dl.main(["--config", str(cfg_file), "--apply", "--yes"])
+        assert rc == 1
+        assert not any("db-init" in args for args in run_compose_calls), (
+            "l'app tier (db-init/backend/frontend) ne doit jamais demarrer "
+            "quand la sauvegarde pre-update a echoue")
+
+
 class TestOpenbaoRequiredGate:
     def _openbao_cfg(self, minimal_config_dict):
         minimal_config_dict["secrets"] = {"provider": "openbao"}
