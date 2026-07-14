@@ -14,6 +14,11 @@ change un jour le poids du backup vers une valeur qui ne precede plus les
 migrations. Ce parseur verifie l'invariant qui compte reellement -- l'ORDRE --
 pas seulement la presence :
 
+  0. AUCUN Job du rendu (pas seulement facil-backup) ne porte le hook
+     `pre-install` (B1) -- generalisation, PAR KIND, du grep global qu'il
+     remplace dans test_render.sh : un Job pre-install s'execute avant que
+     Postgres n'existe (APPLY-002), alors qu'une ressource SANS pod
+     consommateur (ex. un PersistentVolumeClaim) peut legitimement l'etre.
   1. Le Job `facil-backup` existe (quand `backup.enabled`) et porte le hook
      `pre-upgrade` (jamais `post-install` -- rien a sauvegarder a la 1ere
      installation, decision de conception verrouillee : voir backup-job.yaml).
@@ -105,6 +110,25 @@ def _container_argv_text(c: dict) -> str:
 def check(stream: str) -> list[str]:
     problems: list[str] = []
     jobs = dict(_iter_jobs(stream))
+
+    # --- Invariant 0 (B1) : AUCUN Job ne doit porter le hook `pre-install` --
+    # generalise a TOUS les Jobs du rendu, pas seulement facil-backup. Un hook
+    # pre-install s'execute AVANT que les ressources normales de la release
+    # (Postgres inclus) n'existent -- c'est exactement le bug APPLY-002 deja
+    # corrige une fois (voir db-role-job.yaml/db-init-job.yaml). Remplace
+    # l'ancien grep GLOBAL de test_render.sh (`grep -qE '"?helm\.sh/hook"?:
+    # pre-install'` sur tout le rendu) : ce grep textuel ne distinguait pas un
+    # Job (qui EXIGE Postgres deja debout) d'une simple ressource sans pod
+    # consommateur -- ex. un PersistentVolumeClaim, pour qui pre-install est
+    # legitime (rien a attendre, voir l'historique de backup-pvc.yaml). Scope
+    # volontairement etroit : `kind: Job` uniquement, jamais un grep du rendu
+    # entier.
+    for job_name, doc in jobs.items():
+        if "pre-install" in _hooks(doc):
+            problems.append(
+                f"{job_name}: hook `pre-install` present sur un Job -- il "
+                f"s'executerait AVANT que les ressources de la release "
+                f"(Postgres inclus) n'existent (APPLY-002).")
 
     if BACKUP_JOB_NAME not in jobs:
         # Absence n'est pas automatiquement une violation : `backup.enabled:

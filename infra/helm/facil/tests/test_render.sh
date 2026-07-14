@@ -145,14 +145,15 @@ assert_job_hook "backup" "facil/templates/backup-job.yaml" "-2" "pre-upgrade" "f
 # tests/test_guard_backup.py (preuve par mutation de chaque invariant).
 python infra/helm/facil/tests/guard_backup.py < "$OUT_FILE"
 
-# Garde negative globale (style d'annotation normalise non-quote sur les deux
-# Jobs -- cf. commentaire ci-dessus) : aucun `pre-install` nulle part dans le
-# rendu, quelle que soit la forme de la cle (quotee ou non -- couvre une
-# regression qui reintroduirait le style quote).
-if grep -qE '"?helm\.sh/hook"?: pre-install' "$OUT_FILE"; then
-  echo "FAIL: hook pre-install detecte dans le rendu complet -- il s'execute AVANT que Postgres existe" >&2
-  exit 1
-fi
+# B1 : l'ancienne garde negative ICI etait un grep GLOBAL sur tout le rendu
+# (`grep -qE '"?helm\.sh/hook"?: pre-install' "$OUT_FILE"`) -- elle ne
+# distinguait pas un Job (qui EXIGE Postgres deja debout -- APPLY-002) d'une
+# simple ressource sans pod consommateur (ex. un PersistentVolumeClaim, pour
+# qui pre-install est legitime), et se declenchait donc en FAUX POSITIF des
+# qu'une telle ressource existait dans le chart. Remplacee par l'invariant 0
+# de guard_backup.py (deja invoque plus haut dans ce fichier) : PAR KIND,
+# aucun `kind: Job` ne porte `pre-install`, quelle que soit la forme de
+# l'annotation (quotee ou non, YAML le normalise avant meme le parsing).
 # Hardening : `runAsNonRoot: true` seul ne suffit PAS (nos images déclarent leur
 # USER par nom -- le kubelet ne résout pas, CreateContainerConfigError) + SEC-018
 # (spec.selector.matchLabels doit porter app.kubernetes.io/instance, sinon deux

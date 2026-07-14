@@ -74,6 +74,61 @@ def test_backup_job_is_present_in_real_render(default_render):
     assert "facil-db-init" in jobs
 
 
+# --- Invariant 0 (B1) : AUCUN Job (pas seulement facil-backup) en pre-install -
+
+def test_catches_pre_install_on_a_job_that_is_not_facil_backup():
+    # Generalisation du grep global que ce fichier remplace dans
+    # test_render.sh : n'importe quel Job du rendu, pas seulement
+    # facil-backup, doit etre refuse s'il porte pre-install.
+    doc = """
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: facil-some-other-job
+  annotations:
+    helm.sh/hook: pre-install
+    helm.sh/hook-weight: "-3"
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: c
+          command: ["sh", "-c", "echo ok"]
+"""
+    problems = guard_backup.check(doc)
+    assert any(
+        "facil-some-other-job" in p and "pre-install" in p for p in problems
+    ), problems
+
+
+def test_pre_install_on_a_non_job_resource_is_not_flagged():
+    # Scope volontairement etroit (kind: Job UNIQUEMENT) : une ressource sans
+    # pod consommateur (ex. un PersistentVolumeClaim) peut legitimement porter
+    # pre-install -- rien a attendre pour elle (voir l'historique de
+    # backup-pvc.yaml). Prouve que le parseur ne generalise pas au-dela des Jobs.
+    doc = """
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: facil-backups
+  annotations:
+    helm.sh/hook: pre-install
+spec:
+  accessModes: ["ReadWriteOnce"]
+"""
+    assert guard_backup.check(doc) == []
+
+
+def test_real_render_has_no_job_with_pre_install(default_render):
+    # Non-regression sur le rendu REEL : aucun Job du chart ne doit porter
+    # pre-install (db-role/db-init sont post-install,pre-upgrade ; backup est
+    # pre-upgrade seul).
+    problems = guard_backup.check(default_render)
+    assert not any("pre-install" in p for p in problems), problems
+
+
 # --- Invariant 1 : hook `pre-upgrade` obligatoire ----------------------------
 
 def test_catches_pre_upgrade_hook_removed(default_render):
