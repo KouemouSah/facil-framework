@@ -16,6 +16,18 @@ comme guard_secrets.py le fait deja pour les env vars -- meme convention,
 reutilisee ici (DRY). Voir test_guard_resources.py pour la preuve par
 mutation de chaque invariant.
 
+Deux invariants supplementaires, EUX AUSSI verifies PAR WORKLOAD (et non par
+un comptage global -- meme biais tautologique qu'un `grep -c`, ou une
+compensation entre deux workloads passerait inapercue) :
+  - SEC-018 : `spec.selector.matchLabels` (Deployment/StatefulSet) doit porter
+    `app.kubernetes.io/instance` -- sinon deux releases dans le meme namespace
+    se volent leurs pods (le seul discriminant restant, `facil.component`,
+    est identique entre releases).
+  - Hardening runAsNonRoot/runAsUser : `runAsNonRoot: true` seul ne suffit pas
+    -- nos images declarent leur USER par nom (`appuser`, `nextjs`), que le
+    kubelet ne resout pas ; tout podSpec `runAsNonRoot: true` doit donc porter
+    un `runAsUser` numerique, sous peine de `CreateContainerConfigError`.
+
 Usage : helm template ... | python guard_resources.py
 Exit 0 = propre, 1 = un ou plusieurs conteneurs/pods non durcis.
 """
@@ -26,10 +38,17 @@ import sys
 import yaml
 
 WORKLOAD_KINDS = {"Deployment", "StatefulSet", "Job"}
+# Kinds dont le selector est un vrai `spec.selector.matchLabels` cible par un
+# Service (SEC-018). Les Job n'en ont pas -- Helm ne le rend pas (verifie sur
+# le rendu reel : `spec.selector` est absent des deux Jobs de hook) et aucun
+# Service ne les cible.
+SELECTOR_CHECKED_KINDS = {"Deployment", "StatefulSet"}
 
 
-def iter_workloads(stream: str):
-    """(kind, name, pod_spec) pour chaque Deployment/StatefulSet/Job du rendu."""
+def _iter_workload_docs(stream: str):
+    """(kind, name, doc) pour chaque Deployment/StatefulSet/Job du rendu -- le
+    doc COMPLET (pas seulement son pod_spec), pour que les invariants au niveau
+    workload (ex. spec.selector) puissent aussi etre verifies PAR WORKLOAD."""
     for doc in yaml.safe_load_all(stream):
         if not isinstance(doc, dict):
             continue
@@ -37,14 +56,21 @@ def iter_workloads(stream: str):
         if kind not in WORKLOAD_KINDS:
             continue
         name = (doc.get("metadata") or {}).get("name", "?")
+        yield kind, name, doc
+
+
+def iter_workloads(stream: str):
+    """(kind, name, pod_spec) pour chaque Deployment/StatefulSet/Job du rendu."""
+    for kind, name, doc in _iter_workload_docs(stream):
         pod_spec = (((doc.get("spec") or {}).get("template") or {}).get("spec")) or {}
         yield kind, name, pod_spec
 
 
 def check(stream: str) -> list[str]:
     problems: list[str] = []
-    for kind, name, pod in iter_workloads(stream):
+    for kind, name, doc in _iter_workload_docs(stream):
         label = f"{kind}/{name}"
+        pod = (((doc.get("spec") or {}).get("template") or {}).get("spec")) or {}
 
         if pod.get("automountServiceAccountToken") is not False:
             problems.append(
@@ -57,6 +83,23 @@ def check(stream: str) -> list[str]:
             problems.append(
                 f"{label}: securityContext.seccompProfile.type != RuntimeDefault "
                 f"(requis par le profil PSS restricted).")
+
+        if pod_sc.get("runAsNonRoot") is True and not isinstance(pod_sc.get("runAsUser"), int):
+            problems.append(
+                f"{label}: securityContext.runAsNonRoot=true sans runAsUser "
+                f"numerique -- nos images declarent leur USER par nom (non "
+                f"resolu par le kubelet), le pod serait refuse "
+                f"(CreateContainerConfigError).")
+
+        if kind in SELECTOR_CHECKED_KINDS:
+            selector = ((doc.get("spec") or {}).get("selector")) or {}
+            match_labels = selector.get("matchLabels") or {}
+            if "app.kubernetes.io/instance" not in match_labels:
+                problems.append(
+                    f"{label}: spec.selector.matchLabels sans "
+                    f"app.kubernetes.io/instance (SEC-018) -- deux releases "
+                    f"dans le meme namespace se voleraient leurs pods, "
+                    f"facil.component seul ne les distingue pas.")
 
         containers = list(pod.get("containers") or []) + list(pod.get("initContainers") or [])
         for c in containers:

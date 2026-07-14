@@ -488,7 +488,7 @@ def test_apply_creates_namespace_before_secret(monkeypatch, tmp_path):
     calls = []
 
     def fake_run(cmd, **kw):
-        calls.append(list(cmd))
+        calls.append((list(cmd), kw.get("input")))
         return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
     monkeypatch.setattr(k3s.subprocess, "run", fake_run)
@@ -500,14 +500,27 @@ def test_apply_creates_namespace_before_secret(monkeypatch, tmp_path):
     k3s.main(["--apply", "--config", str(_write_cfg_file(tmp_path)),
               "--yes", "--allow-dev-vault"])
 
-    joined = [" ".join(c) for c in calls]
+    joined = [" ".join(c) for c, _ in calls]
     ns_idx = next(i for i, c in enumerate(joined) if "create namespace" in c or "namespace facil" in c)
-    # Cible le VRAI apply du Secret : c'est le seul appel qui porte a la fois
-    # "-n" (namespace explicite) ET "apply" dans sa liste d'argv. Le
-    # `kubectl apply -f -` interne a ensure_namespace() (application du
-    # Namespace rendu) n'a PAS de "-n" -- filtrer sur la liste evite de le
-    # confondre avec l'apply du Secret (cf. test ci-dessous qui fait pareil).
-    sec_idx = next(i for i, c in enumerate(calls) if "-n" in c and "apply" in c)
+    # Cible le VRAI apply du Secret, PAR SON NOM -- pas seulement "un appel qui
+    # porte -n et apply dans son argv". `apply_manifest()` construit TOUJOURS
+    # le meme argv (`[kubectl, "-n", ns, "apply", "-f", "-"]`), que le manifeste
+    # sur stdin soit un Secret OU la ConfigMap SQL (0bis, ajoutee depuis
+    # l'ecriture de ce test) : filtrer sur l'argv seul faisait donc matcher en
+    # PREMIER l'apply de la ConfigMap, pas celui d'un Secret -- l'assertion
+    # restait vraie PAR TRANSITIVITE (le Secret suit quand meme la ConfigMap,
+    # qui suit le namespace) mais ne prouvait plus ce qu'elle pretendait
+    # prouver. On inspecte desormais le manifeste REEL (kwarg `input=`, jamais
+    # l'argv -- SEC-006) pour reperer le premier Secret nomme par
+    # k3s.SECRET_NAMES["postgres"] ("facil-postgres-secret", le 1er composant
+    # itere par build_secret_literals -- postgres avant redis/minio/openbao/
+    # backend/db-role, cf. son ordre d'insertion).
+    sec_idx = next(
+        i for i, (c, manifest) in enumerate(calls)
+        if "-n" in c and "apply" in c and manifest
+        and "kind: Secret" in manifest
+        and f"name: {k3s.SECRET_NAMES['postgres']}" in manifest
+    )
     assert ns_idx < sec_idx, "le namespace doit etre cree AVANT le Secret"
 
 

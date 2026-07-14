@@ -48,6 +48,15 @@ spec:
             capabilities: { drop: ["ALL"] }
           resources: {{- toYaml .Values.resources.app | nindent 12 }}
           env:
+            # Sans ce PORT, packages/web/Dockerfile:27 bake PORT=3000 dans
+            # l'image -- surcharger frontend.port (ex. 3001) changerait le
+            # Service (port + targetPort) et cette Deployment (containerPort)
+            # mais le process Next standalone continuerait d'ecouter sur 3000 :
+            # panne silencieuse (connection refused, aucune erreur au deploy).
+            # Meme correctif deja applique au backend (backend.yaml) -- ici
+            # pour retablir la symetrie.
+            - name: PORT
+              value: {{ .Values.frontend.port | quote }}
             - name: INTERNAL_API_URL
               value: http://{{ include "facil.fullname" (dict "name" "backend") }}:{{ .Values.backend.port }}
           ports:

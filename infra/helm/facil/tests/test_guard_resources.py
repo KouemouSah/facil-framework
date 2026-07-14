@@ -125,6 +125,9 @@ kind: Deployment
 metadata:
   name: fine
 spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: rel
   template:
     spec:
       automountServiceAccountToken: false
@@ -303,6 +306,181 @@ spec:
 """
     problems = guard_resources.check(doc)
     assert any("capabilities.drop" in p for p in problems), problems
+
+
+# --- Invariant 6 (SEC-018) : selector.matchLabels PAR WORKLOAD, pas de comptage ----
+
+def test_catches_single_workload_missing_instance_label_among_six(default_render):
+    # Ancienne garde (test_render.sh) : `grep -A3 "matchLabels:" | grep -q
+    # "app.kubernetes.io/instance"` -- GLOBALE sur tout le rendu. Si UN SEUL des
+    # 6 Deployment/StatefulSet perdait le label, les 5 autres suffisaient a
+    # faire matcher le grep -- exactement le biais tautologique documente en
+    # tete de fichier. On mute structurellement UN SEUL workload (backend), les
+    # 5 autres gardant leur label intact.
+    docs = list(yaml.safe_load_all(default_render))
+    mutated_one = False
+    for doc in docs:
+        if isinstance(doc, dict) and doc.get("kind") == "Deployment" and \
+                (doc.get("metadata") or {}).get("name") == "facil-backend":
+            del doc["spec"]["selector"]["matchLabels"]["app.kubernetes.io/instance"]
+            mutated_one = True
+    assert mutated_one, "fixture n'a pas trouve le Deployment backend -- test casse silencieusement"
+    mutated = yaml.safe_dump_all(docs)
+
+    problems = guard_resources.check(mutated)
+    instance_problems = [p for p in problems if "app.kubernetes.io/instance" in p]
+    assert any("facil-backend" in p for p in instance_problems), problems
+    # Les 5 autres workloads gardent leur label -- un seul finding, pas plus.
+    assert len(instance_problems) == 1, instance_problems
+
+
+def test_catches_missing_instance_label_via_direct_doc_mutation():
+    doc = """
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: evil
+spec:
+  selector:
+    matchLabels:
+      facil.component: evil
+  template:
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: evil
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+"""
+    problems = guard_resources.check(doc)
+    assert any("evil/evil" not in p and "Deployment/evil" in p and
+               "app.kubernetes.io/instance" in p for p in problems), problems
+
+
+def test_job_without_selector_is_not_flagged_for_instance_label():
+    # Les Job n'ont pas de spec.selector rendu par Helm (verifie sur le rendu
+    # reel) -- SELECTOR_CHECKED_KINDS exclut Job, ce test le prouve.
+    doc = """
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fine-job
+spec:
+  template:
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: fine
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+"""
+    problems = guard_resources.check(doc)
+    assert not any("app.kubernetes.io/instance" in p for p in problems), problems
+
+
+# --- Invariant 7 : runAsNonRoot => runAsUser numerique, PAR WORKLOAD ---------
+
+def test_catches_single_workload_runasnonroot_without_uid_among_eight(default_render):
+    # Ancienne garde (test_render.sh) : comptait `runAsNonRoot: true` (NONROOT)
+    # vs `runAsUser: [0-9]+` juste apres (WITH_UID) SUR TOUT LE RENDU, et
+    # comparait les deux totaux. Un podSpec qui perd son runAsUser ET un autre
+    # qui, par coincidence de mutation, en gagnerait un en trop (ou qui porte
+    # deja `runAsUser` sur une ligne non adjacente) laisseraient les comptes
+    # egaux -- compensation entre deux workloads invisible au total. Mutation
+    # ciblee sur backend uniquement (ligne YAML precise, round-trip), les 7
+    # autres workloads gardant runAsUser intact.
+    docs = list(yaml.safe_load_all(default_render))
+    mutated_one = False
+    for doc in docs:
+        if isinstance(doc, dict) and doc.get("kind") == "Deployment" and \
+                (doc.get("metadata") or {}).get("name") == "facil-backend":
+            pod_sc = doc["spec"]["template"]["spec"]["securityContext"]
+            assert pod_sc.get("runAsNonRoot") is True
+            del pod_sc["runAsUser"]
+            mutated_one = True
+    assert mutated_one, "fixture n'a pas trouve le Deployment backend -- test casse silencieusement"
+    mutated = yaml.safe_dump_all(docs)
+
+    problems = guard_resources.check(mutated)
+    uid_problems = [p for p in problems if "runAsUser" in p]
+    assert any("facil-backend" in p for p in uid_problems), problems
+    assert len(uid_problems) == 1, uid_problems
+
+
+def test_catches_runasnonroot_true_without_runasuser_via_direct_doc_mutation():
+    doc = """
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: evil
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: rel
+  template:
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: evil
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+"""
+    problems = guard_resources.check(doc)
+    assert any("Deployment/evil" in p and "runAsUser" in p for p in problems), problems
+
+
+def test_runasnonroot_false_without_runasuser_is_not_flagged():
+    # L'invariant ne porte QUE sur la paire runAsNonRoot=true/runAsUser -- un
+    # podSpec qui ne declare pas runAsNonRoot=true n'est pas dans son perimetre
+    # (ce chart n'a aucun tel workload, mais la garde ne doit pas le supposer).
+    doc = """
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fine
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: rel
+  template:
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: fine
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+"""
+    problems = guard_resources.check(doc)
+    assert not any("runAsUser" in p for p in problems), problems
 
 
 def test_openbao_ipc_lock_exception_still_passes(default_render):
