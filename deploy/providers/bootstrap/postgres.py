@@ -21,6 +21,9 @@ from .context import BootstrapContext, vc
 from .docker_helpers import DockerError, exec_in
 from .state import BootstrapState, ProvisionStep
 
+# deploy/scripts on sys.path via the .context import above (side effect).
+import pg_roles  # noqa: E402
+
 NAME = "postgres"
 
 # Infra-level extensions assumed by the platform. pgvector is mandatory for RAG
@@ -68,19 +71,13 @@ def _password_works(container, role, db, pw) -> bool:
 
 # Least-privilege grants for the application role. The superuser (POSTGRES_USER)
 # stays reserved for migrations / db-init; the backend connects as this role.
+#
+# Delegates to deploy/scripts/pg_roles.py::grants_sql — the SAME list the k3s
+# path renders into the Job Helm SQL (deploy/providers/k3s.py::render_role_sql).
+# Only the grants are shared here: the idempotent rotation logic below (create
+# vs. reuse vs. rotate the password) stays specific to this docker-exec path.
 def _grants(role: str, db: str) -> list[str]:
-    return [
-        f"GRANT CONNECT ON DATABASE {db} TO {role}",
-        f"GRANT USAGE ON SCHEMA public TO {role}",
-        f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {role}",
-        f"GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {role}",
-        # Tables/sequences created LATER by db-init (running as superuser) are
-        # auto-granted to the app role — covers Phase D schema without re-running.
-        f"ALTER DEFAULT PRIVILEGES IN SCHEMA public "
-        f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {role}",
-        f"ALTER DEFAULT PRIVILEGES IN SCHEMA public "
-        f"GRANT USAGE, SELECT ON SEQUENCES TO {role}",
-    ]
+    return pg_roles.grants_sql(role, db)
 
 
 def _ensure_app_role(ctx, container, user, db, step) -> tuple[str, str]:

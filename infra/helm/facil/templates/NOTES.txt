@@ -1,0 +1,6 @@
+Facil déployé (release {{ .Release.Name }}, namespace {{ .Release.Namespace }}).
+Backend  : svc/facil-backend:{{ .Values.backend.port }}
+Frontend : svc/facil-frontend:{{ .Values.frontend.port }}
+Vérifier : kubectl -n {{ .Release.Namespace }} get pods
+Health   : kubectl -n {{ .Release.Namespace }} exec deploy/facil-backend -- \
+             python -c "import urllib.request;urllib.request.urlopen('http://localhost:{{ .Values.backend.port }}/health',timeout=3)"

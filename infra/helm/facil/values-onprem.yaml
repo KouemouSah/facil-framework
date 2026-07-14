@@ -1,0 +1,13 @@
+# Overlay on-prem mono-nœud (k3s). Aucune valeur de secret ici — noms uniquement.
+global:
+  storageClass: local-path
+postgres:
+  storage: 10Gi
+minio:
+  storage: 20Gi
+openbao:
+  devMode: true
+backend:
+  replicas: 1
+frontend:
+  replicas: 1

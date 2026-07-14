@@ -41,15 +41,27 @@ PROVIDERS_DIR = DEPLOY_DIR / "providers"
 DEFAULT_CONFIG = DEPLOY_DIR / "config.yaml"
 PYTHON = sys.executable
 
-SUPPORTED_PROVIDERS = ["gcp", "aws", "azure", "docker-local"]
+SUPPORTED_PROVIDERS = ["gcp", "aws", "azure", "docker-local", "k3s"]
 SUPPORTED_ACTIONS = ["validate", "plan", "apply"]
 
 
 def run_step(name: str, cmd: list[str], *, capture: bool = False) -> int:
-    """Run a sub-step and return its exit code. Prints a clear header."""
-    print(f"\n{'=' * 70}")
-    print(f"==  {name}")
-    print(f"{'=' * 70}")
+    """Run a sub-step and return its exit code. Prints a clear header.
+
+    Everything this orchestrator prints about ITSELF (headers, and — when
+    `capture=True` — the sub-step's own stdout/stderr) goes to **stderr**,
+    never real stdout. Real stdout must stay pure for `--action=plan`/`apply`:
+    it is meant to be piped straight into
+    `infra/helm/facil/tests/guard_secrets.py` (see task-V1 brief). Found by
+    running that exact pipe for real: the old code printed step banners AND
+    steps 1-3's own "[OK] Config valid..." chatter to stdout, which
+    `yaml.safe_load_all` then choked on before ever reaching the actual `helm
+    template` render — a bug `helm lint`/`template`/pytest alone could never
+    catch (nothing exercises the orchestrator's stdout contract).
+    """
+    print(f"\n{'=' * 70}", file=sys.stderr)
+    print(f"==  {name}", file=sys.stderr)
+    print(f"{'=' * 70}", file=sys.stderr)
     proc = subprocess.run(
         cmd,
         text=True,
@@ -59,7 +71,7 @@ def run_step(name: str, cmd: list[str], *, capture: bool = False) -> int:
         errors="replace",
     )
     if capture and proc.stdout:
-        print(proc.stdout)
+        print(proc.stdout, file=sys.stderr)
     if capture and proc.stderr:
         print(proc.stderr, file=sys.stderr)
     return proc.returncode
@@ -88,10 +100,14 @@ def main(argv: list[str] | None = None) -> int:
         return 3
 
     # 1. validate_config.py
+    # capture=True on steps 1-3: their own stdout is prose ("[OK] Config
+    # valid..."), never the payload — must not leak onto real stdout ahead of
+    # step 4's `helm template`/`helm upgrade` output (see run_step docstring).
     rc = run_step(
         "Step 1/4 — Schema validation",
         [PYTHON, str(SCRIPTS_DIR / "validate_config.py"),
          str(args.config), f"--provider={args.provider}"],
+        capture=True,
     )
     if rc != 0:
         print(f"\nERROR: schema validation failed (exit {rc})", file=sys.stderr)
@@ -102,6 +118,7 @@ def main(argv: list[str] | None = None) -> int:
         "Step 2/4 — Render env templates + secrets manifest",
         [PYTHON, str(SCRIPTS_DIR / "render_env.py"),
          f"--config={args.config}", "--target=both"],
+        capture=True,
     )
     if rc != 0:
         print(f"\nERROR: render_env failed (exit {rc})", file=sys.stderr)
@@ -112,6 +129,7 @@ def main(argv: list[str] | None = None) -> int:
         f"Step 3/4 — {args.provider} prereqs + secrets cross-check",
         [PYTHON, str(provider_script),
          f"--config={args.config}", "--validate"],
+        capture=True,
     )
     if rc != 0:
         print(f"\nERROR: provider validate failed (exit {rc})", file=sys.stderr)
@@ -119,10 +137,13 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.action == "validate":
         print("\n[OK] All validation steps passed. Use --action=plan to see "
-              "the deploy plan.")
+              "the deploy plan.", file=sys.stderr)
         return 0
 
-    # 4. Provider --plan or --apply
+    # 4. Provider --plan or --apply — capture=False (default): this step's
+    # stdout IS the payload (helm template render for `plan`; helm
+    # upgrade/kubectl output for `apply`), streamed live to real stdout so it
+    # can be piped (e.g. into guard_secrets.py) or watched interactively.
     provider_action = "--plan" if args.action == "plan" else "--apply"
     rc = run_step(
         f"Step 4/4 — {args.provider} {provider_action}",
@@ -134,7 +155,7 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 2
 
-    print("\n[OK] Deploy pipeline complete.")
+    print("\n[OK] Deploy pipeline complete.", file=sys.stderr)
     return 0
 
 

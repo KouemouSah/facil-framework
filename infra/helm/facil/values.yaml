@@ -1,0 +1,102 @@
+global:
+  owner: kouemousah            # ghcr.io/<owner>/facil-*
+  # B4 : PAS "latest" -- release-images.yml ne pousse `latest` que sur la
+  # branche PAR DEFAUT du repo GitHub ("main", confirme par
+  # `git ls-remote --symref origin HEAD`) ; le travail se fait sur `develop`
+  # (CLAUDE.md), poussee a chaque build (tag `type=ref,event=branch`). Un
+  # premier `--apply` sur ce defaut sans le surcharger (deploy/config.yaml
+  # absent/vide) tirerait un tag inexistant sur GHCR -> ImagePullBackOff 10 min
+  # puis rollback --atomic. Surcharge normale : deploy/providers/k3s.py::
+  # render_values() via cfg.meta.version (deploy/config.yaml::meta.version).
+  imageTag: develop
+  storageClass: local-path     # défaut k3s
+  # Registre privé (on-prem souverain / GHCR passé en privé) : lister ici les
+  # Secret k8s de type kubernetes.io/dockerconfigjson. Vide = pull anonyme, ce
+  # qui suffit tant que ghcr.io/<owner>/facil-* reste public.
+  # Ex. : imagePullSecrets: [{name: regcred}]
+  imagePullSecrets: []
+
+# Noms des k8s Secret (crees par deploy/providers/k3s.py, HORS Helm). Un Secret
+# PAR COMPOSANT : chaque pod ne monte que ses propres credentials (SEC-001).
+# Ce sont des NOMS, jamais des valeurs.
+secretNames:
+  postgres: facil-postgres-secret
+  redis: facil-redis-secret
+  minio: facil-minio-secret
+  openbao: facil-openbao-secret
+  backend: facil-backend-secret
+  dbRole: facil-db-role-secret
+
+postgres:
+  enabled: true
+  image: pgvector/pgvector:pg16
+  storage: 10Gi
+  db: facil
+  user: facil
+redis:
+  enabled: true
+  image: redis:7-alpine
+minio:
+  enabled: true
+  # Pinne par digest (SEC-014) : `:latest` sur le stockage objet = un push amont
+  # compromis se propage au prochain restart de pod, sans trace ni rollback.
+  image: minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e   # ~ :latest au 2026-07-13
+  storage: 20Gi
+  rootUser: facil
+openbao:
+  enabled: true
+  # Pinne par digest (SEC-014) : idem minio -- le coffre-fort ne doit jamais
+  # suivre un tag mutable sans trace ni rollback possible.
+  image: openbao/openbao@sha256:6150c4a6b62067db6141c8da7a6a6b5763f4f47c315343d0c848b40fecdfd452   # ~ :latest au 2026-07-13
+  devMode: true                # prod unseal (SOPS+age) = plan ultérieur
+backend:
+  enabled: true
+  port: 8080
+  modulesEnabled: "organization,location"
+  replicas: 1
+frontend:
+  enabled: true
+  port: 3000
+  replicas: 1
+
+# Ingress (Traefik, k3s) -- SEC-024. Single-origin (anti-CORS) : "/" -> frontend,
+# "/api" -> backend, sur le meme hote. `host` a surcharger par l'overlay / --set
+# pour un vrai domaine. TLS = hors perimetre (P2 : cert-manager / OpenBao PKI).
+ingress:
+  enabled: true
+  className: traefik      # ingress controller embarque de k3s
+  host: facil.local
+
+# SEC-012 : NetworkPolicy default-deny (ingress) + allow explicites par
+# composant. k3s embarque le controleur NetworkPolicy de kube-router (compile
+# dans le process serveur k3s, pas un pod separe) -> les NetworkPolicy sont
+# REELLEMENT appliquees. VERIFIE EMPIRIQUEMENT le 2026-07-14 (cluster k3d
+# jetable) : un pod sans le label facil.component recoit ECONNREFUSED sur
+# postgres/redis, un pod facil.component=backend s'y connecte normalement ;
+# voir SMOKE.md (section Risque 1) pour la procedure + la sortie brute.
+networkPolicy:
+  enabled: true
+
+# Profils de resources (SEC-015) : sur mono-noeud, un pod SANS limits peut
+# OOM-killer le noeud entier (pas de cgroup parent qui l'isole) -- DoS trivial.
+# Surchargeables par l'overlay ; dimensionnes pour un k3s de smoke a 4 Go.
+resources:
+  small:      # Jobs one-shot (db-role, db-init) + sidecars d'attente (wait-postgres)
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { cpu: 200m, memory: 128Mi }
+  data:       # postgres, minio
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 1000m, memory: 1Gi }
+  cache:      # redis, openbao
+    requests: { cpu: 25m, memory: 64Mi }
+    limits: { cpu: 300m, memory: 256Mi }
+  app:        # backend, frontend
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 1000m, memory: 1Gi }
+
+# Services gated (P1b) — OFF ici.
+caddy: { enabled: false }
+keycloak: { enabled: false }
+otel: { enabled: false }
+ollama: { enabled: false }
+mail: { enabled: false }

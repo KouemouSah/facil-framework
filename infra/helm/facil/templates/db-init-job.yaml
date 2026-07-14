@@ -1,0 +1,70 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "db-init") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+  annotations:
+    # post-install (PAS pre-install) : a la 1ere install, les hooks pre-install
+    # tournent avant que Postgres n'existe -> alembic echoue sur DNS et, avec
+    # backoffLimit 0, helm install avorte (APPLY-002). En pre-upgrade Postgres
+    # tourne deja, donc l'ordre migration-avant-cutover est preserve.
+    helm.sh/hook: post-install,pre-upgrade
+    helm.sh/hook-weight: "0"   # apres db-role (-1) qui cree facil_app
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 2            # initContainer gere l'attente Postgres ; ce retry
+                              # couvre juste un redemarrage transitoire -- la
+                              # migration reste fail-closed apres 2 echecs.
+  template:
+    metadata:
+      labels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "db-init") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false   # aucun pod n'appelle l'API k8s
+      {{- include "facil.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: { type: RuntimeDefault }   # requis par le profil PSS restricted
+      initContainers:
+        - name: wait-postgres
+          image: {{ .Values.postgres.image }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          command: ["sh", "-c"]
+          args:
+            - |
+              until pg_isready -h {{ include "facil.fullname" (dict "name" "postgres") }} -U {{ .Values.postgres.user }}; do
+                echo "postgres pas pret, attente..." >&2
+                sleep 2
+              done
+          resources: {{- toYaml .Values.resources.small | nindent 12 }}
+      containers:
+        - name: db-init
+          image: ghcr.io/{{ .Values.global.owner }}/facil-backend:{{ .Values.global.imageTag }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources: {{- toYaml .Values.resources.small | nindent 12 }}
+          command: ["alembic", "upgrade", "head"]
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretNames.dbRole }}
+                  key: POSTGRES_PASSWORD
+            - name: DATABASE_URL
+              value: postgresql://{{ .Values.postgres.user }}:$(POSTGRES_PASSWORD)@{{ include "facil.fullname" (dict "name" "postgres") }}:5432/{{ .Values.postgres.db }}
+            - name: ENVIRONMENT
+              value: production
+            - name: APPLIED_BY
+              value: helm-db-init
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

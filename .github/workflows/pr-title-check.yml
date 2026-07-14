@@ -49,6 +49,13 @@ jobs:
             security
             release
             agents
+            # Socle de déploiement : le repo a désormais un répertoire infra/
+            # (chart Helm k3s) et un moteur deploy/ (providers, bootstrap).
+            # `helm` et `deploy` étaient déjà utilisés par une trentaine de commits
+            # sans figurer ici — d'où un avertissement commitlint à chaque fois.
+            infra
+            deploy
+            helm
             phase-A.5
             phase-B
             phase-B.5

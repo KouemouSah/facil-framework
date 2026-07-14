@@ -1,0 +1,65 @@
+name: Helm chart
+
+# Lint + template the facil Helm chart on every change (règle #1 CLAUDE.md:
+# aucun build d'image / apply cluster ici — juste lint/rendu à sec).
+#
+# Garde-secret (SEC-009) : PARSEE (infra/helm/facil/tests/guard_secrets.py),
+# pas grep. L'ancienne version en grep (`grep -Eiq '(password|secret|token):
+# [A-Za-z0-9+/]{8,}'` puis une liste de 4 clés figées) ratait les connection
+# strings (DATABASE_URL/REDIS_URL rendent en `value:` avec interpolation
+# $(VAR)), ne regardait qu'une ligne après `- name:` (contournable par un
+# commentaire YAML) et ne matchait pas le style flow. Le parseur YAML réel
+# vérifie des invariants structurels sur tout le rendu — voir
+# infra/helm/facil/tests/test_guard_secrets.py pour la preuve par mutation de
+# chaque invariant. Appelé depuis infra/helm/facil/tests/test_render.sh pour
+# le rendu par défaut ET pour l'overlay on-prem (`-f values-onprem.yaml`) —
+# une seule implémentation, zéro duplication/drift.
+
+# NB : GitHub Actions ne supporte PAS les ancres YAML (&/*) dans les workflows —
+# la liste `paths` est donc dupliquée volontairement entre push et pull_request.
+#
+# `deploy/**` est inclus parce que le provider et le chart ont un contrat COUPLÉ :
+# k3s.py::SECRET_NAMES doit correspondre à values.yaml::secretNames, render_values()
+# aux clés du chart, pg_roles.py au SQL monté par le Job db-role. Un changement dans
+# deploy/ peut donc casser le rendu sans toucher un seul fichier d'infra/.
+on:
+  push:
+    branches: [main, develop]
+    paths: ["infra/helm/**", "deploy/**", ".github/workflows/helm.yml"]
+  pull_request:
+    paths: ["infra/helm/**", "deploy/**", ".github/workflows/helm.yml"]
+
+concurrency:
+  group: helm-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-template:
+    name: lint + template + garde-secret
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+        with: { version: v3.16.4 }
+
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install pyyaml pytest
+
+      - name: helm lint
+        run: helm lint infra/helm/facil
+
+      - name: helm template + garde-secret (rendu par défaut)
+        run: bash infra/helm/facil/tests/test_render.sh
+
+      - name: helm template + garde-secret (overlay on-prem)
+        run: bash infra/helm/facil/tests/test_render.sh -f infra/helm/facil/values-onprem.yaml
+
+      # Les 4 gardes parsées (secrets, resources, networkpolicy, ingress) + leurs
+      # preuves par mutation. Ne PAS restreindre à test_guard_secrets.py : jusqu'ici
+      # 3 gardes sur 4 ne tournaient jamais en CI — leurs guards étaient bien appelés
+      # par test_render.sh, mais rien ne vérifiait qu'ils PEUVENT échouer. Or une garde
+      # dont la preuve de mutation ne tourne pas est une garde qu'on ne surveille plus.
+      - name: gardes parsées — preuves par mutation (pytest, les 4)
+        run: python -m pytest infra/helm/facil/tests -q

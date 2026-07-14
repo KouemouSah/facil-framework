@@ -1,0 +1,50 @@
+{{- if .Values.ingress.enabled }}
+{{/*
+SEC-024 : sans Ingress, la stack deployee n'est joignable de NULLE PART
+(aucun Ingress, aucun NodePort) -- seul un `kubectl port-forward` y accede.
+Single-origin (anti-CORS) : "/" -> frontend, "/api" -> backend, sur le meme
+hote. Traefik est l'ingress controller embarque de k3s (`ingressClassName:
+traefik`) : aucune installation supplementaire requise sur un k3s standard.
+
+Ordre des paths et priorite : avec `pathType: Prefix`, la regle "/" matche
+TOUT chemin (y compris /api/...). Un Ingress `networking.k8s.io/v1` ne suit
+PAS l'ordre de declaration pour departager deux prefixes qui matchent tous
+les deux -- la specification impose (et Traefik l'applique, comme les autres
+controllers conformes) que le PREFIXE LE PLUS LONG gagne, quel que soit
+l'ordre d'ecriture. "/api" (5 caracteres) l'emporte donc toujours sur "/"
+(1 caractere). On liste neanmoins "/api" en premier par lisibilite humaine ;
+`guard_ingress.py` (SEC-024) verifie le ROUTAGE reel (Service + port resolus
+par prefixe), pas seulement la presence des deux regles -- voir
+tests/guard_ingress.py et task-H3-report.md pour la verification du prefixe
+reel des routes backend (`/api/v1/...`).
+
+TLS = HORS PERIMETRE (P2 : cert-manager ou OpenBao PKI). Cet Ingress expose en
+HTTP simple sur le reseau du noeud -- acceptable pour le socle on-prem actuel
+(mono-noeud, reseau prive), a durcir avant toute exposition publique.
+*/}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "ingress") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "facil.fullname" (dict "name" "backend") }}
+                port:
+                  number: {{ .Values.backend.port }}
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "facil.fullname" (dict "name" "frontend") }}
+                port:
+                  number: {{ .Values.frontend.port }}
+{{- end }}
