@@ -908,38 +908,68 @@ class TestBackupPostgres:
             assert MARKER not in arg
 
 
-class TestPostgresHasExistingData:
+class TestPostgresDataState:
     """B4 : le signal reel de gating -- schema deja initialise, pas liveness
-    du conteneur (stack_running())."""
+    du conteneur (stack_running()).
 
-    def test_returns_true_when_a_public_table_exists(self, cfg, monkeypatch):
+    TERNAIRE, jamais booleen : "has_data" / "empty" / "unknown". Ecraser
+    "unknown" sur "empty" (ce que faisait la version booleenne) est un
+    fail-OPEN -- "je n'ai pas pu savoir" devenait "rien a proteger", donc
+    "migre sans sauvegarde".
+    """
+
+    def test_has_data_when_a_public_table_exists(self, cfg, monkeypatch):
         monkeypatch.setattr(dl, "find_docker", lambda: "/usr/bin/docker")
         monkeypatch.setattr(
             dl.subprocess, "run",
             lambda cmd, **kw: MagicMock(returncode=0, stdout="1\n", stderr=""))
-        assert dl.postgres_has_existing_data(cfg) is True
+        assert dl.postgres_data_state(cfg) == "has_data"
 
-    def test_returns_false_on_a_genuinely_empty_database(self, cfg, monkeypatch):
+    def test_empty_on_a_genuinely_empty_database(self, cfg, monkeypatch):
         monkeypatch.setattr(dl, "find_docker", lambda: "/usr/bin/docker")
         monkeypatch.setattr(
             dl.subprocess, "run",
             lambda cmd, **kw: MagicMock(returncode=0, stdout="", stderr=""))
-        assert dl.postgres_has_existing_data(cfg) is False
+        assert dl.postgres_data_state(cfg) == "empty"
 
-    def test_returns_false_when_psql_errors(self, cfg, monkeypatch):
-        # e.g. postgres container not up yet / connection refused -- fail
-        # closed towards "nothing to protect", never crash the apply.
+    def test_unknown_when_psql_never_answers(self, cfg, monkeypatch):
+        # LE test qui compte. Postgres rejoue son WAL apres un arret sale, ou
+        # `up -d` (sans --wait) a rendu la main avant que le socket accepte :
+        # psql echoue. La base est peut-etre PLEINE. Repondre "empty" ici
+        # revient a sauter la sauvegarde puis lancer la migration Alembic
+        # dessus. Le seul verdict honnete est "unknown" -- et l'appelant
+        # avorte (cf. test_probe_failure_aborts_the_apply_before_db_init).
         monkeypatch.setattr(dl, "find_docker", lambda: "/usr/bin/docker")
+        monkeypatch.setattr(dl.time, "sleep", lambda s: None)
         monkeypatch.setattr(
             dl.subprocess, "run",
-            lambda cmd, **kw: MagicMock(returncode=1, stdout="", stderr="connection refused"))
-        assert dl.postgres_has_existing_data(cfg) is False
+            lambda cmd, **kw: MagicMock(returncode=1, stdout="", stderr="starting up"))
+        assert dl.postgres_data_state(cfg, attempts=3, delay=0) == "unknown"
 
-    def test_returns_false_when_docker_missing(self, cfg, monkeypatch):
+    def test_retries_a_starting_postgres_instead_of_declaring_it_empty(
+        self, cfg, monkeypatch,
+    ):
+        # Une base qui demarre n'est pas une base vide : la sonde attend, comme
+        # `until pg_isready` le fait cote k3s (backup-job.yaml). Sans cette
+        # attente, le flux nominal `docker compose down` + `--apply` sur une
+        # base peuplee tomberait en "unknown" et avorterait a chaque fois.
+        monkeypatch.setattr(dl, "find_docker", lambda: "/usr/bin/docker")
+        slept = []
+        monkeypatch.setattr(dl.time, "sleep", lambda s: slept.append(s))
+        answers = [
+            MagicMock(returncode=1, stdout="", stderr="the database system is starting up"),
+            MagicMock(returncode=1, stdout="", stderr="the database system is starting up"),
+            MagicMock(returncode=0, stdout="1\n", stderr=""),
+        ]
+        monkeypatch.setattr(dl.subprocess, "run", lambda cmd, **kw: answers.pop(0))
+        assert dl.postgres_data_state(cfg, attempts=5, delay=2) == "has_data"
+        assert slept == [2, 2], "la sonde doit patienter entre deux tentatives"
+
+    def test_unknown_when_docker_missing(self, cfg, monkeypatch):
         monkeypatch.setattr(dl, "find_docker", lambda: None)
         called = []
         monkeypatch.setattr(dl.subprocess, "run", lambda cmd, **kw: called.append(cmd))
-        assert dl.postgres_has_existing_data(cfg) is False
+        assert dl.postgres_data_state(cfg) == "unknown"
         assert called == []
 
     def test_never_puts_a_password_in_the_psql_argv(self, cfg, monkeypatch):
@@ -953,7 +983,7 @@ class TestPostgresHasExistingData:
             return MagicMock(returncode=0, stdout="", stderr="")
 
         monkeypatch.setattr(dl.subprocess, "run", fake_run)
-        dl.postgres_has_existing_data(cfg)
+        dl.postgres_data_state(cfg, attempts=1)
         for arg in captured["cmd"]:
             assert MARKER not in arg
 
@@ -970,7 +1000,7 @@ class TestPostgresHasExistingData:
             return MagicMock(returncode=0, stdout="", stderr="")
 
         monkeypatch.setattr(dl.subprocess, "run", fake_run)
-        dl.postgres_has_existing_data(cfg)
+        dl.postgres_data_state(cfg, attempts=1)
         assert "-h" not in captured["cmd"]
         assert "psql" in captured["cmd"]
         assert "-U" in captured["cmd"] and cfg.meta.project_name in captured["cmd"]
@@ -992,11 +1022,11 @@ class TestBackupWiredIntoApply:
         self, tmp_path, minimal_config_dict, monkeypatch,
     ):
         # "Update" == Postgres ALREADY has an initialized schema (B4 :
-        # `postgres_has_existing_data()`, PAS `stack_running()` -- une stack
+        # `postgres_data_state()`, PAS `stack_running()` -- une stack
         # ARRETEE puis `--apply` (down + apply, flux normal) a quand meme des
         # donnees a proteger). database_mode reste "local" par defaut.
         cfg_file = self._mocks(tmp_path, minimal_config_dict, monkeypatch)
-        monkeypatch.setattr(dl, "postgres_has_existing_data", lambda cfg, **kw: True)
+        monkeypatch.setattr(dl, "postgres_data_state", lambda cfg, **kw: "has_data")
         # A1 : preuve d'ORDRE reelle, pas un index d'enumerate (toujours >= 0).
         # Un sentinel PARTAGE entre le faux backup_postgres et le faux
         # run_compose enregistre le RANG relatif des deux evenements.
@@ -1027,11 +1057,11 @@ class TestBackupWiredIntoApply:
     ):
         # Rien a sauvegarder a la 1ere installation (meme decision que
         # backup-job.yaml, hook pre-upgrade SEULEMENT) : une base neuve n'a
-        # encore AUCUNE table -- postgres_has_existing_data() renvoie False.
+        # encore AUCUNE table -- postgres_data_state() renvoie False.
         cfg_file = self._mocks(tmp_path, minimal_config_dict, monkeypatch)
         calls = []
         monkeypatch.setattr(dl, "backup_postgres", lambda cfg, **kw: (calls.append(cfg) or (True, "ok")))
-        monkeypatch.setattr(dl, "postgres_has_existing_data", lambda cfg, **kw: False)
+        monkeypatch.setattr(dl, "postgres_data_state", lambda cfg, **kw: "empty")
         with patch("docker_local.find_docker", return_value="/usr/bin/docker"), \
              patch("docker_local.docker_compose_available", return_value=True), \
              patch("docker_local.stack_running", return_value=False), \
@@ -1041,18 +1071,54 @@ class TestBackupWiredIntoApply:
         assert rc == 0
         assert calls == []
 
+    def test_probe_failure_aborts_the_apply_before_db_init(
+        self, tmp_path, minimal_config_dict, monkeypatch,
+    ):
+        # SEC-001 / C1 (revue E2) -- LE test de la gate. Quand la sonde ne peut
+        # PAS repondre ("unknown"), on ne sait pas si la base est pleine. La
+        # version booleenne repondait False => sauvegarde sautee => `db-init`
+        # (alembic upgrade head) migrait quand meme une base peut-etre peuplee,
+        # sans dump, sans message. C'est fail-OPEN, et c'est la negation exacte
+        # du contrat de ce lot.
+        #
+        # Preuve par MUTATION, pas par code de retour : on assert que `db-init`
+        # n'apparait dans AUCUNE invocation compose. Rendre la migration
+        # inatteignable est l'invariant ; rc=1 n'en est que le symptome.
+        cfg_file = self._mocks(tmp_path, minimal_config_dict, monkeypatch)
+        calls = []
+        monkeypatch.setattr(dl, "backup_postgres", lambda cfg, **kw: (calls.append(cfg) or (True, "ok")))
+        monkeypatch.setattr(dl, "postgres_data_state", lambda cfg, **kw: "unknown")
+        composed = []
+
+        def fake_run_compose(args, **kw):
+            composed.append(list(args))
+            return 0
+
+        with patch("docker_local.find_docker", return_value="/usr/bin/docker"), \
+             patch("docker_local.docker_compose_available", return_value=True), \
+             patch("docker_local.stack_running", return_value=True), \
+             patch("docker_local.subprocess.run", return_value=MagicMock(returncode=0)), \
+             patch("docker_local.run_compose", side_effect=fake_run_compose):
+            rc = dl.main(["--config", str(cfg_file), "--apply", "--yes"])
+
+        assert rc == 1, "une sonde muette doit AVORTER l'update (fail-closed)"
+        assert calls == [], "rien a sauvegarder n'est pas etabli -- ne pas pretendre l'avoir fait"
+        assert not any("db-init" in args for args in composed), (
+            "la migration Alembic ne doit JAMAIS etre atteinte quand on ignore "
+            f"si la base contient des donnees -- invocations compose : {composed}")
+
     def test_stopped_stack_with_existing_data_still_backs_up(
         self, tmp_path, minimal_config_dict, monkeypatch,
     ):
         # B4 (le bug reel) : `docker compose down` (ou un reboot) PUIS
         # `--apply` est le flux d'update le plus naturel -- `stack_running()`
         # vaut False ici, alors qu'il y a bel et bien des donnees existantes
-        # (postgres_has_existing_data()=True). L'ancien gate (`was_running`)
+        # (postgres_data_state()=True). L'ancien gate (`was_running`)
         # aurait saute la sauvegarde ; celui-ci ne doit PAS le faire.
         cfg_file = self._mocks(tmp_path, minimal_config_dict, monkeypatch)
         calls = []
         monkeypatch.setattr(dl, "backup_postgres", lambda cfg, **kw: (calls.append(cfg) or (True, "ok")))
-        monkeypatch.setattr(dl, "postgres_has_existing_data", lambda cfg, **kw: True)
+        monkeypatch.setattr(dl, "postgres_data_state", lambda cfg, **kw: "has_data")
         with patch("docker_local.find_docker", return_value="/usr/bin/docker"), \
              patch("docker_local.docker_compose_available", return_value=True), \
              patch("docker_local.stack_running", return_value=False), \
@@ -1071,14 +1137,14 @@ class TestBackupWiredIntoApply:
         # database_mode=external : aucun conteneur Postgres facil-manage a
         # sauvegarder par ce chemin (la base vit ailleurs) -- pas de fausse
         # confiance en pretendant sauvegarder quelque chose qu'on ne peut
-        # pas atteindre ainsi. postgres_has_existing_data() force a True pour
+        # pas atteindre ainsi. postgres_data_state() force a True pour
         # prouver que c'est bien le garde database_mode qui bloque ici, pas
         # une coincidence de valeur par defaut.
         minimal_config_dict["docker_local"] = {"database_mode": "external"}
         cfg_file = self._mocks(tmp_path, minimal_config_dict, monkeypatch)
         calls = []
         monkeypatch.setattr(dl, "backup_postgres", lambda cfg, **kw: (calls.append(cfg) or (True, "ok")))
-        monkeypatch.setattr(dl, "postgres_has_existing_data", lambda cfg, **kw: True)
+        monkeypatch.setattr(dl, "postgres_data_state", lambda cfg, **kw: "has_data")
         with patch("docker_local.find_docker", return_value="/usr/bin/docker"), \
              patch("docker_local.docker_compose_available", return_value=True), \
              patch("docker_local.stack_running", return_value=True), \
@@ -1097,7 +1163,7 @@ class TestBackupWiredIntoApply:
         cfg_file = self._mocks(tmp_path, minimal_config_dict, monkeypatch)
         monkeypatch.setattr(dl, "backup_postgres",
                             lambda cfg, **kw: (False, "pg_dump a echoue: boom"))
-        monkeypatch.setattr(dl, "postgres_has_existing_data", lambda cfg, **kw: True)
+        monkeypatch.setattr(dl, "postgres_data_state", lambda cfg, **kw: "has_data")
         run_compose_calls = []
         with patch("docker_local.find_docker", return_value="/usr/bin/docker"), \
              patch("docker_local.docker_compose_available", return_value=True), \

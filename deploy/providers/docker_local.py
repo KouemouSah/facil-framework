@@ -54,6 +54,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 PROVIDERS_DIR = Path(__file__).resolve().parent
@@ -169,10 +170,27 @@ def backup_postgres(cfg: vc.DeployConfig, *, dest_dir: Path = BACKUPS_DIR,
     return True, f"sauvegarde Postgres -> {dump_path}"
 
 
-def postgres_has_existing_data(cfg: vc.DeployConfig, *,
-                               compose_file: Path = COMPOSE_FILE) -> bool:
-    """True if Postgres ALREADY has an initialized schema — the real signal the
-    pre-update backup must gate on (B4), not container liveness (`stack_running`).
+def postgres_data_state(cfg: vc.DeployConfig, *,
+                        compose_file: Path = COMPOSE_FILE,
+                        attempts: int = 30, delay: float = 2.0) -> str:
+    """`"has_data"` | `"empty"` | `"unknown"` — the real signal the pre-update
+    backup must gate on (B4), not container liveness (`stack_running`).
+
+    TERNARY ON PURPOSE. The previous version returned a bool, collapsing "the
+    probe could not be answered" onto "the database is empty" — and "empty"
+    means "nothing to protect, go ahead and migrate". That is fail-OPEN, and it
+    negates this whole feature: `docker compose up -d` (line ~892) has no
+    `--wait`, so on the most natural update flow (`docker compose down` — or a
+    host reboot — then `--apply`) Postgres may still be replaying its WAL when
+    we ask. `psql` then exits non-zero, the old gate concluded "empty", the
+    backup was silently skipped, and `db-init` ran `alembic upgrade head`
+    against a fully populated database with no dump to fall back on.
+
+    So: retry while Postgres is still coming up (a successful `psql` IS the
+    readiness signal — same intent as the `until pg_isready` loop the k3s side
+    needed in `backup-job.yaml`), and if it still cannot answer, say
+    `"unknown"`. The caller ABORTS on `"unknown"` — refusing to migrate a
+    database we cannot vouch for is the only honest fail-closed behaviour.
 
     BUG THIS REPLACES: the previous gate was `was_running = stack_running()`,
     captured before the data-plane comes up. But the single most natural update
@@ -198,14 +216,19 @@ def postgres_has_existing_data(cfg: vc.DeployConfig, *,
     """
     docker = find_docker()
     if not docker:
-        return False
-    proc = subprocess.run(
-        [docker, "compose", "-f", str(compose_file), "exec", "-T", "postgres",
-         "psql", "-U", cfg.meta.project_name, "-d", cfg.meta.project_name, "-tAc",
-         "SELECT 1 FROM information_schema.tables WHERE table_schema='public' LIMIT 1"],
-        capture_output=True, text=True, check=False,
-    )
-    return proc.returncode == 0 and proc.stdout.strip() == "1"
+        return "unknown"
+    for attempt in range(attempts):
+        proc = subprocess.run(
+            [docker, "compose", "-f", str(compose_file), "exec", "-T", "postgres",
+             "psql", "-U", cfg.meta.project_name, "-d", cfg.meta.project_name, "-tAc",
+             "SELECT 1 FROM information_schema.tables WHERE table_schema='public' LIMIT 1"],
+            capture_output=True, text=True, check=False,
+        )
+        if proc.returncode == 0:
+            return "has_data" if proc.stdout.strip() == "1" else "empty"
+        if attempt < attempts - 1:
+            time.sleep(delay)
+    return "unknown"
 
 
 # ---------------------------------------------------------------------------
@@ -837,7 +860,7 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
         print(f"[OK] generated strong runtime secrets: {', '.join(generated)}")
 
     # Port-conflict warning ONLY (B4: this is no longer used to gate the
-    # pre-update backup below — see postgres_has_existing_data() for why
+    # pre-update backup below — see postgres_data_state() for why
     # container liveness is the wrong signal for "is there data to protect").
     was_running = stack_running()
     if was_running:
@@ -949,18 +972,28 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
         # whether the stack happened to be running before this --apply
         # (`docker compose down` + `--apply` is a normal update flow that
         # would otherwise skip the backup entirely; see
-        # postgres_has_existing_data()'s docstring for the bug this replaces).
-        if (cfg.docker_local.database_mode == "local"
-                and postgres_has_existing_data(cfg)):
-            print("\n=== Backing up Postgres before update (tier lite, best-effort) ===")
-            ok, msg = backup_postgres(cfg)
-            if not ok:
-                print(f"ERROR: {msg}\n"
-                      f"Update ABORTED (fail-closed) — the data-plane stays up, no "
-                      f"migration has run. Fix the cause and re-run --apply.",
+        # postgres_data_state()'s docstring for the two bugs this replaces).
+        if cfg.docker_local.database_mode == "local":
+            state = postgres_data_state(cfg)
+            if state == "unknown":
+                print("ERROR: impossible de determiner si Postgres contient des "
+                      "donnees (la sonde psql n'a jamais repondu).\n"
+                      "Update ABORTED (fail-closed) — refuser de migrer une base "
+                      "dont on ignore si elle doit etre sauvegardee. Le data-plane "
+                      "reste debout, aucune migration n'a tourne. Verifier "
+                      "`docker compose logs postgres`, puis relancer --apply.",
                       file=sys.stderr)
                 return 1
-            print(f"[OK] {msg}")
+            if state == "has_data":
+                print("\n=== Backing up Postgres before update (tier lite, best-effort) ===")
+                ok, msg = backup_postgres(cfg)
+                if not ok:
+                    print(f"ERROR: {msg}\n"
+                          f"Update ABORTED (fail-closed) — the data-plane stays up, no "
+                          f"migration has run. Fix the cause and re-run --apply.",
+                          file=sys.stderr)
+                    return 1
+                print(f"[OK] {msg}")
 
         print("\n=== Rendering backend env + starting app tier ===")
         # Fail loud (don't start a degraded backend) if the bootstrap's postgres
