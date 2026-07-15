@@ -31,13 +31,15 @@ jobs:
         with:
           fail-on-severity: high
           comment-summary-in-pr: on-failure
-          # AGPL-3.0 friendly licenses
+          # AGPL-3.0-friendly allowlist. The action REFUSES both allow- and
+          # deny-licenses together ("You cannot specify both") — it failed on
+          # every PR that touched a manifest. The allowlist is strictly stronger
+          # than the old denylist: the previously-denied copyleft licenses
+          # (GPL-2.0/GPL-2.0-only, LGPL-2.0, EUPL-1.0/1.1) are simply absent
+          # here, so they are rejected anyway — AND anything unknown / proprietary
+          # / NOASSERTION is rejected too (it isn't on the list). So dropping
+          # deny-licenses loses no coverage.
           allow-licenses: >-
             MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, MPL-2.0,
             AGPL-3.0, AGPL-3.0-or-later, GPL-3.0, GPL-3.0-or-later,
             LGPL-2.1, LGPL-3.0, CC0-1.0, Unlicense, 0BSD, Python-2.0
-          # Reject proprietary, NOASSERTION, unknown
-          deny-licenses: >-
-            GPL-2.0, GPL-2.0-only,
-            LGPL-2.0,
-            EUPL-1.0, EUPL-1.1
