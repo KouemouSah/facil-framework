@@ -1,7 +1,10 @@
 """Server-side validation generated from the descriptor. The server decides."""
 
+import datetime as _dt
+
 import pytest
 
+from app.core.schema import pydantic_gen as pg
 from app.core.schema.pydantic_gen import SchemaViolation, validate_blob
 from app.core.schema.spec import field
 
@@ -176,3 +179,48 @@ def test_money_amount_bounds_enforced():
     assert "≥ 10" in e.value.errors[0]["msg"]
     assert validate_blob(specs, {"price": {"amount": "50.00", "currency": "usd"}}) \
         == {"price": {"amount": "50.00", "currency": "USD"}}
+
+
+# --- Task 2: date/datetime/time `min`/`max` (today/now tokens), multiselect
+# `min_items`/`max_items`, boolean `must_be_true`, file `allowed_extensions`. -
+
+def test_date_min_static_iso():
+    specs = [field("d", L, type="date", rules={"min": "2026-01-01"})]
+    with pytest.raises(SchemaViolation) as e:
+        validate_blob(specs, {"d": "2025-12-31"})
+    assert "≥ 2026-01-01" in e.value.errors[0]["msg"]
+    assert validate_blob(specs, {"d": "2026-06-01"}) == {"d": "2026-06-01"}
+
+
+def test_date_max_today_token(monkeypatch):
+    monkeypatch.setattr(pg, "_today_utc", lambda: _dt.date(2026, 7, 15))
+    specs = [field("birth", L, type="date", rules={"max": "today"})]
+    with pytest.raises(SchemaViolation) as e:
+        validate_blob(specs, {"birth": "2026-07-16"})  # future
+    assert "≤ today" in e.value.errors[0]["msg"]
+    assert validate_blob(specs, {"birth": "2026-07-15"}) == {"birth": "2026-07-15"}
+
+
+def test_multiselect_item_count_bounds():
+    specs = [field("tags", L, type="multiselect", rules={"min_items": 1, "max_items": 2},
+                   options=[{"value": v, "label": L} for v in ("a", "b", "c")])]
+    with pytest.raises(SchemaViolation) as e:
+        validate_blob(specs, {"tags": ["a", "b", "c"]})
+    assert "at most 2" in e.value.errors[0]["msg"]
+    assert validate_blob(specs, {"tags": ["a"]}) == {"tags": ["a"]}
+
+
+def test_boolean_must_be_true():
+    specs = [field("consent", L, type="boolean", rules={"must_be_true": True})]
+    with pytest.raises(SchemaViolation) as e:
+        validate_blob(specs, {"consent": False})
+    assert "must be accepted" in e.value.errors[0]["msg"]
+    assert validate_blob(specs, {"consent": True}) == {"consent": True}
+
+
+def test_file_allowed_extensions():
+    specs = [field("doc", L, type="file", rules={"allowed_extensions": ["pdf", "png"]})]
+    with pytest.raises(SchemaViolation) as e:
+        validate_blob(specs, {"doc": "https://x/report.txt"})
+    assert "must be one of" in e.value.errors[0]["msg"]
+    assert validate_blob(specs, {"doc": "https://x/report.PDF"}) == {"doc": "https://x/report.PDF"}

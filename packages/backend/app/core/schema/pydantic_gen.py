@@ -30,6 +30,22 @@ def _err(key: str, msg: str) -> dict[str, Any]:
     return {"loc": [key], "msg": msg, "type": "schema_violation"}
 
 
+def _today_utc() -> _dt.date:
+    return _dt.datetime.now(_dt.timezone.utc).date()
+
+
+def _now_utc() -> _dt.datetime:
+    return _dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None)
+
+
+def _resolve_dt_bound(ftype: str, b: Any, parser: Any) -> Any:
+    if ftype == "date" and b == "today":
+        return _today_utc()
+    if ftype == "datetime" and b == "now":
+        return _now_utc()
+    return parser(b)  # ISO string of the same type
+
+
 def _coerce(spec: dict[str, Any], value: Any, out: list[dict[str, Any]]) -> Any:
     key, ftype, rules = spec["key"], spec["type"], spec.get("rules") or {}
 
@@ -95,6 +111,8 @@ def _coerce(spec: dict[str, Any], value: Any, out: list[dict[str, Any]]) -> Any:
     if ftype == "boolean":
         if not isinstance(value, bool):
             out.append(_err(key, "must be a boolean")); return None
+        if rules.get("must_be_true") and value is not True:
+            out.append(_err(key, "must be accepted"))
         return value
 
     if ftype in ("date", "datetime", "time"):
@@ -104,9 +122,13 @@ def _coerce(spec: dict[str, Any], value: Any, out: list[dict[str, Any]]) -> Any:
         if not isinstance(value, str):
             out.append(_err(key, "must be an ISO-8601 string")); return None
         try:
-            parser(value)
+            parsed = parser(value)
         except ValueError:
             out.append(_err(key, f"must be a valid ISO-8601 {ftype}")); return None
+        if "min" in rules and parsed < _resolve_dt_bound(ftype, rules["min"], parser):
+            out.append(_err(key, f"must be ≥ {rules['min']}"))
+        if "max" in rules and parsed > _resolve_dt_bound(ftype, rules["max"], parser):
+            out.append(_err(key, f"must be ≤ {rules['max']}"))
         return value
 
     if ftype == "select":
@@ -119,11 +141,21 @@ def _coerce(spec: dict[str, Any], value: Any, out: list[dict[str, Any]]) -> Any:
         allowed = {o["value"] for o in spec.get("options") or []}
         if not isinstance(value, list) or any(v not in allowed for v in value):
             out.append(_err(key, f"must be a subset of {sorted(allowed)}")); return None
+        n = len(value)
+        if "min_items" in rules and n < rules["min_items"]:
+            out.append(_err(key, f"select at least {rules['min_items']}"))
+        if "max_items" in rules and n > rules["max_items"]:
+            out.append(_err(key, f"select at most {rules['max_items']}"))
         return value
 
     if ftype in ("relation", "file"):
         if not isinstance(value, str):
             out.append(_err(key, "must be an id/URL string")); return None
+        if ftype == "file" and rules.get("allowed_extensions"):
+            exts = [str(e).lower().lstrip(".") for e in rules["allowed_extensions"]]
+            ext = value.rsplit(".", 1)[-1].lower() if "." in value else ""
+            if ext not in exts:
+                out.append(_err(key, f"must be one of {exts}"))
         return value
 
     if ftype == "json":
