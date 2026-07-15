@@ -89,7 +89,7 @@ Ces contraintes s'appliquent **à toutes les tâches**, implicitement.
 
 ---
 
-# M0 — Le socle descripteur
+## M0 — Le socle descripteur
 
 **Livrable :** un descripteur validé, un générateur pydantic, un endpoint qui sert les schémas **produit**, et un `RecordForm` qui les consomme. **Rien de visible ne change pour l'utilisateur.** Filet : les 13 providers fonctionnent à l'identique.
 
@@ -1714,7 +1714,7 @@ git commit -m "feat(web): FieldSpec → FieldDef → zod pipeline; RecordForm di
 
 ---
 
-# M2 — `document_identity` : le premier JSON brut tué
+## M2 — `document_identity` : le premier JSON brut tué
 
 **Livrable :** l'écran Organisation remplace l'éditeur JSON de `document_identity` par un vrai formulaire. **C'est le déblocage direct de SP2.**
 
@@ -2004,7 +2004,7 @@ git commit -m "feat(organization): document_identity is a generated form, not ra
 
 ---
 
-# M3 — `organization.settings` + page `/config`
+## M3 — `organization.settings` + page `/config`
 
 ### Task 9: Schémas produit pour les namespaces de settings
 
@@ -2111,7 +2111,7 @@ git commit -m "feat(organization): settings is a generated form (documents + acc
 
 ---
 
-# M4 — Les champs personnalisés (le Studio)
+## M4 — Les champs personnalisés (le Studio)
 
 **Livrable :** une organisation définit ses propres champs via l'UI ; ils apparaissent sur ses entités ; **aucune autre organisation ne les voit**.
 
