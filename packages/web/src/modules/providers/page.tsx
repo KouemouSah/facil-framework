@@ -335,7 +335,7 @@ function RoutingCard() {
           <CardTitle className="text-base">{t("routing.title")}</CardTitle>
           <div className="ml-auto flex items-center gap-2">
             {canEdit && !editing && (
-              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>{t("routing.edit")}</Button>
+              <Button data-testid="routing-edit" variant="outline" size="sm" onClick={() => setEditing(true)}>{t("routing.edit")}</Button>
             )}
             {!editing && canProbe && (
               <Button variant="outline" size="sm" disabled={probe.isPending} onClick={() => probe.mutate()}>
