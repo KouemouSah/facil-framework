@@ -1,7 +1,6 @@
 import * as React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Card, CardContent, CardSkeleton } from "./card";
 import { DetailPanel, DetailPanelSkeleton } from "./detail-panel";
 import { RecordSurface, RecordSurfaceSkeleton } from "@/components/shared/record-surface";
 
@@ -13,38 +12,12 @@ vi.mock("next-intl", () => ({
 }));
 
 describe("shared surfaces expose a DRY loading skeleton", () => {
-  it("CardSkeleton renders Skeleton placeholders", () => {
-    expect(renderToStaticMarkup(<CardSkeleton />)).toContain('data-testid="skeleton"');
-  });
-
   it("DetailPanelSkeleton renders Skeleton placeholders", () => {
     expect(renderToStaticMarkup(<DetailPanelSkeleton />)).toContain('data-testid="skeleton"');
   });
 
   it("RecordSurfaceSkeleton renders Skeleton placeholders", () => {
     expect(renderToStaticMarkup(<RecordSurfaceSkeleton />)).toContain('data-testid="skeleton"');
-  });
-});
-
-describe("Card loading prop", () => {
-  it("loading renders a skeleton and not the children", () => {
-    const html = renderToStaticMarkup(
-      <Card loading>
-        <CardContent>real-children-marker</CardContent>
-      </Card>,
-    );
-    expect(html).toContain('data-testid="skeleton"');
-    expect(html).not.toContain("real-children-marker");
-  });
-
-  it("without loading renders the children and no skeleton", () => {
-    const html = renderToStaticMarkup(
-      <Card>
-        <CardContent>real-children-marker</CardContent>
-      </Card>,
-    );
-    expect(html).toContain("real-children-marker");
-    expect(html).not.toContain('data-testid="skeleton"');
   });
 });
 

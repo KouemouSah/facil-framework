@@ -8,6 +8,7 @@ import { Activity, CheckCircle2, XCircle, Loader2, Plug, Plus, Star, Trash2 } fr
 import { toast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -329,7 +330,7 @@ function RoutingCard() {
   });
 
   return (
-    <Card loading={routing.isLoading}>
+    <Card>
       <CardHeader>
         <div className="flex items-center gap-2">
           <CardTitle className="text-base">{t("routing.title")}</CardTitle>
@@ -348,6 +349,16 @@ function RoutingCard() {
         <CardDescription>{t("routing.subtitle")}</CardDescription>
       </CardHeader>
       <CardContent>
+        {routing.isLoading && (
+          <dl className="grid gap-2 sm:grid-cols-3">
+            {ROUTING_ROLES.map((role) => (
+              <div key={role} className="space-y-2 rounded-md border px-3 py-2">
+                <Skeleton className="h-3 w-1/3" />
+                <Skeleton className="h-4 w-2/3" />
+              </div>
+            ))}
+          </dl>
+        )}
         {routing.isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
         {routing.data && editing && (
           <RoutingEditor view={routing.data} onDone={() => setEditing(false)} onCancel={() => setEditing(false)} />

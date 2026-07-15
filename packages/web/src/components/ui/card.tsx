@@ -1,14 +1,11 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { Skeleton } from "@/components/ui/skeleton";
 
 function Card({
   className,
-  loading,
   children,
   ...props
-}: React.HTMLAttributes<HTMLDivElement> & { loading?: boolean }) {
-  if (loading) return <CardSkeleton className={className} />;
+}: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div className={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)} {...props}>
       {children}
@@ -32,21 +29,4 @@ function CardContent({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
   return <div className={cn("p-5 pt-0", className)} {...props} />;
 }
 
-/** DRY loading placeholder for a Card (header line + two body lines). Pages
- *  render this in place of `Card` contents while data is in flight, instead
- *  of an ad-hoc `animate-pulse` block. */
-function CardSkeleton({ className }: { className?: string }) {
-  return (
-    <Card className={className}>
-      <CardHeader>
-        <Skeleton className="h-4 w-1/3" />
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-2/3" />
-      </CardContent>
-    </Card>
-  );
-}
-
-export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardSkeleton };
+export { Card, CardHeader, CardTitle, CardDescription, CardContent };
