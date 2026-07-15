@@ -45,6 +45,12 @@ paths = [
   # code itself (deploy/providers/bootstrap/*.py, non-test) stays scanned — only
   # the test_*.py files are exempt.
   '''(^|/)deploy/providers/bootstrap/test_[^/]*\.py$''',
+
+  # Frontend e2e specs (Playwright) legitimately hardcode a FAKE default password
+  # for the CI-seeded throwaway super-admin (E2E_ADMIN_PASSWORD default), same
+  # category as the backend test tree above. The app code (packages/web/src/)
+  # stays scanned — only the e2e/ specs are exempt.
+  '''(^|/)packages/web/e2e/''',
 ]
 
 # --- Value allowlist ------------------------------------------------------

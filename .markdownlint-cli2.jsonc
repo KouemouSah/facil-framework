@@ -25,5 +25,11 @@
     "MD049": false, // emphasis-style: _ vs * tolerated
     "MD035": false, // hr-style: horizontal-rule style tolerated
     "MD029": false  // ol-prefix: ordered-list numbering tolerated
-  }
+  },
+
+  // Internal, tool-generated process artifacts (superpowers brainstorm/plan/spec
+  // scaffolding — the project already gitignores `.claude/plans/`). Not product
+  // docs; their fenced blocks come from task templates and aren't held to the
+  // doc-quality gate (MD040 et al.).
+  "ignores": ["docs/superpowers/**"]
 }
