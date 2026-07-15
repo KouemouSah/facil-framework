@@ -88,7 +88,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.replace("/login");
   }
 
-  const email = session?.account?.email;
+  // `?? undefined`: session account fields are now nullable (backend sends null),
+  // and SidebarUser's `email` prop is `string | undefined` — coalesce null away.
+  const email = session?.account?.email ?? undefined;
   const who =
     session?.account?.display_name || email ||
     (session?.break_glass ? "Admin" : "");
