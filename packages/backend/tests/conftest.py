@@ -47,6 +47,8 @@ async def client(tmp_path, monkeypatch):
         resolver.set_db(await repo.active_map(s))
     app.state.resolver = resolver
     app.state.registry = default_registry()
+    from app.core.schema.registry import default_schema_registry
+    app.state.schema_registry = default_schema_registry()
     app.state.llm_router = LLMRouter(resolver, app.state.registry)
     app.state.auth = app.state.registry.build("auth", "native", {"issuer": "facil"})
     from app.core.cache import MemoryCache
@@ -60,3 +62,57 @@ async def client(tmp_path, monkeypatch):
 
 
 AUTH = {"X-Admin-Token": "test-token"}
+
+
+@pytest_asyncio.fixture
+async def session(tmp_path):
+    """Bare AsyncSession against a throwaway SQLite DB with the FULL schema
+    (all module tables registered) — for tests that exercise repository/service
+    functions directly, without going through the HTTP layer or `client`'s app
+    wiring (config resolver, providers, auth, ...) that those tests don't need."""
+    from app.core.module_registry import import_module_models
+    from app.db.base import Base
+    from app.db.engine import Database
+
+    from app.identity import models as _account_models  # noqa: F401 (register Account)
+    from app.auth import models as _cred_models  # noqa: F401 (register Credential)
+    from app.rbac import models as _rbac_models  # noqa: F401 (register RBAC tables)
+    import_module_models()  # register module tables (organization, location, ...)
+
+    db = Database(f"sqlite+aiosqlite:///{tmp_path/'session_test.db'}")
+    async with db.engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    async with db.session_factory() as s:
+        yield s
+    await db.dispose()
+
+
+@pytest_asyncio.fixture
+async def org_a(session):
+    """A root organisation (no parent), unrelated to org_b."""
+    from app.modules.organization.models import Organization
+    org = Organization(code="org-a", legal_name="Organisation A")
+    session.add(org)
+    await session.flush()
+    return org
+
+
+@pytest_asyncio.fixture
+async def org_b(session):
+    """A second root organisation, unrelated to org_a — the isolation target."""
+    from app.modules.organization.models import Organization
+    org = Organization(code="org-b", legal_name="Organisation B")
+    session.add(org)
+    await session.flush()
+    return org
+
+
+@pytest_asyncio.fixture
+async def org_child_of_a(session, org_a):
+    """A child organisation of org_a (parent_id = org_a.id) — for inheritance."""
+    from app.modules.organization.models import Organization
+    org = Organization(code="org-a-child", legal_name="Organisation A Child",
+                       parent_id=org_a.id)
+    session.add(org)
+    await session.flush()
+    return org

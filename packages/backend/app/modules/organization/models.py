@@ -57,6 +57,12 @@ class Organization(UUIDAuditBase):
     currency_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("currency.id", ondelete="SET NULL"), nullable=True)
 
+    # User-defined fields (SP1). Kept SEPARATE from `settings`/document_identity,
+    # which are UNCONTROLLED extension bags: mixing schema'd fields into them
+    # would destroy the allowlist guarantee (an undeclared key could no longer
+    # be rejected). Definitions live in `field_definition`; only VALUES here.
+    custom_fields: Mapped[dict] = mapped_column(JSONType, default=dict)
+
     def as_dict(self) -> dict:
         return {
             "id": self.id, "code": self.code, "legal_name": self.legal_name,
@@ -71,6 +77,7 @@ class Organization(UUIDAuditBase):
             "settings": self.settings or {},
             "parent_id": self.parent_id, "party_id": self.party_id,
             "hq_address_id": self.hq_address_id, "currency_id": self.currency_id,
+            "custom_fields": self.custom_fields or {},
             "is_active": self.is_active,
         }
 
@@ -100,6 +107,18 @@ class OrgUnit(UUIDAuditBase):
     external_ref: Mapped[str | None] = mapped_column(String(80), nullable=True)
     meta: Mapped[dict] = mapped_column("metadata", JSONType, default=dict)
 
+    # User-defined fields (SP1). Kept SEPARATE from `meta`/`metadata`, which is an
+    # UNCONTROLLED extension bag: mixing schema'd fields into it would destroy the
+    # allowlist guarantee (an undeclared key could no longer be rejected).
+    custom_fields: Mapped[dict] = mapped_column(JSONType, default=dict)
+
+    # Optional issuer-identity OVERRIDE (SP1 debt D1, migration 0019) — allowlisted
+    # against `product_schemas.DOCUMENT_IDENTITY_OVERRIDE` (target
+    # "org_unit.document_identity"). Never a source of truth on its own: read the
+    # RESOLVED identity via `core.schema.issuer.resolve_issuer_identity`, which
+    # walks this unit's ancestors then falls back to the Organization row.
+    document_identity: Mapped[dict] = mapped_column(JSONType, default=dict)
+
     def as_dict(self) -> dict:
         return {
             "id": self.id, "organization_id": self.organization_id,
@@ -107,5 +126,7 @@ class OrgUnit(UUIDAuditBase):
             "unit_type": self.unit_type, "description": self.description,
             "path": self.path, "depth": self.depth,
             "external_ref": self.external_ref, "metadata": self.meta or {},
+            "custom_fields": self.custom_fields or {},
+            "document_identity": self.document_identity or {},
             "is_active": self.is_active,
         }

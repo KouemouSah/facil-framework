@@ -16,6 +16,7 @@
     "configuration": "Configuration",
     "org_units": "Org units",
     "directory": "Directory",
+    "fields": "Custom fields",
     "group": {
       "overview": "Overview",
       "organization": "Organization",
@@ -210,7 +211,8 @@
       "type": "Unsupported file type. Use PNG, JPG, GIF, WEBP or ICO (SVG is not allowed).",
       "size": "File is too large (max 5 MB).",
       "failed": "Upload failed. Please try again."
-    }
+    },
+    "inherited": "Inherited"
   },
   "organizations": {
     "title": "Organizations",
@@ -222,6 +224,46 @@
     "loading": "Loading…",
     "load_error": "Failed to load the organization.",
     "empty": "No organizations.",
+    "save": "Save",
+    "tab": {
+      "details": "Details"
+    },
+    "documentIdentity": {
+      "tab": "Document identity",
+      "description": "The letterhead/footer/seal identity printed on every generated report for this organization.",
+      "override_description": "Optional overrides for this entity. Leave a field empty to inherit it from the organization.",
+      "loading": "Loading…",
+      "load_error": "Failed to load the document identity.",
+      "save": "Save",
+      "inherited": {
+        "title": "Inherited from the organization",
+        "hint": "Edited on the Details tab — shown here for reference only.",
+        "edit_in_details": "Edit in Details →",
+        "loading": "Loading…",
+        "load_error": "Failed to load the inherited identity.",
+        "empty": "—",
+        "legal_name": "Legal name",
+        "tax_id": "Tax ID",
+        "registration_number": "Registration number",
+        "logo_url": "Logo"
+      },
+      "preview": {
+        "title": "Preview",
+        "size_label": "Paper size",
+        "orientation_label": "Orientation",
+        "portrait": "Portrait",
+        "landscape": "Landscape",
+        "aria_label": "Live preview of the document header and footer",
+        "caption": "Preview · not contractual",
+        "placeholder": {
+          "legal_name": "Legal name"
+        }
+      }
+    },
+    "settings": {
+      "tab": "Settings",
+      "description": "Per-organization settings: default document locale, document numbering prefix, fiscal year start month."
+    },
     "col": {
       "code": "Code",
       "name": "Legal name",
@@ -251,14 +293,11 @@
       "default_locale": "Default locale",
       "timezone": "Timezone",
       "hq_address_id": "Head office address",
-      "document_identity": "Document identity (JSON)",
-      "settings": "Settings (JSON)",
       "code_hint": "Immutable identifier.",
       "party_id_hint": "Party holding tax id / registration / contacts.",
-      "parent_id_hint": "Owning company for multi-company groups.",
-      "document_identity_hint": "Identifiers shown on generated documents (registry, VAT…).",
-      "settings_hint": "Free-form organization settings."
-    }
+      "parent_id_hint": "Owning company for multi-company groups."
+    },
+    "inherited_placeholder": "Inherited: {value}"
   },
   "sites": {
     "title": "Sites",
@@ -303,7 +342,7 @@
       "operating_hours": "Operating hours (JSON)",
       "metadata": "Metadata (JSON)",
       "code_hint": "Immutable identifier.",
-      "operating_hours_hint": "e.g. {\"mon\": [\"09:00-17:00\"], \"sat\": []}",
+      "operating_hours_hint": "e.g. '{\"mon\": [\"09:00-17:00\"], \"sat\": []}'",
       "metadata_hint": "Free-form site metadata.",
       "type": {
         "branch": "Branch",
@@ -312,6 +351,12 @@
         "office": "Office",
         "point_of_sale": "Point of sale"
       }
+    },
+    "tab": {
+      "details": "Details"
+    },
+    "documentIdentity": {
+      "tab": "Document identity"
     }
   },
   "agents": {
@@ -545,7 +590,13 @@
       "is_active": "Active"
     },
     "delete_parent_hint": "Delete or reparent its child units first.",
-    "capped": "Showing the first {n} units. Refine or split the hierarchy to see the rest."
+    "capped": "Showing the first {n} units. Refine or split the hierarchy to see the rest.",
+    "tab": {
+      "details": "Details"
+    },
+    "documentIdentity": {
+      "tab": "Document identity"
+    }
   },
   "directory": {
     "f": {
@@ -556,7 +607,6 @@
       "email": "Email",
       "phone": "Phone",
       "website": "Website",
-      "custom_fields": "Custom fields (JSON)",
       "is_active": "Active"
     },
     "title": "Directory",
@@ -645,6 +695,144 @@
       "unlink_failed": "Could not unlink address.",
       "unavailable": "Address unavailable (#{id})"
     }
+  },
+  "fields": {
+    "title": "Custom fields",
+    "subtitle": "Let this organization add its own fields to the core forms — no code, no deploy.",
+    "org_placeholder": "Search organization…",
+    "empty_no_org": "Select an organization.",
+    "org_load_error": "Couldn't load organizations. Please retry.",
+    "search_placeholder": "Search key or label…",
+    "include_archived": "Show archived",
+    "new": "New field",
+    "new_title": "New field",
+    "edit_title": "Field",
+    "loading": "Loading…",
+    "load_error": "Failed to load the field.",
+    "empty": "No custom fields yet.",
+    "target": {
+      "organization": "Organization",
+      "org_unit": "Org unit",
+      "site": "Site"
+    },
+    "type": {
+      "string": "Text",
+      "text": "Long text",
+      "richtext": "Rich text",
+      "number": "Number",
+      "decimal": "Decimal",
+      "money": "Money",
+      "boolean": "Yes / No",
+      "date": "Date",
+      "datetime": "Date & time",
+      "time": "Time",
+      "select": "Choice",
+      "multiselect": "Multiple choice",
+      "relation": "Relation",
+      "file": "File",
+      "json": "Structured data"
+    },
+    "col": {
+      "key": "Key",
+      "type": "Type",
+      "widget": "Widget",
+      "label": "Label",
+      "group": "Group",
+      "required": "Required",
+      "indexed": "Index",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "index_state": {
+      "none": "Not indexed",
+      "pending": "Building…",
+      "ready": "Sortable",
+      "failed": "Index failed"
+    },
+    "not_sortable": "Not sortable until the index is ready.",
+    "archived_badge": "Archived",
+    "yes": "Yes",
+    "no": "No",
+    "f": {
+      "key": "Key",
+      "key_hint": "snake_case, lowercase, starts with a letter, ≤60 chars — immutable once created (renaming would orphan stored values).",
+      "type": "Type",
+      "widget": "Widget",
+      "widget_hint": "Leave blank to use the default widget for the chosen type. Must be valid for that type — an incompatible choice is rejected on save.",
+      "label_en": "Label (English)",
+      "label_fr": "Label (French)",
+      "label_es": "Label (Spanish)",
+      "hint_en": "Hint (English)",
+      "hint_fr": "Hint (French)",
+      "hint_es": "Hint (Spanish)",
+      "required": "Required",
+      "group": "Group",
+      "group_hint": "Fields sharing a group are shown together on the business form.",
+      "order": "Order",
+      "col_span": "Width",
+      "indexed": "Indexed (sortable)",
+      "indexed_hint": "Requests a database index so this field can be sorted at scale. Not available on long text / rich text / multiple choice / file / structured data.",
+      "inherit_to_suborgs": "Inherit to sub-organizations",
+      "relation_resource": "Relation target",
+      "relation_filter": "Relation filter (JSON)",
+      "relation_filter_hint": "Optional key/value filter applied to the picker, e.g. '{\"region_id\": \"...\"}'",
+      "options": "Options",
+      "options_hint": "JSON: '{\"items\": [{\"value\": \"code\", \"label\": {\"en\": \"...\", \"fr\": \"...\", \"es\": \"...\"}}]}'",
+      "rules": "Validation rules (JSON)",
+      "rules_hint": "min / max / min_length / max_length / pattern / precision / visible_if / required_if — see docs/adr for the shape.",
+      "default": "Default value",
+      "default_hint": "JSON: '{\"value\": ...}' — any value (string, number, boolean, array, object, or null)."
+    },
+    "col_span_option": {
+      "1": "Normal (1 column)",
+      "2": "Wide (2 columns)"
+    },
+    "action": {
+      "archive": "Archive",
+      "unarchive": "Unarchive",
+      "index": "Build index",
+      "purge": "Purge"
+    },
+    "archive_confirm": {
+      "title": "Archive this field?",
+      "body": "It leaves every business form immediately. Stored values are kept — unarchive to bring it back."
+    },
+    "purge_confirm": {
+      "title": "Purge this field?",
+      "body": "This permanently deletes the definition for \"{key}\". Values already stored on records are NOT deleted — only the definition. This cannot be undone.",
+      "confirm": "Purge"
+    },
+    "toast": {
+      "created": "Field created.",
+      "saved": "Field saved.",
+      "archived": "Field archived.",
+      "unarchived": "Field restored.",
+      "purged": "Field purged.",
+      "index_requested": "Index build started.",
+      "save_failed": "Save failed.",
+      "action_failed": "Action failed."
+    },
+    "preview": {
+      "title": "Live preview",
+      "subtitle": "Reflects the last saved version of this field, rendered by the exact same form component used on the business forms.",
+      "empty": "Save the field to see it rendered here."
+    }
+  },
+  "weekly_hours": {
+    "day": {
+      "mon": "Monday",
+      "tue": "Tuesday",
+      "wed": "Wednesday",
+      "thu": "Thursday",
+      "fri": "Friday",
+      "sat": "Saturday",
+      "sun": "Sunday"
+    },
+    "closed": "Closed",
+    "add_shift": "Add shift",
+    "remove_shift": "Remove shift",
+    "from": "From",
+    "to": "To"
   },
   "branding": {
     "title": "Branding",

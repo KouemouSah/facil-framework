@@ -18,6 +18,7 @@ from app.api import (
     admin_accounts,
     admin_branding,
     admin_federation,
+    admin_field_definitions,
     admin_providers,
     admin_settings,
     assets,
@@ -26,6 +27,7 @@ from app.api import (
     saved_views,
     system,
 )
+from app.api import schema as schema_api
 from app.scim import api as scim_api
 from app.modules.reference.api import router as reference_router
 from app.modules.party.api import router as party_router
@@ -37,6 +39,7 @@ from app.core.boot import run_boot_step
 from app.core.module_registry import enabled_from_env, load_modules
 from app.core.providers.llm_router import LLMRouter
 from app.core.providers.registry import default_registry
+from app.core.schema.registry import default_schema_registry
 from app.db.engine import Database
 
 # Code defaults — the lowest layer of the resolver (overridden by file/DB/env).
@@ -124,6 +127,7 @@ async def lifespan(app: FastAPI):
     app.state.config_db_loaded = await run_boot_step("config-store-db-load", _load_config_db)
     app.state.resolver = resolver
     app.state.registry = default_registry()
+    app.state.schema_registry = default_schema_registry()
     app.state.llm_router = LLMRouter(resolver, app.state.registry)
     # Native JWT auth provider (secret from JWT_SECRET env; issuer = app name).
     app.state.auth = app.state.registry.build(
@@ -208,10 +212,12 @@ app.include_router(admin_providers.router)
 app.include_router(admin_accounts.router)
 app.include_router(admin_federation.router)
 app.include_router(admin_branding.router)
+app.include_router(admin_field_definitions.router)
 app.include_router(assets.router)
 app.include_router(auth.router)
 app.include_router(rbac.router)
 app.include_router(saved_views.router)
+app.include_router(schema_api.router)
 app.include_router(scim_api.router)
 app.include_router(system.router)
 # Reference master data (countries/currencies/regions) is foundational — org/site

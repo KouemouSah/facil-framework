@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Plus, Trash2, CornerDownRight } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
@@ -15,14 +15,58 @@ import { OrgCombobox } from "@/components/ui/org-combobox";
 import { ExportMenu, RecordForm, RecordSurface, type FieldDef } from "@/components/shared";
 import { usePermissions } from "@/lib/use-permissions";
 import { useFirstOrg } from "@/lib/use-organizations";
+import { getSchema } from "@/lib/schema/api";
+import { fieldSpecToFieldDef } from "@/lib/schema/to-field-def";
+import type { Locale } from "@/lib/schema/types";
+import { flattenCustomInitial, splitCustomPayload } from "@/modules/fields/fields";
+import { cn } from "@/lib/utils";
+import { DocumentIdentityOverrideTab } from "@/modules/organization/document-identity-override-tab";
 import { orderForTree, validParents } from "./tree";
 import {
-  createUnit, deleteUnit, getUnit, listUnits, unitsExportPath, updateUnit, type OrgUnit,
+  createUnit, deleteUnit, getUnit, getUnitIssuerIdentity, listUnits, unitsExportPath, updateUnit, type OrgUnit,
 } from "./api";
 
-function useUnitFields(parents: OrgUnit[]): FieldDef[] {
+/** The declared base column names — see `SITE_BASE_KEYS`'s twin docstring
+ *  (`modules/location/fields.ts`) for why the split at submit time matters. */
+const UNIT_BASE_KEYS = [
+  "code", "name", "unit_type", "parent_id", "description", "external_ref",
+  "is_active", "metadata",
+];
+
+/**
+ * `organizationId` (Fix wave 1, Task 15) merges in this org's
+ * `org_unit.custom_fields` definitions, resolved server-side
+ * (`GET /api/v1/schema/org_unit.custom_fields`) — `org_unit` IS an
+ * extensible target (unlike `party`), but this merge was missing, so a
+ * defined field never rendered anywhere: an orphaned capability. Mirrors
+ * `useSiteFields`/`useOrgFields` exactly (same hook shape, same
+ * `getSchema` + `fieldSpecToFieldDef` merge, base fields first then custom).
+ */
+function useUnitCustomFieldsSchema(organizationId?: string) {
+  return useQuery({
+    queryKey: ["schema", "org_unit.custom_fields", organizationId],
+    queryFn: () => getSchema("org_unit.custom_fields", organizationId),
+    enabled: Boolean(organizationId),
+  });
+}
+
+/**
+ * IMPORTANT-4 fix (final fix wave): see `organization/fields.ts:
+ * useOrgFieldsSchemaError`'s docstring — identical fix, identical reasoning.
+ * Same react-query cache entry as `useUnitFields` below (same `queryKey`), no
+ * extra network request.
+ */
+function useUnitFieldsSchemaError(organizationId?: string): boolean {
+  return useUnitCustomFieldsSchema(organizationId).isError;
+}
+
+function useUnitFields(parents: OrgUnit[], organizationId?: string): FieldDef[] {
   const t = useTranslations("org_units");
-  return [
+  const locale = useLocale() as Locale;
+  const schema = useUnitCustomFieldsSchema(organizationId);
+  const custom = (schema.data?.fields ?? []).map((s) => fieldSpecToFieldDef(s, locale));
+
+  const base: FieldDef[] = [
     { name: "code", label: t("f.code"), required: true, immutable: true, zod: codeField, hint: t("f.code_hint") },
     { name: "name", label: t("f.name"), required: true, zod: requiredText("Name") },
     { name: "unit_type", label: t("f.unit_type"), placeholder: "department" },
@@ -33,6 +77,7 @@ function useUnitFields(parents: OrgUnit[]): FieldDef[] {
     { name: "is_active", label: t("f.is_active"), type: "checkbox" },
     { name: "metadata", label: t("f.metadata"), type: "json" },
   ];
+  return [...base, ...custom];
 }
 
 export default function OrgUnitsPage() {
@@ -46,6 +91,11 @@ export default function OrgUnitsPage() {
   const sel = params.get("sel") ?? "";
   const [orgId, setOrgId] = useState("");
   const [pendingDelete, setPendingDelete] = useState<OrgUnit | null>(null);
+  // Lifted (not local to UnitEditSurface): the document-identity tab needs
+  // the full content width for the edit-column + live-preview split, so the
+  // list-hiding decision below has to know which tab is active.
+  const [tab, setTab] = useState<UnitTab>("details");
+  useEffect(() => { setTab("details"); }, [sel]);
 
   const { can } = usePermissions();
   const canCreate = can("organization.create");
@@ -99,6 +149,10 @@ export default function OrgUnitsPage() {
       </div>
 
       <div className="flex min-h-0 flex-1 gap-4">
+        {/* Document identity needs the full content width for the edit-column
+            + live-preview split (SP1 D1) — hide the tree the same way a rich
+            create hides it on the sibling Organization/Site pages. */}
+        {!(surfaceOpen && tab === "documentIdentity") && (
         <div className="min-w-0 flex-1 space-y-1 overflow-auto">
           {!orgId && <p className="text-sm text-muted-foreground">{t("empty_no_org")}</p>}
           {orgId && units.isLoading && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
@@ -120,12 +174,13 @@ export default function OrgUnitsPage() {
             </p>
           )}
         </div>
+        )}
 
         {surfaceOpen && (
           isNew
             ? (canCreate && <UnitCreateSurface orgId={orgId} units={all} presetParent={newParent}
                 onClose={closeSurface} onSaved={() => units.refetch()} />)
-            : <UnitEditSurface key={sel} unitId={sel} orgId={orgId} units={all}
+            : <UnitEditSurface key={sel} unitId={sel} orgId={orgId} units={all} tab={tab} onTabChange={setTab}
                 readOnly={!canUpdate} onClose={closeSurface} />
         )}
       </div>
@@ -182,9 +237,11 @@ function UnitCreateSurface({ orgId, units, presetParent, onClose, onSaved }: {
 }) {
   const t = useTranslations("org_units");
   const qc = useQueryClient();
-  const fields = useUnitFields(validParents(units));
+  const fields = useUnitFields(validParents(units), orgId);
+  const customFieldsError = useUnitFieldsSchemaError(orgId);
   return (
     <RecordSurface title={t("new_title")} resourceKey="org-units" onClose={onClose}>
+      {customFieldsError && <p className="text-sm text-destructive">{t("load_error")}</p>}
       <RecordForm
         fields={fields}
         mode="create"
@@ -192,7 +249,14 @@ function UnitCreateSurface({ orgId, units, presetParent, onClose, onSaved }: {
         enableSaveNew
         submitLabel={t("new")}
         initial={{ unit_type: "department", parent_id: presetParent, is_active: true }}
-        onSubmit={(payload) => createUnit(orgId, payload)}
+        onSubmit={(payload) => {
+          // Custom-field values nest under `custom_fields` on the wire
+          // (OrgUnitIn.custom_fields: dict), never flat top-level keys — see
+          // modules/fields/fields.ts:splitCustomPayload.
+          const { base, customFields } = splitCustomPayload(payload, UNIT_BASE_KEYS);
+          const body = Object.keys(customFields).length ? { ...base, custom_fields: customFields } : base;
+          return createUnit(orgId, body);
+        }}
         onSuccess={({ again }) => {
           qc.invalidateQueries({ queryKey: ["org-units", orgId] });
           onSaved();
@@ -205,35 +269,87 @@ function UnitCreateSurface({ orgId, units, presetParent, onClose, onSaved }: {
   );
 }
 
-function UnitEditSurface({ unitId, orgId, units, readOnly, onClose }: {
-  unitId: string; orgId: string; units: OrgUnit[]; readOnly: boolean; onClose: () => void;
+type UnitTab = "details" | "documentIdentity";
+
+function UnitEditSurface({ unitId, orgId, units, tab, onTabChange, readOnly, onClose }: {
+  unitId: string; orgId: string; units: OrgUnit[]; tab: UnitTab; onTabChange: (t: UnitTab) => void;
+  readOnly: boolean; onClose: () => void;
 }) {
   const t = useTranslations("org_units");
   const qc = useQueryClient();
-  const { data, isError } = useQuery({ queryKey: ["org-unit", unitId], queryFn: () => getUnit(unitId) });
-  const fields = useUnitFields(validParents(units, unitId));
+  const { data, isError: rowError } = useQuery({ queryKey: ["org-unit", unitId], queryFn: () => getUnit(unitId) });
+  const fields = useUnitFields(validParents(units, unitId), orgId);
+  const customFieldsError = useUnitFieldsSchemaError(orgId);
+  // IMPORTANT-4 fix: surface a failed custom-fields schema load too, not just
+  // a failed row load.
+  const isError = rowError || customFieldsError;
 
   return (
-    <RecordSurface title={data ? `${data.code} · ${data.name}` : t("edit_title")} resourceKey="org-units" onClose={onClose}>
+    <RecordSurface title={data ? `${data.code} · ${data.name}` : t("edit_title")} resourceKey="org-units"
+      mode={tab === "documentIdentity" ? "page" : "panel"} onClose={onClose}>
       {isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
       {!data && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
       {data && (
-        <RecordForm
-          key={data.etag ?? unitId}
-          fields={fields}
-          mode="edit"
-          layout="rich"
-          readOnly={readOnly}
-          initial={data as unknown as Record<string, unknown>}
-          etag={data.etag}
-          onSubmit={(payload, etag) => updateUnit(unitId, payload, etag)}
-          onSuccess={() => {
-            qc.invalidateQueries({ queryKey: ["org-unit", unitId] });
-            qc.invalidateQueries({ queryKey: ["org-units", orgId] });
-            toast({ variant: "success", title: t("toast.saved") });
-          }}
-          onConflict={() => qc.invalidateQueries({ queryKey: ["org-unit", unitId] })}
-        />
+        <div className="space-y-4">
+          <div className="flex gap-1 border-b">
+            {(["details", "documentIdentity"] as UnitTab[]).map((tk) => (
+              <button key={tk} type="button" onClick={() => onTabChange(tk)}
+                className={cn("border-b-2 px-3 py-1.5 text-sm font-medium",
+                  tab === tk ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
+                {tk === "details" ? t("tab.details") : t("documentIdentity.tab")}
+              </button>
+            ))}
+          </div>
+
+          {tab === "details" ? (
+            <RecordForm
+              // `fields.length` in the key — same fix, same root cause, as
+              // `location/page.tsx`'s `SiteEditSurface` (Task 16 e2e finding):
+              // this surface can mount with `orgId=""` before the parent page's
+              // async `useFirstOrg()` resolves (`surfaceOpen` opens off `!!sel`
+              // alone), so `useUnitFields(..., orgId)` may first return the base
+              // columns only; without the fields-count in the key, RecordForm
+              // never remounts once the custom-fields schema arrives late, and a
+              // custom field's stored value would render permanently blank (and
+              // be silently erased if the form is then saved).
+              key={`${data.etag ?? unitId}-${fields.length}`}
+              fields={fields}
+              mode="edit"
+              layout="rich"
+              readOnly={readOnly}
+              initial={flattenCustomInitial(data as unknown as Record<string, unknown>)}
+              etag={data.etag}
+              onSubmit={(payload, etag) => {
+                const { base, customFields } = splitCustomPayload(payload, UNIT_BASE_KEYS);
+                const body = Object.keys(customFields).length ? { ...base, custom_fields: customFields } : base;
+                return updateUnit(unitId, body, etag);
+              }}
+              onSuccess={() => {
+                qc.invalidateQueries({ queryKey: ["org-unit", unitId] });
+                qc.invalidateQueries({ queryKey: ["org-units", orgId] });
+                toast({ variant: "success", title: t("toast.saved") });
+              }}
+              onConflict={() => qc.invalidateQueries({ queryKey: ["org-unit", unitId] })}
+            />
+          ) : (
+            <DocumentIdentityOverrideTab
+              key={String(data.etag ?? unitId)}
+              schemaTarget="org_unit.document_identity"
+              organizationId={orgId}
+              blob={data.document_identity ?? {}}
+              etag={data.etag}
+              canWrite={!readOnly}
+              issuerIdentityQueryKey={["issuer-identity", "org_unit", unitId]}
+              fetchIssuerIdentity={() => getUnitIssuerIdentity(unitId)}
+              onSubmit={(payload, etag) => updateUnit(unitId, { document_identity: payload }, etag)}
+              onSaved={() => {
+                qc.invalidateQueries({ queryKey: ["org-unit", unitId] });
+                qc.invalidateQueries({ queryKey: ["org-units", orgId] });
+                toast({ variant: "success", title: t("toast.saved") });
+              }}
+            />
+          )}
+        </div>
       )}
     </RecordSurface>
   );

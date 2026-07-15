@@ -13,12 +13,21 @@ from __future__ import annotations
 
 import base64
 import json
-from datetime import date, datetime
+from collections.abc import Callable
+from datetime import date, datetime, time
+from decimal import Decimal
 from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.schema.indexing import (
+    CUSTOM_FIELD_SORT_PREFIX,
+    custom_sort_column,
+    custom_sort_value,
+    sortable_keys,
+)
 
 DEFAULT_LIMIT = 50
 MAX_LIMIT = 200
@@ -57,6 +66,52 @@ def apply_sort(stmt: Select, sort: str | None, *,
     return stmt.order_by(col.desc() if descending else col.asc())
 
 
+def resolve_entity_sort(sort: str | None, *, allowed: dict[str, Any], default: str,
+                        id_col: Any = None, specs: list[dict[str, Any]] | None = None
+                        ) -> tuple[Any, bool, Any, Callable[[Any], Any]]:
+    """Whitelisted sort for an extensible-target list endpoint: either a plain
+    mapped column (`allowed`, same contract as `resolve_sort`) or
+    `custom_fields.<key>` — accepted ONLY if the caller passes `specs` (the
+    org-scoped, resolved field definitions for this list; `None` means "this
+    list has no single-organisation scope to resolve definitions against",
+    e.g. a cross-tenant listing, and custom-field sort is refused) AND the
+    key is `indexed` **and** its `index_state == "ready"` (`sortable_keys` —
+    see `indexing.py`'s module docstring). A pending/failed/unindexed/unknown
+    key is a 422, NEVER a silent fallback to a sequential scan.
+
+    Returns `(sort_col, descending, id_col, value_of)` — the last two are for
+    `keyset_page`'s cursor codec: a raw SQL cast expression is not a mapped
+    ORM attribute, so the caller cannot rely on `sort_col.class_`/`.key` to
+    derive them (see `keyset_page`'s docstring).
+    """
+    spec_str = (sort or default).strip()
+    descending = spec_str.startswith("-")
+    field_name = spec_str[1:] if descending else spec_str
+
+    if field_name.startswith(CUSTOM_FIELD_SORT_PREFIX):
+        key = field_name[len(CUSTOM_FIELD_SORT_PREFIX):]
+        if specs is None:
+            raise HTTPException(
+                422, "sorting by a custom field requires a single-organisation "
+                     "scope for this list (name the organisation explicitly)")
+        by_key = {s["key"]: s for s in specs}
+        spec = by_key.get(key)
+        if spec is None or key not in sortable_keys(specs):
+            raise HTTPException(
+                422, f"cannot sort by 'custom_fields.{key}': the field must be "
+                     "indexed AND its index must be ready (build it via "
+                     "POST .../field-definitions/{id}/index and wait for "
+                     "index_state == 'ready')")
+        return custom_sort_column(spec), descending, id_col, custom_sort_value(spec)
+
+    col = allowed.get(field_name)
+    if col is None:
+        raise HTTPException(
+            422, f"cannot sort by '{field_name}'; allowed: {sorted(allowed)}"
+                 + ("" if specs is None else " (or an indexed+ready custom field)"))
+    return col, descending, id_col, (lambda row: getattr(row, col.key))
+
+
 async def paginated(session: AsyncSession, base_stmt: Select, *,
                     limit: int, offset: int) -> tuple[list, int]:
     """Return `(items, total)` for an already filtered/scoped/sorted SELECT.
@@ -73,9 +128,13 @@ async def paginated(session: AsyncSession, base_stmt: Select, *,
 # --- Keyset (cursor) pagination + capped count (scale 1M+) ----------------
 
 def _encode_value(value: Any) -> Any:
-    """Make a sort value JSON-safe for the cursor (datetimes -> ISO string)."""
-    if isinstance(value, (datetime, date)):
+    """Make a sort value JSON-safe for the cursor (datetimes/dates/times ->
+    ISO string; `Decimal` -> string — `json.dumps` cannot serialise either
+    natively, and a `Decimal` needs exact string round-tripping, not float)."""
+    if isinstance(value, (datetime, date, time)):
         return value.isoformat()
+    if isinstance(value, Decimal):
+        return str(value)
     return value
 
 
@@ -93,6 +152,10 @@ def _coerce_value(sort_col: Any, raw: Any) -> Any:
         return datetime.fromisoformat(raw)
     if pytype is date:
         return date.fromisoformat(raw)
+    if pytype is time:
+        return time.fromisoformat(raw)
+    if pytype is Decimal:
+        return Decimal(str(raw))
     return raw
 
 
@@ -114,7 +177,9 @@ def decode_cursor(token: str) -> tuple[Any, str]:
 
 async def keyset_page(session: AsyncSession, base_stmt: Select, *,
                       sort_col: Any, sort_desc: bool, cursor: str | None,
-                      limit: int, count_cap: int = COUNT_CAP
+                      limit: int, count_cap: int = COUNT_CAP,
+                      id_col: Any = None,
+                      value_of: Callable[[Any], Any] | None = None
                       ) -> tuple[list, str | None, int, bool]:
     """Keyset (cursor) page over an already filtered/scoped SELECT.
 
@@ -134,9 +199,16 @@ async def keyset_page(session: AsyncSession, base_stmt: Select, *,
 
     The cursor encodes the sort value + id of the last row; it is only valid for
     the current sort — the caller MUST reset it when sort/filters change.
+
+    `id_col`/`value_of` default to the ORM-mapped-column behaviour (`sort_col`
+    is a real model attribute: `.class_.id` / `getattr(row, sort_col.key)`).
+    Pass them explicitly when `sort_col` is a raw SQL expression instead (e.g.
+    `custom_fields.<key>` — see `resolve_entity_sort`), which has neither
+    `.class_` nor a meaningful `.key` to introspect.
     """
     limit = min(max(limit, 1), MAX_LIMIT)
-    id_col = sort_col.class_.id
+    id_col = sort_col.class_.id if id_col is None else id_col
+    value_of = value_of or (lambda row: getattr(row, sort_col.key))
 
     stmt = base_stmt
     if cursor:
@@ -165,7 +237,7 @@ async def keyset_page(session: AsyncSession, base_stmt: Select, *,
     next_cursor = None
     if has_more and items:
         last = items[-1]
-        next_cursor = encode_cursor(getattr(last, sort_col.key), last.id)
+        next_cursor = encode_cursor(value_of(last), last.id)
 
     # Capped count over the filtered set (no keyset predicate, no order).
     counted = await session.scalar(select(func.count()).select_from(

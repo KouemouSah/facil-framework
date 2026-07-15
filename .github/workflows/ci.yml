@@ -228,6 +228,19 @@ jobs:
           ROLE=$(curl -fsS -H "$H" "$API/api/v1/rbac/roles?limit=200" | python -c 'import sys,json;print(next(r["id"] for r in json.load(sys.stdin)["items"] if r["code"]=="admin"))')
           curl -fsS -X POST -H "$H" -H 'Content-Type: application/json' \
             -d "{\"role_id\":\"$ROLE\"}" "$API/api/v1/rbac/accounts/$ACC/roles"
+      - name: Seed a low-privilege account (custom-fields.spec.ts permission-gating test)
+        # role "member" -> [organization.read, location.read] only (rbac/seeds/
+        # empty.yaml) — no `fields.manage`. CI-only throwaway credential, never
+        # reused outside this ephemeral job's Postgres service container.
+        run: |
+          API=http://localhost:8080
+          H="X-Admin-Token: $ADMIN_TOKEN"
+          ACC=$(curl -fsS -X POST -H "$H" -H 'Content-Type: application/json' \
+            -d '{"email":"e2e-readonly@x.com","password":"Rd0nly!StrongPw"}' \
+            "$API/api/v1/admin/accounts" | python -c 'import sys,json;print(json.load(sys.stdin)["id"])')
+          ROLE=$(curl -fsS -H "$H" "$API/api/v1/rbac/roles?limit=200" | python -c 'import sys,json;print(next(r["id"] for r in json.load(sys.stdin)["items"] if r["code"]=="member"))')
+          curl -fsS -X POST -H "$H" -H 'Content-Type: application/json' \
+            -d "{\"role_id\":\"$ROLE\"}" "$API/api/v1/rbac/accounts/$ACC/roles"
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -245,6 +258,10 @@ jobs:
         run: npm run test:e2e --workspace=web
         env:
           E2E_BASE_URL: http://localhost:3000
+          E2E_ADMIN_EMAIL: e2e@x.com
+          E2E_ADMIN_PASSWORD: Sup3rStr0ng!pw
+          E2E_READONLY_EMAIL: e2e-readonly@x.com
+          E2E_READONLY_PASSWORD: Rd0nly!StrongPw
 
   summary:
     name: CI Summary

@@ -13,6 +13,11 @@ import { PARTY_TYPES } from "./api";
  * hook decorates them with LOCALIZED labels + required-error (i18n mandate) —
  * mirrors org-unit's `useUnitFields`. The `f.<name>` i18n keys live under
  * `directory.f`, so every spec name maps to a label key.
+ *
+ * NO custom-fields merge: `party.custom_fields` is NOT an extensible target
+ * (Fix wave 1, SP1 Task 15 — `Party` is a global directory row with no
+ * organisation to own a definition set; see `app/core/schema/registry.py`'s
+ * `EXTENSIBLE_TARGETS` docstring). Party's fields are exactly this base set.
  */
 export const PARTY_FIELD_SPECS: Omit<FieldDef, "label">[] = [
   { name: "party_type", type: "select", required: true, immutable: true,
@@ -23,7 +28,6 @@ export const PARTY_FIELD_SPECS: Omit<FieldDef, "label">[] = [
   { name: "email", type: "email" },
   { name: "phone" },
   { name: "website" },
-  { name: "custom_fields", type: "json" },
   { name: "is_active", type: "checkbox" },
 ];
 

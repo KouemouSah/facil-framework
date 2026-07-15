@@ -150,6 +150,9 @@ function PartyCreateSurface({ onClose, onSaved }: { onClose: () => void; onSaved
   const qc = useQueryClient();
   return (
     <RecordSurface title={t("p.new_title")} resourceKey="parties" onClose={onClose}>
+      {/* No custom-fields split: `party.custom_fields` is not an extensible
+          target (Fix wave 1) — every `PARTY_FIELD_SPECS` name is already a
+          real `PartyIn` column, so the flat RecordForm payload is the body. */}
       <RecordForm fields={partyFields} mode="create" layout="rich" enableSaveNew submitLabel={t("p.new")}
         initial={{ party_type: "organization", is_active: true }}
         onSubmit={(payload) => createParty(payload)}

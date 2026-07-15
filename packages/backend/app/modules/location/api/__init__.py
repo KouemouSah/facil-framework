@@ -15,7 +15,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.concurrency import enforce_if_match, row_etag
 from app.api.csv_export import EXPORT_CAP, export_response
 from app.api.deps import get_session
-from app.api.list_query import apply_sort, keyset_page, paginated, resolve_sort
+from app.api.list_query import (
+    apply_sort,
+    keyset_page,
+    paginated,
+    resolve_entity_sort,
+    resolve_sort,
+)
+from app.auth import audit
+from app.core.schema.indexing import CUSTOM_FIELD_SORT_PREFIX
+from app.core.schema import repository as schema_repo
+from app.core.schema.issuer import resolve_issuer_identity
+from app.core.schema.merge import merge_blob
+from app.core.schema.pydantic_gen import SchemaViolation, validate_blob
+from app.core.schema.sanitize import clean_richtext_fields
 from app.modules.location import repository as repo
 from app.modules.location import service
 from app.modules.location.models import Site
@@ -65,10 +78,24 @@ async def list_sites(organization_id: str | None = None,
     visible = await visible_orgs(session, principal, "location.read")
     stmt = repo.sites_select(organization_id=organization_id, org_unit_id=org_unit_id,
                              parent_site_id=parent_site_id, org_ids=visible, q=q)
-    sort_col, sort_desc = resolve_sort(sort, allowed=_SITE_SORT, default="code")
+    # `sort=custom_fields.<key>` (Task 14) needs ONE organisation's field
+    # definitions to resolve against — `site.custom_fields` is org-owned, and
+    # this list can otherwise span every visible org. Require `organization_id`
+    # explicitly for that sort form; `resolve_entity_sort` 422s a non-ready/
+    # non-indexed/unknown key regardless (never a silent sequential scan).
+    specs = None
+    if sort.lstrip("-").startswith(CUSTOM_FIELD_SORT_PREFIX):
+        if not organization_id:
+            raise HTTPException(
+                422, "sorting sites by a custom field requires organization_id "
+                     "(site.custom_fields definitions are organisation-scoped)")
+        specs = [r.as_spec() for r in await schema_repo.definitions_for(
+            session, "site.custom_fields", organization_id)]
+    sort_col, sort_desc, id_col, value_of = resolve_entity_sort(
+        sort, allowed=_SITE_SORT, default="code", id_col=Site.id, specs=specs)
     items, next_cursor, count, capped = await keyset_page(
-        session, stmt, sort_col=sort_col, sort_desc=sort_desc,
-        cursor=cursor, limit=limit)
+        session, stmt, sort_col=sort_col, sort_desc=sort_desc, cursor=cursor,
+        limit=limit, id_col=id_col, value_of=value_of)
     return {"items": [s.as_dict() for s in items], "next_cursor": next_cursor,
             "count": count, "capped": capped}
 
@@ -98,10 +125,35 @@ async def create_site(body: SiteCreate, request: Request,
         session, {"organization_id": body.organization_id,
                   "org_unit_id": body.org_unit_id, "site_id": None})
     await enforce(session, principal, "location.create", scope)
+    # `custom_fields` (Task 13) allowlist against `site.custom_fields` DB
+    # definitions — unconditional (empty = "not configured"). The site's
+    # organisation is already known (payload), no two-phase flush needed.
+    if body.custom_fields:
+        specs = [r.as_spec() for r in await schema_repo.definitions_for(
+            session, "site.custom_fields", body.organization_id)]
+        try:
+            body.custom_fields = clean_richtext_fields(
+                specs, validate_blob(specs, body.custom_fields))
+        except SchemaViolation as e:
+            raise HTTPException(422, detail=e.errors) from e
+    # `document_identity` (SP1 D1) — the narrow OPTIONAL-override schema
+    # (`site.document_identity`, code-defined). Unconditional allowlist like
+    # `custom_fields` above; empty means "not configured yet".
+    if body.document_identity:
+        specs = request.app.state.schema_registry.get("site.document_identity")
+        try:
+            body.document_identity = clean_richtext_fields(
+                specs, validate_blob(specs, body.document_identity))
+        except SchemaViolation as e:
+            raise HTTPException(422, detail=e.errors) from e
     try:
         site = await service.create_site(session, body)
     except service.LocError as e:
         raise _http(e) from e
+    if body.custom_fields:
+        await audit.record(session, audit.CUSTOM_FIELDS_CHANGED,
+                           account_id=principal.get("sub"),
+                           detail={"entity": "site", "id": site.id})
     await _commit(session)
     return site.as_dict()
 
@@ -114,18 +166,66 @@ async def get_site(site_id: str, session: AsyncSession = Depends(get_session)) -
     return {**site.as_dict(), "etag": row_etag(site)}
 
 
+@router.get("/sites/{site_id}/issuer-identity")
+async def get_site_issuer_identity(site_id: str, principal: dict = Depends(require_auth),
+                                   session: AsyncSession = Depends(get_session)) -> dict:
+    """The identity a document ISSUED BY this site prints: the site's own
+    `document_identity` overrides, its org_unit's (and that unit's ancestors'),
+    then the organization row — first non-empty per key, origin included
+    (SP1 debt D1).
+
+    Scope-filtered like every other read here (`visible_orgs`): a site whose
+    organisation is outside the caller's perimeter is 404, never 403. The
+    row must be fetched first (scope lives on `organization_id`, not the
+    path id), but the 404 message is identical either way.
+    """
+    site = await repo.get_site(session, site_id)
+    if site is None:
+        raise HTTPException(404, f"site '{site_id}' not found")
+    visible = await visible_orgs(session, principal, "location.read")
+    if visible is not None and site.organization_id not in visible:
+        raise HTTPException(404, f"site '{site_id}' not found")
+    return await resolve_issuer_identity(session, site=site)
+
+
 @router.put("/sites/{site_id}", dependencies=[Depends(require_permission("location.update"))])
 async def update_site(site_id: str, body: SiteUpdate, request: Request,
+                      principal: dict = Depends(require_auth),
                       session: AsyncSession = Depends(get_session)) -> dict:
     # Optimistic concurrency: reject if the row changed since the client loaded it.
     existing = await repo.get_site(session, site_id)
     if existing is None:
         raise HTTPException(404, f"site '{site_id}' not found")
     enforce_if_match(request, row_etag(existing))
+    # `custom_fields` (Task 13) allowlist against `site.custom_fields` DB
+    # definitions, scoped by the site's own organisation. `richtext` values
+    # are sanitised here too (defence in depth).
+    if body.custom_fields is not None:
+        specs = [r.as_spec() for r in await schema_repo.definitions_for(
+            session, "site.custom_fields", existing.organization_id)]
+        try:
+            body.custom_fields = clean_richtext_fields(specs, merge_blob(
+                existing.custom_fields or {}, body.custom_fields, specs))
+        except SchemaViolation as e:
+            raise HTTPException(422, detail=e.errors) from e
+    # `document_identity` (SP1 D1) — same schema-validated, merge-preserve
+    # blob as `custom_fields` above, against the code-defined
+    # `site.document_identity` override schema.
+    if body.document_identity is not None:
+        specs = request.app.state.schema_registry.get("site.document_identity")
+        try:
+            body.document_identity = clean_richtext_fields(specs, merge_blob(
+                existing.document_identity or {}, body.document_identity, specs))
+        except SchemaViolation as e:
+            raise HTTPException(422, detail=e.errors) from e
     try:
         site = await service.update_site(session, site_id, body)
     except service.LocError as e:
         raise _http(e) from e
+    if body.custom_fields is not None:
+        await audit.record(session, audit.CUSTOM_FIELDS_CHANGED,
+                           account_id=principal.get("sub"),
+                           detail={"entity": "site", "id": site_id})
     await _commit(session)
     # No etag here (updated_at is server-onupdate; expired after flush). The client
     # refetches GET for the rotated etag.

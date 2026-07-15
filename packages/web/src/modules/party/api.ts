@@ -46,12 +46,18 @@ export const listParties = (p: { q: string; sort: string; limit: number; cursor:
     (p.cursor ? `&cursor=${encodeURIComponent(p.cursor)}` : ""));
 
 export const getParty = (id: string) => apiFetch<Party>(`${PARTY_BASE}/parties/${id}`);
+
+// `party.custom_fields` is NOT an extensible target (Fix wave 1, SP1 Task 15
+// — see `app/core/schema/registry.py`'s `EXTENSIBLE_TARGETS` docstring: Party
+// is a global directory row with no organisation to own a definition set).
+// No `definitions_org_id` query param here any more — the backend now
+// rejects any `custom_fields` write on party outright, so there is nothing
+// to scope.
 export const createParty = (body: Record<string, unknown>) =>
   apiFetch<Party>(`${PARTY_BASE}/parties`, { method: "POST", body: JSON.stringify(body) });
 export const updateParty = (id: string, body: Record<string, unknown>, etag?: string) =>
-  apiFetch<Party>(`${PARTY_BASE}/parties/${id}`, {
-    method: "PUT", headers: etag ? { "If-Match": etag } : undefined, body: JSON.stringify(body),
-  });
+  apiFetch<Party>(`${PARTY_BASE}/parties/${id}`,
+    { method: "PUT", headers: etag ? { "If-Match": etag } : undefined, body: JSON.stringify(body) });
 export const deleteParty = (id: string) => apiFetch(`${PARTY_BASE}/parties/${id}`, { method: "DELETE" });
 
 // --- Party roles (nested) ---

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Activity, CheckCircle2, XCircle, Loader2, Plug, Plus, Star, Trash2 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
@@ -16,6 +16,7 @@ import { Select } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RecordForm, RecordSurface } from "@/components/shared";
 import { usePermissions } from "@/lib/use-permissions";
+import type { Locale } from "@/lib/schema/types";
 import { buildProviderFields, createInitial, flattenProvider, splitPayload } from "./fields";
 import {
   LLM_KINDS, ROUTING_ROLES, providersToMap, routingToProviders, validateRouting, type NamedProvider,
@@ -209,6 +210,7 @@ function CreateSurface({ capability, onClose, onSaved }: {
   capability: string; onClose: () => void; onSaved: () => void;
 }) {
   const t = useTranslations("providers");
+  const locale = useLocale() as Locale;
   const qc = useQueryClient();
   const [code, setCode] = useState("");
   // Own the registered query (shared cache) so the type list is always current.
@@ -239,7 +241,7 @@ function CreateSurface({ capability, onClose, onSaved }: {
       {code && (
         <RecordForm
           key={code}
-          fields={buildProviderFields(schema)}
+          fields={buildProviderFields(schema, locale)}
           mode="create"
           layout="rich"
           submitLabel={t("create")}
@@ -262,6 +264,7 @@ function EditSurface({ capability, code, readOnly, onClose }: {
   capability: string; code: string; readOnly: boolean; onClose: () => void;
 }) {
   const t = useTranslations("providers");
+  const locale = useLocale() as Locale;
   const qc = useQueryClient();
   const provider = useQuery({
     queryKey: ["provider", capability, code],
@@ -292,7 +295,7 @@ function EditSurface({ capability, code, readOnly, onClose }: {
           // Remount (reseed) if the schema arrives/changes so config fields never
           // render blank against a live row.
           key={`${data!.etag ?? code}:${schemaKeys.length}`}
-          fields={buildProviderFields(schema)}
+          fields={buildProviderFields(schema, locale)}
           mode="edit"
           layout="rich"
           readOnly={readOnly}

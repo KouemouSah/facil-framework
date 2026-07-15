@@ -103,7 +103,15 @@ def test_raw_scope_unit_and_site():
     assert raw_scope_ids(r2)["site_id"] == "s"
 
 
-def test_raw_scope_from_query_when_no_path():
-    r = _FakeReq(query={"organization_id": "A", "org_unit_id": "u"})
+def test_raw_scope_ignores_query_string():
+    # SECURITY (confused-deputy fix): the query string is caller-controlled and
+    # unrelated to which row the request targets — a caller must not be able to
+    # inject a scope via ?organization_id=/?org_unit_id=/?site_id=. Only path
+    # params (bound by FastAPI's routing to the actual resource) are trusted.
+    # This test previously asserted the OPPOSITE (query string accepted as a
+    # scope source when the path had none) — that assertion literally encoded
+    # the exploit in packages/backend/tests/test_rbac_scope_confused_deputy.py,
+    # so it was corrected rather than kept passing.
+    r = _FakeReq(query={"organization_id": "A", "org_unit_id": "u", "site_id": "s"})
     raw = raw_scope_ids(r)
-    assert raw["organization_id"] == "A" and raw["org_unit_id"] == "u"
+    assert raw == {"organization_id": None, "org_unit_id": None, "site_id": None}

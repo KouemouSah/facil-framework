@@ -28,6 +28,9 @@ class OrganizationCreate(BaseModel):
     currency: str | None = Field(None, min_length=3, max_length=3)
     document_identity: dict = Field(default_factory=dict)
     settings: dict = Field(default_factory=dict)
+    # User-defined fields (SP1) — allowlisted against `organization.custom_fields`
+    # definitions server-side (see api/__init__.py); never trusted as-is.
+    custom_fields: dict = Field(default_factory=dict)
     # ERP Company links (F.3): consolidation parent + canonical FKs to the
     # party/address/currency master data. Optional; FK integrity enforced by the
     # DB (a bad reference surfaces as 409 via the API's IntegrityError mapping).
@@ -76,6 +79,7 @@ class OrganizationUpdate(BaseModel):
     currency: str | None = Field(None, min_length=3, max_length=3)
     document_identity: dict | None = None
     settings: dict | None = None
+    custom_fields: dict | None = None
     is_active: bool | None = None
     # ERP Company links (F.3) — see OrganizationCreate. `parent_id` self-reference
     # is rejected by the service (consolidation-cycle guard).
@@ -99,6 +103,11 @@ class OrgUnitCreate(BaseModel):
     description: str | None = None
     external_ref: str | None = Field(None, max_length=80)
     metadata: dict = Field(default_factory=dict)
+    # User-defined fields (SP1) — allowlisted against `org_unit.custom_fields`.
+    custom_fields: dict = Field(default_factory=dict)
+    # Optional issuer-identity override (SP1 D1) — allowlisted against
+    # `org_unit.document_identity` (product_schemas.DOCUMENT_IDENTITY_OVERRIDE).
+    document_identity: dict = Field(default_factory=dict)
 
     @field_validator("code")
     @classmethod
@@ -113,4 +122,6 @@ class OrgUnitUpdate(BaseModel):
     description: str | None = None
     external_ref: str | None = Field(None, max_length=80)
     metadata: dict | None = None
+    custom_fields: dict | None = None
+    document_identity: dict | None = None
     is_active: bool | None = None

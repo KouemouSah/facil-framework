@@ -23,6 +23,14 @@ export const listSites = (p: { orgId: string; sort: string; limit: number; curso
 export const getSite = (id: string) =>
   apiFetch<Record<string, unknown>>(`${SITE_BASE}/${id}`);
 
+/** Resolved issuer identity for a document issued by this site: the site's
+ *  own `document_identity` overrides, its org_unit's (and ancestors'), then
+ *  the organization row — first non-empty per key, origin included
+ *  (SP1 debt D1). */
+export const getSiteIssuerIdentity = (id: string) =>
+  apiFetch<import("../organization/document-preview").ResolvedIssuerIdentity>(
+    `${SITE_BASE}/${id}/issuer-identity`);
+
 export const createSite = (orgId: string, payload: Record<string, unknown>) =>
   apiFetch(SITE_BASE, {
     method: "POST",

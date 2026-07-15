@@ -1,31 +1,22 @@
 import type { FieldDef } from "@/components/ui/record-form";
+import { fieldSpecToFieldDef } from "@/lib/schema/to-field-def";
+import type { Locale } from "@/lib/schema/types";
 import type { ConfigField, Provider } from "./api";
 
-// Backend config field type → RecordForm control type.
-const TYPE_MAP: Record<ConfigField["type"], NonNullable<FieldDef["type"]>> = {
-  text: "text",
-  number: "number",
-  boolean: "checkbox",
-  json: "json",
-};
-
 /** One declarative backend config field → a RecordForm FieldDef (guided form,
- *  rendered from the backend schema — the single source of truth, no drift). */
-export function configFieldToFieldDef(cf: ConfigField): FieldDef {
-  return {
-    name: cf.key,
-    label: cf.label,
-    type: TYPE_MAP[cf.type] ?? "text",
-    required: cf.required,
-    hint: cf.hint || undefined,
-  };
+ *  rendered from the backend schema — the single source of truth, no drift).
+ *  `ConfigField` IS `FieldSpec` (Task 3) — this is now a locale-bound alias
+ *  for `fieldSpecToFieldDef`, kept so providers call sites read unchanged.
+ *  @deprecated call `fieldSpecToFieldDef` directly for new code. */
+export function configFieldToFieldDef(cf: ConfigField, locale: Locale): FieldDef {
+  return fieldSpecToFieldDef(cf, locale);
 }
 
 // Provider-level fields appended after the (guided, per-kind) config fields.
 // `secret_ref` is a POINTER into the secret store — never the secret itself.
-export function buildProviderFields(schema: ConfigField[]): FieldDef[] {
+export function buildProviderFields(schema: ConfigField[], locale: Locale): FieldDef[] {
   return [
-    ...schema.map(configFieldToFieldDef),
+    ...schema.map((f) => configFieldToFieldDef(f, locale)),
     { name: "secret_ref", label: "Secret reference",
       hint: "Name in the secret store (e.g. \"minio-creds\") — never paste the secret here." },
     { name: "is_active", label: "Active", type: "checkbox" },

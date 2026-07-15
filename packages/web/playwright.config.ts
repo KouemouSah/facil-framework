@@ -10,7 +10,12 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./e2e",
-  timeout: 30_000,
+  // Real-backend e2e: these specs drive multi-step flows (login → Studio create
+  // → Site create → reload → assert) against a live stack. 30s was too tight —
+  // a cold CI server (or next dev's first-hit route compile locally) pushes the
+  // heaviest test just past it, even though every functional step succeeds. 90s
+  // gives headroom without masking a genuine hang (a real deadlock still fails).
+  timeout: 90_000,
   expect: { timeout: 5_000 },
   fullyParallel: true,
   reporter: "list",

@@ -63,3 +63,40 @@ async def test_party_crud_roles_and_addresses(client):
     # Delete the party.
     assert (await ac.delete(f"{P}/parties/{p['id']}", headers=AUTH)).status_code == 200
     assert (await ac.get(f"{P}/parties/{p['id']}", headers=AUTH)).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_party_create_with_empty_custom_fields_is_accepted(client):
+    """POST party with {"custom_fields": {}} is accepted.
+
+    PartyIn.custom_fields defaults to {} (empty dict via default_factory).
+    An empty dict is falsy and carries no keys — nothing to leak. The truthy
+    guard at line 87 does not reject it. Rejecting empty dicts would 422 every
+    ordinary party creation that omits custom_fields. This pins the deliberate
+    asymmetry with UPDATE (where custom_fields defaults to None).
+    """
+    ac, _ = client
+    p = (await ac.post(f"{P}/parties", headers=AUTH, json={
+        "party_type": "organization", "name": "Empty CF Ltd",
+        "custom_fields": {}  # Explicit empty dict.
+    })).json()
+    assert p["id"] is not None
+    assert p["custom_fields"] == {}  # Stored as empty dict.
+
+
+@pytest.mark.asyncio
+async def test_party_create_with_nonempty_custom_fields_is_rejected(client):
+    """POST party with {"custom_fields": {"anything": "x"}} is rejected with 422.
+
+    Party is not an extensible target (EXTENSIBLE_TARGETS). The custom_fields
+    column exists for legacy reasons but must be actively guarded. Any attempt
+    to write keys into it is rejected — there is no organisation whose schema
+    could validate them.
+    """
+    ac, _ = client
+    resp = await ac.post(f"{P}/parties", headers=AUTH, json={
+        "party_type": "organization", "name": "Bad CF Ltd",
+        "custom_fields": {"anything": "x"}
+    })
+    assert resp.status_code == 422
+    assert "not an extensible target" in resp.json()["detail"]
