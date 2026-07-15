@@ -5,6 +5,7 @@ import {
   RELATION_RESOURCES, splitCustomPayload, STUDIO_OFFERED_TYPES, targetLabelKey, TARGETS,
   TYPE_OPTIONS, WIDGETS_BY_TYPE, widgetsFor,
 } from "./fields";
+import { ApiError } from "@/lib/api";
 import type { Definition } from "./api";
 import backendContract from "./__fixtures__/backend-field-contract.json";
 
@@ -179,7 +180,7 @@ describe("buildDefinitionPayload — flat RecordForm payload -> DefinitionIn (Al
     hint_en: "", hint_fr: "", hint_es: "",
     required: true, group: "geo", order: "2", col_span: "2", indexed: true,
     inherit_to_suborgs: true,
-    relation_resource: "", relation_filter: {}, rules: {},
+    relation_resource: "", relation_filter: {},
     options: { items: [] }, default: { value: null },
   };
 
@@ -234,6 +235,80 @@ describe("buildDefinitionPayload — flat RecordForm payload -> DefinitionIn (Al
   });
 });
 
+// Task 5: the type-aware `rule_*` inputs + `rules_advanced` replace the old
+// single raw-JSON `rules` field — this pins the re-nesting adapters wired
+// into `buildDefinitionPayload` (via `nestRules`/`ruleSanity`, Task 4/5).
+describe("buildDefinitionPayload — type-aware rule_* inputs -> rules (Task 5)", () => {
+  const base = {
+    key: "floor", type: "number", widget: "plain",
+    label_en: "Floor", label_fr: "Étage", label_es: "Piso",
+    hint_en: "", hint_fr: "", hint_es: "",
+    required: false, group: "", order: "0", col_span: "1", indexed: false,
+    inherit_to_suborgs: false,
+    relation_resource: "", relation_filter: {},
+    options: { items: [] }, default: { value: null },
+  };
+
+  function captureError(fn: () => unknown): ApiError {
+    try { fn(); } catch (e) { return e as ApiError; }
+    throw new Error("expected buildDefinitionPayload to throw");
+  }
+
+  it("nests rule_min/rule_max into rules.min/rules.max", () => {
+    const out = buildDefinitionPayload({ ...base, rule_min: 1, rule_max: 10 }, "site.custom_fields");
+    expect(out.rules).toEqual({ min: 1, max: 10 });
+  });
+
+  it("splits the comma-joined rule_allowed_extensions string into an array", () => {
+    const out = buildDefinitionPayload(
+      { ...base, type: "file", rule_allowed_extensions: "pdf, png,  jpg" }, "site.custom_fields");
+    expect(out.rules).toEqual({ allowed_extensions: ["pdf", "png", "jpg"] });
+  });
+
+  it("drops rule_allowed_extensions entirely when left blank", () => {
+    const out = buildDefinitionPayload({ ...base, type: "file", rule_allowed_extensions: "" }, "site.custom_fields");
+    expect(out.rules).toEqual({});
+  });
+
+  it("resolves a pattern preset into rules.pattern when no explicit pattern is typed", () => {
+    const out = buildDefinitionPayload(
+      { ...base, type: "string", rule_pattern_preset: "email" }, "site.custom_fields");
+    expect((out.rules as Record<string, unknown>).pattern).toBe("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
+  });
+
+  it("an explicitly typed rule_pattern wins over the preset", () => {
+    const out = buildDefinitionPayload(
+      { ...base, type: "string", rule_pattern_preset: "email", rule_pattern: "^custom$" }, "site.custom_fields");
+    expect((out.rules as Record<string, unknown>).pattern).toBe("^custom$");
+  });
+
+  it("the \"custom\" preset never injects a pattern", () => {
+    const out = buildDefinitionPayload(
+      { ...base, type: "string", rule_pattern_preset: "custom" }, "site.custom_fields");
+    expect(out.rules).toEqual({});
+  });
+
+  it("merges rules_advanced (non-UI keys) alongside the rule_* inputs", () => {
+    const out = buildDefinitionPayload(
+      { ...base, rule_min: 1, rules_advanced: { multiple_of: 5 } }, "site.custom_fields");
+    expect(out.rules).toEqual({ min: 1, multiple_of: 5 });
+  });
+
+  it("throws an ApiError(422) with a rules_advanced field error when min>max (ruleSanity)", () => {
+    const err = captureError(() => buildDefinitionPayload({ ...base, rule_min: 10, rule_max: 1 }, "site.custom_fields"));
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.status).toBe(422);
+    expect(err.fieldErrors().rules_advanced).toMatch(/min/);
+  });
+
+  it("throws an ApiError(422) when a UI-owned key is duplicated in rules_advanced (disjoint guard)", () => {
+    const err = captureError(() => buildDefinitionPayload({ ...base, rules_advanced: { min_length: 3 } }, "site.custom_fields"));
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.status).toBe(422);
+    expect(err.fieldErrors().rules_advanced).toMatch(/min_length/);
+  });
+});
+
 describe("flattenDefinition — Definition row -> RecordForm initial (label/hint dicts flattened)", () => {
   const row: Definition = {
     id: "d1", organization_id: "o1", target: "site.custom_fields",
@@ -258,5 +333,25 @@ describe("flattenDefinition — Definition row -> RecordForm initial (label/hint
     const withOptions = flattenDefinition({ ...row, type: "select", options: [{ value: "a", label: { en: "A", fr: "A", es: "A" } }], default: 42 });
     expect(withOptions.options).toEqual({ items: [{ value: "a", label: { en: "A", fr: "A", es: "A" } }] });
     expect(withOptions.default).toEqual({ value: 42 });
+  });
+
+  // Task 5: `rules` is no longer passed through raw — it's split into the
+  // type-aware `rule_*` inputs (via `flattenRules`, Task 4) + whatever isn't
+  // UI-managed goes to `rules_advanced`.
+  it("flattens rules into rule_* inputs + rules_advanced, and joins allowed_extensions into text", () => {
+    const flat = flattenDefinition({
+      ...row,
+      rules: { min_length: 2, max_length: 10, allowed_extensions: ["pdf", "png"], multiple_of: 5 } as Definition["rules"],
+    });
+    expect(flat.rule_min_length).toBe(2);
+    expect(flat.rule_max_length).toBe(10);
+    expect(flat.rule_allowed_extensions).toBe("pdf, png");
+    expect(flat.rules_advanced).toEqual({ multiple_of: 5 });
+  });
+
+  it("defaults rule_allowed_extensions to an empty string and rules_advanced to {} when rules is empty", () => {
+    const flat = flattenDefinition(row);
+    expect(flat.rule_allowed_extensions).toBe("");
+    expect(flat.rules_advanced).toEqual({});
   });
 });

@@ -778,10 +778,41 @@
       "relation_filter_hint": "Filtro clave/valor opcional aplicado al selector, p. ej. '{\"region_id\": \"...\"}'",
       "options": "Opciones",
       "options_hint": "JSON: '{\"items\": [{\"value\": \"code\", \"label\": {\"en\": \"...\", \"fr\": \"...\", \"es\": \"...\"}}]}'",
-      "rules": "Reglas de validación (JSON)",
-      "rules_hint": "min / max / min_length / max_length / pattern / precision / visible_if / required_if — vea docs/adr para la forma exacta.",
+      "rule": {
+        "min_length": "Longitud mínima",
+        "max_length": "Longitud máxima",
+        "pattern_preset": "Patrón predefinido",
+        "pattern": "Patrón (regex)",
+        "pattern_hint": "Expresión regular opcional que el valor debe cumplir. Elija un patrón predefinido arriba, o escriba el suyo.",
+        "min": "Mínimo",
+        "max": "Máximo",
+        "step": "Paso (múltiplo de)",
+        "precision": "Precisión decimal (máx. de decimales)",
+        "money_min": "Importe mínimo",
+        "money_max": "Importe máximo",
+        "date_min": "Fecha/hora mínima",
+        "date_max": "Fecha/hora máxima",
+        "date_token_hint": "Fecha ISO (AAAA-MM-DD) o un token: \"today\" o \"now\".",
+        "min_items": "Elementos mínimos",
+        "max_items": "Elementos máximos",
+        "must_be_true": "Debe estar marcado (verdadero)",
+        "allowed_extensions": "Extensiones permitidas",
+        "exts_hint": "Lista de extensiones permitidas separadas por comas, ej. pdf, png, jpg (sin el punto)."
+      },
+      "rules_advanced": "Reglas avanzadas (JSON)",
+      "rules_advanced_hint": "Cualquier otra regla de validación no cubierta arriba, en JSON sin procesar — ej. '{\"multiple_of\": 5}'. Las reglas ya cubiertas arriba no deben repetirse aquí.",
       "default": "Valor por defecto",
       "default_hint": "JSON: '{\"value\": ...}' — cualquier valor (texto, número, booleano, array, objeto o null)."
+    },
+    "rule": {
+      "preset": {
+        "email": "Correo electrónico",
+        "phone": "Teléfono",
+        "url": "URL",
+        "slug": "Slug",
+        "alphanumeric": "Alfanumérico",
+        "custom": "Personalizado / ninguno"
+      }
     },
     "col_span_option": {
       "1": "Normal (1 columna)",

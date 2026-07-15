@@ -2,11 +2,13 @@ import { useLocale } from "next-intl";
 import { z } from "zod";
 import type { FieldDef } from "@/components/ui/record-form";
 import { requiredText } from "@/lib/form-schemas";
+import { ApiError } from "@/lib/api";
 import { tr, type FieldSpecType, type I18nString, type Locale } from "@/lib/schema/types";
 import enMessages from "@/i18n/messages/en.json";
 import frMessages from "@/i18n/messages/fr.json";
 import esMessages from "@/i18n/messages/es.json";
 import { TARGETS, type Definition, type DefinitionIn, type IndexState, type Target } from "./api";
+import { flattenRules, nestRules, PATTERN_PRESETS, ruleSanity } from "./rules-adapter";
 
 export { TARGETS, type Target };
 
@@ -221,7 +223,46 @@ export function buildFieldDefFields(locale: Locale, seedType?: FieldSpecType): F
       rules: { visible_if: { field: "type", op: "eq", value: "relation" } } },
     { name: "options", label: t("options"), type: "json", hint: t("options_hint"), colSpan: 2,
       rules: { visible_if: { field: "type", op: "in", value: ["select", "multiselect"] } } },
-    { name: "rules", label: t("rules"), type: "json", hint: t("rules_hint"), colSpan: 2 },
+    // --- Validation (type-aware) — mirrors the backend's `_coerce` (Tasks
+    // 1-2, pydantic_gen.py): only the rules the server actually enforces for
+    // the CURRENTLY selected `type` are ever shown, via RecordForm's own
+    // `visible_if`. Anything the server accepts but this Studio doesn't have
+    // a dedicated control for goes in `rules_advanced` below instead — never
+    // silently dropped, never a raw opaque JSON blob for the common cases.
+    { name: "rule_min_length", label: t("rule.min_length"), type: "number",
+      rules: { visible_if: { field: "type", op: "in", value: ["string", "text", "richtext"] } } },
+    { name: "rule_max_length", label: t("rule.max_length"), type: "number",
+      rules: { visible_if: { field: "type", op: "in", value: ["string", "text", "richtext"] } } },
+    { name: "rule_pattern_preset", label: t("rule.pattern_preset"), type: "select",
+      selectOptions: PATTERN_PRESETS.map((p) => ({ value: p.value, label: ft(locale, `fields.rule.preset.${p.value}`) })),
+      rules: { visible_if: { field: "type", op: "in", value: ["string", "text", "richtext"] } } },
+    { name: "rule_pattern", label: t("rule.pattern"), hint: t("rule.pattern_hint"),
+      rules: { visible_if: { field: "type", op: "in", value: ["string", "text", "richtext"] } } },
+    { name: "rule_min", label: t("rule.min"), type: "number",
+      rules: { visible_if: { field: "type", op: "in", value: ["number", "decimal"] } } },
+    { name: "rule_max", label: t("rule.max"), type: "number",
+      rules: { visible_if: { field: "type", op: "in", value: ["number", "decimal"] } } },
+    { name: "rule_step", label: t("rule.step"), type: "number",
+      rules: { visible_if: { field: "type", op: "in", value: ["number", "decimal"] } } },
+    { name: "rule_precision", label: t("rule.precision"), type: "number",
+      rules: { visible_if: { field: "type", op: "eq", value: "decimal" } } },
+    { name: "rule_money_min", label: t("rule.money_min"), type: "number",
+      rules: { visible_if: { field: "type", op: "eq", value: "money" } } },
+    { name: "rule_money_max", label: t("rule.money_max"), type: "number",
+      rules: { visible_if: { field: "type", op: "eq", value: "money" } } },
+    { name: "rule_date_min", label: t("rule.date_min"), hint: t("rule.date_token_hint"),
+      rules: { visible_if: { field: "type", op: "in", value: ["date", "datetime", "time"] } } },
+    { name: "rule_date_max", label: t("rule.date_max"), hint: t("rule.date_token_hint"),
+      rules: { visible_if: { field: "type", op: "in", value: ["date", "datetime", "time"] } } },
+    { name: "rule_min_items", label: t("rule.min_items"), type: "number",
+      rules: { visible_if: { field: "type", op: "eq", value: "multiselect" } } },
+    { name: "rule_max_items", label: t("rule.max_items"), type: "number",
+      rules: { visible_if: { field: "type", op: "eq", value: "multiselect" } } },
+    { name: "rule_must_be_true", label: t("rule.must_be_true"), type: "checkbox",
+      rules: { visible_if: { field: "type", op: "eq", value: "boolean" } } },
+    { name: "rule_allowed_extensions", label: t("rule.allowed_extensions"), hint: t("rule.exts_hint"),
+      rules: { visible_if: { field: "type", op: "eq", value: "file" } } },
+    { name: "rules_advanced", label: t("rules_advanced"), type: "json", hint: t("rules_advanced_hint"), colSpan: 2 },
     { name: "default", label: t("default"), type: "json", hint: t("default_hint"), colSpan: 2 },
   ];
 }
@@ -264,6 +305,7 @@ function unwrapDefaultFromJson(v: unknown): unknown {
 
 /** `Definition` (API response row) -> flat `RecordForm` `initial`. */
 export function flattenDefinition(row: Definition): Record<string, unknown> {
+  const { form: ruleForm, advanced } = flattenRules(row.rules ?? {});
   return {
     key: row.key,
     type: row.type,
@@ -283,16 +325,47 @@ export function flattenDefinition(row: Definition): Record<string, unknown> {
     relation_resource: row.relation_resource ?? "",
     relation_filter: row.relation_filter ?? {},
     options: wrapOptionsForJson(row.options),
-    rules: row.rules ?? {},
+    ...ruleForm,
+    rule_allowed_extensions: Array.isArray(row.rules?.allowed_extensions)
+      ? (row.rules!.allowed_extensions as string[]).join(", ") : "",
+    rules_advanced: advanced,
     default: wrapDefaultForJson(row.default),
   };
 }
 
-/** Flat `RecordForm` payload -> the `DefinitionIn` request body. */
+/** Flat `RecordForm` payload -> the `DefinitionIn` request body. Re-nests the
+ *  type-aware `rule_*` inputs (+ `rules_advanced`) back into a single `rules`
+ *  object via the Task 4 adapters — the inverse of `flattenDefinition`'s
+ *  spread above. Throws `ApiError(422, …)` on an incoherent rule (min>max,
+ *  bad regex, a UI-managed key duplicated in Advanced JSON): RecordForm's
+ *  `submit()` already `await`s `onSubmit` inside a try/catch that maps a 422
+ *  onto `fieldErrors()` (`components/ui/record-form.tsx`), so throwing here —
+ *  rather than returning a `{error}` wrapper the two call sites in
+ *  `page.tsx` don't expect — reuses that existing mechanism unchanged. */
 export function buildDefinitionPayload(
   payload: Record<string, unknown>, target: Target,
 ): DefinitionIn {
   const str = (v: unknown) => (v == null ? "" : String(v));
+
+  // `rule_allowed_extensions` is authored as free text ("pdf, png, jpg") —
+  // split into the array shape `nestRules`/the backend expect.
+  const exts = typeof payload.rule_allowed_extensions === "string" && payload.rule_allowed_extensions.trim()
+    ? payload.rule_allowed_extensions.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
+
+  // Pattern preset: resolve to the concrete regex only when the author picked
+  // a real preset (not "custom"/blank) AND hasn't already typed their own
+  // pattern — an explicit `rule_pattern` always wins.
+  const presetValue = payload.rule_pattern_preset;
+  const preset = typeof presetValue === "string" && presetValue && presetValue !== "custom"
+    ? PATTERN_PRESETS.find((p) => p.value === presetValue) : undefined;
+  const resolvedPattern = preset && !payload.rule_pattern ? preset.pattern : payload.rule_pattern;
+
+  const form = { ...payload, rule_allowed_extensions: exts, rule_pattern: resolvedPattern };
+  const sanity = ruleSanity(form);
+  if (sanity.error) throw new ApiError(422, sanity.error, [{ loc: ["rules_advanced"], msg: sanity.error }]);
+  const { rules, error } = nestRules(form, (payload.rules_advanced as Record<string, unknown>) ?? {});
+  if (error) throw new ApiError(422, error, [{ loc: ["rules_advanced"], msg: error }]);
+
   return {
     key: str(payload.key),
     type: str(payload.type) as FieldSpecType,
@@ -301,7 +374,7 @@ export function buildDefinitionPayload(
     hint: { en: str(payload.hint_en), fr: str(payload.hint_fr), es: str(payload.hint_es) },
     required: payload.required === true,
     default: unwrapDefaultFromJson(payload.default),
-    rules: (payload.rules as Record<string, unknown>) ?? {},
+    rules: rules as Record<string, unknown>,
     options: unwrapOptionsFromJson(payload.options),
     relation_resource: str(payload.relation_resource),
     relation_filter: (payload.relation_filter as Record<string, string>) ?? {},

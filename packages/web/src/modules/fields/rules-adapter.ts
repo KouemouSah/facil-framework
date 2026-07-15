@@ -62,3 +62,24 @@ export function nestRules(
   if (form.rule_must_be_true === true) out.must_be_true = true;
   return { rules: out as FieldRules };
 }
+
+// Client-side-only sanity guard (the backend `_coerce` is still the sole
+// authority): catches an incoherent rule combination BEFORE a save round-trip
+// — min>max, a non-positive step, or a regex that doesn't even compile —
+// with a message a RecordForm caller can surface as a field error on
+// `rules_advanced` (see `buildDefinitionPayload` in `fields.ts`).
+export function ruleSanity(form: Record<string, unknown>): { error?: string } {
+  const n = (v: unknown) => (v === "" || v === undefined || v === null ? undefined : Number(v));
+  const pairs: [unknown, unknown, string][] = [
+    [n(form.rule_min), n(form.rule_max), "min must be ≤ max"],
+    [n(form.rule_min_length), n(form.rule_max_length), "min length must be ≤ max length"],
+    [n(form.rule_min_items), n(form.rule_max_items), "min items must be ≤ max items"],
+  ];
+  for (const [lo, hi, msg] of pairs)
+    if (lo !== undefined && hi !== undefined && (lo as number) > (hi as number)) return { error: msg };
+  const step = n(form.rule_step);
+  if (step !== undefined && step <= 0) return { error: "step must be > 0" };
+  const p = form.rule_pattern;
+  if (typeof p === "string" && p) { try { new RegExp(p); } catch { return { error: "pattern is not a valid regex" }; } }
+  return {};
+}

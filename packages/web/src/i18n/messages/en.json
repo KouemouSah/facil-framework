@@ -778,10 +778,41 @@
       "relation_filter_hint": "Optional key/value filter applied to the picker, e.g. '{\"region_id\": \"...\"}'",
       "options": "Options",
       "options_hint": "JSON: '{\"items\": [{\"value\": \"code\", \"label\": {\"en\": \"...\", \"fr\": \"...\", \"es\": \"...\"}}]}'",
-      "rules": "Validation rules (JSON)",
-      "rules_hint": "min / max / min_length / max_length / pattern / precision / visible_if / required_if — see docs/adr for the shape.",
+      "rule": {
+        "min_length": "Minimum length",
+        "max_length": "Maximum length",
+        "pattern_preset": "Pattern preset",
+        "pattern": "Pattern (regex)",
+        "pattern_hint": "Optional regular expression the value must match. Pick a preset above, or write your own.",
+        "min": "Minimum",
+        "max": "Maximum",
+        "step": "Step (multiple of)",
+        "precision": "Decimal precision (max decimal places)",
+        "money_min": "Minimum amount",
+        "money_max": "Maximum amount",
+        "date_min": "Earliest allowed",
+        "date_max": "Latest allowed",
+        "date_token_hint": "ISO date (YYYY-MM-DD) or a token: \"today\" or \"now\".",
+        "min_items": "Minimum items",
+        "max_items": "Maximum items",
+        "must_be_true": "Must be checked (true)",
+        "allowed_extensions": "Allowed extensions",
+        "exts_hint": "Comma-separated list of allowed file extensions, e.g. pdf, png, jpg (without the dot)."
+      },
+      "rules_advanced": "Advanced rules (JSON)",
+      "rules_advanced_hint": "Any other validation rule not covered above, as raw JSON — e.g. '{\"multiple_of\": 5}'. Rules already covered above must not be repeated here.",
       "default": "Default value",
       "default_hint": "JSON: '{\"value\": ...}' — any value (string, number, boolean, array, object, or null)."
+    },
+    "rule": {
+      "preset": {
+        "email": "Email",
+        "phone": "Phone",
+        "url": "URL",
+        "slug": "Slug",
+        "alphanumeric": "Alphanumeric",
+        "custom": "Custom / none"
+      }
     },
     "col_span_option": {
       "1": "Normal (1 column)",
