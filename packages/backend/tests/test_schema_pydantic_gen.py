@@ -147,3 +147,32 @@ def test_all_errors_are_reported_in_one_pass():
     locs = {tuple(err["loc"]) for err in e.value.errors}
     assert ("sneaky",) in locs
     assert ("legal_name",) in locs
+
+
+# --- Task 1: number/decimal `step`, decimal `precision`, money `min`/`max`. -
+
+def test_number_step_multiple_enforced():
+    specs = [field("qty", L, type="number", rules={"step": 5})]
+    with pytest.raises(SchemaViolation) as e:
+        validate_blob(specs, {"qty": 7})
+    assert e.value.errors[0]["loc"] == ["qty"]
+    assert "multiple of 5" in e.value.errors[0]["msg"]
+    assert validate_blob(specs, {"qty": 10}) == {"qty": 10}
+
+
+def test_decimal_precision_enforced():
+    specs = [field("rate", L, type="decimal", rules={"precision": 2})]
+    with pytest.raises(SchemaViolation) as e:
+        validate_blob(specs, {"rate": "1.234"})
+    assert "at most 2 decimal places" in e.value.errors[0]["msg"]
+    assert validate_blob(specs, {"rate": "1.23"}) == {"rate": "1.23"}
+
+
+def test_money_amount_bounds_enforced():
+    specs = [field("price", L, type="money", rules={"min": 10, "max": 100})]
+    with pytest.raises(SchemaViolation) as e:
+        validate_blob(specs, {"price": {"amount": "5.00", "currency": "usd"}})
+    assert e.value.errors[0]["loc"] == ["price"]
+    assert "≥ 10" in e.value.errors[0]["msg"]
+    assert validate_blob(specs, {"price": {"amount": "50.00", "currency": "usd"}}) \
+        == {"price": {"amount": "50.00", "currency": "USD"}}

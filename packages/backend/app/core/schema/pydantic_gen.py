@@ -53,6 +53,10 @@ def _coerce(spec: dict[str, Any], value: Any, out: list[dict[str, Any]]) -> Any:
             out.append(_err(key, f"must be ≥ {rules['min']}"))
         if "max" in rules and num > Decimal(str(rules["max"])):
             out.append(_err(key, f"must be ≤ {rules['max']}"))
+        if "step" in rules:
+            step = Decimal(str(rules["step"]))
+            if step > 0 and (num % step) != 0:
+                out.append(_err(key, f"must be a multiple of {rules['step']}"))
         if ftype == "number":
             # `number` IS an integer (see types.py) — `decimal` is the type that
             # carries precision in `rules` and is stored as a decimal string.
@@ -61,6 +65,11 @@ def _coerce(spec: dict[str, Any], value: Any, out: list[dict[str, Any]]) -> Any:
             if num != num.to_integral_value():
                 out.append(_err(key, "must be a whole number")); return None
             return int(num)
+        if "precision" in rules:
+            exp = num.as_tuple().exponent
+            places = -exp if isinstance(exp, int) and exp < 0 else 0
+            if places > rules["precision"]:
+                out.append(_err(key, f"at most {rules['precision']} decimal places"))
         return str(num)
 
     if ftype == "money":
@@ -72,11 +81,15 @@ def _coerce(spec: dict[str, Any], value: Any, out: list[dict[str, Any]]) -> Any:
             out.append(_err(key, "amount must be a decimal STRING (no float — binary rounding)"))
             return None
         try:
-            Decimal(value["amount"])
+            amt = Decimal(value["amount"])
         except InvalidOperation:
             out.append(_err(key, "amount is not a valid decimal")); return None
         if not isinstance(value["currency"], str) or len(value["currency"]) != 3:
             out.append(_err(key, "currency must be a 3-letter code")); return None
+        if "min" in rules and amt < Decimal(str(rules["min"])):
+            out.append(_err(key, f"amount must be ≥ {rules['min']}"))
+        if "max" in rules and amt > Decimal(str(rules["max"])):
+            out.append(_err(key, f"amount must be ≤ {rules['max']}"))
         return {"amount": value["amount"], "currency": value["currency"].upper()}
 
     if ftype == "boolean":
