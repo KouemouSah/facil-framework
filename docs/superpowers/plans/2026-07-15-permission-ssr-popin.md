@@ -613,3 +613,70 @@ Ne PAS pousser sans accord (règle du repo). Une fois accordé : `git push -u or
 **Placeholders :** aucun « TBD/TODO » ; chaque étape porte le code réel. Task 5 Step 1 demande de LIRE les fichiers réels avant d'éditer (adaptation au réel, pas un trou) car la structure exacte de `Card`/`RecordSurface`/`detail-panel` n'est pas figée par la spec ; le test du Step 2 est conditionné au mécanisme retenu.
 
 **Type consistency :** `readForPrefetch<T>(path): Promise<T|null>` (Task 1) consommé par `dehydratedAuthState()` (Task 2) ; clés `["session"]`/`["my-permissions"]` identiques à `use-session.ts`/`use-permissions.ts` ; `Skeleton` (Task 4) consommé par les surfaces (Task 5) ; `data-testid="routing-edit"` (Task 3 Step 1) asserté au même nom (Task 3 Step 2).
+
+---
+
+### Task 7 : Prop `loading` sur les surfaces + câblage des 11 call-sites (Pattern B, décision user)
+
+Rendre Pattern B effectif : les surfaces exposent une prop `loading?: boolean` qui, si vraie, rend le sous-composant Skeleton (Task 5) à la place des enfants. Câbler les **11** call-sites à contenu directement piloté par une query (les grilles DataGrid s'auto-gèrent → exclues ; les formes de création → exclues).
+
+**Files:**
+- Modify: `packages/web/src/components/ui/card.tsx`, `packages/web/src/components/shared/record-surface.tsx`, `packages/web/src/components/ui/detail-panel.tsx` (ajouter `loading?: boolean` → rend le sous-composant Skeleton)
+- Modify (câblage, remplacer le `<p>Loading…</p>` ad-hoc par `loading={…}`) :
+  - `src/modules/fields/page.tsx` EditSurface (~309) — `loading={isLoading}` (query `["field-definition", definitionId]`)
+  - `src/modules/identity/page.tsx` AccountDetailSurface (~348) — `loading={isLoading}` (`["account", accountId]`)
+  - `src/modules/location/page.tsx` SiteEditSurface (~256) — `loading={isLoading && !isError}` (`["site", siteId]`)
+  - `src/modules/org-unit/page.tsx` UnitEditSurface (~288) — `loading={isLoading && !isError}` (`["org-unit", unitId]`)
+  - `src/modules/organization/page.tsx` OrgEditSurface (~235) — `loading={isLoading && !isError}` (`["org", orgId]`)
+  - `src/modules/party/page.tsx` PartyEditSurface (~172) — `loading={isLoading}` (`["party", partyId]`)
+  - `src/modules/party/addresses.tsx` AddressEditSurface (~111) — `loading={isLoading}` (`["address", addressId]`)
+  - `src/modules/settings/page.tsx` SettingEditSurface (~167) — `loading={isLoading}` (`["setting", settingKey]`)
+  - `src/modules/providers/page.tsx` EditSurface (~286) — `loading={(provider.isLoading || registered.isLoading) && !isError}`
+  - `src/app/(app)/roles/page.tsx` RoleDetail DetailPanel (~273) — `loading={working === null}` (ou `currentLoading`)
+  - `src/modules/providers/page.tsx` RoutingCard `<Card>` (~330) — `loading={routing.isLoading}` (remplace le `<p>` ad-hoc ~351)
+- Test: `packages/web/src/components/ui/skeleton-surfaces.test.tsx` (étendre : `loading` rend un Skeleton, `!loading` rend les enfants)
+
+**Interfaces:**
+- Consumes: sous-composants `CardSkeleton`/`RecordSurfaceSkeleton`/`DetailPanelSkeleton` (Task 5).
+- Produces: `loading?: boolean` sur `Card`/`RecordSurface`/`DetailPanel` — `loading` → rend le Skeleton, sinon les enfants.
+
+**Notes de câblage** (mapping vérifié) : la plupart des composants ne destructurent PAS `isLoading` de leur `useQuery` (seulement `data`/`isError`) → l'ajouter au destructure de chaque call-site inclus. Remplacer le `<p>...loading...</p>` ad-hoc par la prop ; **garder** les blocs `isError` existants. Ne PAS toucher : les surfaces de création (pas de fetch), les surfaces enveloppant un `<DataGrid>` (il a déjà `isLoading`), le dashboard KPI (données codées en dur), auth-card/install (statiques).
+
+- [ ] **Step 1: Test — `loading` rend un Skeleton, sinon les enfants**
+
+Étendre `skeleton-surfaces.test.tsx` : pour chaque surface, `renderToStaticMarkup(<Surface loading>…</Surface>)` contient `data-testid="skeleton"` et **pas** les enfants ; `<Surface>…enfants…</Surface>` (sans `loading`) contient les enfants et **pas** de skeleton. Style `import * as React from "react"`.
+
+- [ ] **Step 2: Run — RED**
+
+Run: `"C:/facil_framework/node_modules/.bin/vitest" run src/components/ui/skeleton-surfaces.test.tsx`
+Expected: FAIL (`loading` prop pas encore gérée).
+
+- [ ] **Step 3: Implémenter la prop `loading` dans les 3 surfaces**
+
+Dans chaque surface, en tête du rendu : `if (loading) return <XxxSkeleton />;` (réutilise le sous-composant Task 5), et ajouter `loading?: boolean` au type des props. Additif, non-cassant (défaut `false`/absent → comportement actuel).
+
+- [ ] **Step 4: Run — GREEN + tsc**
+
+Run: `"C:/facil_framework/node_modules/.bin/vitest" run src/components/ui/skeleton-surfaces.test.tsx` (PASS), puis `"C:/facil_framework/node_modules/.bin/tsc" --noEmit` (exit 0).
+
+- [ ] **Step 5: Câbler les 11 call-sites**
+
+Pour chacun (liste ci-dessus) : ajouter `isLoading` (ou `queryVar.isLoading`) au destructure/usage de la query, poser la prop `loading={…}` sur la surface, et **retirer** le `<p>...loading...</p>` ad-hoc qu'elle remplace. Garder les blocs `isError`.
+
+- [ ] **Step 6: Vérifier — vitest complet + tsc**
+
+Run: `"C:/facil_framework/node_modules/.bin/vitest" run` (tous verts) + `"C:/facil_framework/node_modules/.bin/tsc" --noEmit` (exit 0).
+
+- [ ] **Step 7: Commit**
+
+```
+git add packages/web/src/components/ui/card.tsx packages/web/src/components/shared/record-surface.tsx packages/web/src/components/ui/detail-panel.tsx packages/web/src/components/ui/skeleton-surfaces.test.tsx packages/web/src/modules packages/web/src/app
+git commit -F - <<'EOF'
+feat(frontend): prop loading sur les surfaces + cablage des 11 vues d'edition
+
+Card/RecordSurface/detail-panel acceptent loading?: boolean -> rendent le
+Skeleton (Task 5) au lieu du contenu. Cable sur les 11 vues a contenu pilote par
+une query (le <p>Loading...> ad-hoc est remplace) ; les grilles DataGrid
+(auto-gerees) et les formes de creation sont exclues. Pattern B effectif.
+EOF
+```
