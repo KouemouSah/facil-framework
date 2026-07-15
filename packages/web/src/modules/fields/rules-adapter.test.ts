@@ -21,4 +21,19 @@ describe("rules-adapter", () => {
     expect(UI_RULE_KEYS).toContain("must_be_true");
     expect(UI_RULE_KEYS).toContain("allowed_extensions");
   });
+  it("round-trips visible_if / required_if through advanced", () => {
+    const cond = { field: "type", op: "eq" as const, value: "relation" };
+    const { form, advanced } = flattenRules({ visible_if: cond, foo: 1 } as any);
+    expect(advanced.visible_if).toEqual(cond);
+    const { rules, error } = nestRules(form, advanced);
+    expect(error).toBeUndefined();
+    expect((rules as any).visible_if).toEqual(cond);
+    expect((rules as any).foo).toBe(1);
+  });
+  it("disjoint guard rejects EVERY UI-owned key in Advanced JSON", () => {
+    for (const k of UI_RULE_KEYS) {
+      const { error } = nestRules({}, { [k]: 1 });
+      expect(error, `key ${k} should be rejected`).toMatch(new RegExp(k));
+    }
+  });
 });
