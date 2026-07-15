@@ -221,6 +221,53 @@ def test_boolean_must_be_true():
     assert validate_blob(specs, {"consent": True}) == {"consent": True}
 
 
+# --- Final-review fix: a bad date/datetime/time bound (illegal token or a
+# malformed static value) must map onto a clean SchemaViolation (422), never
+# escape as a raw ValueError (HTTP 500). ------------------------------------
+
+def test_date_with_now_token_is_a_schema_violation_not_a_crash():
+    # "now" is only legal on `datetime` — on `date` it must not reach the
+    # `datetime.fromisoformat` parser and raise ValueError.
+    specs = [field("d", L, type="date", rules={"max": "now"})]
+    with pytest.raises(SchemaViolation) as e:
+        validate_blob(specs, {"d": "2026-06-01"})
+    assert e.value.errors[0]["loc"] == ["d"]
+    assert "invalid max bound" in e.value.errors[0]["msg"]
+
+
+def test_time_with_any_token_is_a_schema_violation_not_a_crash():
+    # `time` has NO legal token (neither "today" nor "now").
+    specs = [field("t", L, type="time", rules={"min": "today"})]
+    with pytest.raises(SchemaViolation) as e:
+        validate_blob(specs, {"t": "12:00:00"})
+    assert e.value.errors[0]["loc"] == ["t"]
+    assert "invalid min bound" in e.value.errors[0]["msg"]
+
+
+def test_malformed_static_date_bound_is_a_schema_violation_not_a_crash():
+    specs = [field("d", L, type="date", rules={"min": "2026-13-99"})]
+    with pytest.raises(SchemaViolation) as e:
+        validate_blob(specs, {"d": "2026-06-01"})
+    assert e.value.errors[0]["loc"] == ["d"]
+    assert "invalid min bound" in e.value.errors[0]["msg"]
+
+
+def test_correct_date_today_pairing_still_works(monkeypatch):
+    monkeypatch.setattr(pg, "_today_utc", lambda: _dt.date(2020, 6, 15))
+    specs = [field("d", L, type="date", rules={"max": "today"})]
+    with pytest.raises(SchemaViolation):
+        validate_blob(specs, {"d": "2020-06-16"})
+    assert validate_blob(specs, {"d": "2020-06-15"}) == {"d": "2020-06-15"}
+
+
+def test_correct_datetime_now_pairing_still_works(monkeypatch):
+    monkeypatch.setattr(pg, "_now_utc", lambda: _dt.datetime(2020, 6, 15, 12, 0, 0))
+    specs = [field("dt", L, type="datetime", rules={"max": "now"})]
+    with pytest.raises(SchemaViolation):
+        validate_blob(specs, {"dt": "2020-06-15T12:00:01"})
+    assert validate_blob(specs, {"dt": "2020-06-15T11:59:59"}) == {"dt": "2020-06-15T11:59:59"}
+
+
 def test_file_allowed_extensions():
     specs = [field("doc", L, type="file", rules={"allowed_extensions": ["pdf", "png"]})]
     with pytest.raises(SchemaViolation) as e:

@@ -125,10 +125,18 @@ def _coerce(spec: dict[str, Any], value: Any, out: list[dict[str, Any]]) -> Any:
             parsed = parser(value)
         except ValueError:
             out.append(_err(key, f"must be a valid ISO-8601 {ftype}")); return None
-        if "min" in rules and parsed < _resolve_dt_bound(ftype, rules["min"], parser):
-            out.append(_err(key, f"must be ≥ {rules['min']}"))
-        if "max" in rules and parsed > _resolve_dt_bound(ftype, rules["max"], parser):
-            out.append(_err(key, f"must be ≤ {rules['max']}"))
+        # A bound is descriptor-authored, not user input — but a bad token
+        # (e.g. "now" on a `date`) or a malformed static bound must still map
+        # onto a clean 422, never escape as a raw ValueError → HTTP 500.
+        for bkey, sym in (("min", "≥"), ("max", "≤")):
+            if bkey not in rules:
+                continue
+            try:
+                bound = _resolve_dt_bound(ftype, rules[bkey], parser)
+            except ValueError:
+                out.append(_err(key, f"invalid {bkey} bound {rules[bkey]!r}")); continue
+            if (bkey == "min" and parsed < bound) or (bkey == "max" and parsed > bound):
+                out.append(_err(key, f"must be {sym} {rules[bkey]}"))
         return value
 
     if ftype == "select":

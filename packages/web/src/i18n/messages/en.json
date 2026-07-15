@@ -792,7 +792,7 @@
         "money_max": "Maximum amount",
         "date_min": "Earliest allowed",
         "date_max": "Latest allowed",
-        "date_token_hint": "ISO date (YYYY-MM-DD) or a token: \"today\" or \"now\".",
+        "date_token_hint": "ISO value; token \"today\" (date) or \"now\" (datetime). Time fields accept no token.",
         "min_items": "Minimum items",
         "max_items": "Maximum items",
         "must_be_true": "Must be checked (true)",
@@ -809,6 +809,7 @@
         "minitems_gt_maxitems": "Minimum items must be less than or equal to maximum items.",
         "money_min_gt_max": "Minimum amount must be less than or equal to maximum amount.",
         "date_min_gt_max": "The earliest allowed date must be on or before the latest allowed date.",
+        "bad_date_bound": "Invalid bound for this field's type: use a valid ISO value, or the type's token (\"today\" for date, \"now\" for datetime — time accepts no token).",
         "step_not_positive": "Step must be greater than zero.",
         "bad_regex": "Pattern is not a valid regular expression.",
         "advanced_has_ui_key": "\"{key}\" is managed via the form above — remove it from Advanced rules (JSON)."

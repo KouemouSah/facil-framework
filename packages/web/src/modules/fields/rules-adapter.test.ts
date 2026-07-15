@@ -77,4 +77,28 @@ describe("ruleSanity", () => {
   it("accepts a compilable pattern", () => {
     expect(ruleSanity({ rule_pattern: "^[a-z]+$" }).errorKey).toBeUndefined();
   });
+
+  // Final-review fix: reject an illegal date/datetime/time bound at
+  // authoring — "now" is only legal on `datetime`, "today" only on `date`,
+  // and `time` has no legal token at all (this used to fall through to the
+  // backend parser and crash it with a raw ValueError → HTTP 500).
+  it("rejects the wrong token for the field's date/datetime/time type", () => {
+    expect(ruleSanity({ type: "date", rule_date_max: "now" }).errorKey).toBe("bad_date_bound");
+    expect(ruleSanity({ type: "time", rule_date_min: "today" }).errorKey).toBe("bad_date_bound");
+    expect(ruleSanity({ type: "time", rule_date_min: "now" }).errorKey).toBe("bad_date_bound");
+    expect(ruleSanity({ type: "datetime", rule_date_max: "today" }).errorKey).toBe("bad_date_bound");
+  });
+
+  it("accepts the correct token pairing and a static ISO value per type", () => {
+    expect(ruleSanity({ type: "date", rule_date_min: "2026-06-01" }).errorKey).toBeUndefined();
+    expect(ruleSanity({ type: "date", rule_date_max: "today" }).errorKey).toBeUndefined();
+    expect(ruleSanity({ type: "datetime", rule_date_max: "now" }).errorKey).toBeUndefined();
+    expect(ruleSanity({ type: "time", rule_date_min: "09:00" }).errorKey).toBeUndefined();
+    expect(ruleSanity({ type: "time", rule_date_max: "17:30:00" }).errorKey).toBeUndefined();
+  });
+
+  it("rejects a malformed static bound for the field's date/datetime/time type", () => {
+    expect(ruleSanity({ type: "date", rule_date_min: "2026-13-99" }).errorKey).toBe("bad_date_bound");
+    expect(ruleSanity({ type: "time", rule_date_min: "not-a-time" }).errorKey).toBe("bad_date_bound");
+  });
 });

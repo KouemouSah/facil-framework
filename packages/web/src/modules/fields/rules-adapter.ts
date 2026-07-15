@@ -86,10 +86,33 @@ export function ruleSanity(form: Record<string, unknown>): { errorKey?: string }
   for (const [lo, hi, errorKey] of pairs)
     if (lo !== undefined && hi !== undefined && (lo as number) > (hi as number)) return { errorKey };
 
-  // date/datetime/time: only a STATIC ISO-string pair is comparable here —
-  // "today"/"now" resolve at submit/save time (server-side), so their actual
-  // ordering relative to a static bound (or to each other) isn't known
-  // client-side; skip the check rather than risk a false positive.
+  // date/datetime/time: a bound must be empty, the TYPE'S legal token
+  // ("today" only for `date`, "now" only for `datetime`, no token at all for
+  // `time`), or a value the browser can parse as that type — reject anything
+  // else here, at authoring, so a poisoned def (e.g. "now" on a `date`) never
+  // reaches save. The backend `_coerce` is still the sole authority; this is
+  // the client half of the Final-review defense-in-depth fix (the shared
+  // hint used to promise tokens for all three types, which is what
+  // misdirected admins into this in the first place).
+  const dtType = form.type;
+  if (dtType === "date" || dtType === "datetime" || dtType === "time") {
+    const legalToken = dtType === "date" ? "today" : dtType === "datetime" ? "now" : undefined;
+    const isValidBound = (v: unknown): boolean => {
+      if (v === undefined || v === null || v === "") return true;
+      if (typeof v !== "string") return false;
+      if (v === legalToken) return true;
+      if (v === "today" || v === "now") return false; // illegal token for this type
+      if (dtType === "time") return /^\d{2}:\d{2}(:\d{2})?$/.test(v);
+      return !Number.isNaN(Date.parse(v));
+    };
+    if (!isValidBound(form.rule_date_min) || !isValidBound(form.rule_date_max))
+      return { errorKey: "bad_date_bound" };
+  }
+
+  // Only a STATIC ISO-string pair is comparable here — "today"/"now" resolve
+  // at submit/save time (server-side), so their actual ordering relative to
+  // a static bound (or to each other) isn't known client-side; skip the
+  // check rather than risk a false positive.
   const isToken = (v: unknown) => v === "today" || v === "now";
   const dMin = form.rule_date_min;
   const dMax = form.rule_date_max;

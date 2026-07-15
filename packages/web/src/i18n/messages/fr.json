@@ -792,7 +792,7 @@
         "money_max": "Montant maximum",
         "date_min": "Date/heure minimale",
         "date_max": "Date/heure maximale",
-        "date_token_hint": "Date ISO (AAAA-MM-JJ) ou un jeton : \"today\" ou \"now\".",
+        "date_token_hint": "Valeur ISO ; jeton \"today\" (date) ou \"now\" (date+heure). Les champs heure n'acceptent aucun jeton.",
         "min_items": "Nombre minimum d’éléments",
         "max_items": "Nombre maximum d’éléments",
         "must_be_true": "Doit être coché (vrai)",
@@ -809,6 +809,7 @@
         "minitems_gt_maxitems": "Le nombre minimum d’éléments doit être inférieur ou égal au nombre maximum.",
         "money_min_gt_max": "Le montant minimum doit être inférieur ou égal au montant maximum.",
         "date_min_gt_max": "La date la plus ancienne autorisée doit être antérieure ou égale à la date la plus récente autorisée.",
+        "bad_date_bound": "Borne invalide pour ce type de champ : utilisez une valeur ISO valide, ou le jeton du type (\"today\" pour une date, \"now\" pour une date+heure — l'heure n'accepte aucun jeton).",
         "step_not_positive": "Le pas doit être strictement supérieur à zéro.",
         "bad_regex": "Le motif n’est pas une expression régulière valide.",
         "advanced_has_ui_key": "« {key} » est géré via le formulaire ci-dessus — retirez-le des règles avancées (JSON)."

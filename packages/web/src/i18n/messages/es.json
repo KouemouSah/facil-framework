@@ -792,7 +792,7 @@
         "money_max": "Importe máximo",
         "date_min": "Fecha/hora mínima",
         "date_max": "Fecha/hora máxima",
-        "date_token_hint": "Fecha ISO (AAAA-MM-DD) o un token: \"today\" o \"now\".",
+        "date_token_hint": "Valor ISO; token \"today\" (fecha) o \"now\" (fecha y hora). Los campos de hora no aceptan ningún token.",
         "min_items": "Elementos mínimos",
         "max_items": "Elementos máximos",
         "must_be_true": "Debe estar marcado (verdadero)",
@@ -809,6 +809,7 @@
         "minitems_gt_maxitems": "El número mínimo de elementos debe ser menor o igual que el máximo.",
         "money_min_gt_max": "El importe mínimo debe ser menor o igual que el importe máximo.",
         "date_min_gt_max": "La fecha más temprana permitida debe ser anterior o igual a la fecha más tardía permitida.",
+        "bad_date_bound": "Límite no válido para este tipo de campo: use un valor ISO válido, o el token del tipo (\"today\" para fecha, \"now\" para fecha y hora — la hora no acepta ningún token).",
         "step_not_positive": "El paso debe ser mayor que cero.",
         "bad_regex": "El patrón no es una expresión regular válida.",
         "advanced_has_ui_key": "«{key}» se gestiona desde el formulario — quítelo de las reglas avanzadas (JSON)."
