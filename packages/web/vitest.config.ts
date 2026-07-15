@@ -10,7 +10,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     environment: "node",
     // Single forked process — avoids worker-pool crashes on constrained hosts
     // and keeps runs deterministic (these are fast pure-unit tests).
