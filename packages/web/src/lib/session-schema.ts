@@ -20,10 +20,18 @@ export const SessionSchema = z.object({
   account: z
     .object({
       id: z.string(),
-      email: z.string().optional(),
-      display_name: z.string().optional(),
-      account_number: z.string().optional(),
-      email_verified: z.boolean().optional(),
+      // `.nullish()` (nullable + optional), NOT `.optional()`: the backend
+      // Account columns are all nullable (`email`, `display_name`,
+      // `account_number` = `Mapped[str | None]`) and `/auth/me` sends `null`,
+      // not omission. With `.optional()` a `null` FAILS the parse, so
+      // `parseSession` returns its fail-safe `{authenticated:false}` — and the
+      // shell bounces a fully-authenticated user back to /login, silently (no
+      // console error). This hit every admin-created account (display_name null)
+      // and every email-less / NIU-pending account.
+      email: z.string().nullish(),
+      display_name: z.string().nullish(),
+      account_number: z.string().nullish(),
+      email_verified: z.boolean().nullish(),
     })
     .optional(),
   roles: z.array(AccountRoleSchema).optional(),
