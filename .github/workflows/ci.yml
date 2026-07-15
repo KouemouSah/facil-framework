@@ -222,8 +222,14 @@ jobs:
           API=http://localhost:8080
           H="X-Admin-Token: $ADMIN_TOKEN"
           curl -fsS -X POST -H "$H" "$API/api/v1/rbac/admin/reseed?profile=empty"
+          # display_name is REQUIRED: an account with a null display_name lands
+          # back on /login after a successful login (reproduced deterministically
+          # — login 200, /auth/session 200, cookies set, yet the shell bounces to
+          # /login; setting display_name fixes it). Admin-created accounts default
+          # display_name to null, so the e2e admin MUST carry one or custom-fields.
+          # spec.ts fails at its very first login.
           ACC=$(curl -fsS -X POST -H "$H" -H 'Content-Type: application/json' \
-            -d '{"email":"e2e@x.com","password":"Sup3rStr0ng!pw"}' \
+            -d '{"email":"e2e@x.com","password":"Sup3rStr0ng!pw","display_name":"E2E Admin"}' \
             "$API/api/v1/admin/accounts" | python -c 'import sys,json;print(json.load(sys.stdin)["id"])')
           ROLE=$(curl -fsS -H "$H" "$API/api/v1/rbac/roles?limit=200" | python -c 'import sys,json;print(next(r["id"] for r in json.load(sys.stdin)["items"] if r["code"]=="admin"))')
           curl -fsS -X POST -H "$H" -H 'Content-Type: application/json' \
@@ -236,7 +242,7 @@ jobs:
           API=http://localhost:8080
           H="X-Admin-Token: $ADMIN_TOKEN"
           ACC=$(curl -fsS -X POST -H "$H" -H 'Content-Type: application/json' \
-            -d '{"email":"e2e-readonly@x.com","password":"Rd0nly!StrongPw"}' \
+            -d '{"email":"e2e-readonly@x.com","password":"Rd0nly!StrongPw","display_name":"E2E ReadOnly"}' \
             "$API/api/v1/admin/accounts" | python -c 'import sys,json;print(json.load(sys.stdin)["id"])')
           ROLE=$(curl -fsS -H "$H" "$API/api/v1/rbac/roles?limit=200" | python -c 'import sys,json;print(next(r["id"] for r in json.load(sys.stdin)["items"] if r["code"]=="member"))')
           curl -fsS -X POST -H "$H" -H 'Content-Type: application/json' \
