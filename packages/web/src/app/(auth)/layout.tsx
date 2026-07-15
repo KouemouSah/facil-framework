@@ -15,11 +15,20 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
   const b = await getBranding();
   const appName = b.app_name || "Facil";
   const hasBg = Boolean(b.login_background_url);
+  // JSON.stringify → CSS-string-safe url() token: it double-quotes AND escapes
+  // any embedded `"`/`\`. The server already allowlists the scheme
+  // (admin_branding._safe_url rejects javascript:/data://host — the actual XSS
+  // vectors); this is defence-in-depth against a validated https:// URL that
+  // happens to contain a quote (which _safe_url does NOT reject) and against a
+  // future refactor of that server guard.
+  const bgStyle = hasBg
+    ? { backgroundImage: `url(${JSON.stringify(b.login_background_url)})` }
+    : undefined;
 
   return (
     <main
       className={`relative grid min-h-screen place-items-center p-4 ${hasBg ? "bg-cover bg-center" : "bg-muted/40"}`}
-      style={hasBg ? { backgroundImage: `url("${b.login_background_url}")` } : undefined}
+      style={bgStyle}
     >
       {/* Legibility scrim over a custom background so the card + logo stay readable
           regardless of the uploaded image (and theme-aware via bg-background). */}
