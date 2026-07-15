@@ -482,9 +482,9 @@ async def seeded_100k(pg_engine):
             "VALUES ('org-a', 'org-a', 'Org A', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, true)"))
         await conn.execute(text(
             "INSERT INTO site (id, organization_id, code, name, site_type, "
-            "operating_hours, metadata, custom_fields, is_primary, is_active) "
+            "operating_hours, metadata, document_identity, custom_fields, is_primary, is_active) "
             "SELECT 'site-' || gs::text, 'org-a', 'site-' || gs::text, 'Site ' || gs::text, "
-            "'branch', '{}'::jsonb, '{}'::jsonb, "
+            "'branch', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, "
             "jsonb_build_object('rank', (100000 - gs)), false, true "
             "FROM generate_series(1, 100000) AS gs"))
 
@@ -582,9 +582,9 @@ async def org_and_site_pg(pg_engine):
             "VALUES ('org-a', 'org-a', 'Org A', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, true)"))
         await conn.execute(text(
             "INSERT INTO site (id, organization_id, code, name, site_type, "
-            "operating_hours, metadata, custom_fields, is_primary, is_active) "
+            "operating_hours, metadata, document_identity, custom_fields, is_primary, is_active) "
             "VALUES ('site-1', 'org-a', 'site-1', 'Site 1', 'branch', "
-            "'{}'::jsonb, '{}'::jsonb, jsonb_build_object('rank', 1), false, true)"))
+            "'{}'::jsonb, '{}'::jsonb, '{}'::jsonb, jsonb_build_object('rank', 1), false, true)"))
     return pg_engine
 
 
@@ -669,8 +669,8 @@ async def two_orgs_pg(pg_engine):
         for org_id, site_id in (("org-a", "site-a"), ("org-b", "site-b")):
             await conn.execute(text(
                 "INSERT INTO site (id, organization_id, code, name, site_type, "
-                "operating_hours, metadata, custom_fields, is_primary, is_active) "
-                "VALUES (:sid, :oid, :sid, :sid, 'branch', '{}'::jsonb, '{}'::jsonb, "
+                "operating_hours, metadata, document_identity, custom_fields, is_primary, is_active) "
+                "VALUES (:sid, :oid, :sid, :sid, 'branch', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, "
                 "jsonb_build_object('rank', 1), false, true)"
             ), {"sid": site_id, "oid": org_id})
     return pg_engine
