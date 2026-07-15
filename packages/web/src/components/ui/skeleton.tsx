@@ -8,7 +8,7 @@ export function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivEl
     <div
       data-testid="skeleton"
       aria-hidden
-      className={cn("animate-pulse rounded-md bg-muted", className)}
+      className={cn("animate-pulse rounded-md bg-muted/60", className)}
       {...props}
     />
   );
