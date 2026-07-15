@@ -2,11 +2,13 @@ import { useLocale } from "next-intl";
 import { z } from "zod";
 import type { FieldDef } from "@/components/ui/record-form";
 import { requiredText } from "@/lib/form-schemas";
+import { ApiError } from "@/lib/api";
 import { tr, type FieldSpecType, type I18nString, type Locale } from "@/lib/schema/types";
 import enMessages from "@/i18n/messages/en.json";
 import frMessages from "@/i18n/messages/fr.json";
 import esMessages from "@/i18n/messages/es.json";
 import { TARGETS, type Definition, type DefinitionIn, type IndexState, type Target } from "./api";
+import { flattenRules, nestRules, PATTERN_PRESETS, ruleSanity } from "./rules-adapter";
 
 export { TARGETS, type Target };
 
@@ -221,7 +223,46 @@ export function buildFieldDefFields(locale: Locale, seedType?: FieldSpecType): F
       rules: { visible_if: { field: "type", op: "eq", value: "relation" } } },
     { name: "options", label: t("options"), type: "json", hint: t("options_hint"), colSpan: 2,
       rules: { visible_if: { field: "type", op: "in", value: ["select", "multiselect"] } } },
-    { name: "rules", label: t("rules"), type: "json", hint: t("rules_hint"), colSpan: 2 },
+    // --- Validation (type-aware) — mirrors the backend's `_coerce` (Tasks
+    // 1-2, pydantic_gen.py): only the rules the server actually enforces for
+    // the CURRENTLY selected `type` are ever shown, via RecordForm's own
+    // `visible_if`. Anything the server accepts but this Studio doesn't have
+    // a dedicated control for goes in `rules_advanced` below instead — never
+    // silently dropped, never a raw opaque JSON blob for the common cases.
+    { name: "rule_min_length", label: t("rule.min_length"), type: "number",
+      rules: { visible_if: { field: "type", op: "in", value: ["string", "text", "richtext"] } } },
+    { name: "rule_max_length", label: t("rule.max_length"), type: "number",
+      rules: { visible_if: { field: "type", op: "in", value: ["string", "text", "richtext"] } } },
+    { name: "rule_pattern_preset", label: t("rule.pattern_preset"), type: "select",
+      selectOptions: PATTERN_PRESETS.map((p) => ({ value: p.value, label: ft(locale, `fields.rule.preset.${p.value}`) })),
+      rules: { visible_if: { field: "type", op: "in", value: ["string", "text", "richtext"] } } },
+    { name: "rule_pattern", label: t("rule.pattern"), hint: t("rule.pattern_hint"),
+      rules: { visible_if: { field: "type", op: "in", value: ["string", "text", "richtext"] } } },
+    { name: "rule_min", label: t("rule.min"), type: "number",
+      rules: { visible_if: { field: "type", op: "in", value: ["number", "decimal"] } } },
+    { name: "rule_max", label: t("rule.max"), type: "number",
+      rules: { visible_if: { field: "type", op: "in", value: ["number", "decimal"] } } },
+    { name: "rule_step", label: t("rule.step"), type: "number",
+      rules: { visible_if: { field: "type", op: "in", value: ["number", "decimal"] } } },
+    { name: "rule_precision", label: t("rule.precision"), type: "number",
+      rules: { visible_if: { field: "type", op: "eq", value: "decimal" } } },
+    { name: "rule_money_min", label: t("rule.money_min"), type: "number",
+      rules: { visible_if: { field: "type", op: "eq", value: "money" } } },
+    { name: "rule_money_max", label: t("rule.money_max"), type: "number",
+      rules: { visible_if: { field: "type", op: "eq", value: "money" } } },
+    { name: "rule_date_min", label: t("rule.date_min"), hint: t("rule.date_token_hint"),
+      rules: { visible_if: { field: "type", op: "in", value: ["date", "datetime", "time"] } } },
+    { name: "rule_date_max", label: t("rule.date_max"), hint: t("rule.date_token_hint"),
+      rules: { visible_if: { field: "type", op: "in", value: ["date", "datetime", "time"] } } },
+    { name: "rule_min_items", label: t("rule.min_items"), type: "number",
+      rules: { visible_if: { field: "type", op: "eq", value: "multiselect" } } },
+    { name: "rule_max_items", label: t("rule.max_items"), type: "number",
+      rules: { visible_if: { field: "type", op: "eq", value: "multiselect" } } },
+    { name: "rule_must_be_true", label: t("rule.must_be_true"), type: "checkbox",
+      rules: { visible_if: { field: "type", op: "eq", value: "boolean" } } },
+    { name: "rule_allowed_extensions", label: t("rule.allowed_extensions"), hint: t("rule.exts_hint"),
+      rules: { visible_if: { field: "type", op: "eq", value: "file" } } },
+    { name: "rules_advanced", label: t("rules_advanced"), type: "json", hint: t("rules_advanced_hint"), colSpan: 2 },
     { name: "default", label: t("default"), type: "json", hint: t("default_hint"), colSpan: 2 },
   ];
 }
@@ -248,6 +289,31 @@ export function useFieldDefFields(seedType?: FieldSpecType): FieldDef[] {
 // why this is flagged as a contract gap worth closing in `JsonField` itself
 // (accepting arrays directly) rather than always requiring this wrapper.
 
+// The shape of next-intl's `useTranslations(...)` return value that
+// `buildDefinitionPayload` actually needs — kept minimal (not the full
+// next-intl type) so this module doesn't have to import a React-only type
+// just to describe a callback parameter. Params are `string`-only (the only
+// interpolation used, `advanced_has_ui_key`'s `{key}`, is always a string) —
+// next-intl's real `values` param type (`TranslationValues`) is narrower
+// than `unknown`, so widening this to `Record<string, unknown>` would make
+// the real `useTranslations("fields")` return value NOT assignable here.
+type Translator = (key: string, params?: Record<string, string>) => string;
+
+// Renders a rule-sanity `errorKey` (from `ruleSanity`/`nestRules`) into a
+// human message. With a translator in scope (the normal, in-app path) it
+// resolves the real localized `fields.f.rule_sanity.<key>` string. Without
+// one (e.g. a unit test that calls `buildDefinitionPayload` directly) it
+// falls back to the bare key — but WITH any params folded in, so a caller
+// asserting on the offending value (e.g. which key collided in Advanced
+// JSON) still finds it in the message.
+function localizeRuleError(
+  errorKey: string, params: Record<string, string> | undefined, t: Translator | undefined,
+): string {
+  if (t) return t(`f.rule_sanity.${errorKey}`, params);
+  const entries = params ? Object.entries(params) : [];
+  return entries.length ? `${errorKey} (${entries.map(([k, v]) => `${k}=${String(v)}`).join(", ")})` : errorKey;
+}
+
 function wrapOptionsForJson(options: Definition["options"]): { items: Definition["options"] } {
   return { items: options ?? [] };
 }
@@ -264,6 +330,7 @@ function unwrapDefaultFromJson(v: unknown): unknown {
 
 /** `Definition` (API response row) -> flat `RecordForm` `initial`. */
 export function flattenDefinition(row: Definition): Record<string, unknown> {
+  const { form: ruleForm, advanced } = flattenRules(row.rules ?? {});
   return {
     key: row.key,
     type: row.type,
@@ -283,16 +350,62 @@ export function flattenDefinition(row: Definition): Record<string, unknown> {
     relation_resource: row.relation_resource ?? "",
     relation_filter: row.relation_filter ?? {},
     options: wrapOptionsForJson(row.options),
-    rules: row.rules ?? {},
+    ...ruleForm,
+    rule_allowed_extensions: Array.isArray(row.rules?.allowed_extensions)
+      ? (row.rules!.allowed_extensions as string[]).join(", ") : "",
+    rules_advanced: advanced,
     default: wrapDefaultForJson(row.default),
   };
 }
 
-/** Flat `RecordForm` payload -> the `DefinitionIn` request body. */
+/** Flat `RecordForm` payload -> the `DefinitionIn` request body. Re-nests the
+ *  type-aware `rule_*` inputs (+ `rules_advanced`) back into a single `rules`
+ *  object via the Task 4 adapters — the inverse of `flattenDefinition`'s
+ *  spread above. Throws `ApiError(422, …)` on an incoherent rule (min>max,
+ *  bad regex, a UI-managed key duplicated in Advanced JSON): RecordForm's
+ *  `submit()` already `await`s `onSubmit` inside a try/catch that maps a 422
+ *  onto `fieldErrors()` (`components/ui/record-form.tsx`), so throwing here —
+ *  rather than returning a `{errorKey}` wrapper the two call sites in
+ *  `page.tsx` don't expect — reuses that existing mechanism unchanged.
+ *
+ *  `t` (optional) is the caller's `useTranslations("fields")` — when passed,
+ *  a rule-sanity failure is thrown as a REAL localized message (never raw
+ *  English) via `localizeRuleError`; omitted (e.g. from a unit test), it
+ *  falls back to the bare error key. */
 export function buildDefinitionPayload(
-  payload: Record<string, unknown>, target: Target,
+  payload: Record<string, unknown>, target: Target, t?: Translator,
 ): DefinitionIn {
   const str = (v: unknown) => (v == null ? "" : String(v));
+
+  // `rule_allowed_extensions` is authored as free text ("pdf, png, jpg") —
+  // split into the array shape `nestRules`/the backend expect.
+  const exts = typeof payload.rule_allowed_extensions === "string" && payload.rule_allowed_extensions.trim()
+    ? payload.rule_allowed_extensions.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
+
+  // Pattern preset: a NAMED preset (anything other than "custom"/blank) always
+  // WINS over an already-typed pattern (Finding 3 fix) — this is what lets an
+  // editor actually SWITCH the pattern by picking a preset from the dropdown.
+  // Previously the preset only applied when `rule_pattern` was still empty,
+  // which is never true on edit (the field always seeds the prior pattern),
+  // so selecting a preset silently did nothing outside of create. Selecting
+  // "custom" (or leaving the preset blank) still keeps whatever was typed.
+  const presetValue = payload.rule_pattern_preset;
+  const preset = typeof presetValue === "string" && presetValue && presetValue !== "custom"
+    ? PATTERN_PRESETS.find((p) => p.value === presetValue) : undefined;
+  const resolvedPattern = preset ? preset.pattern : payload.rule_pattern;
+
+  const form = { ...payload, rule_allowed_extensions: exts, rule_pattern: resolvedPattern };
+  const sanity = ruleSanity(form);
+  if (sanity.errorKey) {
+    const msg = localizeRuleError(sanity.errorKey, undefined, t);
+    throw new ApiError(422, msg, [{ loc: ["rules_advanced"], msg }]);
+  }
+  const { rules, errorKey, errorParams } = nestRules(form, (payload.rules_advanced as Record<string, unknown>) ?? {});
+  if (errorKey) {
+    const msg = localizeRuleError(errorKey, errorParams, t);
+    throw new ApiError(422, msg, [{ loc: ["rules_advanced"], msg }]);
+  }
+
   return {
     key: str(payload.key),
     type: str(payload.type) as FieldSpecType,
@@ -301,7 +414,7 @@ export function buildDefinitionPayload(
     hint: { en: str(payload.hint_en), fr: str(payload.hint_fr), es: str(payload.hint_es) },
     required: payload.required === true,
     default: unwrapDefaultFromJson(payload.default),
-    rules: (payload.rules as Record<string, unknown>) ?? {},
+    rules: rules as Record<string, unknown>,
     options: unwrapOptionsFromJson(payload.options),
     relation_resource: str(payload.relation_resource),
     relation_filter: (payload.relation_filter as Record<string, string>) ?? {},

@@ -48,7 +48,13 @@ jobs:
         run: |
           git fetch origin "$BASE_REF"
           STAT=$(git diff "origin/$BASE_REF...HEAD" --stat | head -50)
-          FULL=$(git diff "origin/$BASE_REF...HEAD" | head -c 30000)
+          # gpt-4o (GitHub Models tier) plafonne la REQUÊTE ENTIÈRE à 8000 tokens
+          # (~32K chars) : system-prompt + stat + ce diff. 30K de diff + le prompt
+          # dépassaient → 413 sur toute grosse PR (l'échec précédent). 8K de diff
+          # (~2K tokens) laisse la marge pour le reste. Le bot reste indicatif ;
+          # sur une très grosse PR il ne voit qu'une tranche (la revue humaine/
+          # subagent est la vraie gate). Ne pas remonter sans changer de modèle.
+          FULL=$(git diff "origin/$BASE_REF...HEAD" | head -c 8000)
           # Délimiteur aléatoire, pas un mot fixe : STAT/FULL viennent du diff, contrôlé
           # par l'auteur de la PR (fork PR). Un délimiteur constant permettrait
           # d'injecter une ligne qui lui est identique dans un fichier du diff pour
@@ -126,7 +132,7 @@ jobs:
             Files changed:
             ${{ steps.diff.outputs.stat }}
 
-            Diff (truncated to 30K):
+            Diff (truncated to 8K — large PRs are reviewed by humans/subagents):
             ${{ steps.diff.outputs.full }}
 
       - name: Post code review

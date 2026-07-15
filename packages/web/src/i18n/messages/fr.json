@@ -778,10 +778,52 @@
       "relation_filter_hint": "Filtre clé/valeur optionnel appliqué au sélecteur, ex. '{\"region_id\": \"...\"}'",
       "options": "Options",
       "options_hint": "JSON : '{\"items\": [{\"value\": \"code\", \"label\": {\"en\": \"...\", \"fr\": \"...\", \"es\": \"...\"}}]}'",
-      "rules": "Règles de validation (JSON)",
-      "rules_hint": "min / max / min_length / max_length / pattern / precision / visible_if / required_if — voir docs/adr pour la forme exacte.",
+      "rule": {
+        "min_length": "Longueur minimale",
+        "max_length": "Longueur maximale",
+        "pattern_preset": "Modèle prédéfini",
+        "pattern": "Motif (regex)",
+        "pattern_hint": "Expression régulière optionnelle que la valeur doit respecter. Choisissez un modèle prédéfini ci-dessus, ou saisissez le vôtre.",
+        "min": "Minimum",
+        "max": "Maximum",
+        "step": "Pas (multiple de)",
+        "precision": "Précision décimale (nombre max de décimales)",
+        "money_min": "Montant minimum",
+        "money_max": "Montant maximum",
+        "date_min": "Date/heure minimale",
+        "date_max": "Date/heure maximale",
+        "date_token_hint": "Valeur ISO ; jeton \"today\" (date) ou \"now\" (date+heure). Les champs heure n'acceptent aucun jeton.",
+        "min_items": "Nombre minimum d’éléments",
+        "max_items": "Nombre maximum d’éléments",
+        "must_be_true": "Doit être coché (vrai)",
+        "allowed_extensions": "Extensions autorisées",
+        "exts_hint": "Liste d’extensions autorisées séparées par des virgules, ex. pdf, png, jpg (sans le point)."
+      },
+      "rules_advanced": "Règles avancées (JSON)",
+      "rules_advanced_hint": "Toute autre règle de validation non couverte ci-dessus, en JSON brut — ex. '{\"multiple_of\": 5}'. Les règles déjà couvertes ci-dessus ne doivent pas être répétées ici.",
       "default": "Valeur par défaut",
-      "default_hint": "JSON : '{\"value\": ...}' — n’importe quelle valeur (texte, nombre, booléen, tableau, objet ou null)."
+      "default_hint": "JSON : '{\"value\": ...}' — n’importe quelle valeur (texte, nombre, booléen, tableau, objet ou null).",
+      "rule_sanity": {
+        "min_gt_max": "Le minimum doit être inférieur ou égal au maximum.",
+        "minlen_gt_maxlen": "La longueur minimale doit être inférieure ou égale à la longueur maximale.",
+        "minitems_gt_maxitems": "Le nombre minimum d’éléments doit être inférieur ou égal au nombre maximum.",
+        "money_min_gt_max": "Le montant minimum doit être inférieur ou égal au montant maximum.",
+        "date_min_gt_max": "La date la plus ancienne autorisée doit être antérieure ou égale à la date la plus récente autorisée.",
+        "bad_date_bound": "Borne invalide pour ce type de champ : utilisez une valeur ISO valide, ou le jeton du type (\"today\" pour une date, \"now\" pour une date+heure — l'heure n'accepte aucun jeton).",
+        "step_not_positive": "Le pas doit être strictement supérieur à zéro.",
+        "bad_regex": "Le motif n’est pas une expression régulière valide.",
+        "advanced_has_ui_key": "« {key} » est géré via le formulaire ci-dessus — retirez-le des règles avancées (JSON)."
+      }
+    },
+    "rule": {
+      "preset": {
+        "email": "E-mail",
+        "phone": "Téléphone",
+        "url": "URL",
+        "slug": "Slug",
+        "alphanumeric": "Alphanumérique",
+        "custom": "Personnalisé / aucun"
+      }
     },
     "col_span_option": {
       "1": "Normale (1 colonne)",

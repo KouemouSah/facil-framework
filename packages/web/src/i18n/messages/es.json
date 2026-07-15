@@ -778,10 +778,52 @@
       "relation_filter_hint": "Filtro clave/valor opcional aplicado al selector, p. ej. '{\"region_id\": \"...\"}'",
       "options": "Opciones",
       "options_hint": "JSON: '{\"items\": [{\"value\": \"code\", \"label\": {\"en\": \"...\", \"fr\": \"...\", \"es\": \"...\"}}]}'",
-      "rules": "Reglas de validación (JSON)",
-      "rules_hint": "min / max / min_length / max_length / pattern / precision / visible_if / required_if — vea docs/adr para la forma exacta.",
+      "rule": {
+        "min_length": "Longitud mínima",
+        "max_length": "Longitud máxima",
+        "pattern_preset": "Patrón predefinido",
+        "pattern": "Patrón (regex)",
+        "pattern_hint": "Expresión regular opcional que el valor debe cumplir. Elija un patrón predefinido arriba, o escriba el suyo.",
+        "min": "Mínimo",
+        "max": "Máximo",
+        "step": "Paso (múltiplo de)",
+        "precision": "Precisión decimal (máx. de decimales)",
+        "money_min": "Importe mínimo",
+        "money_max": "Importe máximo",
+        "date_min": "Fecha/hora mínima",
+        "date_max": "Fecha/hora máxima",
+        "date_token_hint": "Valor ISO; token \"today\" (fecha) o \"now\" (fecha y hora). Los campos de hora no aceptan ningún token.",
+        "min_items": "Elementos mínimos",
+        "max_items": "Elementos máximos",
+        "must_be_true": "Debe estar marcado (verdadero)",
+        "allowed_extensions": "Extensiones permitidas",
+        "exts_hint": "Lista de extensiones permitidas separadas por comas, ej. pdf, png, jpg (sin el punto)."
+      },
+      "rules_advanced": "Reglas avanzadas (JSON)",
+      "rules_advanced_hint": "Cualquier otra regla de validación no cubierta arriba, en JSON sin procesar — ej. '{\"multiple_of\": 5}'. Las reglas ya cubiertas arriba no deben repetirse aquí.",
       "default": "Valor por defecto",
-      "default_hint": "JSON: '{\"value\": ...}' — cualquier valor (texto, número, booleano, array, objeto o null)."
+      "default_hint": "JSON: '{\"value\": ...}' — cualquier valor (texto, número, booleano, array, objeto o null).",
+      "rule_sanity": {
+        "min_gt_max": "El mínimo debe ser menor o igual que el máximo.",
+        "minlen_gt_maxlen": "La longitud mínima debe ser menor o igual que la longitud máxima.",
+        "minitems_gt_maxitems": "El número mínimo de elementos debe ser menor o igual que el máximo.",
+        "money_min_gt_max": "El importe mínimo debe ser menor o igual que el importe máximo.",
+        "date_min_gt_max": "La fecha más temprana permitida debe ser anterior o igual a la fecha más tardía permitida.",
+        "bad_date_bound": "Límite no válido para este tipo de campo: use un valor ISO válido, o el token del tipo (\"today\" para fecha, \"now\" para fecha y hora — la hora no acepta ningún token).",
+        "step_not_positive": "El paso debe ser mayor que cero.",
+        "bad_regex": "El patrón no es una expresión regular válida.",
+        "advanced_has_ui_key": "«{key}» se gestiona desde el formulario — quítelo de las reglas avanzadas (JSON)."
+      }
+    },
+    "rule": {
+      "preset": {
+        "email": "Correo electrónico",
+        "phone": "Teléfono",
+        "url": "URL",
+        "slug": "Slug",
+        "alphanumeric": "Alfanumérico",
+        "custom": "Personalizado / ninguno"
+      }
     },
     "col_span_option": {
       "1": "Normal (1 columna)",

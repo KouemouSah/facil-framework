@@ -236,7 +236,7 @@ function CreateSurface({ orgId, target, onClose, onCreated }: {
           initial={{ col_span: "1" }}
           onValuesChange={(v) => setLiveType((v.type || undefined) as FieldSpecType | undefined)}
           onSubmit={async (payload) => {
-            const body = buildDefinitionPayload(payload, target);
+            const body = buildDefinitionPayload(payload, target, t);
             const created = await createDefinition(orgId, body);
             setSavedRow(created);
             return created;
@@ -354,7 +354,7 @@ function EditSurface({ definitionId, target, readOnly, onClose, onChanged }: {
             readOnly={readOnly}
             initial={flattenDefinition(data)}
             etag={data.etag}
-            onSubmit={(payload, etag) => updateDefinition(definitionId, buildDefinitionPayload(payload, target), etag)}
+            onSubmit={(payload, etag) => updateDefinition(definitionId, buildDefinitionPayload(payload, target, t), etag)}
             onSuccess={() => { invalidate(); toast({ variant: "success", title: t("toast.saved") }); }}
             onConflict={() => qc.invalidateQueries({ queryKey: ["field-definition", definitionId] })}
           />
