@@ -222,6 +222,15 @@ jobs:
           API=http://localhost:8080
           H="X-Admin-Token: $ADMIN_TOKEN"
           curl -fsS -X POST -H "$H" "$API/api/v1/rbac/admin/reseed?profile=empty"
+          # An organization MUST exist: the /fields Studio scopes to `firstOrg`
+          # (use-organizations.ts → GET /modules/organization/?limit=1), and its
+          # "New field" button stays DISABLED until that resolves. `reseed=empty`
+          # leaves zero orgs, so custom-fields.spec.ts stalls on the disabled
+          # button. Locally the test passed only because the dev DB already had
+          # orgs. Create one (X-Admin-Token works for this like the RBAC calls).
+          curl -fsS -X POST -H "$H" -H 'Content-Type: application/json' \
+            -d '{"code":"E2ECIORG","legal_name":"E2E CI Org"}' \
+            "$API/api/v1/modules/organization/"
           # display_name is REQUIRED: an account with a null display_name lands
           # back on /login after a successful login (reproduced deterministically
           # — login 200, /auth/session 200, cookies set, yet the shell bounces to
