@@ -42,13 +42,18 @@ export function flattenRules(rules: FieldRules): {
 }
 
 // Recompose rules from flat form values + the advanced JSON; disjoint guard.
+// Returns an i18n-safe `errorKey` (+ `errorParams` for interpolation) instead
+// of an English message — the caller (`buildDefinitionPayload` in `fields.ts`)
+// is the one with a translator in scope, so localization happens there; this
+// module has no React/next-intl dependency and stays a pure, framework-free
+// adapter (see `ruleSanity` below for the same convention).
 export function nestRules(
   form: Record<string, unknown>, advanced: Record<string, unknown>,
-): { rules: FieldRules; error?: string } {
+): { rules: FieldRules; errorKey?: string; errorParams?: Record<string, string> } {
   const adv = advanced ?? {};
   for (const k of Object.keys(adv)) {
     if ((UI_RULE_KEYS as readonly string[]).includes(k))
-      return { rules: {}, error: `${k} is managed via the UI — remove it from Advanced JSON` };
+      return { rules: {}, errorKey: "advanced_has_ui_key", errorParams: { key: k } };
   }
   const out: Record<string, unknown> = { ...adv };
   const first = (...vs: unknown[]) => vs.find((v) => v !== undefined && v !== "" && v !== null);
@@ -65,21 +70,37 @@ export function nestRules(
 
 // Client-side-only sanity guard (the backend `_coerce` is still the sole
 // authority): catches an incoherent rule combination BEFORE a save round-trip
-// — min>max, a non-positive step, or a regex that doesn't even compile —
-// with a message a RecordForm caller can surface as a field error on
-// `rules_advanced` (see `buildDefinitionPayload` in `fields.ts`).
-export function ruleSanity(form: Record<string, unknown>): { error?: string } {
+// — min>max (numeric, money, or a static date pair), a non-positive step, or
+// a regex that doesn't even compile — returning an i18n-safe `errorKey` (see
+// `nestRules`'s docstring above for why: this module never touches
+// next-intl). `buildDefinitionPayload` in `fields.ts` maps the key onto a
+// field error on `rules_advanced`.
+export function ruleSanity(form: Record<string, unknown>): { errorKey?: string } {
   const n = (v: unknown) => (v === "" || v === undefined || v === null ? undefined : Number(v));
   const pairs: [unknown, unknown, string][] = [
-    [n(form.rule_min), n(form.rule_max), "min must be ≤ max"],
-    [n(form.rule_min_length), n(form.rule_max_length), "min length must be ≤ max length"],
-    [n(form.rule_min_items), n(form.rule_max_items), "min items must be ≤ max items"],
+    [n(form.rule_min), n(form.rule_max), "min_gt_max"],
+    [n(form.rule_min_length), n(form.rule_max_length), "minlen_gt_maxlen"],
+    [n(form.rule_min_items), n(form.rule_max_items), "minitems_gt_maxitems"],
+    [n(form.rule_money_min), n(form.rule_money_max), "money_min_gt_max"],
   ];
-  for (const [lo, hi, msg] of pairs)
-    if (lo !== undefined && hi !== undefined && (lo as number) > (hi as number)) return { error: msg };
+  for (const [lo, hi, errorKey] of pairs)
+    if (lo !== undefined && hi !== undefined && (lo as number) > (hi as number)) return { errorKey };
+
+  // date/datetime/time: only a STATIC ISO-string pair is comparable here —
+  // "today"/"now" resolve at submit/save time (server-side), so their actual
+  // ordering relative to a static bound (or to each other) isn't known
+  // client-side; skip the check rather than risk a false positive.
+  const isToken = (v: unknown) => v === "today" || v === "now";
+  const dMin = form.rule_date_min;
+  const dMax = form.rule_date_max;
+  if (
+    typeof dMin === "string" && dMin && typeof dMax === "string" && dMax
+    && !isToken(dMin) && !isToken(dMax) && dMin > dMax
+  ) return { errorKey: "date_min_gt_max" };
+
   const step = n(form.rule_step);
-  if (step !== undefined && step <= 0) return { error: "step must be > 0" };
+  if (step !== undefined && step <= 0) return { errorKey: "step_not_positive" };
   const p = form.rule_pattern;
-  if (typeof p === "string" && p) { try { new RegExp(p); } catch { return { error: "pattern is not a valid regex" }; } }
+  if (typeof p === "string" && p) { try { new RegExp(p); } catch { return { errorKey: "bad_regex" }; } }
   return {};
 }

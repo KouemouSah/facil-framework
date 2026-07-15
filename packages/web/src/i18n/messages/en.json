@@ -802,7 +802,17 @@
       "rules_advanced": "Advanced rules (JSON)",
       "rules_advanced_hint": "Any other validation rule not covered above, as raw JSON — e.g. '{\"multiple_of\": 5}'. Rules already covered above must not be repeated here.",
       "default": "Default value",
-      "default_hint": "JSON: '{\"value\": ...}' — any value (string, number, boolean, array, object, or null)."
+      "default_hint": "JSON: '{\"value\": ...}' — any value (string, number, boolean, array, object, or null).",
+      "rule_sanity": {
+        "min_gt_max": "Minimum must be less than or equal to maximum.",
+        "minlen_gt_maxlen": "Minimum length must be less than or equal to maximum length.",
+        "minitems_gt_maxitems": "Minimum items must be less than or equal to maximum items.",
+        "money_min_gt_max": "Minimum amount must be less than or equal to maximum amount.",
+        "date_min_gt_max": "The earliest allowed date must be on or before the latest allowed date.",
+        "step_not_positive": "Step must be greater than zero.",
+        "bad_regex": "Pattern is not a valid regular expression.",
+        "advanced_has_ui_key": "\"{key}\" is managed via the form above — remove it from Advanced rules (JSON)."
+      }
     },
     "rule": {
       "preset": {

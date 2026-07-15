@@ -289,6 +289,31 @@ export function useFieldDefFields(seedType?: FieldSpecType): FieldDef[] {
 // why this is flagged as a contract gap worth closing in `JsonField` itself
 // (accepting arrays directly) rather than always requiring this wrapper.
 
+// The shape of next-intl's `useTranslations(...)` return value that
+// `buildDefinitionPayload` actually needs — kept minimal (not the full
+// next-intl type) so this module doesn't have to import a React-only type
+// just to describe a callback parameter. Params are `string`-only (the only
+// interpolation used, `advanced_has_ui_key`'s `{key}`, is always a string) —
+// next-intl's real `values` param type (`TranslationValues`) is narrower
+// than `unknown`, so widening this to `Record<string, unknown>` would make
+// the real `useTranslations("fields")` return value NOT assignable here.
+type Translator = (key: string, params?: Record<string, string>) => string;
+
+// Renders a rule-sanity `errorKey` (from `ruleSanity`/`nestRules`) into a
+// human message. With a translator in scope (the normal, in-app path) it
+// resolves the real localized `fields.f.rule_sanity.<key>` string. Without
+// one (e.g. a unit test that calls `buildDefinitionPayload` directly) it
+// falls back to the bare key — but WITH any params folded in, so a caller
+// asserting on the offending value (e.g. which key collided in Advanced
+// JSON) still finds it in the message.
+function localizeRuleError(
+  errorKey: string, params: Record<string, string> | undefined, t: Translator | undefined,
+): string {
+  if (t) return t(`f.rule_sanity.${errorKey}`, params);
+  const entries = params ? Object.entries(params) : [];
+  return entries.length ? `${errorKey} (${entries.map(([k, v]) => `${k}=${String(v)}`).join(", ")})` : errorKey;
+}
+
 function wrapOptionsForJson(options: Definition["options"]): { items: Definition["options"] } {
   return { items: options ?? [] };
 }
@@ -340,10 +365,15 @@ export function flattenDefinition(row: Definition): Record<string, unknown> {
  *  bad regex, a UI-managed key duplicated in Advanced JSON): RecordForm's
  *  `submit()` already `await`s `onSubmit` inside a try/catch that maps a 422
  *  onto `fieldErrors()` (`components/ui/record-form.tsx`), so throwing here —
- *  rather than returning a `{error}` wrapper the two call sites in
- *  `page.tsx` don't expect — reuses that existing mechanism unchanged. */
+ *  rather than returning a `{errorKey}` wrapper the two call sites in
+ *  `page.tsx` don't expect — reuses that existing mechanism unchanged.
+ *
+ *  `t` (optional) is the caller's `useTranslations("fields")` — when passed,
+ *  a rule-sanity failure is thrown as a REAL localized message (never raw
+ *  English) via `localizeRuleError`; omitted (e.g. from a unit test), it
+ *  falls back to the bare error key. */
 export function buildDefinitionPayload(
-  payload: Record<string, unknown>, target: Target,
+  payload: Record<string, unknown>, target: Target, t?: Translator,
 ): DefinitionIn {
   const str = (v: unknown) => (v == null ? "" : String(v));
 
@@ -352,19 +382,29 @@ export function buildDefinitionPayload(
   const exts = typeof payload.rule_allowed_extensions === "string" && payload.rule_allowed_extensions.trim()
     ? payload.rule_allowed_extensions.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
 
-  // Pattern preset: resolve to the concrete regex only when the author picked
-  // a real preset (not "custom"/blank) AND hasn't already typed their own
-  // pattern — an explicit `rule_pattern` always wins.
+  // Pattern preset: a NAMED preset (anything other than "custom"/blank) always
+  // WINS over an already-typed pattern (Finding 3 fix) — this is what lets an
+  // editor actually SWITCH the pattern by picking a preset from the dropdown.
+  // Previously the preset only applied when `rule_pattern` was still empty,
+  // which is never true on edit (the field always seeds the prior pattern),
+  // so selecting a preset silently did nothing outside of create. Selecting
+  // "custom" (or leaving the preset blank) still keeps whatever was typed.
   const presetValue = payload.rule_pattern_preset;
   const preset = typeof presetValue === "string" && presetValue && presetValue !== "custom"
     ? PATTERN_PRESETS.find((p) => p.value === presetValue) : undefined;
-  const resolvedPattern = preset && !payload.rule_pattern ? preset.pattern : payload.rule_pattern;
+  const resolvedPattern = preset ? preset.pattern : payload.rule_pattern;
 
   const form = { ...payload, rule_allowed_extensions: exts, rule_pattern: resolvedPattern };
   const sanity = ruleSanity(form);
-  if (sanity.error) throw new ApiError(422, sanity.error, [{ loc: ["rules_advanced"], msg: sanity.error }]);
-  const { rules, error } = nestRules(form, (payload.rules_advanced as Record<string, unknown>) ?? {});
-  if (error) throw new ApiError(422, error, [{ loc: ["rules_advanced"], msg: error }]);
+  if (sanity.errorKey) {
+    const msg = localizeRuleError(sanity.errorKey, undefined, t);
+    throw new ApiError(422, msg, [{ loc: ["rules_advanced"], msg }]);
+  }
+  const { rules, errorKey, errorParams } = nestRules(form, (payload.rules_advanced as Record<string, unknown>) ?? {});
+  if (errorKey) {
+    const msg = localizeRuleError(errorKey, errorParams, t);
+    throw new ApiError(422, msg, [{ loc: ["rules_advanced"], msg }]);
+  }
 
   return {
     key: str(payload.key),

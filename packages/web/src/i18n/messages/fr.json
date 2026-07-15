@@ -802,7 +802,17 @@
       "rules_advanced": "Règles avancées (JSON)",
       "rules_advanced_hint": "Toute autre règle de validation non couverte ci-dessus, en JSON brut — ex. '{\"multiple_of\": 5}'. Les règles déjà couvertes ci-dessus ne doivent pas être répétées ici.",
       "default": "Valeur par défaut",
-      "default_hint": "JSON : '{\"value\": ...}' — n’importe quelle valeur (texte, nombre, booléen, tableau, objet ou null)."
+      "default_hint": "JSON : '{\"value\": ...}' — n’importe quelle valeur (texte, nombre, booléen, tableau, objet ou null).",
+      "rule_sanity": {
+        "min_gt_max": "Le minimum doit être inférieur ou égal au maximum.",
+        "minlen_gt_maxlen": "La longueur minimale doit être inférieure ou égale à la longueur maximale.",
+        "minitems_gt_maxitems": "Le nombre minimum d’éléments doit être inférieur ou égal au nombre maximum.",
+        "money_min_gt_max": "Le montant minimum doit être inférieur ou égal au montant maximum.",
+        "date_min_gt_max": "La date la plus ancienne autorisée doit être antérieure ou égale à la date la plus récente autorisée.",
+        "step_not_positive": "Le pas doit être strictement supérieur à zéro.",
+        "bad_regex": "Le motif n’est pas une expression régulière valide.",
+        "advanced_has_ui_key": "« {key} » est géré via le formulaire ci-dessus — retirez-le des règles avancées (JSON)."
+      }
     },
     "rule": {
       "preset": {

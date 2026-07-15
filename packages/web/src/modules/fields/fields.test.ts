@@ -259,6 +259,20 @@ describe("buildDefinitionPayload — type-aware rule_* inputs -> rules (Task 5)"
     expect(out.rules).toEqual({ min: 1, max: 10 });
   });
 
+  // Finding 4 (test gap): money and date had NO round-trip coverage at all —
+  // which is how Finding 2's missing ruleSanity checks went unnoticed.
+  it("nests rule_money_min/rule_money_max into rules.min/rules.max", () => {
+    const out = buildDefinitionPayload(
+      { ...base, type: "money", rule_money_min: 5, rule_money_max: 500 }, "site.custom_fields");
+    expect(out.rules).toEqual({ min: 5, max: 500 });
+  });
+
+  it("nests rule_date_min/rule_date_max into rules.min/rules.max", () => {
+    const out = buildDefinitionPayload(
+      { ...base, type: "date", rule_date_min: "2026-01-01", rule_date_max: "2026-12-31" }, "site.custom_fields");
+    expect(out.rules).toEqual({ min: "2026-01-01", max: "2026-12-31" });
+  });
+
   it("splits the comma-joined rule_allowed_extensions string into an array", () => {
     const out = buildDefinitionPayload(
       { ...base, type: "file", rule_allowed_extensions: "pdf, png,  jpg" }, "site.custom_fields");
@@ -276,16 +290,33 @@ describe("buildDefinitionPayload — type-aware rule_* inputs -> rules (Task 5)"
     expect((out.rules as Record<string, unknown>).pattern).toBe("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
   });
 
-  it("an explicitly typed rule_pattern wins over the preset", () => {
+  it("a NAMED preset wins over an already-typed pattern (Finding 3 fix — the edit-mode bug)", () => {
+    // Before the fix: `preset && !payload.rule_pattern ? preset.pattern : payload.rule_pattern`
+    // meant a preset selection did NOTHING once `rule_pattern` was already
+    // populated — which is ALWAYS true on edit (the field seeds the prior
+    // pattern). Picking "Email" from the dropdown must actually switch the
+    // pattern even over a pre-existing custom one.
     const out = buildDefinitionPayload(
-      { ...base, type: "string", rule_pattern_preset: "email", rule_pattern: "^custom$" }, "site.custom_fields");
-    expect((out.rules as Record<string, unknown>).pattern).toBe("^custom$");
+      { ...base, type: "string", rule_pattern_preset: "email", rule_pattern: "^foo$" }, "site.custom_fields");
+    expect((out.rules as Record<string, unknown>).pattern).toBe("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
   });
 
-  it("the \"custom\" preset never injects a pattern", () => {
+  it("the \"custom\" preset keeps whatever pattern was typed (never overrides)", () => {
+    const out = buildDefinitionPayload(
+      { ...base, type: "string", rule_pattern_preset: "custom", rule_pattern: "^foo$" }, "site.custom_fields");
+    expect((out.rules as Record<string, unknown>).pattern).toBe("^foo$");
+  });
+
+  it("the \"custom\" preset never injects a pattern when nothing was typed", () => {
     const out = buildDefinitionPayload(
       { ...base, type: "string", rule_pattern_preset: "custom" }, "site.custom_fields");
     expect(out.rules).toEqual({});
+  });
+
+  it("a blank preset also keeps whatever pattern was typed", () => {
+    const out = buildDefinitionPayload(
+      { ...base, type: "string", rule_pattern_preset: "", rule_pattern: "^foo$" }, "site.custom_fields");
+    expect((out.rules as Record<string, unknown>).pattern).toBe("^foo$");
   });
 
   it("merges rules_advanced (non-UI keys) alongside the rule_* inputs", () => {
@@ -298,14 +329,55 @@ describe("buildDefinitionPayload — type-aware rule_* inputs -> rules (Task 5)"
     const err = captureError(() => buildDefinitionPayload({ ...base, rule_min: 10, rule_max: 1 }, "site.custom_fields"));
     expect(err).toBeInstanceOf(ApiError);
     expect(err.status).toBe(422);
+    // No translator passed -> falls back to the bare errorKey (Finding 1).
     expect(err.fieldErrors().rules_advanced).toMatch(/min/);
+  });
+
+  it("throws an ApiError(422) when money min>max (Finding 2)", () => {
+    const err = captureError(() => buildDefinitionPayload(
+      { ...base, type: "money", rule_money_min: 500, rule_money_max: 5 }, "site.custom_fields"));
+    expect(err.status).toBe(422);
+    expect(err.fieldErrors().rules_advanced).toMatch(/money/);
+  });
+
+  it("throws an ApiError(422) when date min>max for a static ISO pair (Finding 2)", () => {
+    const err = captureError(() => buildDefinitionPayload(
+      { ...base, type: "date", rule_date_min: "2026-12-31", rule_date_max: "2026-01-01" }, "site.custom_fields"));
+    expect(err.status).toBe(422);
+    expect(err.fieldErrors().rules_advanced).toMatch(/date/);
+  });
+
+  it("does NOT throw when a date bound is the \"today\"/\"now\" token (Finding 2 — static-only check)", () => {
+    const out = buildDefinitionPayload(
+      { ...base, type: "date", rule_date_min: "today", rule_date_max: "2020-01-01" }, "site.custom_fields");
+    expect(out.rules).toEqual({ min: "today", max: "2020-01-01" });
   });
 
   it("throws an ApiError(422) when a UI-owned key is duplicated in rules_advanced (disjoint guard)", () => {
     const err = captureError(() => buildDefinitionPayload({ ...base, rules_advanced: { min_length: 3 } }, "site.custom_fields"));
     expect(err).toBeInstanceOf(ApiError);
     expect(err.status).toBe(422);
+    // No translator passed -> fallback embeds the errorParams so the
+    // offending key is still discoverable (Finding 1).
     expect(err.fieldErrors().rules_advanced).toMatch(/min_length/);
+  });
+
+  it("throws an ApiError(422) with a TRANSLATED message when a translator is passed (Finding 1)", () => {
+    const t = (k: string, params?: Record<string, unknown>) =>
+      `X:${k}${params ? `:${JSON.stringify(params)}` : ""}`;
+    const err = captureError(() => buildDefinitionPayload({ ...base, rule_min: 10, rule_max: 1 }, "site.custom_fields", t));
+    expect(err.status).toBe(422);
+    expect(err.message).toBe("X:f.rule_sanity.min_gt_max");
+    expect(err.fieldErrors().rules_advanced).toBe("X:f.rule_sanity.min_gt_max");
+  });
+
+  it("threads the errorParams through to the translator on the disjoint guard (Finding 1)", () => {
+    const t = (k: string, params?: Record<string, unknown>) =>
+      `X:${k}${params ? `:${JSON.stringify(params)}` : ""}`;
+    const err = captureError(() => buildDefinitionPayload(
+      { ...base, rules_advanced: { min_length: 3 } }, "site.custom_fields", t));
+    expect(err.status).toBe(422);
+    expect(err.message).toBe('X:f.rule_sanity.advanced_has_ui_key:{"key":"min_length"}');
   });
 });
 
