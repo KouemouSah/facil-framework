@@ -265,7 +265,7 @@ function EditSurface({ definitionId, target, readOnly, onClose, onChanged }: {
   const t = useTranslations("fields");
   const qc = useQueryClient();
   const [pendingPurge, setPendingPurge] = useState(false);
-  const { data, isError } = useQuery({
+  const { data, isError, isLoading } = useQuery({
     queryKey: ["field-definition", definitionId],
     queryFn: () => getDefinition(definitionId),
   });
@@ -308,9 +308,8 @@ function EditSurface({ definitionId, target, readOnly, onClose, onChanged }: {
 
   return (
     <RecordSurface title={data ? data.key : t("edit_title")} subtitle={data ? t(`target.${targetLabelKey(data.target)}`) : undefined}
-      resourceKey="field-definitions" onClose={onClose}>
+      resourceKey="field-definitions" onClose={onClose} loading={isLoading}>
       {isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
-      {!data && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
       {data && (
         <div className="space-y-4">
           {/* Index state — explicit, never a silent "it'll just be slow". */}

@@ -8,6 +8,7 @@ import { Activity, CheckCircle2, XCircle, Loader2, Plug, Plus, Star, Trash2 } fr
 import { toast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -283,10 +284,10 @@ function EditSurface({ capability, code, readOnly, onClose }: {
   const ready = !!data && !!registered.data;
 
   return (
-    <RecordSurface title={`${t(`cap.${capability}`)} · ${code}`} resourceKey="providers" onClose={onClose}>
+    <RecordSurface title={`${t(`cap.${capability}`)} · ${code}`} resourceKey="providers" onClose={onClose}
+      loading={(provider.isLoading || registered.isLoading) && !isError}>
       {!readOnly && <SecretNote />}
       {isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
-      {!ready && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
       {ready && !isRegistered && (
         <p className="text-sm text-destructive">{t("unregistered_type")}</p>
       )}
@@ -335,7 +336,7 @@ function RoutingCard() {
           <CardTitle className="text-base">{t("routing.title")}</CardTitle>
           <div className="ml-auto flex items-center gap-2">
             {canEdit && !editing && (
-              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>{t("routing.edit")}</Button>
+              <Button data-testid="routing-edit" variant="outline" size="sm" onClick={() => setEditing(true)}>{t("routing.edit")}</Button>
             )}
             {!editing && canProbe && (
               <Button variant="outline" size="sm" disabled={probe.isPending} onClick={() => probe.mutate()}>
@@ -348,7 +349,16 @@ function RoutingCard() {
         <CardDescription>{t("routing.subtitle")}</CardDescription>
       </CardHeader>
       <CardContent>
-        {routing.isLoading && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
+        {routing.isLoading && (
+          <dl className="grid gap-2 sm:grid-cols-3">
+            {ROUTING_ROLES.map((role) => (
+              <div key={role} className="space-y-2 rounded-md border px-3 py-2">
+                <Skeleton className="h-3 w-1/3" />
+                <Skeleton className="h-4 w-2/3" />
+              </div>
+            ))}
+          </dl>
+        )}
         {routing.isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
         {routing.data && editing && (
           <RoutingEditor view={routing.data} onDone={() => setEditing(false)} onCancel={() => setEditing(false)} />

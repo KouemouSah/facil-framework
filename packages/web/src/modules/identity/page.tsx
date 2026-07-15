@@ -336,7 +336,7 @@ function AccountDetailSurface({ accountId, onClose, canManageAccounts, canManage
   const t = useTranslations("agents");
   const qc = useQueryClient();
   const fields = useAccountEditFields();
-  const { data: detail, isError } = useQuery<Record<string, unknown>>({
+  const { data: detail, isError, isLoading } = useQuery<Record<string, unknown>>({
     queryKey: ["account", accountId],
     queryFn: () => getAccount(accountId),
   });
@@ -350,9 +350,9 @@ function AccountDetailSurface({ accountId, onClose, canManageAccounts, canManage
       subtitle={(detail?.email as string) || (detail?.account_number as string) || accountId}
       resourceKey="accounts"
       onClose={onClose}
+      loading={isLoading}
     >
       {isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
-      {!detail && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
       {detail && (
         <div className="space-y-4">
           {/* Meta */}

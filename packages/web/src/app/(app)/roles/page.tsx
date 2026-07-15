@@ -222,7 +222,7 @@ function RoleDetail({ role, onClose }: { role: Role; onClose: () => void }) {
     queryFn: () => apiFetch<Permission[]>(`/api/v1/rbac/permissions`),
   });
 
-  const { data: current } = useQuery<{ role_id: string; codes: string[]; etag?: string }>({
+  const { data: current, isLoading, isError } = useQuery<{ role_id: string; codes: string[]; etag?: string }>({
     queryKey: ["role-perms", role.id],
     queryFn: () => apiFetch(`/api/v1/rbac/roles/${role.id}/permissions`),
   });
@@ -274,6 +274,7 @@ function RoleDetail({ role, onClose }: { role: Role; onClose: () => void }) {
       title={`Permissions — ${role.name}`}
       subtitle={role.organization_id ? "Organization role" : "Global role"}
       onClose={onClose}
+      loading={isLoading}
       footer={
         <div className="flex items-center gap-2">
           {saved && <span className="flex items-center gap-1 text-sm text-emerald-600"><Check className="size-4" /> Saved</span>}
@@ -291,8 +292,12 @@ function RoleDetail({ role, onClose }: { role: Role; onClose: () => void }) {
           System role — permissions are protected and cannot be changed.
         </p>
       )}
+      {isError && (
+        <p className="mb-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          Failed to load this role&apos;s permissions. Please close and reopen to retry.
+        </p>
+      )}
       <div className="space-y-2">
-        {working === null && <p className="text-sm text-muted-foreground">Loading…</p>}
         {working !== null && grouped.map(([module, perms]) => {
           const open = openModules.has(module);
           const granted = perms.filter((p) => working.has(p.code)).length;

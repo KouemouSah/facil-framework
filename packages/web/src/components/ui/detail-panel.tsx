@@ -1,9 +1,11 @@
 "use client";
 
+import * as React from "react";
 import { useEffect } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 /**
  * Right-hand detail panel for master-detail / split-view (Lot 3). Fixed chrome
@@ -11,18 +13,21 @@ import { Button } from "@/components/ui/button";
  * an optional footer for actions. Esc closes. The parent owns open/close (URL
  * `?sel=`); this is presentation only.
  */
-export function DetailPanel({ title, subtitle, onClose, children, footer }: {
+export function DetailPanel({ title, subtitle, onClose, children, footer, loading }: {
   title: React.ReactNode;
   subtitle?: React.ReactNode;
   onClose: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  loading?: boolean;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  if (loading) return <DetailPanelSkeleton />;
 
   return (
     <aside className={cn(
@@ -41,6 +46,24 @@ export function DetailPanel({ title, subtitle, onClose, children, footer }: {
       </header>
       <div className="min-h-0 flex-1 overflow-auto p-4">{children}</div>
       {footer && <footer className="border-t px-4 py-3">{footer}</footer>}
+    </aside>
+  );
+}
+
+/** DRY loading placeholder matching DetailPanel's chrome (title + body lines),
+ * so callers get a consistent loading state instead of an ad-hoc pulse block
+ * while the selected record is in flight. */
+export function DetailPanelSkeleton() {
+  return (
+    <aside className="flex min-h-0 flex-col rounded-lg border bg-card fixed inset-0 z-30 lg:static lg:inset-auto lg:z-auto">
+      <header className="flex items-center gap-2 border-b px-4 py-3">
+        <Skeleton className="h-4 w-1/3" />
+      </header>
+      <div className="min-h-0 flex-1 space-y-3 overflow-auto p-4">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-2/3" />
+      </div>
     </aside>
   );
 }

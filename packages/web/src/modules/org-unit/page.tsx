@@ -277,7 +277,7 @@ function UnitEditSurface({ unitId, orgId, units, tab, onTabChange, readOnly, onC
 }) {
   const t = useTranslations("org_units");
   const qc = useQueryClient();
-  const { data, isError: rowError } = useQuery({ queryKey: ["org-unit", unitId], queryFn: () => getUnit(unitId) });
+  const { data, isError: rowError, isLoading } = useQuery({ queryKey: ["org-unit", unitId], queryFn: () => getUnit(unitId) });
   const fields = useUnitFields(validParents(units, unitId), orgId);
   const customFieldsError = useUnitFieldsSchemaError(orgId);
   // IMPORTANT-4 fix: surface a failed custom-fields schema load too, not just
@@ -286,9 +286,8 @@ function UnitEditSurface({ unitId, orgId, units, tab, onTabChange, readOnly, onC
 
   return (
     <RecordSurface title={data ? `${data.code} · ${data.name}` : t("edit_title")} resourceKey="org-units"
-      mode={tab === "documentIdentity" ? "page" : "panel"} onClose={onClose}>
+      mode={tab === "documentIdentity" ? "page" : "panel"} onClose={onClose} loading={isLoading && !isError}>
       {isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
-      {!data && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
       {data && (
         <div className="space-y-4">
           <div className="flex gap-1 border-b">

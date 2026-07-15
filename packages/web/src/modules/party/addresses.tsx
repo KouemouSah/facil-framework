@@ -106,11 +106,10 @@ function AddressCreateSurface({ onClose, onSaved }: { onClose: () => void; onSav
 
 function AddressEditSurface({ addressId, readOnly, onClose }: { addressId: string; readOnly: boolean; onClose: () => void }) {
   const t = useTranslations("directory");
-  const { data, isError } = useQuery({ queryKey: ["address", addressId], queryFn: () => getAddress(addressId) });
+  const { data, isError, isLoading } = useQuery({ queryKey: ["address", addressId], queryFn: () => getAddress(addressId) });
   return (
-    <RecordSurface title={data ? addressLine(data) : t("a.edit_title")} resourceKey="addresses" onClose={onClose}>
+    <RecordSurface title={data ? addressLine(data) : t("a.edit_title")} resourceKey="addresses" onClose={onClose} loading={isLoading}>
       {isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
-      {!data && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
       {/* Remount on reload (save OR 409 refetch) so stale edits never re-save. */}
       {data && <AddressForm key={data.etag ?? addressId} mode="edit" initial={data} readOnly={readOnly} onClose={onClose} onSaved={() => undefined} />}
     </RecordSurface>

@@ -244,7 +244,7 @@ function SiteEditSurface({ siteId, orgId, tab, onTabChange, onClose, readOnly }:
   const qc = useQueryClient();
   const fields = useSiteFields(orgId);
   const customFieldsError = useSiteFieldsSchemaError(orgId);
-  const { data, isError: rowError } = useQuery<Record<string, unknown>>({
+  const { data, isError: rowError, isLoading } = useQuery<Record<string, unknown>>({
     queryKey: ["site", siteId],
     queryFn: () => getSite(siteId),
   });
@@ -259,9 +259,9 @@ function SiteEditSurface({ siteId, orgId, tab, onTabChange, onClose, readOnly }:
       resourceKey="sites"
       mode={tab === "documentIdentity" ? "page" : "panel"}
       onClose={onClose}
+      loading={isLoading && !isError}
     >
       {isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
-      {!data && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
       {data && (
         <div className="space-y-4">
           <div className="flex gap-1 border-b">

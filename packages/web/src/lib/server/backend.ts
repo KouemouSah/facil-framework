@@ -91,6 +91,23 @@ async function rawCall(path: string, init: RequestInit, token?: string) {
   return fetch(`${BACKEND}${path}`, { ...init, headers, cache: "no-store" });
 }
 
+/** Read-only server GET for RSC PREFETCH: forwards the access cookie, returns
+ *  parsed JSON on 2xx, `null` on 401/any failure. NEVER mutates cookies — unlike
+ *  `backendProxy`, it does NOT refresh (a Server Component cannot call
+ *  `cookies().set`, Next throws). On an expired token it simply returns null and
+ *  the client re-fetches (and can refresh via the /api/auth/session route). */
+export async function readForPrefetch<T = unknown>(path: string): Promise<T | null> {
+  try {
+    const jar = await cookies();
+    const access = jar.get(ACCESS)?.value;
+    const res = await rawCall(path, { method: "GET" }, access);
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
 /** Forward a request to the backend with the access token, refreshing once on
  *  401 (rotation: backend issues a new pair). Returns the Response; on a failed
  *  refresh, clears cookies so the caller answers 401 -> the client redirects. */

@@ -159,14 +159,13 @@ function SettingEditSurface({ settingKey, readOnly, onClose }: {
   settingKey: string; readOnly: boolean; onClose: () => void;
 }) {
   const t = useTranslations("configuration");
-  const { data, isError } = useQuery({
+  const { data, isError, isLoading } = useQuery({
     queryKey: ["setting", settingKey],
     queryFn: () => getSetting(settingKey),
   });
   return (
-    <RecordSurface title={settingKey} resourceKey="config" onClose={onClose}>
+    <RecordSurface title={settingKey} resourceKey="config" onClose={onClose} loading={isLoading}>
       {isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
-      {!data && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
       {/* Remount (reseed) when the row reloads — after save OR after a 409 refetch —
           so local edits never re-save over a concurrent change (A3 lesson). */}
       {data && <SettingForm key={data.etag ?? settingKey} mode="edit" initial={data}
