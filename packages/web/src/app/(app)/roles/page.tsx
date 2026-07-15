@@ -274,6 +274,7 @@ function RoleDetail({ role, onClose }: { role: Role; onClose: () => void }) {
       title={`Permissions — ${role.name}`}
       subtitle={role.organization_id ? "Organization role" : "Global role"}
       onClose={onClose}
+      loading={working === null}
       footer={
         <div className="flex items-center gap-2">
           {saved && <span className="flex items-center gap-1 text-sm text-emerald-600"><Check className="size-4" /> Saved</span>}
@@ -292,7 +293,6 @@ function RoleDetail({ role, onClose }: { role: Role; onClose: () => void }) {
         </p>
       )}
       <div className="space-y-2">
-        {working === null && <p className="text-sm text-muted-foreground">Loading…</p>}
         {working !== null && grouped.map(([module, perms]) => {
           const open = openModules.has(module);
           const granted = perms.filter((p) => working.has(p.code)).length;

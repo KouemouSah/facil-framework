@@ -167,11 +167,10 @@ function PartyEditSurface({ partyId, readOnly, onClose }: { partyId: string; rea
   const partyFields = usePartyFields();
   const qc = useQueryClient();
   const { can } = usePermissions();
-  const { data, isError } = useQuery({ queryKey: ["party", partyId], queryFn: () => getParty(partyId) });
+  const { data, isError, isLoading } = useQuery({ queryKey: ["party", partyId], queryFn: () => getParty(partyId) });
   return (
-    <RecordSurface title={data?.name || t("p.edit_title")} resourceKey="parties" onClose={onClose}>
+    <RecordSurface title={data?.name || t("p.edit_title")} resourceKey="parties" onClose={onClose} loading={isLoading}>
       {isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
-      {!data && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
       {data && (
         <div className="space-y-4">
           <RecordForm key={data.etag ?? partyId} fields={partyFields} mode="edit" layout="rich" readOnly={readOnly}

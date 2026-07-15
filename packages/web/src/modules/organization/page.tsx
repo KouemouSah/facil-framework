@@ -219,7 +219,7 @@ function OrgEditSurface({ orgId, tab, onTabChange, onClose, readOnly }: {
   const qc = useQueryClient();
   const fields = useOrgFields(orgId);
   const customFieldsError = useOrgFieldsSchemaError(orgId);
-  const { data, isError: rowError } = useQuery<Record<string, unknown>>({
+  const { data, isError: rowError, isLoading } = useQuery<Record<string, unknown>>({
     queryKey: ["org", orgId],
     queryFn: () => getOrg(orgId),
   });
@@ -241,9 +241,9 @@ function OrgEditSurface({ orgId, tab, onTabChange, onClose, readOnly }: {
       // already uses; details/settings stay docked (list stays visible).
       mode={tab === "documentIdentity" ? "page" : "panel"}
       onClose={onClose}
+      loading={isLoading && !isError}
     >
       {isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
-      {!data && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
       {data && (
         <div className="space-y-4">
           {/* document_identity and settings are each their own tab (master-detail

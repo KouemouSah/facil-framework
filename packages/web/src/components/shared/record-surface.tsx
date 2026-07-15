@@ -32,6 +32,7 @@ export function RecordSurface({
   resourceKey,
   mode = "panel",
   footer,
+  loading,
   children,
 }: {
   title: React.ReactNode;
@@ -40,6 +41,7 @@ export function RecordSurface({
   resourceKey: string;
   mode?: "panel" | "page";
   footer?: React.ReactNode;
+  loading?: boolean;
   children: React.ReactNode;
 }) {
   const tc = useTranslations("common");
@@ -53,6 +55,8 @@ export function RecordSurface({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  if (loading) return <RecordSurfaceSkeleton mode={mode} />;
 
   return (
     <aside

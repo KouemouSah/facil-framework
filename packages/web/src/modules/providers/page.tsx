@@ -283,10 +283,10 @@ function EditSurface({ capability, code, readOnly, onClose }: {
   const ready = !!data && !!registered.data;
 
   return (
-    <RecordSurface title={`${t(`cap.${capability}`)} · ${code}`} resourceKey="providers" onClose={onClose}>
+    <RecordSurface title={`${t(`cap.${capability}`)} · ${code}`} resourceKey="providers" onClose={onClose}
+      loading={(provider.isLoading || registered.isLoading) && !isError}>
       {!readOnly && <SecretNote />}
       {isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
-      {!ready && !isError && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
       {ready && !isRegistered && (
         <p className="text-sm text-destructive">{t("unregistered_type")}</p>
       )}
@@ -329,7 +329,7 @@ function RoutingCard() {
   });
 
   return (
-    <Card>
+    <Card loading={routing.isLoading}>
       <CardHeader>
         <div className="flex items-center gap-2">
           <CardTitle className="text-base">{t("routing.title")}</CardTitle>
@@ -348,7 +348,6 @@ function RoutingCard() {
         <CardDescription>{t("routing.subtitle")}</CardDescription>
       </CardHeader>
       <CardContent>
-        {routing.isLoading && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
         {routing.isError && <p className="text-sm text-destructive">{t("load_error")}</p>}
         {routing.data && editing && (
           <RoutingEditor view={routing.data} onDone={() => setEditing(false)} onCancel={() => setEditing(false)} />

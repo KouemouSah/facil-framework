@@ -2,9 +2,17 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 
-function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+function Card({
+  className,
+  loading,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & { loading?: boolean }) {
+  if (loading) return <CardSkeleton className={className} />;
   return (
-    <div className={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)} {...props} />
+    <div className={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)} {...props}>
+      {children}
+    </div>
   );
 }
 

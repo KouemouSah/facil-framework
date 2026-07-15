@@ -13,18 +13,21 @@ import { Skeleton } from "@/components/ui/skeleton";
  * an optional footer for actions. Esc closes. The parent owns open/close (URL
  * `?sel=`); this is presentation only.
  */
-export function DetailPanel({ title, subtitle, onClose, children, footer }: {
+export function DetailPanel({ title, subtitle, onClose, children, footer, loading }: {
   title: React.ReactNode;
   subtitle?: React.ReactNode;
   onClose: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  loading?: boolean;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  if (loading) return <DetailPanelSkeleton />;
 
   return (
     <aside className={cn(
