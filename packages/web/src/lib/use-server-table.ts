@@ -53,6 +53,13 @@ export interface UseServerTableArgs<T> {
   initialFilters?: Record<string, string>;
   /** Gate the fetch (e.g. wait for an org to be selected). Default true. */
   enabled?: boolean;
+  /** External scope the query depends on but that is NOT threaded through
+   *  `filters` — e.g. a parent `country_id` read directly inside `fetchPage`.
+   *  Each value is part of the query key (so a change refetches) AND resets the
+   *  keyset cursor (a cursor is only valid for the exact query). Without this, a
+   *  dependent filter changes silently: the key stays identical and React Query
+   *  serves the previous scope's cached rows. */
+  deps?: unknown[];
 }
 
 export interface UseServerTable<T> {
@@ -83,7 +90,7 @@ export interface UseServerTable<T> {
 
 export function useServerTable<T>({
   resource, fetchPage, defaultSort, defaultPageSize = 20, initialFilters = {},
-  enabled = true,
+  enabled = true, deps = [],
 }: UseServerTableArgs<T>): UseServerTable<T> {
   const [q, setQState] = useState("");
   const [sort, setSortState] = useState(defaultSort);
@@ -92,6 +99,16 @@ export function useServerTable<T>({
   const [paging, setPaging] = useState(initialPageStack);
 
   const resetPaging = useCallback(() => setPaging(initialPageStack), []);
+
+  // External scope (`deps`) changed → reset the cursor stack *before* the query
+  // runs, so the new scope fetches page 1 (adjust-state-during-render: React
+  // restarts this render before committing, so no stale-cursor fetch escapes).
+  const depsKey = JSON.stringify(deps);
+  const [trackedDeps, setTrackedDeps] = useState(depsKey);
+  if (depsKey !== trackedDeps) {
+    setTrackedDeps(depsKey);
+    setPaging(initialPageStack);
+  }
 
   // Every query-shape change resets the cursor stack (the invariant).
   const setQ = useCallback((v: string) => { setQState(v); resetPaging(); }, [resetPaging]);
@@ -103,7 +120,7 @@ export function useServerTable<T>({
   const onPageSizeChange = useCallback((n: number) => { setPageSizeState(n); resetPaging(); }, [resetPaging]);
 
   const query = useQuery({
-    queryKey: [resource, q, sort, filters, pageSize, paging.cursor],
+    queryKey: [resource, q, sort, filters, pageSize, paging.cursor, depsKey],
     queryFn: () => fetchPage({ cursor: paging.cursor, limit: pageSize, sort, filters, q }),
     enabled,
     // Keep the current page visible while the next/prev one loads (no empty flash).

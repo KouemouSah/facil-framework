@@ -68,14 +68,15 @@ function RefTab({ tab }: { tab: Tab }) {
   // Regions are scoped to a country (dependent filter).
   const [countryId, setCountryId] = useState("");
 
-  const filters: Record<string, string> = tab === "regions" && countryId
-    ? { country_id: countryId } : {};
-
   const table = useServerTable<Row>({
     resource: `ref-${tab}`,
     defaultSort: conf.defaultSort,
     defaultPageSize: 50,
     enabled: tab !== "regions" || !!countryId,
+    // country_id is read directly inside fetchPage (below), so declare it as an
+    // external dep — otherwise switching country keeps the previous country's
+    // regions (the key wouldn't change). Only regions depends on it.
+    deps: tab === "regions" ? [countryId] : [],
     fetchPage: ({ cursor, limit, sort, q }) => {
       const p = new URLSearchParams({ q, sort, limit: String(limit) });
       if (cursor) p.set("cursor", cursor);
