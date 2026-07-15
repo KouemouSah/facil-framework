@@ -44,7 +44,12 @@ const READONLY_PASSWORD = process.env.E2E_READONLY_PASSWORD;
 
 async function login(page: Page, email: string, password: string) {
   await page.goto("/login");
-  await page.getByLabel(/identifier|identifiant|correo/i).fill(email);
+  // `#identifier` (the input's stable id, `login-form.tsx`), NOT a label-text
+  // locator: `auth.identifier` is "Email or ID" in EN — which /identifier/ does
+  // NOT match. The stack defaults to EN when no branding sets a locale (exactly
+  // the CI case: freshly-seeded, no branding), so a label-regex login hung there
+  // for the full timeout while passing locally under a FR-branded stack.
+  await page.locator("#identifier").fill(email);
   // `input[type="password"]` (not getByLabel) — the show/hide toggle button's
   // aria-label also contains "mot de passe"/"password", which would make a
   // label-text locator match two elements (strict-mode violation).
