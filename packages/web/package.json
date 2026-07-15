@@ -4,7 +4,7 @@
   "private": true,
   "description": "Facil Framework — web console (Next.js 15, App Router, RSC).",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
