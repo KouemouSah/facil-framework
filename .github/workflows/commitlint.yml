@@ -46,14 +46,31 @@ jobs:
 
       - name: Lint commits (push range)
         if: github.event_name == 'push'
+        # BEFORE/AFTER passent par l'ENV plutôt que par une interpolation `${{ }}`
+        # dans le script (règle générale : ne jamais injecter du contexte GitHub
+        # directement dans un shell).
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
         run: |
-          # On push, lint only the new commits in this push
-          if [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
-            cd "$GITHUB_WORKSPACE" && /tmp/commitlint/node_modules/.bin/commitlint --config /tmp/commitlint/commitlint.config.js \
-              --from "${{ github.event.before }}" \
-              --to "${{ github.event.after }}" \
-              --verbose
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          LINT="/tmp/commitlint/node_modules/.bin/commitlint --config /tmp/commitlint/commitlint.config.js"
+          ZERO="0000000000000000000000000000000000000000"
+
+          # `github.event.before` est le SHA d'AVANT le push. Après un FORCE-PUSH, ce
+          # commit n'existe plus sur le remote -- la plage `$BEFORE..$AFTER` devient
+          # alors invalide et le job échouait avec :
+          #     fatal: Invalid revision range <before>..<after>
+          # quel que soit le contenu des commits. Ça mordait donc à CHAQUE force-push,
+          # de n'importe qui. Le test `!= $ZERO` (création de branche) ne suffisait pas :
+          # il faut vérifier que le commit est réellement PRÉSENT.
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != "$ZERO" ] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            $LINT --from "$BEFORE" --to "$AFTER" --verbose
           else
-            # Fallback for first push of new branch — lint last 10 commits
-            cd "$GITHUB_WORKSPACE" && /tmp/commitlint/node_modules/.bin/commitlint --config /tmp/commitlint/commitlint.config.js --from HEAD~10 --to HEAD --verbose || true
+            # Nouvelle branche, ou force-push (le SHA d'avant a disparu) : on lint les
+            # 10 derniers commits. `|| true` car la plage peut remonter avant l'adoption
+            # de la convention.
+            echo "note: plage de push indisponible (nouvelle branche ou force-push) -- repli sur les 10 derniers commits." >&2
+            $LINT --from HEAD~10 --to HEAD --verbose || true
           fi

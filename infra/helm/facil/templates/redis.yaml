@@ -1,0 +1,97 @@
+{{- if .Values.redis.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "redis") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "redis") | nindent 4 }}
+  ports:
+    - port: 6379
+      targetPort: 6379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "redis") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "redis") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "redis") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false   # aucun pod n'appelle l'API k8s
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        # fsGroup requis pour l'emptyDir /data : verifie par execution reelle
+        # (docker --tmpfs /data --user 999:999) que le montage est cree root:root
+        # 0755 (mode herite du /data pre-existant dans l'image officielle redis,
+        # owner reinitialise a root) -- `touch /data/probe` echoue en EACCES SANS
+        # fsGroup, reussit AVEC (kubelet applique un chown+chmod g+w recursif a
+        # l'emptyDir pour ce GID). Le brief ne mentionnait pas ce besoin : deduit
+        # du Dockerfile seul, ca aurait ete une hypothese fausse.
+        fsGroup: 999
+        seccompProfile: { type: RuntimeDefault }   # requis par le profil PSS restricted
+      containers:
+        - name: redis
+          image: {{ .Values.redis.image }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources: {{- toYaml .Values.resources.cache | nindent 12 }}
+          # CWE-214 : passer le mot de passe en flag CLI interpolerait la valeur
+          # AVANT l'exec -- elle finirait dans l'argv du process redis-server
+          # resultant, lisible via /proc/<pid>/cmdline par tout process
+          # co-localise / EDR / scraper d'audit (meme canal de fuite deja ferme
+          # deux fois sur ce projet : `kubectl create secret --from-literal`,
+          # puis le mdp applicatif passe a psql via `\getenv`, cf. db-role-job.
+          # yaml). On ecrit plutot la directive dans un fichier de conf sur
+          # l'emptyDir /tmp (deja monte, readOnlyRootFilesystem) : `cat` lit le
+          # mot de passe depuis un heredoc sur SON STDIN (jamais un argument --
+          # son argv reste `["cat"]`, quel que soit le shell), donc aucun
+          # process n'a jamais le mot de passe dans son argv. `chmod 600` avant
+          # l'exec final de redis-server sur CE fichier (jamais de flag).
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              cat > /tmp/redis.conf <<CONF
+              requirepass ${REDIS_PASSWORD}
+              CONF
+              chmod 600 /tmp/redis.conf
+              exec redis-server /tmp/redis.conf
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretNames.redis }}
+                  key: REDIS_PASSWORD
+            # redis-cli reads REDISCLI_AUTH from the environment (never argv),
+            # unlike `-a`/`--pass` which leaks the password via /proc/<pid>/cmdline.
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretNames.redis }}
+                  key: REDIS_PASSWORD
+          ports:
+            - containerPort: 6379
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: data
+              mountPath: /data   # RDB snapshot (readOnlyRootFilesystem) ; pas de PVC = deja ephemere avant ce durcissement
+          readinessProbe:
+            exec: { command: ["sh", "-c", "redis-cli --no-auth-warning ping"] }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: data
+          emptyDir: {}
+{{- end }}

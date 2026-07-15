@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   code-review:
-    name: Code Quality (Claude)
+    name: Code Quality (GPT-4o)
     runs-on: ubuntu-latest
     if: |
       !github.event.pull_request.draft &&
@@ -38,24 +38,39 @@ jobs:
 
       - name: Compute diff
         id: diff
+        # BASE_REF passe par l'ENV, jamais par une interpolation `${{ }}` dans le
+        # script : le nom de la branche de base d'une PR fork est un champ modifiable
+        # par l'auteur (repo forké + branche renommée) ; l'interpoler directement dans
+        # le shell l'exécuterait comme du code sur le runner (script injection — cf.
+        # agent-pr-reviewer.yml / agent-security-review.yml qui font déjà ainsi).
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          git fetch origin ${{ github.event.pull_request.base.ref }}
-          STAT=$(git diff origin/${{ github.event.pull_request.base.ref }}...HEAD --stat | head -50)
-          FULL=$(git diff origin/${{ github.event.pull_request.base.ref }}...HEAD | head -c 30000)
+          git fetch origin "$BASE_REF"
+          STAT=$(git diff "origin/$BASE_REF...HEAD" --stat | head -50)
+          FULL=$(git diff "origin/$BASE_REF...HEAD" | head -c 30000)
+          # Délimiteur aléatoire, pas un mot fixe : STAT/FULL viennent du diff, contrôlé
+          # par l'auteur de la PR (fork PR). Un délimiteur constant permettrait
+          # d'injecter une ligne qui lui est identique dans un fichier du diff pour
+          # clore le bloc en avance et faire passer les lignes suivantes pour de
+          # nouvelles affectations de sortie d'étape (output injection). Générer un
+          # délimiteur imprévisible à chaque run neutralise cette classe de bug. Ne pas
+          # revenir à un mot fixe pour "simplifier".
+          DELIM="ghout_$(openssl rand -hex 16)"
           {
-            echo "stat<<EOF"
+            echo "stat<<$DELIM"
             echo "$STAT"
-            echo "EOF"
-            echo "full<<EOF"
+            echo "$DELIM"
+            echo "full<<$DELIM"
             echo "$FULL"
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
+            echo "$DELIM"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Run AI code review
         id: ai
         uses: actions/ai-inference@v1
         with:
-          model: anthropic/claude-3-5-sonnet
+          model: openai/gpt-4o
           max-tokens: 1500
           system-prompt: |
             You are a senior code-quality reviewer for Facil Framework — FastAPI + Next.js + Expo + Postgres+pgvector + Ollama.
@@ -121,7 +136,7 @@ jobs:
         with:
           script: |
             const review = process.env.REVIEW || '_AI inference returned empty._';
-            const body = `<img src="https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/main/.github/assets/icons/star.svg" width="14" alt="star"/> &nbsp;**Code Quality Review** · GitHub Models · Claude 3.5 Sonnet\n\n---\n\n${review}\n\n---\n_Auto-generated. Add label \`skip-code-review\` to opt out._`;
+            const body = `<img src="https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/main/.github/assets/icons/star.svg" width="14" alt="star"/> &nbsp;**Code Quality Review** · GitHub Models · GPT-4o\n\n---\n\n${review}\n\n---\n_Auto-generated. Add label \`skip-code-review\` to opt out._`;
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,

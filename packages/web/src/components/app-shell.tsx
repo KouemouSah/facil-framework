@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,7 +9,7 @@ import { LayoutDashboard, Building2, MapPin, ShieldCheck, Users, Network, Settin
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import { usePermissions } from "@/lib/use-permissions";
-import { isSameOriginAsset } from "@/lib/upload";
+import { BrandLogo } from "@/components/shared/brand-logo";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useSession } from "@/lib/use-session";
@@ -41,7 +40,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Per-group accordion state (key → open). Missing key = open by default.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const { data: session, isLoading } = useSession();
-  const { data: branding } = useQuery<{ app_name: string; logo_url: string; supported_locales: string[]; support_url: string }>({
+  const { data: branding } = useQuery<{ app_name: string; logo_url: string; logo_dark_url: string; supported_locales: string[]; support_url: string; support_email: string }>({
     queryKey: ["branding"],
     queryFn: () => apiFetch(`/api/v1/system/branding`),
     staleTime: 5 * 60 * 1000,
@@ -128,14 +127,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // drawer (DRY). On mobile, navigating closes the drawer.
   const brandHeader = (rail: boolean) => (
     <div className={cn("flex h-14 items-center gap-2 border-b font-semibold", rail ? "justify-center px-0" : "px-5")}>
-      {branding?.logo_url ? (
-        // Same-origin assets (uploaded via the pipeline, `/api/...`) are optimized;
-        // an external URL stays unoptimized so it renders without a host allowlist.
-        <Image src={branding.logo_url} alt={appName} width={28} height={28} className="h-7 w-7 rounded-md object-contain" unoptimized={!isSameOriginAsset(branding.logo_url)} />
-      ) : (
-        // Default = the framework's own icon (P2.4), not a generic letter tile.
-        <Image src="/brand-icon.png" alt={appName} width={28} height={28} className="h-7 w-7 rounded-md object-contain" />
-      )}
+      {/* White-label logo with light/dark swap (Phase A2). Default = the
+          framework's own icon (P2.4), not a generic letter tile. Same-origin
+          assets are optimized; external URLs stay unoptimized (no host allowlist). */}
+      <BrandLogo
+        light={branding?.logo_url}
+        dark={branding?.logo_dark_url}
+        fallback="/brand-icon.png"
+        alt={appName}
+        width={28}
+        height={28}
+        className="h-7 w-7 rounded-md object-contain"
+      />
       {!rail && <span className="truncate">{appName}</span>}
     </div>
   );
@@ -254,11 +257,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Console footer (P2.0) — thin, persistent: identity + license + support. */}
         <footer className="flex items-center justify-between gap-3 border-t bg-card/40 px-5 py-2 text-xs text-muted-foreground">
           <span>{appName} · <span className="uppercase tracking-wide">AGPL-3.0</span></span>
-          {branding?.support_url && (
-            <a href={branding.support_url} target="_blank" rel="noreferrer" className="hover:text-foreground">
-              {tc("support")}
-            </a>
-          )}
+          <div className="flex items-center gap-3">
+            {/* support_email was a PHANTOM branding field (editable, never rendered) —
+                now surfaced as a mailto next to the support link (Phase A4). */}
+            {branding?.support_email && (
+              <a href={`mailto:${branding.support_email}`} className="hover:text-foreground">
+                {tc("contact")}
+              </a>
+            )}
+            {branding?.support_url && (
+              <a href={branding.support_url} target="_blank" rel="noreferrer" className="hover:text-foreground">
+                {tc("support")}
+              </a>
+            )}
+          </div>
         </footer>
       </div>
     </div>

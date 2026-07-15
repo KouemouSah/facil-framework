@@ -63,7 +63,15 @@ class MetaConfig(BaseModel):
     config_version: int = Field(ge=1, le=1)
     project_name: str = Field(min_length=1)
     environment: Literal["production", "staging", "development"]
-    version: str = "latest"
+    # B4: NOT "latest" -- .github/workflows/release-images.yml only tags
+    # `latest` `enable={{is_default_branch}}` (the GitHub default branch is
+    # "main"; confirmed via `git ls-remote --symref origin HEAD`). Work happens
+    # on `develop` (CLAUDE.md), which is reliably tagged on every push
+    # (type=ref,event=branch) -- a first-time operator who copies
+    # config.example.yaml verbatim and runs `--apply` must pull an image that
+    # actually exists on GHCR, or they hit a 10-minute ImagePullBackOff +
+    # --atomic rollback on their very first deploy.
+    version: str = "develop"
     profile: ProfileName = "empty"
 
 
@@ -571,9 +579,20 @@ class BrandingConfig(BaseModel):
     support_url: str = ""
 
 
+class DeployTargetConfig(BaseModel):
+    """Cible et tier de déploiement (P0 du design infra multi-cible).
+
+    tier : lite=compose (2e classe, sans-ops) · k3s=canonique · cloud=Terraform+Helm.
+    target : hôte/provider concret. onprem = machine nue / VPS (k3s local).
+    """
+    tier: Literal["lite", "k3s", "cloud"] = "k3s"
+    target: Literal["docker-local", "aws", "gcp", "azure", "onprem"] = "onprem"
+
+
 class DeployConfig(BaseModel):
     """Top-level deploy/config.yaml schema."""
     meta: MetaConfig
+    deploy: DeployTargetConfig = Field(default_factory=DeployTargetConfig)
     database: DatabaseConfig
     redis: RedisConfig
     auth: AuthConfig
@@ -657,6 +676,10 @@ def provider_required_fields(cfg: DeployConfig, provider: str) -> list[str]:
     elif provider == "docker-local":
         # Self-contained, nothing extra required at this stage.
         pass
+    elif provider == "k3s":
+        # Self-contained on-prem mono-noeud (helm chart + values-onprem.yaml
+        # overlay) — nothing cloud-account-specific required at this stage.
+        pass
     return missing
 
 
@@ -681,7 +704,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("config", type=Path, help="Path to config.yaml")
     parser.add_argument(
         "--provider",
-        choices=["gcp", "aws", "azure", "docker-local"],
+        choices=["gcp", "aws", "azure", "docker-local", "k3s"],
         default=None,
         help="Validate provider-specific required fields too.",
     )

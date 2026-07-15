@@ -105,6 +105,7 @@
     "collapse_sidebar": "Contraer menú",
     "expand_sidebar": "Expandir menú",
     "language": "Idioma",
+    "contact": "Contacto",
     "support": "Soporte"
   },
   "errors": {
@@ -522,6 +523,7 @@
     "toast_save_failed": "Error al guardar.",
     "secret_ref_hint": "Referencia al almacén de secretos (opcional) — no el valor.",
     "curated_note": "Esta clave tiene un editor dedicado (Branding / Proveedores). Editarla en bruto aquí funciona pero es propenso a errores.",
+    "curated_link": "Abrir el editor dedicado",
     "delete": {
       "title": "¿Eliminar el ajuste?",
       "body": "Esto elimina permanentemente {key}. Escriba su clave para confirmar.",

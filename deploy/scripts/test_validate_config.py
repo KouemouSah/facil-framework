@@ -235,6 +235,25 @@ class TestProviderRequiredFields:
         cfg = vc.DeployConfig.model_validate(minimal_valid_config)
         assert vc.provider_required_fields(cfg, "docker-local") == []
 
+    def test_k3s_has_no_extra_requirements(
+        self, minimal_valid_config: dict
+    ) -> None:
+        # On-prem mono-noeud is self-contained (helm chart + values-onprem
+        # overlay) — no cloud-account field required, unlike gcp/aws/azure.
+        cfg = vc.DeployConfig.model_validate(minimal_valid_config)
+        assert vc.provider_required_fields(cfg, "k3s") == []
+
+    def test_k3s_is_an_accepted_cli_provider_choice(
+        self, tmp_path: Path, minimal_valid_config: dict
+    ) -> None:
+        # deploy/deploy.py dispatches --provider=k3s to this script's own
+        # --provider flag (Step 1/4 schema validation) — argparse must accept
+        # it (regression: it previously raised SystemExit(2) via argparse).
+        cfg_file = tmp_path / "config.yaml"
+        cfg_file.write_text(yaml.safe_dump(minimal_valid_config))
+        rc = vc.main([str(cfg_file), "--provider=k3s"])
+        assert rc == 0
+
 
 # ---------------------------------------------------------------------------
 # New seams: observability (P14) / edge (Caddy) / auth provider (P11)
@@ -658,3 +677,25 @@ class TestBrandingConfig:
         # An old config with only the original 3 fields still validates.
         b = vc.BrandingConfig(app_name="X", primary_color="#fff", logo_url="l")
         assert b.tagline == "" and b.supported_locales == ["en", "fr", "es"]
+
+
+class TestDeployTargetSeam:
+    """deploy.tier/target (P0 infra multi-target design) — retro-compatible seam."""
+
+    def test_deploy_defaults_to_k3s_when_absent(
+        self, minimal_valid_config: dict
+    ) -> None:
+        # Retro-compat: a config without a `deploy` section stays valid, tier=k3s.
+        minimal_valid_config.pop("deploy", None)
+        parsed = vc.DeployConfig(**minimal_valid_config)
+        assert parsed.deploy.tier == "k3s"
+        assert parsed.deploy.target == "onprem"
+
+    def test_deploy_tier_rejects_unknown_value(
+        self, minimal_valid_config: dict
+    ) -> None:
+        import pydantic
+
+        minimal_valid_config["deploy"] = {"tier": "kubernetes"}
+        with pytest.raises(pydantic.ValidationError):
+            vc.DeployConfig(**minimal_valid_config)

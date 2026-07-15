@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -26,8 +27,7 @@ import {
 
 // Keys with a dedicated, friendlier editor elsewhere — editing them raw here works
 // (parity) but we hint the operator toward the curated surface.
-const CURATED = ["branding.", "ai.routing", "ai.providers"];
-const isCurated = (key: string) => CURATED.some((p) => key === p || key.startsWith(p));
+import { curatedHref, isCurated } from "./curated";
 
 export default function ConfigPage() {
   const t = useTranslations("configuration");
@@ -257,7 +257,12 @@ function SettingForm({ mode, initial, existingKeys, readOnly, onClose, onSaved }
     <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); if (!readOnly) save.mutate(); }}>
       {isCurated(key) && (
         <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-          {t("curated_note")}
+          {t("curated_note")}{" "}
+          {curatedHref(key) && (
+            <Link href={curatedHref(key)!} className="font-medium underline underline-offset-2 hover:text-amber-800 dark:hover:text-amber-300">
+              {t("curated_link")}
+            </Link>
+          )}
         </p>
       )}
       <div className="space-y-1.5">

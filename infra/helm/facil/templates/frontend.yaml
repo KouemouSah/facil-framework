@@ -1,0 +1,78 @@
+{{- if .Values.frontend.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "frontend") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "frontend") | nindent 4 }}
+  ports:
+    - port: {{ .Values.frontend.port }}
+      targetPort: {{ .Values.frontend.port }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "frontend") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.frontend.replicas }}
+  selector:
+    matchLabels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "frontend") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "frontend") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false   # aucun pod n'appelle l'API k8s
+      {{- include "facil.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001    # uid/gid "nextjs:nodejs" créés dans packages/web/Dockerfile
+        runAsGroup: 1001   # sans lui le GID primaire retombe à 0 (défaut k8s)
+        # fsGroup requis pour l'emptyDir /app/.next/cache : verifie par execution
+        # reelle (helm template + docker --tmpfs, requete HTTP reelle contre un
+        # backend stub). Le montage est cree root:root, mode 0755 herite du
+        # repertoire pre-existant (chown nextjs:nodejs au build, mais l'owner est
+        # reinitialise a root par le montage) -- SANS fsGroup, Next journalise
+        # "Failed to update prerender cache ... EACCES" a CHAQUE rendu (le cache
+        # ISR/fetch ne fonctionne jamais, silencieusement degrade, pas un crash
+        # mais un echec silencieux couvert par CLAUDE.md/silent-failure-hunter).
+        fsGroup: 1001
+        seccompProfile: { type: RuntimeDefault }   # requis par le profil PSS restricted
+      containers:
+        - name: frontend
+          image: ghcr.io/{{ .Values.global.owner }}/facil-web:{{ .Values.global.imageTag }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources: {{- toYaml .Values.resources.app | nindent 12 }}
+          env:
+            # Sans ce PORT, packages/web/Dockerfile:27 bake PORT=3000 dans
+            # l'image -- surcharger frontend.port (ex. 3001) changerait le
+            # Service (port + targetPort) et cette Deployment (containerPort)
+            # mais le process Next standalone continuerait d'ecouter sur 3000 :
+            # panne silencieuse (connection refused, aucune erreur au deploy).
+            # Meme correctif deja applique au backend (backend.yaml) -- ici
+            # pour retablir la symetrie.
+            - name: PORT
+              value: {{ .Values.frontend.port | quote }}
+            - name: INTERNAL_API_URL
+              value: http://{{ include "facil.fullname" (dict "name" "backend") }}:{{ .Values.backend.port }}
+          ports:
+            - containerPort: {{ .Values.frontend.port }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: next-cache
+              mountPath: /app/.next/cache   # Next standalone y ecrit le cache ISR (readOnlyRootFilesystem)
+          readinessProbe:
+            httpGet: { path: /, port: {{ .Values.frontend.port }} }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: next-cache
+          emptyDir: {}
+{{- end }}
