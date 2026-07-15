@@ -36,4 +36,16 @@ describe("rulesToZod", () => {
   it("accepts an empty value when optional", () => {
     expect(rulesToZod(spec({})).safeParse("").success).toBe(true);
   });
+
+  it("number step: rejects non-multiples, accepts multiples", () => {
+    const s = rulesToZod({ key: "q", type: "number", rules: { step: 5 } } as FieldSpec);
+    expect(s.safeParse("7").success).toBe(false);
+    expect(s.safeParse("10").success).toBe(true);
+  });
+
+  it("date min (static ISO): rejects earlier dates", () => {
+    const s = rulesToZod({ key: "d", type: "date", rules: { min: "2026-01-01" } } as FieldSpec);
+    expect(s.safeParse("2025-12-31").success).toBe(false);
+    expect(s.safeParse("2026-06-01").success).toBe(true);
+  });
 });

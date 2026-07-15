@@ -21,12 +21,17 @@ export interface Condition {
 }
 
 export interface FieldRules {
-  min?: number;
-  max?: number;
+  min?: number | string;   // numeric OR date ISO/token ("today"/"now")
+  max?: number | string;
   min_length?: number;
   max_length?: number;
   pattern?: string;
-  precision?: number;
+  precision?: number;      // decimal: max decimal places (now enforced)
+  step?: number;           // number/decimal: multiple-of
+  min_items?: number;      // multiselect
+  max_items?: number;      // multiselect
+  must_be_true?: boolean;  // boolean
+  allowed_extensions?: string[]; // file
   visible_if?: Condition;
   required_if?: Condition;
 }

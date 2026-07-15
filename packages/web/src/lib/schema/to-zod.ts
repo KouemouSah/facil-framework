@@ -16,12 +16,31 @@ export function rulesToZod(spec: FieldSpec): z.ZodTypeAny {
       .string()
       .refine((v) => v === "" || !Number.isNaN(Number(v)), `${label} must be a number`);
     if (r.min !== undefined)
-      s = s.refine((v) => v === "" || Number(v) >= r.min!, `${label} must be ≥ ${r.min}`);
+      s = s.refine((v) => v === "" || Number(v) >= Number(r.min), `${label} must be ≥ ${r.min}`);
     if (r.max !== undefined)
-      s = s.refine((v) => v === "" || Number(v) <= r.max!, `${label} must be ≤ ${r.max}`);
+      s = s.refine((v) => v === "" || Number(v) <= Number(r.max), `${label} must be ≤ ${r.max}`);
+    if (r.step !== undefined)
+      s = s.refine((v) => v === "" || Number(v) % r.step! === 0, `${label} must be a multiple of ${r.step}`);
+    if (r.precision !== undefined)
+      s = s.refine((v) => v === "" || (v.split(".")[1]?.length ?? 0) <= r.precision!,
+        `${label}: at most ${r.precision} decimal places`);
     if (spec.required)
       s = s.refine((v) => v !== "", `${label} is required`);
     return s;
+  }
+
+  if (spec.type === "date" || spec.type === "datetime" || spec.type === "time") {
+    const resolve = (b: number | string): string =>
+      b === "today" ? new Date().toISOString().slice(0, 10)
+        : b === "now" ? new Date().toISOString().slice(0, 19)
+        : String(b);
+    let d: z.ZodTypeAny = z.string();
+    if (r.min !== undefined)
+      d = d.refine((v) => v === "" || v >= resolve(r.min!), `${label} must be ≥ ${r.min}`);
+    if (r.max !== undefined)
+      d = d.refine((v) => v === "" || v <= resolve(r.max!), `${label} must be ≤ ${r.max}`);
+    if (spec.required) d = d.refine((v) => v !== "", `${label} is required`);
+    return d;
   }
 
   let s = z.string();
