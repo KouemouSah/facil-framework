@@ -193,12 +193,15 @@ def test_date_min_static_iso():
 
 
 def test_date_max_today_token(monkeypatch):
-    monkeypatch.setattr(pg, "_today_utc", lambda: _dt.date(2026, 7, 15))
+    # Fixed date that can never coincide with the real wall-clock date, so the
+    # test proves the code resolves `today` via the patchable `pg._today_utc()`
+    # rather than calling the real clock directly.
+    monkeypatch.setattr(pg, "_today_utc", lambda: _dt.date(2020, 6, 15))
     specs = [field("birth", L, type="date", rules={"max": "today"})]
     with pytest.raises(SchemaViolation) as e:
-        validate_blob(specs, {"birth": "2026-07-16"})  # future
+        validate_blob(specs, {"birth": "2020-06-16"})  # future relative to patched today
     assert "≤ today" in e.value.errors[0]["msg"]
-    assert validate_blob(specs, {"birth": "2026-07-15"}) == {"birth": "2026-07-15"}
+    assert validate_blob(specs, {"birth": "2020-06-15"}) == {"birth": "2020-06-15"}
 
 
 def test_multiselect_item_count_bounds():
