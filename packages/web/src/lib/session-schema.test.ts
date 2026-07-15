@@ -32,6 +32,22 @@ describe("parseSession", () => {
     const s = parseSession({ authenticated: true, account: { id: "a", email: "x@y.z", email_verified: false } });
     expect(s.account?.email_verified).toBe(false);
   });
+
+  it("accepts null email / display_name / account_number (backend nullable columns)", () => {
+    // Regression: `/auth/me` sends `null` (not omission) for these — an
+    // admin-created account has display_name null, an email-less / NIU-pending
+    // account has email / account_number null. Under the old `.optional()`
+    // (string | undefined), a `null` FAILED the parse, so parseSession returned
+    // its fail-safe `{authenticated:false}` and the shell bounced a fully
+    // authenticated user to /login (silently — no console error).
+    const s = parseSession({
+      authenticated: true,
+      account: { id: "a1", email: null, display_name: null, account_number: null, email_verified: false },
+    });
+    expect(s.authenticated).toBe(true);
+    expect(s.account?.id).toBe("a1");
+    expect(s.account?.display_name).toBeNull();
+  });
 });
 
 describe("needsEmailVerification", () => {
