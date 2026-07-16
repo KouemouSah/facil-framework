@@ -15,8 +15,13 @@ import asyncio
 import os
 
 import boto3
+from botocore.exceptions import ClientError
 
 from app.core.providers.base import StorageProvider, cfg
+
+_ABSENT_BUCKET_CODES = {"404", "NoSuchBucket", "NotFound"}
+# Course multi-replica : create_bucket perdant la course -> deja possede = succes idempotent.
+_ALREADY_OWNED_CODES = {"BucketAlreadyOwnedByYou", "BucketAlreadyExists"}
 
 
 class S3StorageProvider(StorageProvider):
@@ -76,6 +81,26 @@ class S3StorageProvider(StorageProvider):
         def _del() -> None:
             self._s3().delete_object(Bucket=self._bucket, Key=key)
         await asyncio.to_thread(_del)
+
+    async def ensure_bucket(self, bucket: str) -> None:
+        def _ensure() -> None:
+            s3 = self._s3()
+            try:
+                s3.head_bucket(Bucket=bucket)
+                return  # already exists
+            except ClientError as e:
+                if e.response.get("Error", {}).get("Code") not in _ABSENT_BUCKET_CODES:
+                    raise  # a real error (AccessDenied, connectivity) — surface it
+            kw: dict = {"Bucket": bucket}
+            # AWS requires a LocationConstraint for every region except us-east-1.
+            if self._region and self._region != "us-east-1":
+                kw["CreateBucketConfiguration"] = {"LocationConstraint": self._region}
+            try:
+                s3.create_bucket(**kw)
+            except ClientError as e:
+                if e.response.get("Error", {}).get("Code") not in _ALREADY_OWNED_CODES:
+                    raise  # not the benign create race — surface it
+        await asyncio.to_thread(_ensure)
 
     async def healthcheck(self) -> dict:
         def _check() -> dict:

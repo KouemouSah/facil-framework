@@ -14,8 +14,14 @@ import os
 
 import boto3
 from botocore.config import Config
+from botocore.exceptions import ClientError
 
 from app.core.providers.base import StorageProvider, cfg
+
+_ABSENT_BUCKET_CODES = {"404", "NoSuchBucket", "NotFound"}
+# Course multi-replica : head_bucket->404 sur deux replicas, le 2e create_bucket perd
+# la course -> deja possede = succes idempotent, pas une erreur.
+_ALREADY_OWNED_CODES = {"BucketAlreadyOwnedByYou", "BucketAlreadyExists"}
 
 
 class MinIOStorageProvider(StorageProvider):
@@ -75,6 +81,22 @@ class MinIOStorageProvider(StorageProvider):
         def _del() -> None:
             self._s3().delete_object(Bucket=self._bucket, Key=key)
         await asyncio.to_thread(_del)
+
+    async def ensure_bucket(self, bucket: str) -> None:
+        def _ensure() -> None:
+            s3 = self._s3()
+            try:
+                s3.head_bucket(Bucket=bucket)
+                return  # already exists
+            except ClientError as e:
+                if e.response.get("Error", {}).get("Code") not in _ABSENT_BUCKET_CODES:
+                    raise  # a real error (perms, connectivity) — surface it
+            try:
+                s3.create_bucket(Bucket=bucket)  # MinIO ignores region/location
+            except ClientError as e:
+                if e.response.get("Error", {}).get("Code") not in _ALREADY_OWNED_CODES:
+                    raise  # not the benign create race — surface it
+        await asyncio.to_thread(_ensure)
 
     async def healthcheck(self) -> dict:
         def _check() -> dict:

@@ -85,6 +85,14 @@ class StorageProvider(Provider):
     @abstractmethod
     async def delete(self, key: str) -> None: ...
 
+    async def ensure_bucket(self, bucket: str) -> None:
+        """Create `bucket` if absent (idempotent) — used by the module-resource
+        reconciler to provision a module's declared buckets against the active
+        provider. Bucketed backends (minio, s3) override this. Default: unsupported,
+        so a non-bucketed backend is surfaced explicitly, never silently skipped."""
+        raise NotImplementedError(
+            f"{type(self).__name__} does not support bucket provisioning")
+
 
 class LLMProvider(Provider):
     capability = "llm"
