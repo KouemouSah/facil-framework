@@ -872,6 +872,7 @@
     },
     "add_shift": "Add shift",
     "remove_shift": "Remove shift",
+    "from": "From",
     "to": "To",
     "quick_fill": "Quick fill",
     "apply": "Apply",
@@ -884,7 +885,8 @@
     "mode": {
       "closed": "Closed",
       "h24": "Open 24h",
-      "custom": "Custom hours"
+      "custom": "Custom hours",
+      "label": "Mode"
     },
     "tz_note": "Times are in the site's local timezone."
   },

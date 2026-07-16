@@ -872,6 +872,7 @@
     },
     "add_shift": "Ajouter un créneau",
     "remove_shift": "Retirer le créneau",
+    "from": "De",
     "to": "À",
     "quick_fill": "Remplissage rapide",
     "apply": "Appliquer",
@@ -884,7 +885,8 @@
     "mode": {
       "closed": "Fermé",
       "h24": "Ouvert 24h/24",
-      "custom": "Horaires personnalisés"
+      "custom": "Horaires personnalisés",
+      "label": "Mode"
     },
     "tz_note": "Les horaires sont exprimés dans le fuseau horaire local du site."
   },

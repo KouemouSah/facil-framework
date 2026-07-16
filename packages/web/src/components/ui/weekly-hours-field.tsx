@@ -18,10 +18,12 @@ function modeOf(d: DaySchedule | undefined): Mode {
   if ("h24" in d) return "h24";
   return "custom";
 }
-function daySchedule(mode: Mode, prev: DaySchedule | undefined): DaySchedule {
+function daySchedule(mode: Mode, prev: DaySchedule | undefined, lastRanges?: string[]): DaySchedule {
   if (mode === "closed") return { closed: true };
   if (mode === "h24") return { h24: true };
-  return prev && "ranges" in prev && prev.ranges.length ? prev : { ranges: ["09:00-17:00"] };
+  if (prev && "ranges" in prev && prev.ranges.length) return prev;
+  if (lastRanges && lastRanges.length) return { ranges: lastRanges };
+  return { ranges: ["09:00-17:00"] };
 }
 function splitRange(r: string) { const [from, to] = r.split("-"); return { from: from ?? "", to: to ?? "" }; }
 
@@ -50,9 +52,31 @@ export function WeeklyHoursField({ id, label, value, hint, disabled, onChange }:
 }) {
   const t = useTranslations("weekly_hours");
   const [oh, setOh] = useState<OperatingHours>(() => normalize(value));
+  // Per-day shadow of the last non-empty custom ranges, so switching a day to
+  // Closed/24h and back to Custom restores what the user entered instead of
+  // resetting to the hardcoded default. UI-only — never serialized via onChange.
+  const [lastRanges, setLastRanges] = useState<Partial<Record<Day, string[]>>>(() => {
+    const init: Partial<Record<Day, string[]>> = {};
+    for (const day of DAYS) {
+      const d = oh.weekly[day];
+      if (d && "ranges" in d && d.ranges.length) init[day] = d.ranges;
+    }
+    return init;
+  });
   const [qf, setQf] = useState({ from: "09:00", to: "17:00", target: "weekdays" as Target });
 
-  function commit(next: OperatingHours) { setOh(next); onChange(next, isValid(next)); }
+  function commit(next: OperatingHours) {
+    setOh(next);
+    setLastRanges((p) => {
+      let changed = false; const upd = { ...p };
+      for (const day of DAYS) {
+        const d = next.weekly[day];
+        if (d && "ranges" in d && d.ranges.length) { upd[day] = d.ranges; changed = true; }
+      }
+      return changed ? upd : p;
+    });
+    onChange(next, isValid(next));
+  }
   function setDay(day: Day, d: DaySchedule) { commit({ ...oh, weekly: { ...oh.weekly, [day]: d } }); }
   function setRange(day: Day, idx: number, part: "from" | "to", v: string) {
     const cur = oh.weekly[day]; if (!cur || !("ranges" in cur)) return;
@@ -78,14 +102,14 @@ export function WeeklyHoursField({ id, label, value, hint, disabled, onChange }:
       {/* Quick fill */}
       <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2 text-sm">
         <span className="text-xs font-medium text-muted-foreground">{t("quick_fill")}</span>
-        <input type="time" value={qf.from} disabled={disabled}
+        <input type="time" value={qf.from} disabled={disabled} aria-label={t("from")}
           onChange={(e) => setQf({ ...qf, from: e.target.value })}
           className="h-8 rounded-md border border-input bg-background px-2 text-xs" />
         <span className="text-xs">{t("to")}</span>
-        <input type="time" value={qf.to} disabled={disabled}
+        <input type="time" value={qf.to} disabled={disabled} aria-label={t("to")}
           onChange={(e) => setQf({ ...qf, to: e.target.value })}
           className="h-8 rounded-md border border-input bg-background px-2 text-xs" />
-        <select value={qf.target} disabled={disabled}
+        <select value={qf.target} disabled={disabled} aria-label={t("quick_fill")}
           onChange={(e) => setQf({ ...qf, target: e.target.value as Target })}
           className="h-8 rounded-md border border-input bg-background px-2 text-xs">
           {TARGETS.map((tg) => <option key={tg} value={tg}>{t(`target.${tg}`)}</option>)}
@@ -104,7 +128,8 @@ export function WeeklyHoursField({ id, label, value, hint, disabled, onChange }:
               <div className="flex flex-col gap-1 pt-1">
                 <span className="font-medium">{t(`day.${day}`)}</span>
                 <select value={mode} disabled={disabled}
-                  onChange={(e) => setDay(day, daySchedule(e.target.value as Mode, d))}
+                  aria-label={`${t(`day.${day}`)} — ${t("mode.label")}`}
+                  onChange={(e) => setDay(day, daySchedule(e.target.value as Mode, d, lastRanges[day]))}
                   className="h-7 rounded-md border border-input bg-background px-1 text-xs">
                   <option value="closed">{t("mode.closed")}</option>
                   <option value="h24">{t("mode.h24")}</option>
@@ -120,11 +145,11 @@ export function WeeklyHoursField({ id, label, value, hint, disabled, onChange }:
                     const bad = !isRangeValid(r) || ranges.some((o, i) => i !== idx && rangesOverlap(r, o));
                     return (
                       <div key={idx} className="flex items-center gap-1.5">
-                        <input type="time" value={from} disabled={disabled}
+                        <input type="time" value={from} disabled={disabled} aria-label={t("from")}
                           onChange={(e) => setRange(day, idx, "from", e.target.value)}
                           className={cn("h-8 rounded-md border bg-background px-2 text-xs", bad ? "border-destructive" : "border-input")} />
                         <span className="text-xs text-muted-foreground">{t("to")}</span>
-                        <input type="time" value={to} disabled={disabled}
+                        <input type="time" value={to} disabled={disabled} aria-label={t("to")}
                           onChange={(e) => setRange(day, idx, "to", e.target.value)}
                           className={cn("h-8 rounded-md border bg-background px-2 text-xs", bad ? "border-destructive" : "border-input")} />
                         {!disabled && (
@@ -140,7 +165,7 @@ export function WeeklyHoursField({ id, label, value, hint, disabled, onChange }:
                     <div className="flex items-center gap-2">
                       <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs"
                         onClick={() => addRange(day)}><Plus className="size-3.5" /> {t("add_shift")}</Button>
-                      <select disabled={disabled} defaultValue=""
+                      <select disabled={disabled} defaultValue="" aria-label={t("copy_to")}
                         onChange={(e) => { if (e.target.value) { commit(copyDay(oh, day, e.target.value as Target)); e.target.value = ""; } }}
                         className="h-7 rounded-md border border-input bg-background px-1 text-xs text-muted-foreground">
                         <option value="">{t("copy_to")}</option>
