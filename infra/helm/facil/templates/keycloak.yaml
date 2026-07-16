@@ -1,0 +1,89 @@
+{{- if .Values.keycloak.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "keycloak") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "keycloak") | nindent 4 }}
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "keycloak") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "keycloak") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "keycloak") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000           # keycloak -- l'UID de l'image officielle quay.io/keycloak
+        # fsGroup : l'augmentation Quarkus + la base H2 (start-dev) ecrivent dans
+        # /opt/keycloak, monte en emptyDir writable ; le kubelet chown g+w ce GID.
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      # start-dev lance une AUGMENTATION Quarkus qui ECRIT dans son propre repertoire
+      # d'install (/opt/keycloak/lib/quarkus) -> incompatible avec un rootfs read-only
+      # (PROUVE par apply : le boot fige sur "installing custom providers"). On garde
+      # l'image STOCK + readOnlyRootFilesystem:true en seedant /opt/keycloak dans un
+      # emptyDir writable via un initContainer (meme pattern generique que pour tout
+      # service qui ecrit dans son install). Pas d'image custom, pas d'exemption de garde.
+      initContainers:
+        - name: seed-home
+          image: {{ .Values.keycloak.image }}
+          # Seed /opt/keycloak dans l'emptyDir writable. `cp -r` (prouve par apply :
+          # pod Ready en readOnly:true) : preserve les bits de mode (kc.sh executable)
+          # sans buter sur les timestamps de la racine du mount (`cp -a` echoue en
+          # "Operation not permitted" ; `tar` absent de l'image UBI-minimal).
+          # COMPROMIS ASSUME : `cp -r` reset les mtimes -> start-dev RE-AUGMENTE Quarkus
+          # a chaque boot (~5 min). Acceptable pour ce scaffold NON-PROD (start-dev/H2,
+          # redemarrages rares). Boot rapide + prod = IMAGE OPTIMIZED (`kc.sh build`
+          # cuit -> `start --optimized`, pattern officiel Keycloak), a livrer quand
+          # Keycloak quittera le scaffold (realm/persistence, phases ulterieures).
+          command: ["sh", "-c", "cp -r /opt/keycloak/. /home-rw/"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true      # ne lit que l'image, n'ecrit que le mount
+            capabilities: { drop: ["ALL"] }
+          resources: {{- toYaml .Values.resources.small | nindent 12 }}
+          volumeMounts:
+            - { name: kchome, mountPath: /home-rw }
+      containers:
+        - name: keycloak
+          image: {{ .Values.keycloak.image }}
+          args: ["start-dev"]     # H2 in-memory, NON-PROD (realm/AD/persistence = phases ult.)
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true      # /opt/keycloak = emptyDir seede (writable)
+            capabilities: { drop: ["ALL"] }
+          resources: {{- toYaml .Values.resources.app | nindent 12 }}
+          env:
+            - { name: KC_BOOTSTRAP_ADMIN_USERNAME, value: {{ .Values.keycloak.adminUser | quote }} }
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretNames.keycloak }}
+                  key: KEYCLOAK_ADMIN_PASSWORD
+          ports:
+            - { name: http, containerPort: 8080 }
+          volumeMounts:
+            - { name: kchome, mountPath: /opt/keycloak }   # install seede + writable (augmentation + H2)
+            - { name: tmp, mountPath: /tmp }
+          readinessProbe:
+            httpGet: { path: /realms/master, port: 8080 }   # 200 quand l'IdP est servi
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            failureThreshold: 24
+      volumes:
+        - { name: kchome, emptyDir: {} }
+        - { name: tmp, emptyDir: {} }
+{{- end }}

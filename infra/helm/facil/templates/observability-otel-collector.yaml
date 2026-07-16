@@ -1,0 +1,108 @@
+{{- if .Values.observability.otelCollector.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "otel-collector") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc: { endpoint: 0.0.0.0:4317 }
+          http: { endpoint: 0.0.0.0:4318 }
+    extensions:
+      health_check: { endpoint: 0.0.0.0:13133 }
+    exporters:
+      # Expose les metriques OTLP recues au format Prometheus ; Prometheus scrape
+      # cet endpoint (8889).
+      prometheus:
+        endpoint: 0.0.0.0:8889
+      {{- if .Values.observability.loki.enabled }}
+      # Logs -> Loki via son endpoint OTLP natif (Loki 3.x).
+      otlphttp/loki:
+        logs_endpoint: http://{{ include "facil.fullname" (dict "name" "loki") }}:3100/otlp/v1/logs
+      {{- end }}
+      {{- if .Values.observability.tempo.enabled }}
+      # Traces -> Tempo via OTLP gRPC (intra-cluster, tls insecure).
+      otlp/tempo:
+        endpoint: {{ include "facil.fullname" (dict "name" "tempo") }}:4317
+        tls: { insecure: true }
+      {{- end }}
+    service:
+      extensions: [health_check]
+      pipelines:
+        metrics:
+          receivers: [otlp]
+          exporters: [prometheus]
+        {{- if .Values.observability.loki.enabled }}
+        logs:
+          receivers: [otlp]
+          exporters: [otlphttp/loki]
+        {{- end }}
+        {{- if .Values.observability.tempo.enabled }}
+        traces:
+          receivers: [otlp]
+          exporters: [otlp/tempo]
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "otel-collector") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "otel-collector") | nindent 4 }}
+  ports:
+    - { name: otlp-grpc, port: 4317, targetPort: 4317 }
+    - { name: otlp-http, port: 4318, targetPort: 4318 }
+    - { name: prom-exporter, port: 8889, targetPort: 8889 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "otel-collector") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "otel-collector") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "otel-collector") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001          # nonroot -- l'UID de l'image officielle otelcol-contrib
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: otel-collector
+          image: {{ .Values.observability.otelCollector.image }}
+          args: ["--config=/etc/otelcol/config.yaml"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true      # binaire Go + config RO ; rien a ecrire hors /tmp
+            capabilities: { drop: ["ALL"] }
+          resources: {{- toYaml .Values.resources.observability | nindent 12 }}
+          ports:
+            - { name: otlp-grpc, containerPort: 4317 }
+            - { name: otlp-http, containerPort: 4318 }
+            - { name: prom-exporter, containerPort: 8889 }
+            - { name: health, containerPort: 13133 }
+          volumeMounts:
+            - { name: config, mountPath: /etc/otelcol }
+            - { name: tmp, mountPath: /tmp }
+          readinessProbe:
+            httpGet: { path: /, port: 13133 }   # extension health_check
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 6
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "facil.fullname" (dict "name" "otel-collector") }}
+        - name: tmp
+          emptyDir: {}
+{{- end }}

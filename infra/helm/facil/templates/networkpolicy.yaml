@@ -69,6 +69,13 @@ spec:
         - podSelector:
             matchLabels:
               facil.component: frontend
+        {{- if .Values.observability.prometheus.enabled }}
+        # Prometheus scrape le backend sur /metrics (meme port applicatif). Sans
+        # cette source, la cible est DOWN en silence (default-deny).
+        - podSelector:
+            matchLabels:
+              facil.component: prometheus
+        {{- end }}
         {{- if .Values.ingress.enabled }}
         # Traefik (ingress controller de k3s) vit dans kube-system : necessaire
         # uniquement si l'Ingress (tache H3) route certains chemins directement
@@ -97,4 +104,148 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: kube-system
+{{- if .Values.observability.prometheus.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "allow-prometheus-queries") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  # Prometheus n'accepte QUE Grafana (PromQL 9090) + kube-system (Ingress/port-forward).
+  # Il SCRAPE ses cibles via son egress (ouvert) ; ceci ne concerne que son ingress.
+  podSelector:
+    matchLabels:
+      facil.component: prometheus
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              facil.component: grafana
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - { protocol: TCP, port: 9090 }
+{{- end }}
+{{- if .Values.observability.otelCollector.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "allow-otel-collector") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  # Le collector accepte : l'OTLP du backend (4317/4318) + le scrape Prometheus de
+  # son exporter (8889). Il exporte via son egress (ouvert).
+  podSelector:
+    matchLabels:
+      facil.component: otel-collector
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              facil.component: backend
+      ports:
+        - { protocol: TCP, port: 4317 }
+        - { protocol: TCP, port: 4318 }
+    - from:
+        - podSelector:
+            matchLabels:
+              facil.component: prometheus
+      ports:
+        - { protocol: TCP, port: 8889 }
+{{- end }}
+{{- if .Values.observability.grafana.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "allow-grafana-ui") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  # Grafana n'accepte que l'UI (3000) via Traefik/kube-system (Ingress/port-forward).
+  # Il interroge Prometheus/Loki/Tempo via son egress (ouvert).
+  podSelector:
+    matchLabels:
+      facil.component: grafana
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - { protocol: TCP, port: 3000 }
+{{- end }}
+{{- if .Values.observability.loki.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "allow-loki") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  # Loki accepte : l'ingest de logs du collector + les requetes de Grafana (3100).
+  podSelector:
+    matchLabels:
+      facil.component: loki
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { facil.component: otel-collector } }
+        - podSelector: { matchLabels: { facil.component: grafana } }
+      ports:
+        - { protocol: TCP, port: 3100 }
+{{- end }}
+{{- if .Values.observability.tempo.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "allow-tempo") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  # Tempo accepte : l'ingest OTLP du collector (4317) + les requetes Grafana (3200).
+  podSelector:
+    matchLabels:
+      facil.component: tempo
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { facil.component: otel-collector } }
+      ports:
+        - { protocol: TCP, port: 4317 }
+    - from:
+        - podSelector: { matchLabels: { facil.component: grafana } }
+      ports:
+        - { protocol: TCP, port: 3200 }
+{{- end }}
+{{- if .Values.keycloak.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "allow-keycloak") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  # Keycloak accepte : le backend (echange de token OIDC / JWKS) + kube-system
+  # (l'UI de login via Traefik/Ingress). Tout sur 8080.
+  podSelector:
+    matchLabels:
+      facil.component: keycloak
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              facil.component: backend
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - { protocol: TCP, port: 8080 }
+{{- end }}
 {{- end }}
