@@ -44,6 +44,11 @@ RUNTIME_SECRETS = ("POSTGRES_PASSWORD", "REDIS_PASSWORD", "MINIO_ROOT_PASSWORD",
                    # the keycloak provisioner reads it). Auto-generated so prod
                    # never falls back to the weak `:-admin` compose default.
                    "KEYCLOAK_ADMIN_PASSWORD",
+                   # Grafana admin password (observabilite opt-in, meme logique que
+                   # Keycloak) : genere pour que le Secret facil-grafana-secret existe
+                   # des que grafana est deploye — sinon son secretKeyRef non-optional
+                   # bloque le pod. Jamais le defaut `admin`.
+                   "GF_SECURITY_ADMIN_PASSWORD",
                    # OpenBao dev root token — the keystone credential. Auto-generated
                    # so it is NEVER the guessable literal `root` (SEC-001).
                    "OPENBAO_DEV_ROOT_TOKEN",

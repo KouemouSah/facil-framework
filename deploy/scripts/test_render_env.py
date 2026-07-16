@@ -217,6 +217,27 @@ class TestEndToEnd:
         # env_overrides block is present (with default "no overrides" comment).
         assert "no env_overrides" in text
 
+    def test_backend_template_emits_provider_defaults(
+        self, cfg: vc.DeployConfig
+    ) -> None:
+        # Phase 1: the config-declared provider defaults are rendered to env so the
+        # backend boot seed (seed_default_providers) can enroll them without a manual
+        # admin entry. Both fields are defaulted in DeployConfig -> never missing.
+        template_path = re_mod.TEMPLATES_DIR / "env.backend.template"
+        text, missing = re_mod.render_backend(cfg, template_path)
+        assert missing == [], f"Unresolved placeholders: {missing}"
+        assert "STORAGE_PROVIDER=minio" in text       # storage.provider default
+        assert "EMAIL_PROVIDER=disabled" in text      # email.provider default
+
+    def test_email_provider_rendered_when_configured(
+        self, minimal_config: dict
+    ) -> None:
+        minimal_config["email"] = {"provider": "smtp"}
+        cfg = vc.DeployConfig.model_validate(minimal_config)
+        template_path = re_mod.TEMPLATES_DIR / "env.backend.template"
+        text, _ = re_mod.render_backend(cfg, template_path)
+        assert "EMAIL_PROVIDER=smtp" in text
+
     def test_web_template_renders_without_missing(
         self, cfg: vc.DeployConfig
     ) -> None:

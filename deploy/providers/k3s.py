@@ -83,6 +83,7 @@ def render_values(cfg: vc.DeployConfig) -> dict:
     seuls les noms des k8s Secret (crees hors Helm, un par composant — SEC-001)
     sont references, et ils matchent deja les defauts de values.yaml::secretNames
     donc aucun --set n'est necessaire pour eux."""
+    obs_on = cfg.observability.mode == "local"
     return {
         "global": {"imageTag": cfg.meta.version},
         "postgres": {
@@ -105,6 +106,22 @@ def render_values(cfg: vc.DeployConfig) -> dict:
             "modulesEnabled": ",".join(cfg.modules.enabled),
         },
         "frontend": {"port": cfg.docker_local.frontend_port},
+        # Observabilite self-hosted (composants separes) — n'active un composant que
+        # si observability.mode=local ET self_hosted.<c>. Parite config.yaml -> Helm ;
+        # toggle par composant (le nesting 3-niveaux passe grace a _set_args recursif).
+        # Keycloak (IdP OIDC) — gated par auth.keycloak.enabled (parite compose profil `auth`).
+        "keycloak": {
+            "enabled": cfg.auth.keycloak.enabled,
+            "image": cfg.auth.keycloak.image,
+            "adminUser": cfg.auth.keycloak.admin_user,
+        },
+        "observability": {
+            "prometheus": {"enabled": obs_on and cfg.observability.self_hosted.prometheus},
+            "otelCollector": {"enabled": obs_on and cfg.observability.self_hosted.otel_collector},
+            "grafana": {"enabled": obs_on and cfg.observability.self_hosted.grafana},
+            "loki": {"enabled": obs_on and cfg.observability.self_hosted.loki},
+            "tempo": {"enabled": obs_on and cfg.observability.self_hosted.tempo},
+        },
     }
 
 
@@ -139,6 +156,10 @@ def build_secret_literals(env_secrets: dict[str, str], *, cfg: vc.DeployConfig
         out["backend"]["BACKEND_DATABASE_URL"] = backend_database_url(cfg, app_pw)
     # Le Job db-role a besoin du superuser (pour CREATE ROLE) ET du mdp applicatif.
     out["db-role"] = pick("POSTGRES_PASSWORD", "FACIL_APP_PASSWORD")
+    # Grafana (observabilite opt-in) : mot de passe admin dedie, jamais partage.
+    out["grafana"] = pick("GF_SECURITY_ADMIN_PASSWORD")
+    # Keycloak (auth opt-in) : mot de passe admin bootstrap dedie.
+    out["keycloak"] = pick("KEYCLOAK_ADMIN_PASSWORD")
     return {k: v for k, v in out.items() if v}
 
 
@@ -262,6 +283,9 @@ def _escape_set_value(v: object) -> str:
 # resterait tout aussi coercible).
 _STRING_KEYS = {"global.imageTag", "postgres.image", "postgres.db", "postgres.user",
                 "redis.image", "minio.rootUser", "backend.modulesEnabled",
+                # keycloak.image emis par render_values : meme protection SEC-017 que
+                # postgres.image/redis.image (un tag purement numerique serait coerce).
+                "keycloak.image", "keycloak.adminUser",
                 "secretNames.postgres", "secretNames.redis", "secretNames.minio",
                 "secretNames.openbao", "secretNames.backend", "secretNames.dbRole"}
 
@@ -277,13 +301,23 @@ def _set_args(values: dict) -> list[str]:
     QUE des chiffres casserait la reference d'image rendue.
     """
     args: list[str] = []
-    for section, sub in values.items():
-        items = sub.items() if isinstance(sub, dict) else [(None, sub)]
-        for k, v in items:
-            path = f"{section}.{k}" if k is not None else section
-            flag = "--set-string" if path in _STRING_KEYS else "--set"
-            args += [flag, f"{path}={_escape_set_value(v)}"]
+    for path, v in _flatten_leaves(values):
+        flag = "--set-string" if path in _STRING_KEYS else "--set"
+        args += [flag, f"{path}={_escape_set_value(v)}"]
     return args
+
+
+def _flatten_leaves(values: dict, prefix: str = ""):
+    """(dotted_path, leaf_value) pour chaque feuille du dict, a PROFONDEUR
+    ARBITRAIRE. L'ancienne version 2-niveaux emettait `--set a.b={'c': ...}` pour
+    tout nesting a 3 niveaux (ex. observability.prometheus.enabled) -- casse. La
+    recursion aplatit proprement ; comportement identique a 2 niveaux (non-regression)."""
+    for k, v in values.items():
+        path = f"{prefix}.{k}" if prefix else k
+        if isinstance(v, dict):
+            yield from _flatten_leaves(v, path)
+        else:
+            yield path, v
 
 
 def main(argv: list[str] | None = None) -> int:
