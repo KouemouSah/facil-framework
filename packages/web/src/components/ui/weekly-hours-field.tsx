@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
-  DAYS, type Day, type DaySchedule, type OperatingHours, type Target,
+  DAYS, type Day, type DaySchedule, type OperatingHours, type Target, type Exception,
   normalize, applyQuickFill, copyDay, isValid, isRangeValid, rangesOverlap,
+  sortExceptions, MAX_EXCEPTIONS,
 } from "@/components/ui/weekly-hours";
 
 const TARGETS: Target[] = ["weekdays", "weekend", "all"];
@@ -31,16 +32,17 @@ function splitRange(r: string) { const [from, to] = r.split("-"); return { from:
  * Bespoke control for `type: "json", widget: "weekly_hours"` (spec §12 —
  * motivated by `Site.operating_hours`). WEEKLY section: quick-fill bar,
  * per-day mode select (Closed/24h/Custom), and a ranges editor (overnight
- * allowed) with per-day "copy to…". The EXCEPTIONS section is added on top
- * of this in a follow-up task; this component owns the weekly grid only.
+ * allowed) with per-day "copy to…". EXCEPTIONS section: a date-sorted list
+ * of overrides (Closed/24h/Custom + ranges) plus an "add exception" date
+ * picker that dedups client-side and respects `MAX_EXCEPTIONS`.
  *
  * Value/onChange mirror `JsonField` (`(value, valid) => void`) so it drops
  * into `RecordForm`'s existing json-field state (`jsonValues`/`jsonOk`)
- * without any change to that plumbing. Unlike the previous version, `valid`
- * is the REAL result of `isValid(next)` — a reversed/overlapping range (or,
- * once exceptions land, a duplicate/invalid exception date) now flows into
- * `jsonOk` and blocks save via `RecordForm.validate()`, mirroring the
- * backend validator (which remains the authority — this is the UX mirror).
+ * without any change to that plumbing. `valid` is the REAL result of
+ * `isValid(next)` — a reversed/overlapping range, or a duplicate/invalid
+ * exception date, flows into `jsonOk` and blocks save via
+ * `RecordForm.validate()`, mirroring the backend validator (which remains
+ * the authority — this is the UX mirror).
  */
 export function WeeklyHoursField({ id, label, value, hint, disabled, onChange }: {
   id: string;
@@ -64,6 +66,7 @@ export function WeeklyHoursField({ id, label, value, hint, disabled, onChange }:
     return init;
   });
   const [qf, setQf] = useState({ from: "09:00", to: "17:00", target: "weekdays" as Target });
+  const [excDupWarning, setExcDupWarning] = useState(false);
 
   function commit(next: OperatingHours) {
     setOh(next);
@@ -180,7 +183,84 @@ export function WeeklyHoursField({ id, label, value, hint, disabled, onChange }:
         })}
       </div>
 
-      {/* EXCEPTIONS section is added in Task 4, here. */}
+      {/* Exceptions */}
+      <div className="space-y-2 rounded-md border p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("exceptions.title")}</p>
+        {oh.exceptions.length === 0 && <p className="text-xs text-muted-foreground">{t("exceptions.none")}</p>}
+        {sortExceptions(oh.exceptions).map((e: Exception) => {
+          const mode = modeOf(e);
+          const eranges = "ranges" in e ? e.ranges : [];
+          const setException = (sched: DaySchedule) => {
+            const next = oh.exceptions.map((x) => (x.date === e.date ? { date: e.date, ...sched } : x));
+            commit({ ...oh, exceptions: next });
+          };
+          return (
+            <div key={e.date} className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="font-mono text-xs">{e.date}</span>
+              <select value={mode} disabled={disabled}
+                aria-label={`${e.date} — ${t("mode.label")}`}
+                onChange={(ev) => {
+                  const m = ev.target.value as Mode;
+                  const sched: DaySchedule =
+                    m === "closed" ? { closed: true } :
+                    m === "h24" ? { h24: true } :
+                    { ranges: eranges.length ? eranges : ["09:00-17:00"] };
+                  setException(sched);
+                }}
+                className="h-7 rounded-md border border-input bg-background px-1 text-xs">
+                <option value="closed">{t("mode.closed")}</option>
+                <option value="h24">{t("mode.h24")}</option>
+                <option value="custom">{t("mode.custom")}</option>
+              </select>
+              {mode === "custom" && eranges.map((r, idx) => {
+                const { from, to } = splitRange(r);
+                const bad = !isRangeValid(r) || eranges.some((o, i) => i !== idx && rangesOverlap(r, o));
+                return (
+                  <span key={idx} className="flex items-center gap-1">
+                    <input type="time" value={from} disabled={disabled} aria-label={t("from")}
+                      onChange={(ev) => {
+                        const s = splitRange(r); const nr = [...eranges];
+                        nr[idx] = `${ev.target.value || "00:00"}-${s.to || "00:00"}`;
+                        setException({ ranges: nr });
+                      }}
+                      className={cn("h-7 rounded-md border bg-background px-1 text-xs", bad ? "border-destructive" : "border-input")} />
+                    <span className="text-xs">{t("to")}</span>
+                    <input type="time" value={to} disabled={disabled} aria-label={t("to")}
+                      onChange={(ev) => {
+                        const s = splitRange(r); const nr = [...eranges];
+                        nr[idx] = `${s.from || "00:00"}-${ev.target.value || "00:00"}`;
+                        setException({ ranges: nr });
+                      }}
+                      className={cn("h-7 rounded-md border bg-background px-1 text-xs", bad ? "border-destructive" : "border-input")} />
+                  </span>
+                );
+              })}
+              {!disabled && (
+                <Button type="button" variant="ghost" size="icon" className="size-6" title={t("remove_shift")}
+                  onClick={() => commit({ ...oh, exceptions: oh.exceptions.filter((x) => x.date !== e.date) })}>
+                  <Trash2 className="size-3.5" />
+                </Button>
+              )}
+            </div>
+          );
+        })}
+        {!disabled && oh.exceptions.length < MAX_EXCEPTIONS && (
+          <div className="flex items-center gap-2">
+            <label htmlFor={`${id}-exception-date`} className="text-xs text-muted-foreground">{t("exceptions.add")}</label>
+            <input id={`${id}-exception-date`} type="date" aria-label={t("exceptions.date")}
+              onChange={(ev) => {
+                const dstr = ev.target.value;
+                if (!dstr) return;
+                if (oh.exceptions.some((x) => x.date === dstr)) { setExcDupWarning(true); ev.target.value = ""; return; }
+                setExcDupWarning(false);
+                commit({ ...oh, exceptions: [...oh.exceptions, { date: dstr, closed: true }] });
+                ev.target.value = "";
+              }}
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs" />
+            {excDupWarning && <span className="text-xs text-destructive" role="alert">{t("exceptions.duplicate")}</span>}
+          </div>
+        )}
+      </div>
 
       <p className="text-xs text-muted-foreground">{t("tz_note")}</p>
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}

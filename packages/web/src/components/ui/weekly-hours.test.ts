@@ -72,4 +72,11 @@ describe("weekly-hours", () => {
     expect(isValid({ weekly: { mon: { ranges: ["09:00-09:00"] } }, exceptions: [] } as any))
       .toBe(false); // zero-length invalid
   });
+  it("exceptions: sorted, and isValid rejects a duplicate date", () => {
+    const oh = { weekly: {}, exceptions: [
+      { date: "2026-12-25", closed: true }, { date: "2026-07-14", h24: true }] } as any;
+    expect(sortExceptions(oh.exceptions).map((e: any) => e.date)).toEqual(["2026-07-14", "2026-12-25"]);
+    expect(isValid({ weekly: {}, exceptions: [
+      { date: "2026-01-01", closed: true }, { date: "2026-01-01", closed: true }] } as any)).toBe(false);
+  });
 });

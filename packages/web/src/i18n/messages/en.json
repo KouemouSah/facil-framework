@@ -888,6 +888,13 @@
       "custom": "Custom hours",
       "label": "Mode"
     },
+    "exceptions": {
+      "title": "Exceptions",
+      "add": "Add exception",
+      "date": "Date",
+      "none": "No exceptions defined.",
+      "duplicate": "This date already has an exception."
+    },
     "tz_note": "Times are in the site's local timezone."
   },
   "branding": {

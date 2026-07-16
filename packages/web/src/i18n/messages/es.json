@@ -888,6 +888,13 @@
       "custom": "Horario personalizado",
       "label": "Modo"
     },
+    "exceptions": {
+      "title": "Excepciones",
+      "add": "Añadir excepción",
+      "date": "Fecha",
+      "none": "No hay excepciones definidas.",
+      "duplicate": "Esta fecha ya tiene una excepción."
+    },
     "tz_note": "Los horarios se expresan en la zona horaria local del sitio."
   },
   "branding": {
