@@ -1,88 +1,121 @@
-# D4-B (B-i) — Amélioration du widget d'horaires d'ouverture (WeeklyHoursField) — Design
+# D4-B — Horaires d'ouverture production-grade — Design
 
-> **Sous-projet** : D4-B, **partie B-i** (le multi-sites = B-ii, spec séparée). Après D4-A (éditeur de règles) mergé.
+> **Sous-projet** : D4-B. **Cette spec = B-i** (modèle hebdomadaire production-grade **+ exceptions/fériés** : stockage, édition, validation). **B-ii** (multi-sites) et **B-iii** (consommation/affichage) = specs séparées, cadrées en §10. Après D4-A mergé.
 > **Branche** : `feat/opening-hours` depuis `develop`, mergeable seule.
 > **Date** : 2026-07-16.
 
 ## 0. Contexte & état actuel (vérifié dans le code)
 
-`Site.operating_hours` (JSONB, `modules/location/models.py:51`) porte la forme `{"mon": ["09:00-17:00"], "sat": [], …}`. Elle est saisie par un widget bespoke **`WeeklyHoursField`** (`web/src/components/ui/weekly-hours-field.tsx`) — une ligne par jour (`mon`..`sun`), case ouvert/fermé + plages `HH:MM-HH:MM` (deux `<input type="time">`), câblé dans le `RecordForm` du site via `widget: "weekly_hours"`.
+`Site.operating_hours` (JSONB, `modules/location/models.py:51`) porte aujourd'hui `{"mon": ["09:00-17:00"], "sat": [], …}`, saisie par le widget bespoke `WeeklyHoursField` (`web/src/components/ui/weekly-hours-field.tsx`). **Aucun code ne consomme cette forme pour une logique métier** (vérifié : `models.as_dict` la passe telle quelle ; `schemas.py:28,72` = `dict` opaque ; seuls le widget la rend et `core/schema/types.py:43` la commente comme « shape inconsistante »). ⇒ on peut adopter une forme canonique plus riche avec un **normaliseur rétro-compatible**, sans casser de logique.
 
-Deux manques constatés :
-- **Aucune saisie en bulk** : chaque jour se remplit à la main (fastidieux pour « Lun-Ven 09:00-17:00 »).
-- **Validité fantôme** : le widget appelle **toujours** `onChange(next, true)` (l.59) — une plage inversée (`from ≥ to`) ou malformée n'est jamais signalée comme invalide, et le backend stocke `operating_hours` en **`dict` opaque** sans validation (`schemas.py:28,72`). `RecordForm.validate()` (`record-form.tsx:225-232`) bloque pourtant déjà la sauvegarde d'un champ json dont `jsonOk[name]` est `false` — le plombage existe, seul le widget ne rapporte jamais `false`.
-- **Affichage** : pile verticale de 7 lignes ; en plein page elle n'exploite pas la largeur.
+Manques vs systèmes de production (Google Business, Square, OSM `opening_hours`, Odoo `resource.calendar`) :
+- pas de **plages nocturnes** (traversent minuit) ; pas d'état **« Ouvert 24h »** ; pas d'**anti-chevauchement** ; pas de **dates spéciales/fériés** ;
+- **validité fantôme** : le widget appelle toujours `onChange(next, true)` (l.59) → une plage inversée/malformée n'est jamais signalée ; `RecordForm.validate()` (`record-form.tsx:225-232`) bloque pourtant déjà un champ json dont `jsonOk[name]=false` — seul le widget ne rapporte jamais `false` ;
+- **affichage** vertical qui n'exploite pas la largeur en plein page.
 
 ## 1. Objectif & non-objectifs
 
-**Objectif** : rendre la saisie des horaires rapide (copie inter-jours) et fiable (validité réelle, gate backend), avec un affichage 2 colonnes en plein page. Contained, frontend + un petit validateur backend.
+**Objectif (B-i)** : modèle d'horaires **production-grade** — hebdomadaire (Fermé / 24h / plages avec **overnight** + **anti-chevauchement**) **+ exceptions datées** (fériés, fermetures ponctuelles) — saisi rapidement (remplissage en bulk + copie), fiable (validité réelle, **gate backend**), affiché en 2 colonnes en plein page. Frontend + validateur backend.
 
-**Non-objectifs (assumés)** :
-- **Pas de multi-sites** (action groupée sur un lot de sites) — c'est **B-ii**, sa propre spec (multi-select DataGrid réutilisable + endpoint bulk).
-- **Pas de plages nocturnes** (traversant minuit) : validité = **même jour** (`from < to`). Le nocturne est différé (documenté).
-- **Pas de contrôle de chevauchement** entre plages d'un même jour (choix user : validation simple).
-- **Pas de day-picker custom** pour les cibles bulk : 3 presets (weekdays/weekend/all). Les jours restent éditables un à un après.
-- **Forme de données inchangée** (`{day: [ranges]}`) → **zéro migration**.
+**Non-objectifs (B-i)** :
+- **Pas de multi-sites** (action groupée sur un lot) → **B-ii** (§10).
+- **Pas de consommation/affichage** (« ouvert maintenant », table publique) → **B-iii** (§10).
+- **Pas de récurrence d'exceptions** (ex. « tous les 25/12 ») ni d'exceptions par plage horaire multi-jours : une exception = **une date** avec un `DaySchedule`.
+- **Pas de conversion de fuseau** : les heures sont du **wall-clock local** au `Site.timezone` (note UI). Aucun stockage timezone nouveau.
 
-## 2. Module logique pur — `weekly-hours.ts`
+## 2. Forme canonique de `operating_hours`
 
-Nouveau `web/src/components/ui/weekly-hours.ts` (à côté du widget) : fonctions **pures** (testables vitest, env `node`, sans rendu — même pattern que `rules-adapter` en D4-A). Le widget les importe.
+```jsonc
+{
+  "weekly": { "mon": DaySchedule, "tue": DaySchedule, ... },   // jour omis = fermé
+  "exceptions": [ { "date": "2026-12-25", ...DaySchedule } ]    // overrides datés, triés asc
+}
+// DaySchedule (union discriminée) :
+//   { "closed": true }
+//   { "h24": true }                                  // « Ouvert 24h »
+//   { "ranges": ["09:00-17:00", "22:00-02:00"] }     // 1..N plages
+```
+
+- **Plage** `"HH:MM-HH:MM"` = `(from,to)` en minutes. `from < to` = même jour `[from,to)` ; **`from > to` = nocturne** `[from,1440) ∪ [0,to)` (traverse minuit) ; **`from == to` = invalide**.
+- **Anti-chevauchement** : au sein d'un jour, les ensembles de minutes couverts par les plages sont **disjoints** (le calcul tient compte du wrap nocturne). Plages triées par `from`.
+- **Exceptions** : `date` = date ISO calendaire valide, **unique** dans la liste ; chaque exception porte un `DaySchedule` (Fermé férié, 24h, ou plages). Borné ≤ **366** exceptions/site. (Sémantique de priorité date>hebdo = **B-iii**, consommation ; B-i ne fait que stocker/valider/éditer.)
+- **Normaliseur rétro-compatible** (fonction pure) : ancienne forme `{"mon":["09:00-17:00"],"sat":[]}` → `{weekly:{mon:{ranges:[...]}, sat:{closed:true}}, exceptions:[]}` ; `{}` → `{weekly:{},exceptions:[]}`. La forme canonique est aussi acceptée telle quelle. ⇒ **zéro migration DB** (JSONB, normalisé à la lecture ; données existantes vides).
+
+## 3. Module logique pur — `web/src/components/ui/weekly-hours.ts`
+
+Fonctions **pures** (testables vitest, env `node`, sans rendu — pattern `rules-adapter` de D4-A) ; le widget et (miroir) le front les importent.
 
 ```ts
-export const DAYS = ["mon","tue","wed","thu","fri","sat","sun"] as const; // ordre existant du widget
+export const DAYS = ["mon","tue","wed","thu","fri","sat","sun"] as const;
 export type Day = (typeof DAYS)[number];
-export type WeeklyHours = Partial<Record<Day, string[]>>;
+export type DaySchedule = { closed: true } | { h24: true } | { ranges: string[] };
+export type Exception = { date: string } & DaySchedule;
+export type OperatingHours = { weekly: Partial<Record<Day, DaySchedule>>; exceptions: Exception[] };
 export type Target = "weekdays" | "weekend" | "all";
 ```
 
-- `targetDays(target: Target): Day[]` — `weekdays` → mon-fri ; `weekend` → sat,sun ; `all` → mon-sun.
-- `applyQuickFill(hours: WeeklyHours, from: string, to: string, target: Target): WeeklyHours` — pour chaque jour de `target` : **écrase** le jour → ouvert avec l'unique plage `\`${from}-${to}\``. (Les autres jours inchangés.)
-- `copyDay(hours: WeeklyHours, src: Day, target: Target): WeeklyHours` — copie le **tableau complet** de plages de `src` vers chaque jour de `target` (écrase). Un jour cible = `src` est ignoré (pas de copie sur soi).
-- `RANGE_RE = /^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/` (déplacée ici depuis le widget).
-- `isRangeValid(r: string): boolean` — `RANGE_RE.test(r)` **ET** `from < to` (comparaison lexicographique de `HH:MM`, correcte car zéro-paddé).
-- `isValidHours(hours: WeeklyHours): boolean` — toutes les plages de tous les jours ouverts sont `isRangeValid`. (Un jour ouvert avec `[]` est valide — « ouvert sans plage » = à compléter, mais pas invalide ; un jour fermé = absent.)
+- `normalize(v: unknown): OperatingHours` — accepte ancienne/nouvelle forme → canonique ; entrée illégale → `{weekly:{},exceptions:[]}`.
+- `targetDays(t: Target): Day[]` — weekdays=mon-fri, weekend=sat,sun, all=mon-sun.
+- `toMinutes(hhmm): number` ; `parseRange(r): {from:number,to:number} | null` (null si RE KO).
+- `RANGE_RE = /^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/`.
+- `isRangeValid(r): boolean` — `RANGE_RE.test(r)` **et** `from !== to`.
+- `rangesOverlap(a: string, b: string): boolean` — vrai si les minutes couvertes (avec wrap nocturne) s'intersectent.
+- `isValidDay(d: DaySchedule): boolean` — `closed`/`h24` toujours valides ; `ranges` : chaque plage `isRangeValid` **et** aucune paire `rangesOverlap`.
+- `isValidException(e, seenDates): boolean` — `date` ISO valide, non déjà vue, `DaySchedule` valide.
+- `isValid(oh: OperatingHours): boolean` — tous les `weekly` valides **et** toutes les exceptions valides (dates uniques) **et** ≤366 exceptions.
+- `applyQuickFill(oh, from, to, target): OperatingHours` — pour chaque jour de `target`, **écrase** `weekly[day] = {ranges:[\`${from}-${to}\`]}`.
+- `copyDay(oh, src: Day, target): OperatingHours` — copie `weekly[src]` (le `DaySchedule` complet) vers chaque jour de `target` (≠ src).
+- `sortExceptions(list): Exception[]` — tri par `date` asc.
+- Toutes retournent un **nouvel** objet (pas de mutation).
 
-Ces fonctions ne mutent jamais `hours` (retour d'un nouvel objet).
+## 4. Widget — `weekly-hours-field.tsx` (conserve la clé `weekly_hours`)
 
-## 3. Widget — `weekly-hours-field.tsx`
+Réutilise les helpers ci-dessus (supprime les copies locales redondantes). État interne = `OperatingHours` via `normalize(value)`.
 
-Réutilise les helpers ci-dessus (supprime les copies locales `RANGE_RE`/`isWeeklyHours`/`normalize` redondantes ou les ré-exporte depuis `weekly-hours.ts` pour DRY).
+**Section hebdomadaire** (grille `grid-cols-1 lg:grid-cols-2`, pile sur étroit) :
+- **Barre remplissage rapide** (pleine largeur) : `time` from/to (déf. 09:00/17:00) + `select` cible (Weekdays/Weekend/All) + **Appliquer** → `applyQuickFill`.
+- Par jour : un **mode** (Fermé / 24h / Personnalisé). En **Personnalisé** : éditeur de plages (from/to `time`, +plage, supprimer ; overnight autorisé) + un **« copier vers »** (Weekdays/Weekend/All) → `copyDay`. Plage invalide/chevauchante → `border-destructive`.
 
-1. **Barre « remplissage rapide »** (pleine largeur, au-dessus de la grille) : deux `<input type="time">` (from/to, défaut 09:00/17:00) + un `<select>` cible (Weekdays/Weekend/All) + bouton **Appliquer** → `commit(applyQuickFill(hours, from, to, target))`. Désactivée si `disabled`.
-2. **Copie par jour** : sur chaque jour **ouvert**, un petit contrôle « copier vers » (Weekdays/Weekend/All) → `commit(copyDay(hours, day, target))`. (Un `<select>`+bouton compact, ou un menu ; réutiliser le style bouton-ghost existant.)
-3. **Layout 2 colonnes** : la grille des 7 jours passe de `space-y-2` à `grid grid-cols-1 gap-x-6 gap-y-2 lg:grid-cols-2`. Chaque cellule-jour garde sa structure (`grid-cols-[7rem_1fr]`). Sur `< lg` → 1 colonne (pile actuelle). Responsive par défaut (règle repo).
-4. **Validité réelle** : `commit` appelle `onChange(next, isValidHours(next))` (au lieu de `true`). Les plages invalides gardent déjà `border-destructive` (calculé via `isRangeValid`). `RecordForm` bloque alors la sauvegarde (via `jsonOk`) et affiche l'erreur de champ.
+**Section exceptions** :
+- Liste triée (`sortExceptions`) des overrides ; chaque item : date + mode (Fermé/24h/Personnalisé + plages) + supprimer.
+- **« Ajouter une exception »** : `<input type="date">` + mode. Bloque une date déjà présente (message). Cap 366.
 
-## 4. Backend — validateur `operating_hours` (autorité)
+**Validité** : chaque `commit` appelle `onChange(next, isValid(next))` → `RecordForm` bloque la sauvegarde (via `jsonOk`) et affiche l'erreur. **Note timezone** : hint « Heures locales du site (`timezone`) ».
 
-`modules/location/schemas.py` : une fonction partagée `validate_operating_hours(v: dict) -> dict` + `@field_validator("operating_hours")` sur **`SiteCreate` ET `SiteUpdate`** (DRY, une seule impl). Rejette (`ValueError` → 422) :
-- une valeur non-`dict` ; une clé hors `{mon..sun}` ; une valeur de jour non-`list[str]` ;
-- une plage qui n'est pas `HH:MM-HH:MM` (même regex que le front) **ou** avec `from ≥ to`.
-Un `dict` vide et un jour à `[]` restent valides. Le backend est le **gate** ; le widget est le miroir UX (même split autorité/miroir que D4-A ; une saisie qui contournerait le front est rejetée en 422).
+## 5. Backend — validateur (autorité)
 
-## 5. i18n
+`modules/location/schemas.py` : `normalize_operating_hours(v: dict) -> dict` (accepte ancienne/nouvelle forme → canonique) + `_validate_operating_hours(oh: dict)` (miroir exact de `isValid` : modes valides, plages `RE` + `from!=to` + anti-chevauchement, dates d'exception ISO uniques, ≤366). Un **`@field_validator("operating_hours", mode="before")` partagé** sur **`SiteCreate` ET `SiteUpdate`** normalise puis valide (`ValueError` → 422). Le backend **stocke la forme canonique**. Autorité ; le widget est le miroir UX (une saisie contournant le front → 422). Tests via une fonction partagée (DRY).
 
-Namespace `weekly_hours` existant (en/fr/es) — ajouter : `quick_fill` (label), `target.weekdays`/`target.weekend`/`target.all`, `apply`, `copy_to`, `invalid_range` (message). Mêmes clés dans les 3 fichiers, vraies traductions fr/es.
+## 6. i18n (namespace `weekly_hours`, en/fr/es, mêmes clés, vraies trads)
 
-## 6. Données & parité
+Ajouter : `quick_fill`, `target.weekdays|weekend|all`, `apply`, `copy_to`, `mode.closed|h24|custom`, `invalid_range`, `overlap`, `exceptions.title`, `exceptions.add`, `exceptions.date`, `exceptions.none`, `exceptions.duplicate`, `tz_note`.
 
-- **Forme inchangée** `{day: [ranges]}` — **aucune migration**.
-- **Parité** : le widget expose exactement ce que le backend applique (forme + `from < to`). Aucun contrôle UI sans gate backend.
-- **Backend inchangé côté endpoints** : mêmes routes site create/update ; seul le schéma gagne un validateur. Aucun endpoint orphelin.
+## 7. Données & parité
 
-## 7. Tests (vraie validation)
+- **Forme JSONB, normalisée à la lecture — zéro migration.** Ancienne donnée (vide) upgrade transparent.
+- **Parité** : le widget expose exactement ce que le backend applique (modes, overnight, anti-chevauchement, exceptions). Aucun contrôle UI sans gate backend ; l'« autorité » est le validateur pydantic.
+- **Endpoints inchangés** (site create/update) ; seul le schéma gagne un validateur. Aucun endpoint orphelin.
 
-- **vitest** (`weekly-hours.test.ts`, fonctions pures) : `applyQuickFill` (weekdays/weekend/all, écrase la cible, laisse le reste), `copyDay` (copie le tableau complet, ignore soi-même), `isValidHours`/`isRangeValid` (plage valide, `from ≥ to` → invalide, malformée → invalide, jour `[]`/fermé → valide), `targetDays`.
-- **pytest** (`test_location_schemas` ou existant) : `validate_operating_hours` — dict vide OK ; `{"mon":["09:00-17:00"]}` OK ; `{"mon":["17:00-09:00"]}` rejeté ; `{"mon":["9-17"]}` rejeté ; clé `"funday"` rejetée ; valeur non-liste rejetée. Sur `SiteCreate` **et** `SiteUpdate`.
-- **Optionnel** (stack up) : smoke visuel du 2 colonnes + Appliquer sur `/locations` (Playwright headless).
+## 8. Tests (vraie validation)
 
-## 8. Découpage (pour le plan)
+- **vitest** (`weekly-hours.test.ts`) : `normalize` (ancienne→nouvelle, canonique idempotente, illégal→vide) ; `isRangeValid` (même-jour, overnight, `from==to`→KO, malformé→KO) ; `rangesOverlap` (même-jour, overnight qui chevauche, disjoint) ; `isValidDay` (closed/h24/ranges valides+chevauchement KO) ; `isValid` (exceptions dates uniques, cap) ; `applyQuickFill` (weekdays/weekend/all écrase) ; `copyDay` (copie DaySchedule, ignore soi) ; `sortExceptions`.
+- **pytest** (`test_location_schemas`) : `normalize_operating_hours` (ancienne→canonique) ; validateur — canonique OK, overnight OK, chevauchement rejeté, `from==to` rejeté, mode inconnu rejeté, date d'exception invalide/doublon rejetée, >366 rejeté ; sur **SiteCreate ET SiteUpdate**.
+- **Optionnel** (stack up) : smoke Playwright `/locations` — 2 colonnes, Appliquer, ajouter une exception, plage inversée bloque la sauvegarde.
 
-1. `weekly-hours.ts` (helpers purs) + vitest.
-2. Backend `validate_operating_hours` + `@field_validator` sur SiteCreate/SiteUpdate + pytest.
-3. Widget : barre remplissage rapide + copie par jour + layout 2 colonnes + validité réelle (`onChange` avec `isValidHours`) + i18n en/fr/es.
+## 9. Découpage (pour le plan)
+
+1. `weekly-hours.ts` (types + `normalize` + helpers purs) + vitest.
+2. Backend `normalize_operating_hours` + `_validate_operating_hours` + `@field_validator` (Create/Update) + pytest.
+3. Widget — section hebdo (modes + remplissage rapide + copie + 2 colonnes) + section exceptions + validité réelle + note tz + i18n.
 4. Gate finale : vitest + pytest + tsc + revue parité.
 
-## 9. Isolation
+## 10. Roadmap D4-B (sous-projets suivants — chacun sa spec→plan→impl)
 
-Branche `feat/opening-hours` depuis `develop`, mergeable seule. Ne pas mélanger avec B-ii (multi-sites).
+- **B-ii — Édition multi-sites (bulk)** : ajouter le **multi-select au DataGrid** (capacité réutilisable pour toutes les listes admin) + un **endpoint bulk transactionnel** (`PATCH /sites/bulk/operating-hours` : liste d'ids ≤500, scope-enforced par item, audité) + un **dialog** réutilisant le widget B-i pour définir les horaires d'un lot de sites. Dépend de B-i (réutilise le widget + le validateur).
+- **B-iii — Consommation & affichage** : côté partagé/back, `is_open_at(oh, dt, tz) → {open, until, next_change}` (exceptions **priment** l'hebdo pour la date ; gère l'overnight) ; côté UI, un **badge « Ouvert / Fermé — ouvre à … »** + une **table d'horaires** lisible (surfaces agent/citoyen). Ferme la boucle « stocké → utilisé ». Dépend de B-i (forme canonique).
+
+Chaque sous-projet est tracé en tâche ; B-ii puis B-iii après B-i mergé.
+
+## 11. Isolation
+
+Branche `feat/opening-hours` depuis `develop`, mergeable seule. B-ii/B-iii = branches et specs distinctes.
