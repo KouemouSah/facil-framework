@@ -213,10 +213,11 @@ export function WeeklyHoursField({ id, label, value, hint, disabled, onChange }:
           };
           const addExcRange = () => setException({ ranges: [...eranges, "09:00-17:00"] });
           // Unlike the weekly `removeRange`, do NOT fall back to `{closed:true}`
-          // when the last range is removed — keep the exception in Custom mode
-          // with an empty ranges list so the row stays editable (add-range still
-          // visible); `isValid`/backend flag an empty-ranges custom day as invalid,
-          // which is the correct signal here (mirrors backend `_validate_day`).
+          // when the last range is removed — keep the exception in Custom mode with an
+          // empty ranges list (`{ranges:[]}`). That's a valid canonical shape (both
+          // `isValidDay` and the backend `_validate_day` accept empty ranges) that
+          // round-trips fine; the row simply stays editable so the user can add ranges
+          // back or switch mode instead of the exception silently disappearing/resetting.
           const removeExcRange = (idx: number) => setException({ ranges: eranges.filter((_, i) => i !== idx) });
           return (
             <div key={e.date} className="flex flex-wrap items-center gap-2 text-sm">

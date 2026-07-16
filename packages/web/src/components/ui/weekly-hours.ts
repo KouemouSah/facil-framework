@@ -44,6 +44,10 @@ export function isValidException(e: Exception, seen: Set<string>): boolean {
   if (!ISO_DATE_RE.test(e.date) || seen.has(e.date)) return false;
   const d = new Date(`${e.date}T00:00:00Z`);
   if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== e.date) return false;
+  // Backend uses Python's date.fromisoformat, whose MINYEAR is 1 — year 0000 round-trips
+  // fine through JS Date but raises a 422 server-side. Reject it here so the front mirrors
+  // the backend's acceptable range (lexicographic compare is valid: format is fixed YYYY-MM-DD).
+  if (e.date < "0001-01-01") return false;
   return isValidDay(e);
 }
 export function isValid(oh: OperatingHours): boolean {

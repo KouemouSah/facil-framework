@@ -79,4 +79,9 @@ describe("weekly-hours", () => {
     expect(isValid({ weekly: {}, exceptions: [
       { date: "2026-01-01", closed: true }, { date: "2026-01-01", closed: true }] } as any)).toBe(false);
   });
+  it("isValidException rejects year 0000 (backend MINYEAR mirror)", () => {
+    const seen = new Set<string>();
+    expect(isValidException({ date: "0000-01-01", closed: true } as any, seen)).toBe(false);
+    expect(isValidException({ date: "0001-01-01", closed: true } as any, seen)).toBe(true);
+  });
 });
