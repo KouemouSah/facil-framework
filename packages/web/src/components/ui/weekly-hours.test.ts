@@ -66,4 +66,10 @@ describe("weekly-hours", () => {
     expect(isValidException({ date: "2026-13-01", closed: true } as any, seen)).toBe(false); // month 13
     expect(isValidException({ date: "2026-12-25", closed: true } as any, seen)).toBe(true);  // real date
   });
+  it("isValid is false for a reversed custom range (widget validity source)", () => {
+    expect(isValid({ weekly: { mon: { ranges: ["17:00-09:00"] } }, exceptions: [] } as any))
+      .toBe(true);  // overnight IS valid (17:00→09:00 next day)
+    expect(isValid({ weekly: { mon: { ranges: ["09:00-09:00"] } }, exceptions: [] } as any))
+      .toBe(false); // zero-length invalid
+  });
 });

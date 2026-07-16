@@ -870,11 +870,23 @@
       "sat": "Sábado",
       "sun": "Domingo"
     },
-    "closed": "Cerrado",
     "add_shift": "Añadir turno",
     "remove_shift": "Quitar turno",
-    "from": "Desde",
-    "to": "Hasta"
+    "to": "Hasta",
+    "quick_fill": "Relleno rápido",
+    "apply": "Aplicar",
+    "copy_to": "Copiar a…",
+    "target": {
+      "weekdays": "Días laborables",
+      "weekend": "Fin de semana",
+      "all": "Todos los días"
+    },
+    "mode": {
+      "closed": "Cerrado",
+      "h24": "Abierto 24h",
+      "custom": "Horario personalizado"
+    },
+    "tz_note": "Los horarios se expresan en la zona horaria local del sitio."
   },
   "branding": {
     "title": "Marca",

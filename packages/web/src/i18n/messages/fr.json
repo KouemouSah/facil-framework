@@ -870,11 +870,23 @@
       "sat": "Samedi",
       "sun": "Dimanche"
     },
-    "closed": "Fermé",
     "add_shift": "Ajouter un créneau",
     "remove_shift": "Retirer le créneau",
-    "from": "De",
-    "to": "À"
+    "to": "À",
+    "quick_fill": "Remplissage rapide",
+    "apply": "Appliquer",
+    "copy_to": "Copier vers…",
+    "target": {
+      "weekdays": "Jours ouvrés",
+      "weekend": "Week-end",
+      "all": "Tous les jours"
+    },
+    "mode": {
+      "closed": "Fermé",
+      "h24": "Ouvert 24h/24",
+      "custom": "Horaires personnalisés"
+    },
+    "tz_note": "Les horaires sont exprimés dans le fuseau horaire local du site."
   },
   "branding": {
     "title": "Marque",
