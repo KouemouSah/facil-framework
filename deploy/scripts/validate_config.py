@@ -25,6 +25,7 @@ Exit codes
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 from typing import Literal
@@ -337,6 +338,18 @@ class SmtpConfig(BaseModel):
     from_name: str = "Facil"
 
 
+class ObservabilitySelfHosted(BaseModel):
+    # Stack observabilite self-hosted en COMPOSANTS SEPARES et durcis (Phase 2).
+    # N'a d'effet que si mode=local. Chemin metriques (prometheus+collector+grafana)
+    # ON par defaut ; logs (loki) / traces (tempo) = opt-in explicite. L'all-in-one
+    # otel-lgtm a ete ecarte (prouve incompatible readOnlyRootFilesystem par apply).
+    prometheus: bool = True
+    otel_collector: bool = True
+    grafana: bool = True
+    loki: bool = False
+    tempo: bool = False
+
+
 class ObservabilityConfig(BaseModel):
     # --- Existing SaaS-cloud fields (CONSERVED; empty default = disabled) ---
     # Backend Sentry DSN (different from web Sentry DSN — separate projects).
@@ -370,6 +383,8 @@ class ObservabilityConfig(BaseModel):
     grafana_port: int = Field(default=3001, ge=1, le=65535)    # 3000 is taken by the frontend
     otlp_grpc_port: int = Field(default=4317, ge=1, le=65535)
     otlp_http_port: int = Field(default=4318, ge=1, le=65535)
+    # Per-component activation of the separate-components self-hosted stack (P2).
+    self_hosted: ObservabilitySelfHosted = Field(default_factory=ObservabilitySelfHosted)
 
 
 class ServerConfig(BaseModel):
@@ -486,6 +501,24 @@ class MinioConfig(BaseModel):
     root_user: str = "facil"
     root_password_secret: str = "MINIO_ROOT_PASSWORD"
     default_bucket: str = "facil-documents"
+    # Extra buckets required by enabled modules (Phase 1bis, D-1bis-a). Created at
+    # bootstrap AND authorized (full rw) in the backend's scoped SA policy — a bucket
+    # the least-privilege SA can't reach is useless. Empty = none (zero regression).
+    module_buckets: list[str] = Field(default_factory=list)
+
+    @field_validator("module_buckets")
+    @classmethod
+    def _valid_bucket_names(cls, v: list[str]) -> list[str]:
+        # Least-privilege : ces noms sont interpoles dans arn:aws:s3:::{bucket}/* de la
+        # policy SA. Un "*" ou un "/" y ELARGIRAIT la policy (rw sur tous les buckets,
+        # y compris le WORM conformite). Rejet au boot plutot qu'elargissement silencieux.
+        pat = re.compile(r"^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$")
+        for b in v:
+            if not pat.match(b):
+                raise ValueError(
+                    f"storage.minio.module_buckets: '{b}' is not a valid S3 bucket name "
+                    "(lowercase alphanumerics/./- , 3-63 chars, no wildcard/slash).")
+        return v
     # --- Security / governance hardening (MINIO_SECURITY_ARCH, S1) ---
     # All defaulted -> existing configs stay valid (zero-regression).
     compliance: MinioComplianceConfig = Field(default_factory=MinioComplianceConfig)

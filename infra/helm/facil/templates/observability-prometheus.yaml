@@ -1,0 +1,88 @@
+{{- if .Values.observability.prometheus.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "prometheus") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 30s
+    scrape_configs:
+      - job_name: prometheus
+        static_configs:
+          - targets: ["localhost:9090"]
+      # Le backend expose /metrics quand ENABLE_METRICS=true. Scrape best-effort :
+      # si le backend n'expose pas /metrics, la cible est simplement DOWN (pas d'erreur).
+      - job_name: facil-backend
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["{{ include "facil.fullname" (dict "name" "backend") }}:{{ .Values.backend.port }}"]
+      {{- if .Values.observability.otelCollector.enabled }}
+      # Metriques OTLP du backend, re-exposees par le collector au format Prometheus.
+      - job_name: facil-otel-collector
+        static_configs:
+          - targets: ["{{ include "facil.fullname" (dict "name" "otel-collector") }}:8889"]
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "prometheus") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "prometheus") | nindent 4 }}
+  ports:
+    - port: 9090
+      targetPort: 9090
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "prometheus") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "prometheus") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "prometheus") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false   # ne parle pas a l'API k8s
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534          # nobody -- l'UID de l'image officielle prom/prometheus
+        # fsGroup : le TSDB vit dans l'emptyDir /prometheus ; le kubelet chown g+w
+        # pour ce GID afin que nobody puisse ecrire (rootfs read-only par ailleurs).
+        fsGroup: 65534
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: prometheus
+          image: {{ .Values.observability.prometheus.image }}
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus            # emptyDir (seul chemin inscriptible)
+            - --web.listen-address=:9090
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true                 # data -> emptyDir, config -> configMap RO
+            capabilities: { drop: ["ALL"] }
+          resources: {{- toYaml .Values.resources.observability | nindent 12 }}
+          ports:
+            - { name: http, containerPort: 9090 }
+          volumeMounts:
+            - { name: config, mountPath: /etc/prometheus }
+            - { name: data, mountPath: /prometheus }
+          readinessProbe:
+            httpGet: { path: /-/ready, port: 9090 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 12
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "facil.fullname" (dict "name" "prometheus") }}
+        - name: data
+          emptyDir: {}
+{{- end }}

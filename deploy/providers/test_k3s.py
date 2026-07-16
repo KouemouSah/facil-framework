@@ -148,6 +148,89 @@ def test_render_values_maps_images_and_ports():
     assert values["backend"]["modulesEnabled"] == "organization,location"
 
 
+# --- Dette 1 : _set_args recursif + cablage observability (nesting 3 niveaux) ---
+
+def test_set_args_flattens_arbitrary_nesting():
+    # 3 niveaux (observability.prometheus.enabled) : l'ancien _set_args 2-niveaux
+    # aurait emis `--set observability.prometheus={'enabled': True}` (casse).
+    args = k3s._set_args({"observability": {"prometheus": {"enabled": True}}})
+    assert "observability.prometheus.enabled=True" in " ".join(args)
+
+
+def test_set_args_preserves_two_level_behaviour():
+    # Non-regression : les valeurs 2-niveaux existantes rendent a l'identique.
+    args = k3s._set_args({"postgres": {"image": "pgvector:pg16", "db": "facil"}})
+    joined = " ".join(args)
+    assert "postgres.image=pgvector:pg16" in joined
+    assert "postgres.db=facil" in joined
+
+
+def test_render_values_observability_disabled_by_default():
+    obs = k3s.render_values(_cfg())["observability"]  # mode defaults "disabled"
+    assert obs["prometheus"]["enabled"] is False
+    assert obs["grafana"]["enabled"] is False
+    assert obs["loki"]["enabled"] is False
+
+
+def test_render_values_observability_metrics_path_when_local():
+    obs = k3s.render_values(_cfg(observability={"mode": "local"}))["observability"]
+    assert obs["prometheus"]["enabled"] is True
+    assert obs["otelCollector"]["enabled"] is True
+    assert obs["grafana"]["enabled"] is True
+    assert obs["loki"]["enabled"] is False   # logs = opt-in explicite
+    assert obs["tempo"]["enabled"] is False  # traces = opt-in explicite
+
+
+def test_render_values_observability_per_component_opt_in():
+    obs = k3s.render_values(_cfg(observability={
+        "mode": "local", "self_hosted": {"loki": True, "grafana": False}}))["observability"]
+    assert obs["loki"]["enabled"] is True
+    assert obs["grafana"]["enabled"] is False
+
+
+def test_set_args_flows_observability_to_helm():
+    args = k3s._set_args(k3s.render_values(_cfg(observability={"mode": "local"})))
+    assert "observability.prometheus.enabled=True" in " ".join(args)
+
+
+# --- Dette 3 : secret admin Grafana par composant (SEC-001) ------------------
+
+def test_build_secret_literals_routes_grafana_admin_password():
+    out = k3s.build_secret_literals(
+        {"GF_SECURITY_ADMIN_PASSWORD": "pw-abc"}, cfg=_cfg())
+    assert out["grafana"] == {"GF_SECURITY_ADMIN_PASSWORD": "pw-abc"}
+
+
+def test_build_secret_literals_omits_grafana_when_absent():
+    out = k3s.build_secret_literals({}, cfg=_cfg())
+    assert "grafana" not in out   # composant sans secret dispo => omis (comme les autres)
+
+
+def test_build_secret_literals_routes_keycloak_admin_password():
+    out = k3s.build_secret_literals(
+        {"KEYCLOAK_ADMIN_PASSWORD": "kc-pw"}, cfg=_cfg())
+    assert out["keycloak"] == {"KEYCLOAK_ADMIN_PASSWORD": "kc-pw"}
+
+
+def test_render_values_wires_keycloak_from_auth_config():
+    off = k3s.render_values(_cfg())["keycloak"]
+    assert off["enabled"] is False                       # defaut auth.keycloak.enabled=False
+    on = k3s.render_values(_cfg(auth={
+        "jwt_secret_name": "J", "app_secret_name": "S", "totp_encryption_secret": "T",
+        "keycloak": {"enabled": True}}))["keycloak"]
+    assert on["enabled"] is True
+    assert on["image"] == "quay.io/keycloak/keycloak:26.0"
+
+
+def test_grafana_admin_password_is_a_generated_runtime_secret():
+    # ensure_secrets doit le generer (comme KEYCLOAK_ADMIN_PASSWORD, opt-in aussi),
+    # sinon le secretKeyRef non-optional de grafana.yaml bloque le pod.
+    import importlib, sys as _s
+    _s.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    es = importlib.import_module("ensure_secrets")
+    assert "GF_SECURITY_ADMIN_PASSWORD" in es.RUNTIME_SECRETS
+
+
 def test_render_values_never_contains_secret_values():
     # Structural secret guard (G1): walks every leaf of the real values dict
     # and rejects credential-shaped KEYS (password|secret|token|credential|

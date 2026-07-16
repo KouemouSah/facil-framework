@@ -31,5 +31,9 @@ class MemoryStorageProvider(StorageProvider):
     async def delete(self, key: str) -> None:
         type(self)._STORE.pop(key, None)
 
+    async def ensure_bucket(self, bucket: str) -> None:
+        # No bucket concept in the flat in-memory store — trivially satisfied.
+        return None
+
     async def healthcheck(self) -> dict:
         return {"ok": True, "detail": f"{len(type(self)._STORE)} object(s) in memory"}

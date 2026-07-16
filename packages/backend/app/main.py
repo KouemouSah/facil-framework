@@ -150,6 +150,44 @@ async def lifespan(app: FastAPI):
     app.state.secrets_provider = await enroll_secrets_provider(
         db, env=os.environ, db_ready=app.state.config_db_loaded)
 
+    # Default provider enrollment (storage/email; llm excluded — LLMRouter owns it) —
+    # mirror the secrets keystone: enroll the config-declared default (rendered to
+    # STORAGE_PROVIDER/EMAIL_PROVIDER
+    # env from config.yaml) so registry.get_default resolves on a fresh deploy without
+    # a manual admin entry. Idempotent, never overrides an admin choice; loud on
+    # failure (benign pre-migration vs real error). PROVIDERS_SEED_ON_BOOT=0 disables.
+    if os.environ.get("PROVIDERS_SEED_ON_BOOT", "1") != "0":
+        from app.core.providers.seed import seed_default_providers
+
+        async def _seed_providers():
+            async with db.session_factory() as session:
+                await seed_default_providers(
+                    session, env=os.environ, registry=app.state.registry)
+                await session.commit()
+        await run_boot_step("providers-seed", _seed_providers)
+
+    # Module resource reconciliation (Phase 1bis) — for each enabled module that
+    # declares a manifest: seed its config defaults (if absent), validate its required
+    # secret keys (loud, never forged), and ensure its buckets via the active storage
+    # provider (best-effort). Non-fatal — a module may be enabled before its infra is
+    # ready; the report surfaces in /health. MODULE_RESOURCES_ON_BOOT=0 disables it.
+    if os.environ.get("MODULE_RESOURCES_ON_BOOT", "1") != "0":
+        from app.core.module_registry import enabled_from_env, load_manifest
+        from app.core.module_resources import reconcile_module_resources
+
+        async def _reconcile_modules():
+            reports: dict = {}
+            async with db.session_factory() as session:
+                for name in enabled_from_env():
+                    manifest = load_manifest(name)
+                    if manifest is None:
+                        continue
+                    reports[name] = await reconcile_module_resources(
+                        manifest, name, session=session, registry=app.state.registry)
+                await session.commit()
+            app.state.module_resources = reports
+        await run_boot_step("module-resources", _reconcile_modules)
+
     # RBAC seeding — sync the permission catalog + the active profile's global
     # roles (idempotent). Loud on failure (benign pre-migration vs real prod error);
     # RBAC_SEED_ON_BOOT=0 disables it for operators who seed out-of-band.

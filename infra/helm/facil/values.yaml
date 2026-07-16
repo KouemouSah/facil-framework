@@ -26,6 +26,8 @@ secretNames:
   openbao: facil-openbao-secret
   backend: facil-backend-secret
   dbRole: facil-db-role-secret
+  grafana: facil-grafana-secret   # GF_SECURITY_ADMIN_PASSWORD (obs, opt-in)
+  keycloak: facil-keycloak-secret # KEYCLOAK_ADMIN_PASSWORD (auth, opt-in)
 
 postgres:
   enabled: true
@@ -93,10 +95,30 @@ resources:
   app:        # backend, frontend
     requests: { cpu: 100m, memory: 256Mi }
     limits: { cpu: 1000m, memory: 1Gi }
+  observability:   # otel-lgtm = Grafana+Prometheus+Loki+Tempo all-in-one (lourd)
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 1500m, memory: 2Gi }
 
-# Services gated (P1b) — OFF ici.
+# Services gated (P1b). OFF ici ; actives par config (k3s.py render_values depuis
+# deploy/config.yaml) ou `--set <path>.enabled=true`.
 caddy: { enabled: false }
-keycloak: { enabled: false }
-otel: { enabled: false }
+# Keycloak — IdP OIDC (auth federee). start-dev = H2 in-memory, NON-PROD (realm/AD
+# + persistence = phases ulterieures). Active quand auth.keycloak.enabled=true.
+keycloak:
+  enabled: false
+  image: quay.io/keycloak/keycloak:26.0
+  adminUser: admin
 ollama: { enabled: false }
 mail: { enabled: false }
+
+# Observabilite souveraine self-hosted — COMPOSANTS SEPARES et durcis (readOnly:true),
+# chacun toggleable independamment (doctrine ADR-0010 : n'installer que l'exploite).
+# L'all-in-one grafana/otel-lgtm a ete ECARTE : prouve incompatible avec
+# readOnlyRootFilesystem par apply k3d (co-localise install+donnees). Chemin metriques =
+# prometheus + grafana + otelCollector ; logs = loki ; traces = tempo.
+observability:
+  prometheus:    { enabled: false, image: prom/prometheus:latest }
+  loki:          { enabled: false, image: grafana/loki:latest }
+  tempo:         { enabled: false, image: grafana/tempo:latest }
+  grafana:       { enabled: false, image: grafana/grafana:latest }
+  otelCollector: { enabled: false, image: otel/opentelemetry-collector-contrib:latest }

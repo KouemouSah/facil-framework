@@ -1,0 +1,84 @@
+{{- if .Values.observability.tempo.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "tempo") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    server:
+      http_listen_port: 3200
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /var/tempo/traces
+        wal:
+          path: /var/tempo/wal
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "tempo") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "tempo") | nindent 4 }}
+  ports:
+    - { name: http, port: 3200, targetPort: 3200 }        # API de requete (Grafana)
+    - { name: otlp-grpc, port: 4317, targetPort: 4317 }   # ingest depuis le collector
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "tempo") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "tempo") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "tempo") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001          # tempo -- l'UID de l'image officielle grafana/tempo
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: tempo
+          image: {{ .Values.observability.tempo.image }}
+          args: ["-config.file=/etc/tempo/config.yaml"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true      # traces/wal -> emptyDir /var/tempo
+            capabilities: { drop: ["ALL"] }
+          resources: {{- toYaml .Values.resources.observability | nindent 12 }}
+          ports:
+            - { name: http, containerPort: 3200 }
+            - { name: otlp-grpc, containerPort: 4317 }
+          volumeMounts:
+            - { name: config, mountPath: /etc/tempo }
+            - { name: data, mountPath: /var/tempo }
+            - { name: tmp, mountPath: /tmp }
+          readinessProbe:
+            httpGet: { path: /ready, port: 3200 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 12
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "facil.fullname" (dict "name" "tempo") }}
+        - name: data
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+{{- end }}

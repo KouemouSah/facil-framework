@@ -53,29 +53,37 @@ def is_applicable(cfg: vc.DeployConfig) -> bool:
 # Least-privilege policy (decision D3)
 # ---------------------------------------------------------------------------
 
-def scoped_policy(documents_bucket: str, compliance_bucket: str | None = None) -> dict:
-    """Least-privilege S3 policy for the backend service account (D3).
-
-    documents: full object rw + listing.
-    compliance (WORM): read + write + set-retention, but **NO DeleteObject** —
-    defense in depth on top of Object-Lock so the backend cannot even attempt a
-    delete. Nothing else, no access to any other bucket.
-    """
-    statements = [
+def _rw_bucket_statements(bucket: str) -> list[dict]:
+    """Full object rw + listing on a single bucket (documents-grade access)."""
+    return [
         {
             "Effect": "Allow",
             "Action": [
                 "s3:GetObject", "s3:PutObject", "s3:DeleteObject",
                 "s3:ListMultipartUploadParts", "s3:AbortMultipartUpload",
             ],
-            "Resource": [f"arn:aws:s3:::{documents_bucket}/*"],
+            "Resource": [f"arn:aws:s3:::{bucket}/*"],
         },
         {
             "Effect": "Allow",
             "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
-            "Resource": [f"arn:aws:s3:::{documents_bucket}"],
+            "Resource": [f"arn:aws:s3:::{bucket}"],
         },
     ]
+
+
+def scoped_policy(documents_bucket: str, compliance_bucket: str | None = None,
+                  module_buckets: list[str] | None = None) -> dict:
+    """Least-privilege S3 policy for the backend service account (D3).
+
+    documents + module buckets: full object rw + listing.
+    compliance (WORM): read + write + set-retention, but **NO DeleteObject** —
+    defense in depth on top of Object-Lock so the backend cannot even attempt a
+    delete. Nothing else, no access to any other bucket.
+    """
+    statements = list(_rw_bucket_statements(documents_bucket))
+    for b in (module_buckets or []):
+        statements += _rw_bucket_statements(b)
     if compliance_bucket:
         statements += [
             {
@@ -124,15 +132,28 @@ def _svcacct_policy_script(policy: str, mc_cmd: str) -> str:
     )
 
 
+def _ensure_module_buckets(ctx, module_buckets, root_user, root_pwd, step) -> None:
+    """Create each module-declared bucket (versioned, private), idempotent. The SA
+    policy authorization is handled separately in _ensure_service_account so the
+    backend can actually reach them (a created-but-unauthorized bucket is useless)."""
+    for b in module_buckets:
+        target = f"{ALIAS}/{b}"
+        _mc(ctx, ["mb", "--ignore-existing", target], root_user=root_user, root_pwd=root_pwd)
+        _mc(ctx, ["version", "enable", target], root_user=root_user, root_pwd=root_pwd)
+        _mc(ctx, ["anonymous", "set", "none", target], root_user=root_user, root_pwd=root_pwd)
+        step.actions.append(f"module bucket '{b}' ensured (versioned, private)")
+
+
 def _ensure_service_account(ctx, sa_access, documents_bucket, compliance_bucket,
-                            root_user, root_pwd, step: ProvisionStep) -> str:
+                            root_user, root_pwd, step: ProvisionStep,
+                            module_buckets=None) -> str:
     """Create / reuse / rotate the scoped service account. Returns its secret.
 
     The inline policy is (re)applied on every run — on reuse via ``svcacct edit``
-    — so a policy change (e.g. adding the compliance bucket) is picked up without
-    rotating the secret.
+    — so a policy change (e.g. adding the compliance bucket or a module bucket) is
+    picked up without rotating the secret.
     """
-    policy = json.dumps(scoped_policy(documents_bucket, compliance_bucket))
+    policy = json.dumps(scoped_policy(documents_bucket, compliance_bucket, module_buckets))
     info = _mc(ctx, ["admin", "user", "svcacct", "info", ALIAS, sa_access],
                root_user=root_user, root_pwd=root_pwd, check=False)
     exists = info.returncode == 0
@@ -285,6 +306,9 @@ def provision(ctx: BootstrapContext) -> ProvisionStep:
             f"mc version enable {target}  (long-term retention / PAdES)",
             f"mc anonymous set none {target}  (private)",
         ]
+        for b in m.module_buckets:
+            step.actions.append(
+                f"mc mb --ignore-existing {ALIAS}/{b}  (module bucket, +SA policy rw)")
         if m.compliance.enabled:
             step.actions.append(
                 f"mc mb --with-lock {ALIAS}/{m.compliance.bucket}  "
@@ -314,6 +338,8 @@ def provision(ctx: BootstrapContext) -> ProvisionStep:
             root_user=root_user, root_pwd=root_pwd)
         step.actions.append("anonymous access = none (private)")
 
+        _ensure_module_buckets(ctx, m.module_buckets, root_user, root_pwd, step)
+
         compliance_bucket = _ensure_compliance_bucket(
             ctx, m, root_user, root_pwd, step)
 
@@ -325,7 +351,8 @@ def provision(ctx: BootstrapContext) -> ProvisionStep:
                           root_user, root_pwd, step)
 
         sa_secret = _ensure_service_account(
-            ctx, sa_access, bucket, compliance_bucket, root_user, root_pwd, step)
+            ctx, sa_access, bucket, compliance_bucket, root_user, root_pwd, step,
+            module_buckets=m.module_buckets)
     except DockerError as exc:
         return step.fail(f"mc operation failed: {exc}")
 

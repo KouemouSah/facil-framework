@@ -37,7 +37,8 @@ def test_idempotent_keeps_existing(tmp_path):
                  "TOTP_ENCRYPTION_KEY=totp\n"
                  "KEYCLOAK_ADMIN_PASSWORD=kcpw\nOPENBAO_DEV_ROOT_TOKEN=baotok\n"
                  "FACIL_APP_PASSWORD=apppw\nSECRET_KEY=sk\n"
-                 "RECEIPT_VERIFICATION_SECRET=rv\nCRON_SECRET=cron\n",
+                 "RECEIPT_VERIFICATION_SECRET=rv\nCRON_SECRET=cron\n"
+                 "GF_SECURITY_ADMIN_PASSWORD=gfpw\n",
                  encoding="utf-8")
     gen = es.ensure_secrets(f)
     assert gen == []                            # nothing generated
@@ -54,7 +55,8 @@ def test_only_missing_generated(tmp_path):
                         "JWT_SECRET_KEY", "TOTP_ENCRYPTION_KEY",
                         "KEYCLOAK_ADMIN_PASSWORD", "OPENBAO_DEV_ROOT_TOKEN",
                         "FACIL_APP_PASSWORD", "SECRET_KEY",
-                        "RECEIPT_VERIFICATION_SECRET", "CRON_SECRET"}
+                        "RECEIPT_VERIFICATION_SECRET", "CRON_SECRET",
+                        "GF_SECURITY_ADMIN_PASSWORD"}
     parsed = es._parse(f)
     assert parsed["POSTGRES_PASSWORD"] == "existing"   # preserved
     assert parsed["REDIS_PASSWORD"] and parsed["MINIO_ROOT_PASSWORD"]

@@ -1,0 +1,94 @@
+{{- if .Values.observability.loki.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "loki") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    auth_enabled: false
+    server:
+      http_listen_port: 3100
+      grpc_listen_port: 9095
+    common:
+      instance_addr: 127.0.0.1
+      path_prefix: /loki
+      storage:
+        filesystem:
+          chunks_directory: /loki/chunks
+          rules_directory: /loki/rules
+      replication_factor: 1
+      ring:
+        kvstore:
+          store: inmemory
+    schema_config:
+      configs:
+        - from: 2020-10-24
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: index_
+            period: 24h
+    limits_config:
+      allow_structured_metadata: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "loki") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "loki") | nindent 4 }}
+  ports:
+    - port: 3100
+      targetPort: 3100
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "loki") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "loki") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "loki") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001          # loki -- l'UID de l'image officielle grafana/loki
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: loki
+          image: {{ .Values.observability.loki.image }}
+          args: ["-config.file=/etc/loki/config.yaml"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true      # chunks/index -> emptyDir /loki
+            capabilities: { drop: ["ALL"] }
+          resources: {{- toYaml .Values.resources.observability | nindent 12 }}
+          ports:
+            - { name: http, containerPort: 3100 }
+          volumeMounts:
+            - { name: config, mountPath: /etc/loki }
+            - { name: data, mountPath: /loki }
+            - { name: tmp, mountPath: /tmp }
+          readinessProbe:
+            httpGet: { path: /ready, port: 3100 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 12
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "facil.fullname" (dict "name" "loki") }}
+        - name: data
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+{{- end }}

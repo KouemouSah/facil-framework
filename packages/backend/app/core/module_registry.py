@@ -22,6 +22,8 @@ import importlib.util
 import logging
 import os
 import pkgutil
+from dataclasses import dataclass, field
+from typing import Any
 
 from fastapi import APIRouter, FastAPI
 
@@ -32,6 +34,41 @@ DEFAULT_PACKAGE = "app.modules"
 
 class ModuleLoadError(RuntimeError):
     """An enabled, *present* module is broken (no api / no router)."""
+
+
+@dataclass
+class ModuleManifest:
+    """Declarative resource needs of a module (Phase 1bis). All optional — a module
+    without a manifest keeps the current behaviour. The module *declares*; the
+    system provider (or the deploy layer) *provisions*. `config_defaults` are seeded
+    into the config-store, `required_secret_keys` are validated (never forged at
+    runtime), `required_buckets` are ensured via the active storage provider."""
+    config_defaults: dict[str, Any] = field(default_factory=dict)
+    required_secret_keys: list[str] = field(default_factory=list)
+    required_buckets: list[str] = field(default_factory=list)
+    depends_on: list[str] = field(default_factory=list)
+
+
+def load_manifest(name: str, package: str = DEFAULT_PACKAGE) -> ModuleManifest | None:
+    """Return a module's `manifest:MANIFEST` if it declares one, else None. A module
+    that is ABSENT (listed in MODULES_ENABLED but not ported yet) or PRESENT WITHOUT a
+    `manifest` submodule both yield None — nothing to reconcile, exactly like
+    `load_modules` skips absent modules. Only a manifest that is PRESENT BUT BROKEN
+    (not a ModuleManifest) raises — a real bug, not a missing feature."""
+    if not _is_present(name, package):
+        return None  # module not ported/absent — no resources to reconcile
+    manifest_mod = f"{package}.{name}.manifest"
+    try:
+        mod = importlib.import_module(manifest_mod)
+    except ModuleNotFoundError as e:
+        if e.name == manifest_mod:
+            return None  # no manifest declared — fine
+        raise  # a real import error inside the module's manifest
+    obj = getattr(mod, "MANIFEST", None)
+    if not isinstance(obj, ModuleManifest):
+        raise ModuleLoadError(
+            f"module '{name}': '{manifest_mod}' exposes no ModuleManifest named 'MANIFEST'")
+    return obj
 
 
 def enabled_from_env(env: dict | None = None) -> list[str]:

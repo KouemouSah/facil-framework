@@ -125,6 +125,51 @@ def test_scoped_policy_compliance_has_no_delete():
     assert all("facil-documents" in r or "facil-compliance" in r for r in all_res)
 
 
+def test_module_bucket_wildcard_rejected_at_config():
+    # Defense-en-profondeur least-privilege : un "*" dans module_buckets elargirait la
+    # policy SA a tous les buckets. Rejet a la validation, pas d'elargissement silencieux.
+    import pydantic
+    with pytest.raises(pydantic.ValidationError):
+        make_cfg(storage={"provider": "minio", "minio": {"module_buckets": ["*"]}})
+    with pytest.raises(pydantic.ValidationError):
+        make_cfg(storage={"provider": "minio", "minio": {"module_buckets": ["a/b"]}})
+
+
+def test_scoped_policy_includes_module_buckets():
+    # Phase 1bis option 1: a module's declared buckets are authorized in the backend
+    # SA policy (full rw, like documents) — else a created bucket stays inaccessible.
+    pol = mn.scoped_policy("facil-documents", None, ["invoices", "reports"])
+    res = [r for s in pol["Statement"] for r in s["Resource"]]
+    assert "arn:aws:s3:::invoices/*" in res
+    assert "arn:aws:s3:::reports/*" in res
+    inv_actions = next(s["Action"] for s in pol["Statement"]
+                       if s["Resource"] == ["arn:aws:s3:::invoices/*"])
+    assert "s3:DeleteObject" in inv_actions  # module buckets: full rw
+
+
+def test_module_buckets_created_and_authorized(monkeypatch, tmp_path):
+    c = _cfg_ctx(tmp_path, module_buckets=["invoices"])
+    fake = FakeMC(svcacct_exists=False)
+    _patch(monkeypatch, fake)
+    step = mn.provision(c)
+    assert step.status == "ok"
+    # the module bucket is created (mc mb) ...
+    mb_args = [a for call in fake.calls if call["args"][0] == "mb" for a in call["args"]]
+    assert any("invoices" in a for a in mb_args)
+    # ... and authorized in the SA policy (the inline policy script embeds its arn).
+    sh_script = [call["args"][1] for call in fake.calls if call["args"][0] == "-c"][0]
+    assert "invoices" in sh_script
+
+
+def test_no_module_buckets_by_default(monkeypatch, ctx):
+    # Default config declares none -> zero extra mc calls (existing behaviour intact).
+    fake = FakeMC(svcacct_exists=False)
+    _patch(monkeypatch, fake)
+    mn.provision(ctx)
+    mb_targets = [call["args"][-1] for call in fake.calls if call["args"][0] == "mb"]
+    assert mb_targets == ["facil/facil-documents", "facil/facil-compliance"]
+
+
 def test_fresh_provision_creates_everything(monkeypatch, ctx):
     fake = FakeMC(svcacct_exists=False)
     _patch(monkeypatch, fake)

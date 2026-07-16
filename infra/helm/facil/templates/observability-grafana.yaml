@@ -1,0 +1,112 @@
+{{- if .Values.observability.grafana.enabled }}
+{{- $anyDatasource := or .Values.observability.prometheus.enabled .Values.observability.loki.enabled .Values.observability.tempo.enabled }}
+{{- if $anyDatasource }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "grafana-datasources") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+data:
+  # Provisioning Grafana : datasources auto-cablees vers les backends actifs (aucun clic).
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      {{- if .Values.observability.prometheus.enabled }}
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://{{ include "facil.fullname" (dict "name" "prometheus") }}:9090
+        isDefault: true
+      {{- end }}
+      {{- if .Values.observability.loki.enabled }}
+      - name: Loki
+        type: loki
+        access: proxy
+        url: http://{{ include "facil.fullname" (dict "name" "loki") }}:3100
+      {{- end }}
+      {{- if .Values.observability.tempo.enabled }}
+      - name: Tempo
+        type: tempo
+        access: proxy
+        url: http://{{ include "facil.fullname" (dict "name" "tempo") }}:3200
+      {{- end }}
+---
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "grafana") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "grafana") | nindent 4 }}
+  ports:
+    - port: 3000
+      targetPort: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "grafana") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "grafana") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "grafana") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 472            # grafana -- l'UID de l'image officielle grafana/grafana
+        fsGroup: 472
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: grafana
+          image: {{ .Values.observability.grafana.image }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true      # data -> emptyDir /var/lib/grafana
+            capabilities: { drop: ["ALL"] }
+          resources: {{- toYaml .Values.resources.observability | nindent 12 }}
+          env:
+            # Lecture anonyme (Viewer) : dashboards consultables sans login. L'admin
+            # existe avec un mot de passe issu du Secret (jamais en clair -- SEC-001).
+            # ATTENTION SECURITE : Grafana n'est PAS route par l'Ingress aujourd'hui (Service
+            # ClusterIP, atteignable seulement via port-forward = acces cluster requis).
+            # AVANT toute exposition Ingress de Grafana, DESACTIVER l'acces anonyme
+            # (sinon lecture publique non authentifiee des metriques/logs/traces, dont
+            # les logs Loki peuvent contenir des PII/jetons). Voir SECURITY_FOLLOWUPS.
+            - { name: GF_AUTH_ANONYMOUS_ENABLED, value: "true" }
+            - { name: GF_AUTH_ANONYMOUS_ORG_ROLE, value: "Viewer" }
+            # readOnlyRootFilesystem : Grafana ne peut pas reinstaller ses plugins
+            # bundled (inutilises) -> on desactive le preinstall pour eviter le bruit ERROR.
+            - { name: GF_PLUGINS_PREINSTALL_DISABLED, value: "true" }
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretNames.grafana }}
+                  key: GF_SECURITY_ADMIN_PASSWORD
+          ports:
+            - { name: http, containerPort: 3000 }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/grafana }
+            - { name: tmp, mountPath: /tmp }
+            {{- if $anyDatasource }}
+            - { name: datasources, mountPath: /etc/grafana/provisioning/datasources, readOnly: true }
+            {{- end }}
+          readinessProbe:
+            httpGet: { path: /api/health, port: 3000 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 12
+      volumes:
+        - { name: data, emptyDir: {} }
+        - { name: tmp, emptyDir: {} }
+        {{- if $anyDatasource }}
+        - name: datasources
+          configMap:
+            name: {{ include "facil.fullname" (dict "name" "grafana-datasources") }}
+        {{- end }}
+{{- end }}
