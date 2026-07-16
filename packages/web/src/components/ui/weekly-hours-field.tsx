@@ -65,6 +65,16 @@ export function WeeklyHoursField({ id, label, value, hint, disabled, onChange }:
     }
     return init;
   });
+  // Same shadow mechanism as `lastRanges`, keyed by exception date instead of
+  // weekday, so an exception's Custom→Closed→Custom toggle restores what the
+  // user entered instead of resetting to the hardcoded default. UI-only.
+  const [lastExcRanges, setLastExcRanges] = useState<Partial<Record<string, string[]>>>(() => {
+    const init: Partial<Record<string, string[]>> = {};
+    for (const ex of oh.exceptions) {
+      if ("ranges" in ex && ex.ranges.length) init[ex.date] = ex.ranges;
+    }
+    return init;
+  });
   const [qf, setQf] = useState({ from: "09:00", to: "17:00", target: "weekdays" as Target });
   const [excDupWarning, setExcDupWarning] = useState(false);
 
@@ -75,6 +85,13 @@ export function WeeklyHoursField({ id, label, value, hint, disabled, onChange }:
       for (const day of DAYS) {
         const d = next.weekly[day];
         if (d && "ranges" in d && d.ranges.length) { upd[day] = d.ranges; changed = true; }
+      }
+      return changed ? upd : p;
+    });
+    setLastExcRanges((p) => {
+      let changed = false; const upd = { ...p };
+      for (const ex of next.exceptions) {
+        if ("ranges" in ex && ex.ranges.length) { upd[ex.date] = ex.ranges; changed = true; }
       }
       return changed ? upd : p;
     });
@@ -194,19 +211,19 @@ export function WeeklyHoursField({ id, label, value, hint, disabled, onChange }:
             const next = oh.exceptions.map((x) => (x.date === e.date ? { date: e.date, ...sched } : x));
             commit({ ...oh, exceptions: next });
           };
+          const addExcRange = () => setException({ ranges: [...eranges, "09:00-17:00"] });
+          // Unlike the weekly `removeRange`, do NOT fall back to `{closed:true}`
+          // when the last range is removed — keep the exception in Custom mode
+          // with an empty ranges list so the row stays editable (add-range still
+          // visible); `isValid`/backend flag an empty-ranges custom day as invalid,
+          // which is the correct signal here (mirrors backend `_validate_day`).
+          const removeExcRange = (idx: number) => setException({ ranges: eranges.filter((_, i) => i !== idx) });
           return (
             <div key={e.date} className="flex flex-wrap items-center gap-2 text-sm">
               <span className="font-mono text-xs">{e.date}</span>
               <select value={mode} disabled={disabled}
                 aria-label={`${e.date} — ${t("mode.label")}`}
-                onChange={(ev) => {
-                  const m = ev.target.value as Mode;
-                  const sched: DaySchedule =
-                    m === "closed" ? { closed: true } :
-                    m === "h24" ? { h24: true } :
-                    { ranges: eranges.length ? eranges : ["09:00-17:00"] };
-                  setException(sched);
-                }}
+                onChange={(ev) => setException(daySchedule(ev.target.value as Mode, e, lastExcRanges[e.date]))}
                 className="h-7 rounded-md border border-input bg-background px-1 text-xs">
                 <option value="closed">{t("mode.closed")}</option>
                 <option value="h24">{t("mode.h24")}</option>
@@ -232,12 +249,22 @@ export function WeeklyHoursField({ id, label, value, hint, disabled, onChange }:
                         setException({ ranges: nr });
                       }}
                       className={cn("h-7 rounded-md border bg-background px-1 text-xs", bad ? "border-destructive" : "border-input")} />
+                    {!disabled && (
+                      <Button type="button" variant="ghost" size="icon" className="size-6"
+                        title={t("remove_shift")} onClick={() => removeExcRange(idx)}>
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    )}
                   </span>
                 );
               })}
+              {mode === "custom" && !disabled && (
+                <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs"
+                  onClick={addExcRange}><Plus className="size-3.5" /> {t("add_shift")}</Button>
+              )}
               {!disabled && (
                 <Button type="button" variant="ghost" size="icon" className="size-6" title={t("remove_shift")}
-                  onClick={() => commit({ ...oh, exceptions: oh.exceptions.filter((x) => x.date !== e.date) })}>
+                  onClick={() => { setExcDupWarning(false); commit({ ...oh, exceptions: oh.exceptions.filter((x) => x.date !== e.date) }); }}>
                   <Trash2 className="size-3.5" />
                 </Button>
               )}
