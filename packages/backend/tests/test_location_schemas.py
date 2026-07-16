@@ -39,3 +39,19 @@ def test_update_also_validates():
     with pytest.raises(ValidationError):
         SiteUpdate(operating_hours={"weekly": {"mon": {"ranges": ["17:00-17:00"]}}, "exceptions": []})
     assert SiteUpdate(operating_hours=None).operating_hours is None  # optional stays optional
+
+
+def test_old_shape_malformed_day_rejected():
+    with pytest.raises(ValidationError):
+        SiteCreate(**BASE, operating_hours={"mon": {"foo": "bar"}})
+
+
+def test_exception_date_must_be_dashed_iso():
+    for bad in ("20260101", "2026-W01-1"):
+        with pytest.raises(ValidationError):
+            SiteCreate(**BASE, operating_hours={"weekly": {}, "exceptions": [{"date": bad, "closed": True}]})
+
+
+def test_omitted_operating_hours_is_canonicalized():
+    s = SiteCreate(**BASE)
+    assert s.operating_hours == {"weekly": {}, "exceptions": []}

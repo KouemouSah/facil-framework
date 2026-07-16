@@ -16,6 +16,7 @@ _CODE = r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,49}$"
 # shape that would fail `isValid`/`normalize` there must 422 here.
 
 _RANGE_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$")
+_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 _MAX_EXCEPTIONS = 366
 
@@ -74,8 +75,17 @@ def normalize_operating_hours(v: Any) -> dict:
                 exceptions.append({"date": raw["date"], **d})
         return {"weekly": weekly, "exceptions": exceptions}
     for day in _DAYS:
-        d = _norm_day(v.get(day))
-        if d and "closed" not in d:
+        if day not in v:
+            continue
+        d = _norm_day(v[day])
+        if d is None:
+            # Day key present but unrecognized shape (e.g. {"foo": "bar"}):
+            # pass the raw value through so _validate_day rejects it below,
+            # instead of silently dropping it (which would normalize a
+            # malformed payload down to "no restriction"). Mirrors the
+            # canonical branch above.
+            weekly[day] = v[day]
+        elif "closed" not in d:
             weekly[day] = d
     return {"weekly": weekly, "exceptions": []}
 
@@ -111,6 +121,13 @@ def _validate_operating_hours(oh: dict) -> None:
     seen: set[str] = set()
     for e in oh["exceptions"]:
         d = e["date"]
+        # Gate with the same regex as the front mirror (weekly-hours.ts
+        # ISO_DATE_RE) FIRST: Python 3.11+'s date.fromisoformat also accepts
+        # "20260101"/"2026-W01-1" (basic ISO / week-date forms) which the
+        # front rejects on read-back — reject those here before the
+        # calendar-validity check.
+        if not isinstance(d, str) or not _ISO_DATE_RE.match(d):
+            raise ValueError(f"invalid exception date {d!r}")
         try:
             _date.fromisoformat(d)
         except ValueError as exc:
@@ -148,7 +165,7 @@ class SiteCreate(BaseModel):
     longitude: float | None = Field(None, ge=-180, le=180)
     phone: str | None = Field(None, max_length=50)
     email: str | None = Field(None, max_length=255)
-    operating_hours: dict = Field(default_factory=dict)
+    operating_hours: dict = Field(default_factory=dict, validate_default=True)
     timezone: str | None = Field(None, max_length=64)
     is_primary: bool = False
     notes: str | None = None
