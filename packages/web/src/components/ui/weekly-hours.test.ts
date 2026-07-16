@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  normalize, isRangeValid, rangesOverlap, isValidDay, isValid,
+  normalize, isRangeValid, rangesOverlap, isValidDay, isValid, isValidException,
   applyQuickFill, copyDay, sortExceptions, targetDays, MAX_EXCEPTIONS,
 } from "./weekly-hours";
 
@@ -55,5 +55,15 @@ describe("weekly-hours", () => {
     expect(targetDays("weekend")).toEqual(["sat", "sun"]);
     expect(sortExceptions([{ date: "2026-02-01", closed: true }, { date: "2026-01-01", h24: true }])
       .map((e) => e.date)).toEqual(["2026-01-01", "2026-02-01"]);
+  });
+  it("rangesOverlap: a zero-length range overlaps nothing (widget in-progress input)", () => {
+    expect(rangesOverlap("09:00-09:00", "08:00-10:00")).toBe(false);
+    expect(rangesOverlap("09:00-09:00", "09:00-09:00")).toBe(false);
+  });
+  it("isValidException rejects impossible calendar dates", () => {
+    const seen = new Set<string>();
+    expect(isValidException({ date: "2026-02-30", closed: true } as any, seen)).toBe(false); // Feb 30
+    expect(isValidException({ date: "2026-13-01", closed: true } as any, seen)).toBe(false); // month 13
+    expect(isValidException({ date: "2026-12-25", closed: true } as any, seen)).toBe(true);  // real date
   });
 });

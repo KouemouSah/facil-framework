@@ -25,6 +25,7 @@ export function isRangeValid(r: string): boolean {
 function coveredIntervals(r: string): [number, number][] {
   const p = parseRange(r);
   if (!p) return [];
+  if (p.from === p.to) return []; // zero-length range covers no minutes → never overlaps
   return p.from < p.to ? [[p.from, p.to]] : [[p.from, 1440], [0, p.to]]; // overnight → two
 }
 export function rangesOverlap(a: string, b: string): boolean {
