@@ -147,7 +147,7 @@
     "@storybook/addon-interactions": "^8.2.6",
     "@storybook/addon-links": "^8.2.6",
     "@storybook/blocks": "^8.2.6",
-    "@storybook/nextjs": "^8.2.6",
+    "@storybook/nextjs": "^10.5.4",
     "@storybook/react": "^8.2.6",
     "@storybook/test": "^8.2.6",
     "@tailwindcss/typography": "^0.5.19",
