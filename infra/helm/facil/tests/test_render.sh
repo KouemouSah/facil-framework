@@ -94,19 +94,28 @@ extract_job_block() {
 }
 
 assert_job_hook() {
+  # $4/$5 sont optionnels (retro-compatibles : les deux anciens appels ci-dessous
+  # n'en passent que 3) -- ajoutes pour le Job de sauvegarde (P2/A2), qui n'est PAS
+  # un post-install (rien a sauvegarder a la 1ere install, decision de conception
+  # verrouillee) et n'a PAS besoin d'attendre Postgres (il tourne en pre-upgrade,
+  # sur une release deja etablie ou Postgres tourne forcement deja -- contrairement
+  # a db-role/db-init qui peuvent s'executer en post-install, juste apres que
+  # Postgres vient de demarrer).
   local label="$1" source_path="$2" expected_weight="$3"
+  local expected_hook="${4:-post-install,pre-upgrade}"
+  local require_wait_postgres="${5:-true}"
   local block
   block="$(extract_job_block "$source_path")"
   if [ -z "$block" ]; then
     echo "FAIL hook($label): Job introuvable dans le rendu (source: $source_path)" >&2
     exit 1
   fi
-  if ! echo "$block" | grep -q "wait-postgres"; then
+  if [ "$require_wait_postgres" = "true" ] && ! echo "$block" | grep -q "wait-postgres"; then
     echo "FAIL hook($label): initContainer wait-postgres absent -- migration/role tenterait avant que Postgres soit pret" >&2
     exit 1
   fi
-  if ! echo "$block" | grep -q "helm.sh/hook: post-install,pre-upgrade"; then
-    echo "FAIL hook($label): annotation helm.sh/hook=post-install,pre-upgrade absente ou mal formee" >&2
+  if ! echo "$block" | grep -q "helm.sh/hook: ${expected_hook}"; then
+    echo "FAIL hook($label): annotation helm.sh/hook=${expected_hook} absente ou mal formee" >&2
     exit 1
   fi
   if ! echo "$block" | grep -q "helm.sh/hook-weight: \"${expected_weight}\""; then
@@ -124,15 +133,27 @@ assert_job_hook() {
 
 assert_job_hook "db-role" "facil/templates/db-role-job.yaml" "-1"
 assert_job_hook "db-init" "facil/templates/db-init-job.yaml" "0"
+# P2 : la sauvegarde doit tourner AVANT les migrations, sinon elle ne protege rien.
+assert_job_hook "backup" "facil/templates/backup-job.yaml" "-2" "pre-upgrade" "false"
+# P2/A3 : les assertions grep ci-dessus ne comparent que des POIDS ATTENDUS en
+# dur (litteraux "-2"/"-1"/"0") -- elles ne prouvent pas l'ORDRE relatif entre
+# les Jobs, et une comparaison textuelle serait de toute facon un piege
+# ("-2" < "-1" est FAUX en tri lexicographique). Garde parsee dediee : compare
+# les hook-weight NUMERIQUEMENT (backup strictement < db-role ET db-init) et
+# verifie le fail-closed (restartPolicy: Never, backoffLimit borne, aucun
+# `|| true`). Voir infra/helm/facil/tests/guard_backup.py +
+# tests/test_guard_backup.py (preuve par mutation de chaque invariant).
+python infra/helm/facil/tests/guard_backup.py < "$OUT_FILE"
 
-# Garde negative globale (style d'annotation normalise non-quote sur les deux
-# Jobs -- cf. commentaire ci-dessus) : aucun `pre-install` nulle part dans le
-# rendu, quelle que soit la forme de la cle (quotee ou non -- couvre une
-# regression qui reintroduirait le style quote).
-if grep -qE '"?helm\.sh/hook"?: pre-install' "$OUT_FILE"; then
-  echo "FAIL: hook pre-install detecte dans le rendu complet -- il s'execute AVANT que Postgres existe" >&2
-  exit 1
-fi
+# B1 : l'ancienne garde negative ICI etait un grep GLOBAL sur tout le rendu
+# (`grep -qE '"?helm\.sh/hook"?: pre-install' "$OUT_FILE"`) -- elle ne
+# distinguait pas un Job (qui EXIGE Postgres deja debout -- APPLY-002) d'une
+# simple ressource sans pod consommateur (ex. un PersistentVolumeClaim, pour
+# qui pre-install est legitime), et se declenchait donc en FAUX POSITIF des
+# qu'une telle ressource existait dans le chart. Remplacee par l'invariant 0
+# de guard_backup.py (deja invoque plus haut dans ce fichier) : PAR KIND,
+# aucun `kind: Job` ne porte `pre-install`, quelle que soit la forme de
+# l'annotation (quotee ou non, YAML le normalise avant meme le parsing).
 # Hardening : `runAsNonRoot: true` seul ne suffit PAS (nos images déclarent leur
 # USER par nom -- le kubelet ne résout pas, CreateContainerConfigError) + SEC-018
 # (spec.selector.matchLabels doit porter app.kubernetes.io/instance, sinon deux

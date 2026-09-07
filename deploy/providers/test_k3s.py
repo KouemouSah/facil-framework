@@ -284,6 +284,26 @@ def test_each_component_secret_holds_only_its_own_credential():
     assert set(lit["openbao"]) == {"OPENBAO_DEV_ROOT_TOKEN"}
 
 
+def test_backup_secret_holds_only_what_the_backup_job_needs():
+    # Le Job de backup a besoin du superuser PG (dump complet) et du root MinIO
+    # (lire tous les buckets) -- mais de RIEN d'autre. Un Secret dedie, jamais
+    # celui du backend (SEC-001 : une RCE dans le backend ne doit pas livrer le
+    # data-plane, et ce test-la doit rester vert).
+    lit = k3s.build_secret_literals(_FULL_SECRETS, cfg=_cfg())
+    assert set(lit["backup"]) == {"POSTGRES_PASSWORD", "MINIO_ROOT_PASSWORD"}
+    assert k3s.SECRET_NAMES["backup"] == "facil-backup-secret"
+
+
+def test_backend_still_has_no_root_credentials_after_adding_backup():
+    # Garde-fou explicite : l'ajout du composant "backup" ne doit pas rouvrir le
+    # blast radius qu'on a ferme.
+    lit = k3s.build_secret_literals(_FULL_SECRETS, cfg=_cfg())
+    backend = lit["backend"]
+    assert "POSTGRES_PASSWORD" not in backend
+    assert "MINIO_ROOT_PASSWORD" not in backend
+    assert "OPENBAO_DEV_ROOT_TOKEN" not in backend
+
+
 def test_secret_keys_allowlist_matches_config_secret_names():
     # Post-S1: SECRET_KEYS (flat allowlist) is gone — the "backend" component's
     # pick() list is now the allowlist. Every secret name deploy/config.yaml
@@ -455,6 +475,11 @@ def test_apply_passes_values_onprem_overlay_to_helm_upgrade(monkeypatch, tmp_pat
 
     def fake_run(cmd, **kwargs):
         captured_cmds.append(cmd)
+        if "status" in cmd:
+            # release_exists() lit .info.status (JSON) -- "deployed" pour
+            # rester sur le chemin une-passe que ce test exerce.
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout='{"info":{"status":"deployed"}}', stderr="")
         if "create" in cmd and "secret" in cmd:
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
         return subprocess.CompletedProcess(cmd, 0)
@@ -524,6 +549,130 @@ def test_apply_creates_namespace_before_secret(monkeypatch, tmp_path):
     assert ns_idx < sec_idx, "le namespace doit etre cree AVANT le Secret"
 
 
+# ---------------------------------------------------------------------------
+# B2 : PVC des sauvegardes cree HORS Helm (kubectl apply -f -), AVANT
+# `helm upgrade --install` — sur les DEUX chemins (1er install ET upgrade
+# d'une release deja installee). C'est exactement le deadlock que ce
+# correctif ferme : porte par Helm en hook `pre-install` SEUL, ce PVC n'etait
+# JAMAIS cree sur un upgrade (Helm n'execute pre-install qu'au tout premier
+# `helm install`) -> le Job facil-backup restait Pending indefiniment.
+# ---------------------------------------------------------------------------
+
+def test_build_pvc_manifest_shape():
+    manifest = k3s.build_pvc_manifest("facil-backups", "local-path", "10Gi")
+    assert "kind: PersistentVolumeClaim" in manifest
+    assert "name: facil-backups" in manifest
+    assert "storageClassName: local-path" in manifest
+    assert "storage: 10Gi" in manifest
+    assert "ReadWriteOnce" in manifest
+    # Ni hook Helm ni resource-policy : ce manifest n'est plus une ressource du
+    # chart -- rien a "garder" contre un `helm uninstall` qui ne le voit
+    # de toute facon jamais.
+    assert "helm.sh/hook" not in manifest
+
+
+def test_chart_pvc_defaults_reads_from_real_chart_values():
+    # Pas de litteral duplique : les valeurs DOIVENT provenir des fichiers
+    # values.yaml/values-onprem.yaml reels du chart -- une divergence future
+    # (ex. quelqu'un bascule le storageClass onprem) doit se refleter ICI
+    # sans toucher k3s.py.
+    storage_class, storage = k3s.chart_pvc_defaults()
+    assert storage_class == "local-path"
+    assert storage == "10Gi"
+
+
+def test_apply_creates_pvc_before_helm_upgrade_on_a_fresh_install(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append((list(cmd), kw.get("input")))
+        if "status" in cmd:
+            # release_exists() -- aucune release existante -> chemin danse 2 passes.
+            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="not found")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+    monkeypatch.setattr(k3s, "health_gate", lambda *a, **kw: 0)
+    rc = k3s.main(["--apply", "--config", str(_write_cfg_file(tmp_path)),
+                   "--yes", "--allow-dev-vault"])
+    assert rc == 0
+
+    joined = [" ".join(c) for c, _ in calls]
+    pvc_idx = next(
+        i for i, (c, manifest) in enumerate(calls)
+        if "apply" in c and manifest and "kind: PersistentVolumeClaim" in manifest
+        and "name: facil-backups" in manifest
+    )
+    upgrade_idx = next(i for i, c in enumerate(joined) if "upgrade" in c)
+    assert pvc_idx < upgrade_idx, "le PVC doit exister AVANT le premier `helm upgrade --install`"
+
+
+def test_apply_creates_pvc_before_helm_upgrade_on_an_already_installed_release(
+    monkeypatch, tmp_path,
+):
+    # LE scenario du bug B2 : release DEJA installee (donc une seule passe,
+    # pas de danse 2-replicas) -- le PVC doit quand meme etre (re)applique
+    # AVANT `helm upgrade`, jamais suppose deja present.
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append((list(cmd), kw.get("input")))
+        if "status" in cmd:
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout='{"info":{"status":"deployed"}}', stderr="")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+    monkeypatch.setattr(k3s, "health_gate", lambda *a, **kw: 0)
+    rc = k3s.main(["--apply", "--config", str(_write_cfg_file(tmp_path)),
+                   "--yes", "--allow-dev-vault"])
+    assert rc == 0
+
+    joined = [" ".join(c) for c, _ in calls]
+    pvc_idx = next(
+        i for i, (c, manifest) in enumerate(calls)
+        if "apply" in c and manifest and "kind: PersistentVolumeClaim" in manifest
+        and "name: facil-backups" in manifest
+    )
+    upgrade_idx = next(i for i, c in enumerate(joined) if "upgrade" in c)
+    assert pvc_idx < upgrade_idx, (
+        "B2 : sur une release DEJA installee, le PVC doit encore etre applique "
+        "AVANT `helm upgrade` -- c'est exactement le chemin ou l'ancien hook "
+        "pre-install ne se declenchait JAMAIS")
+
+
+def test_apply_pvc_after_namespace_but_manifest_carries_no_secret(monkeypatch, tmp_path):
+    # Le PVC ne porte aucune valeur de secret -- juste une preuve de forme
+    # complementaire a test_secret_values_never_appear_in_any_process_argv.
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append((list(cmd), kw.get("input")))
+        if "status" in cmd:
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout='{"info":{"status":"deployed"}}', stderr="")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+    monkeypatch.setattr(k3s, "health_gate", lambda *a, **kw: 0)
+    k3s.main(["--apply", "--config", str(_write_cfg_file(tmp_path)),
+              "--yes", "--allow-dev-vault"])
+
+    pvc_manifest = next(
+        m for c, m in calls if "apply" in c and m and "kind: PersistentVolumeClaim" in m)
+    for secret_value in _FULL_SECRETS.values():
+        assert secret_value not in pvc_manifest
+
+
 def test_plan_renders_in_the_target_namespace(monkeypatch, tmp_path):
     # SEC-019 : `helm template` sans -n rend avec .Release.Namespace = "default",
     # donc le plan ne reflete pas l'apply.
@@ -549,9 +698,17 @@ def test_plan_renders_in_the_target_namespace(monkeypatch, tmp_path):
 def test_apply_uses_atomic_for_auto_rollback(monkeypatch, tmp_path):
     # SEC-022 : sans --atomic une release en echec reste en place, pods casses.
     calls = []
-    monkeypatch.setattr(k3s.subprocess, "run",
-                        lambda cmd, **kw: calls.append(list(cmd)) or
-                        subprocess.CompletedProcess(cmd, 0, stdout=""))
+
+    def fake_run(cmd, **kw):
+        calls.append(list(cmd))
+        if "status" in cmd:
+            # release_exists() lit .info.status (JSON) -- "deployed" pour
+            # rester sur le chemin une-passe que ce test exerce.
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout='{"info":{"status":"deployed"}}', stderr="")
+        return subprocess.CompletedProcess(cmd, 0, stdout="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
     monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
     monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
     monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
@@ -633,6 +790,327 @@ def test_apply_allows_openbao_dev_mode_with_explicit_flag(monkeypatch, tmp_path)
     monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
     assert k3s.main(["--apply", "--config", str(_write_cfg_file(tmp_path)),
                      "--yes", "--allow-dev-vault"]) == 0
+
+
+def test_rollback_invokes_helm_rollback_in_the_target_namespace(monkeypatch):
+    calls = []
+    monkeypatch.setattr(k3s.subprocess, "run",
+                        lambda cmd, **kw: calls.append(list(cmd)) or
+                        subprocess.CompletedProcess(cmd, 0, stdout=""))
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+    assert k3s.main(["--rollback", "--namespace", "custom-ns"]) == 0
+    rb = next(c for c in calls if "rollback" in c)
+    assert rb[rb.index("-n") + 1] == "custom-ns"
+
+
+def test_rollback_warns_that_the_database_is_NOT_restored(monkeypatch, capsys):
+    # Le piege mortel : helm rollback rend les MANIFESTES, jamais la BASE. Si la
+    # migration etait destructive, l'operateur doit le savoir, a l'ecran.
+    monkeypatch.setattr(k3s.subprocess, "run",
+                        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout=""))
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+    k3s.main(["--rollback"])
+    out = capsys.readouterr().out.lower()
+    assert "base de donnees" in out
+    assert "ne restaure pas" in out or "n'a pas ete" in out
+    assert "restore_backup" in out   # on pointe vers l'outil, pas juste un avertissement
+
+
+# --- A4 : l'avertissement vient AVANT l'action, et exige confirmation --------
+
+def test_rollback_requires_confirmation_without_yes(monkeypatch):
+    calls = []
+    monkeypatch.setattr(k3s.subprocess, "run",
+                        lambda cmd, **kw: calls.append(list(cmd)) or
+                        subprocess.CompletedProcess(cmd, 0, stdout=""))
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+    rc = k3s.main(["--rollback"])
+    assert rc == 4
+    assert calls == [], (
+        "decliner doit annuler AVANT tout appel `helm history`/`helm rollback` "
+        f"-- appels observes : {calls}")
+
+
+def test_rollback_proceeds_when_confirmed_without_yes(monkeypatch):
+    calls = []
+    monkeypatch.setattr(k3s.subprocess, "run",
+                        lambda cmd, **kw: calls.append(list(cmd)) or
+                        subprocess.CompletedProcess(cmd, 0, stdout=""))
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+    rc = k3s.main(["--rollback"])
+    assert rc == 0
+    assert any("rollback" in c for c in calls)
+
+
+def test_yes_does_NOT_skip_the_rollback_confirmation(monkeypatch):
+    # Arbitrage explicite (revue E2). --yes est documente comme "confirme
+    # --apply". --rollback est l'operation la PLUS risquee du provider : il rend
+    # les manifestes SANS restaurer la base -- c'est tout le piege que
+    # l'avertissement A4 existe pour signaler. Le laisser court-circuiter par
+    # --yes, c'est garantir que personne ne le lira jamais dans un pipeline,
+    # c'est-a-dire precisement la ou le rollback est declenche.
+    asked = []
+    monkeypatch.setattr("builtins.input", lambda prompt="": asked.append(prompt) or "n")
+    calls = []
+    monkeypatch.setattr(k3s.subprocess, "run",
+                        lambda cmd, **kw: calls.append(list(cmd)) or
+                        subprocess.CompletedProcess(cmd, 0, stdout=""))
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    rc = k3s.main(["--rollback"])
+    assert rc == 4, "--yes ne doit PAS auto-confirmer un rollback"
+    assert asked, "la confirmation doit etre demandee meme avec --yes"
+    assert calls == [], "aucun appel cluster apres un refus"
+
+
+def test_rollback_aborts_when_helm_history_fails_instead_of_rolling_back_blindly(monkeypatch):
+    # Le returncode de `helm history` etait jete : sur une release inexistante,
+    # l'operateur ne voyait rien s'afficher, confirmait, et `helm rollback`
+    # echouait derriere. On s'arrete avec la cause -- et SURTOUT sans jamais
+    # appeler `helm rollback`.
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(list(cmd))
+        rc = 1 if "history" in cmd else 0
+        return subprocess.CompletedProcess(cmd, rc, stdout="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+    rc = k3s.main(["--rollback"])
+    assert rc == 2
+    assert not any("rollback" in c for c in calls), (
+        f"un `helm history` en echec ne doit JAMAIS mener a un rollback -- {calls}")
+
+
+def test_rollback_warning_appears_before_the_success_confirmation(monkeypatch, capsys):
+    # A4 : l'avertissement ("ne restaure pas la base") doit precede l'action --
+    # pas etre decouvert APRES coup, une fois le rollback deja declenche.
+    monkeypatch.setattr(k3s.subprocess, "run",
+                        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout=""))
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+    k3s.main(["--rollback"])
+    out = capsys.readouterr().out
+    warn_idx = out.lower().index("ne restaure pas")
+    ok_idx = out.index("[OK]")
+    assert warn_idx < ok_idx, "l'avertissement doit precede la confirmation de succes"
+
+
+def test_rollback_targets_specific_revision_when_given(monkeypatch):
+    calls = []
+    monkeypatch.setattr(k3s.subprocess, "run",
+                        lambda cmd, **kw: calls.append(list(cmd)) or
+                        subprocess.CompletedProcess(cmd, 0, stdout=""))
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+    assert k3s.main(["--rollback", "--revision", "3"]) == 0
+    rb = next(c for c in calls if "rollback" in c)
+    assert rb[rb.index("rollback") + 1:rb.index("rollback") + 3] == ["facil", "3"]
+
+
+def test_rollback_fails_closed_when_helm_rollback_errors(monkeypatch, capsys):
+    def fake_run(cmd, **kw):
+        if "rollback" in cmd:
+            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="boom")
+        return subprocess.CompletedProcess(cmd, 0, stdout="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    rc = monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+    rc = k3s.main(["--rollback"])
+    assert rc == 2
+    out = capsys.readouterr()
+    # A4 : l'avertissement pre-action est maintenant affiche AVANT de savoir si
+    # `helm rollback` va reussir (c'est le point -- l'operateur doit le voir
+    # AVANT de decider) -- mais la confirmation de SUCCES ("[OK] ... termine")
+    # ne doit elle jamais apparaitre quand `helm rollback` a echoue : rien n'a
+    # ete change, ce message serait trompeur.
+    assert "[OK]" not in out.out
+    assert "ERREUR" in out.err
+
+
+def test_rollback_does_not_require_deploy_config_yaml(monkeypatch, tmp_path):
+    # --rollback n'a besoin d'aucune config applicative -- doit fonctionner meme
+    # quand deploy/config.yaml est absent (poste fraichement clone / CI).
+    monkeypatch.setattr(k3s.subprocess, "run",
+                        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout=""))
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    missing_config = tmp_path / "does-not-exist.yaml"
+    monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+    assert k3s.main(["--rollback", "--yes", "--config", str(missing_config)]) == 0
+
+
+def test_rollback_and_apply_are_mutually_exclusive():
+    with pytest.raises(SystemExit):
+        k3s.main(["--rollback", "--apply", "--yes"])
+
+
+# --- C1 : health-gate explicite apres upgrade ------------------------------
+#
+# Honnetete (a ne pas perdre de vue en lisant ces tests) : `helm upgrade --wait`
+# attend deja que les pods soient Ready, et la readinessProbe backend EST deja
+# /health -- ce gate est donc INCREMENTAL (verifie l'app APRES que Helm ait
+# declare la release reussie, message exploitable), jamais un remplacement du
+# --wait existant.
+
+def test_health_gate_calls_kubectl_exec_with_expected_url_and_returns_0_on_success(monkeypatch):
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s.time, "sleep", lambda s: (_ for _ in ()).throw(
+        AssertionError("no sleep expected on first-try success")))
+
+    rc = k3s.health_gate("kubectl", "facil", 8080)
+
+    assert rc == 0
+    assert len(calls) == 1
+    cmd = calls[0]
+    assert cmd[:4] == ["kubectl", "-n", "facil", "exec"]
+    assert "deploy/facil-backend" in cmd
+    assert any("localhost:8080/health" in a for a in cmd)
+
+
+def test_health_gate_retries_with_delay_before_failing(monkeypatch):
+    # Mutation-guard: proves the retry loop can actually exhaust and fail --
+    # not just succeed trivially on the first attempt.
+    calls = []
+    slept = []
+
+    def fake_run(cmd, **kw):
+        calls.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="connection refused")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s.time, "sleep", lambda s: slept.append(s))
+
+    rc = k3s.health_gate("kubectl", "facil", 8080, attempts=3, delay_seconds=2.0)
+
+    assert rc == 2
+    assert len(calls) == 3, "doit epuiser TOUTES les tentatives avant d'echouer"
+    assert slept == [2.0, 2.0], "espace entre tentatives, mais pas apres la derniere"
+
+
+def test_health_gate_names_the_faulty_deployment_and_namespace_on_failure(monkeypatch, capsys):
+    monkeypatch.setattr(
+        k3s.subprocess, "run",
+        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1, stdout="", stderr="dial tcp: timeout"))
+    monkeypatch.setattr(k3s.time, "sleep", lambda s: None)
+
+    rc = k3s.health_gate("kubectl", "custom-ns", 9000, attempts=1)
+
+    assert rc == 2
+    err = capsys.readouterr().err
+    # Message exploitable : nomme le Deployment fautif + le namespace + le
+    # DERNIER diagnostic reel -- pas juste "echec", ce qui serait un timeout
+    # Helm opaque avec un habillage different.
+    assert "deploy/facil-backend" in err
+    assert "custom-ns" in err
+    assert "dial tcp: timeout" in err
+
+
+def test_health_gate_succeeds_after_a_transient_failure(monkeypatch):
+    # Distingue vraiment le retry loop d'un simple pass/fail binaire.
+    attempts_seen = []
+
+    def fake_run(cmd, **kw):
+        attempts_seen.append(1)
+        rc = 1 if len(attempts_seen) == 1 else 0
+        return subprocess.CompletedProcess(cmd, rc, stdout="", stderr="not ready yet")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s.time, "sleep", lambda s: None)
+
+    rc = k3s.health_gate("kubectl", "facil", 8080, attempts=5, delay_seconds=1.0)
+
+    assert rc == 0
+    assert len(attempts_seen) == 2
+
+
+def test_main_apply_fails_closed_when_health_gate_reports_app_down(monkeypatch, tmp_path):
+    # Helm declares the release successful (--wait passed) but the app itself
+    # doesn't answer /health -- main() must surface this as a hard failure,
+    # not silently return 0 just because `helm upgrade` succeeded.
+    monkeypatch.setattr(k3s.subprocess, "run",
+                        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout="", stderr=""))
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+    monkeypatch.setattr(k3s, "health_gate", lambda *a, **kw: 2)
+
+    rc = k3s.main(["--apply", "--config", str(_write_cfg_file(tmp_path)),
+                   "--yes", "--allow-dev-vault"])
+    assert rc == 2
+
+
+def test_main_apply_returns_0_when_health_gate_passes(monkeypatch, tmp_path):
+    monkeypatch.setattr(k3s.subprocess, "run",
+                        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout="", stderr=""))
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+    monkeypatch.setattr(k3s, "health_gate", lambda *a, **kw: 0)
+
+    rc = k3s.main(["--apply", "--config", str(_write_cfg_file(tmp_path)),
+                   "--yes", "--allow-dev-vault"])
+    assert rc == 0
+
+
+def test_main_apply_passes_configured_backend_port_to_health_gate(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_health_gate(kubectl, namespace, port, **kw):
+        seen["kubectl"] = kubectl
+        seen["namespace"] = namespace
+        seen["port"] = port
+        return 0
+
+    monkeypatch.setattr(k3s.subprocess, "run",
+                        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout="", stderr=""))
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+    monkeypatch.setattr(k3s, "health_gate", fake_health_gate)
+
+    rc = k3s.main(["--apply", "--config",
+                   str(_write_cfg_file(tmp_path, docker_local={
+                       "database_mode": "local", "backend_port": 9999,
+                       "frontend_port": 3000, "postgres_image": "pgvector/pgvector:pg16",
+                       "postgres_volume": "facil_pgdata", "redis_image": "redis:7-alpine"})),
+                   "--yes", "--allow-dev-vault", "--namespace", "custom-ns"])
+    assert rc == 0
+    assert seen == {"kubectl": "kubectl", "namespace": "custom-ns", "port": 9999}
+
+
+def test_main_apply_first_install_also_runs_health_gate(monkeypatch, tmp_path):
+    # Le 1er install (danse deux-passes) doit AUSSI passer par le health-gate
+    # apres la 2e passe -- pas seulement le chemin upgrade-simple.
+    def fake_run(cmd, **kw):
+        if "status" in cmd:
+            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="not found")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    calls = []
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+    monkeypatch.setattr(k3s, "health_gate", lambda *a, **kw: calls.append(a) or 0)
+
+    rc = k3s.main(["--apply", "--config", str(_write_cfg_file(tmp_path)),
+                   "--yes", "--allow-dev-vault"])
+    assert rc == 0
+    assert len(calls) == 1
 
 
 def test_deploy_py_knows_k3s_provider():
@@ -763,7 +1241,13 @@ def test_apply_upgrade_of_existing_release_uses_single_pass_no_downtime(monkeypa
 
     def fake_run(cmd, **kw):
         calls.append(list(cmd))
-        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")  # "helm status" -> existe
+        if "status" in cmd:
+            # release_exists() exige desormais info.status == "deployed"
+            # (pas seulement returncode==0 -- une release "failed" ne doit
+            # PAS emprunter le chemin une-passe, cf. le bug corrige task-E1).
+            return subprocess.CompletedProcess(cmd, 0, stdout='{"info":{"status":"deployed"}}',
+                                               stderr="")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
     monkeypatch.setattr(k3s.subprocess, "run", fake_run)
     monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
@@ -783,6 +1267,43 @@ def test_apply_upgrade_of_existing_release_uses_single_pass_no_downtime(monkeypa
         "d'une release existante -- ce serait une coupure de service inutile "
         "(502 cote frontend) puisqu'il n'y a pas de deadlock a contourner ici")
     assert "--atomic" in upgrade_calls[0]
+
+
+def test_apply_treats_failed_prior_release_as_absent_reruns_two_pass_dance(
+    monkeypatch, tmp_path,
+):
+    # BUG REEL CORRIGE (smoke k3d task-E1, 2026-07-14) : `helm status` renvoie
+    # returncode==0 MEME pour une release au statut "failed" (ex. un --apply
+    # precedent qui a echoue au pre-install, avant tout --atomic/rollback).
+    # release_exists() doit lire `.info.status` (JSON), pas seulement le
+    # returncode -- sinon un --apply de reprise apres un 1er echec prend le
+    # chemin une-passe (backend a son replica REEL d'emblee) sur un cluster
+    # encore vierge -> reproduit tel quel le deadlock original (task-V1) que
+    # la danse deux-passes existe pour eviter.
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(list(cmd))
+        if "status" in cmd:
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout='{"info":{"status":"failed"}}', stderr="")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+
+    rc = k3s.main(["--apply", "--config", str(_write_cfg_file(tmp_path)),
+                   "--yes", "--allow-dev-vault"])
+    assert rc == 0
+
+    upgrade_calls = [c for c in calls if "upgrade" in c]
+    assert len(upgrade_calls) == 2, (
+        "une release au statut 'failed' doit etre traitee comme ABSENTE -- "
+        "la danse deux-passes (1er install) doit rejouer, pas le chemin "
+        "une-passe reserve a une release DEJA deployee avec succes")
+    assert "backend.replicas=0" in upgrade_calls[0]
 
 
 def test_apply_first_install_pass2_failure_warns_backend_left_at_zero_replicas(
@@ -808,3 +1329,104 @@ def test_apply_first_install_pass2_failure_warns_backend_left_at_zero_replicas(
                    "--yes", "--allow-dev-vault"])
     assert rc == 2
     assert "0 replica" in capsys.readouterr().err.lower()
+
+
+# --- Garde-fou : migrer une release existante SANS sauvegarde (SEC-003/H3) ---
+
+def _apply_env(monkeypatch, tmp_path, backup_enabled, existing_release):
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0, stdout="")
+
+    monkeypatch.setattr(k3s.subprocess, "run", fake_run)
+    monkeypatch.setattr(k3s, "find_helm", lambda: "helm")
+    monkeypatch.setattr(k3s, "find_kubectl", lambda: "kubectl")
+    monkeypatch.setattr(k3s, "_load_env_secrets", lambda p: _FULL_SECRETS)
+    monkeypatch.setattr(k3s, "backup_is_enabled", lambda: backup_enabled)
+    monkeypatch.setattr(k3s, "release_exists", lambda h, ns: existing_release)
+    return calls
+
+
+def _run_apply(tmp_path, *extra):
+    # --allow-dev-vault : ces tests portent sur le garde-fou de sauvegarde, pas
+    # sur la garde SEC-002 dev-mode d'OpenBao.
+    return k3s.main(["--apply", "--config", str(_write_cfg_file(tmp_path)),
+                     "--yes", "--allow-dev-vault", *extra])
+
+
+def test_apply_refuses_to_migrate_an_existing_release_without_backup(monkeypatch, tmp_path, capsys):
+    # Le Job facil-backup est gate par `backup.enabled` ET `postgres.enabled`.
+    # Un --set, un overlay ou une regression sur values-onprem.yaml le fait
+    # disparaitre -- et `helm upgrade` lancait alors alembic sur une base de
+    # production sans le moindre dump, EN SILENCE, exit 0. Toutes les gardes
+    # restaient vertes : elles verifient l'ORDRE du Job, pas son EXISTENCE.
+    calls = _apply_env(monkeypatch, tmp_path, backup_enabled=False, existing_release=True)
+    rc = _run_apply(tmp_path)
+    assert rc == 1
+    assert not any("upgrade" in c for c in calls), (
+        f"aucun `helm upgrade` ne doit partir sans sauvegarde -- {calls}")
+    assert "AVORTE" in capsys.readouterr().err
+
+
+def test_apply_proceeds_without_backup_when_the_risk_is_declared(monkeypatch, tmp_path):
+    calls = _apply_env(monkeypatch, tmp_path, backup_enabled=False, existing_release=True)
+    assert _run_apply(tmp_path, "--no-backup") == 0
+    assert any("upgrade" in c for c in calls)
+
+
+def test_a_first_install_without_backup_is_not_blocked(monkeypatch, tmp_path):
+    # Une PREMIERE installation ne protege rien : il n'y a pas de donnees a
+    # perdre. Bloquer ici serait une garde qui crie a tort -- donc une garde
+    # qu'on finit par desactiver.
+    calls = _apply_env(monkeypatch, tmp_path, backup_enabled=False, existing_release=False)
+    assert _run_apply(tmp_path) == 0
+    assert any("upgrade" in c for c in calls)
+
+
+def test_the_guard_does_not_fire_when_backup_is_enabled(monkeypatch, tmp_path):
+    # Anti-faux-positif : le chemin nominal (sauvegarde active) ne doit jamais
+    # etre bloque.
+    calls = _apply_env(monkeypatch, tmp_path, backup_enabled=True, existing_release=True)
+    assert _run_apply(tmp_path) == 0
+    assert any("upgrade" in c for c in calls)
+
+
+# --- M5 : "l'appli est cassee" et "je n'ai pas pu lui demander" ne sont pas ---
+#     la meme conclusion -- la premiere pousse a --rollback, la plus risquee.
+
+def _health_gate_failing(monkeypatch, stderr):
+    monkeypatch.setattr(
+        k3s.subprocess, "run",
+        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1, stdout="", stderr=stderr))
+    monkeypatch.setattr(k3s.time, "sleep", lambda s: None)
+
+
+def test_health_gate_does_not_blame_the_app_when_it_could_not_even_ask(monkeypatch, capsys):
+    # `kubectl exec` peut echouer POUR LUI-MEME : pod en cours de terminaison en
+    # fin de rolling update, RBAC, skew kubectl. Le gate concluait quand meme
+    # "c'est donc l'APPLICATION qui est en cause" -- un mensonge qui pousse
+    # l'operateur vers --rollback, l'operation la plus risquee du provider.
+    _health_gate_failing(monkeypatch, "Error from server (Forbidden): pods is forbidden")
+    rc = k3s.health_gate("kubectl", "facil", 8080, attempts=2, delay_seconds=0)
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "NON CONCLUANT" in err
+    assert "l'APPLICATION" not in err, (
+        "ne pas accuser l'application quand on n'a meme pas pu l'interroger")
+    assert "rollback" not in err.lower() or "pas" in err.lower()
+
+
+def test_health_gate_blames_the_app_when_the_app_really_answered_unhealthy(monkeypatch, capsys):
+    # A l'inverse : une HTTPError remontee par la sonde, c'est l'application qui
+    # a REPONDU non-200 (le /health du backend renvoie 503 quand la base est
+    # injoignable). La, l'accusation est fondee.
+    _health_gate_failing(
+        monkeypatch,
+        'Traceback...\n  urllib.error.HTTPError: HTTP Error 503: Service Unavailable')
+    rc = k3s.health_gate("kubectl", "facil", 8080, attempts=2, delay_seconds=0)
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "l'APPLICATION" in err
+    assert "NON CONCLUANT" not in err

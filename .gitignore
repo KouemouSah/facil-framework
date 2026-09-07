@@ -175,6 +175,9 @@ docker-compose.local.yml
 Caddyfile
 # Bootstrap state — provisioning output + generated credentials (data-plane bootstrap)
 deploy/.bootstrap-state.json
+# D1 — pre-update Postgres dumps (docker_local.py::backup_postgres). Local
+# only, like the k3s backups PVC: never committed, may contain real data.
+/backups/
 
 # API keys / tokens dropped into the repo (NEVER commit) — e.g. Resend key
 .github/api-keys.csv

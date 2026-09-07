@@ -1,0 +1,243 @@
+{{- if and .Values.backup.enabled .Values.postgres.enabled }}
+{{- if lt (int .Values.backup.retain) 1 }}
+{{- fail "backup.retain doit etre >= 1 (B3) : avec 0, le script de retention purge le dump QU'IL VIENT DE CREER (le repertoire horodate du jour compte parmi les candidats), laissant la sauvegarde pre-upgrade vide alors que le Job sort 0 -- fail-OPEN silencieux, exactement ce que ce hook existe pour empecher. Utiliser une valeur >= 1." }}
+{{- end }}
+{{/*
+Sauvegarde AVANT migration. C'est la seule chose qui separe un client d'une perte
+de donnees irreversible : `--atomic` rollback les MANIFESTES, jamais la BASE. Une
+migration Alembic destructive (DROP COLUMN, DROP TABLE) est irrattrapable sans ce
+dump.
+
+hook `pre-upgrade` SEULEMENT (rien a sauvegarder a la 1ere installation) et
+hook-weight -2 : avant db-role (-1) et db-init (0). L'ordre est l'invariant.
+
+FAIL-CLOSED : si le dump echoue OU s'il est vide, le Job echoue -> le hook echoue
+-> `helm upgrade` avorte AVANT la migration. Une sauvegarde silencieusement vide
+serait PIRE que pas de sauvegarde : elle cree une fausse confiance.
+
+Aucune image nouvelle : pg_dump vient de l'image postgres deja epinglee, mc de
+l'image minio deja epinglee (/usr/bin/mc).
+
+Asymetrie deliberee avec db-init-job.yaml : ce Job ne se gate PAS sur
+`minio.enabled` au niveau du Job entier -- Postgres reste sauvegarde meme quand
+MinIO est desactive (ex. stockage objet externe/S3, deja supporte par le chart
+storage abstrait). Seul le mirror MinIO (initContainer `mirror-minio`) est
+conditionnel ; verifie par mutation (`--set minio.enabled=false`) qu'aucune
+reference a `facil-minio` ne subsiste alors dans le rendu.
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "facil.fullname" (dict "name" "backup") }}
+  labels: {{- include "facil.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-upgrade
+    helm.sh/hook-weight: "-2"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 1        # une sauvegarde ratee ne doit pas etre retentee indefiniment
+  template:
+    metadata:
+      labels: {{- include "facil.selectorLabels" (dict "Release" .Release "component" "backup") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      {{- include "facil.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        fsGroup: 999
+        seccompProfile: { type: RuntimeDefault }
+      initContainers:
+        - name: wait-postgres
+          {{/*
+          MANQUAIT ICI (BUG REEL, PAS THEORIQUE) : verifie en conditions
+          reelles sur le smoke k3d task-E1 (2026-07-14) -- le Job db-role et
+          le Job db-init ont TOUS LES DEUX ce meme initContainer d'attente
+          (voir db-role-job.yaml/db-init-job.yaml), mais le Job de sauvegarde
+          en etait prive et attaquait `pg_dump` directement. Avec
+          `backoffLimit: 1` (2 tentatives max -- volontaire, cf. commentaire
+          plus bas), la moindre fenetre transitoire ou Postgres n'accepte pas
+          encore de connexion (ex. propagation des regles NetworkPolicy de
+          kube-router sur un pod fraichement cree avec un `facil.component`
+          jamais vu jusque-la dans ce namespace) faisait echouer les 2
+          tentatives -> `pg_dump: error: connection ... Connection refused`,
+          BackoffLimitExceeded, upgrade avorte. `pg_isready` en boucle est
+          l'exacte meme parade deja utilisee par les Jobs freres -- DRY par
+          copie du motif, pas d'`include` partage (mineur, meme duplication
+          deja acceptee entre db-role-job.yaml et db-init-job.yaml).
+          */}}
+          image: {{ .Values.postgres.image }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          command: ["sh", "-c"]
+          args:
+            - |
+              until pg_isready -h {{ include "facil.fullname" (dict "name" "postgres") }} -U {{ .Values.postgres.user }}; do
+                echo "postgres pas pret, attente..." >&2
+                sleep 2
+              done
+          resources: {{- toYaml .Values.resources.small | nindent 12 }}
+        - name: dump-postgres
+          image: {{ .Values.postgres.image }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          # PGPASSWORD est lu depuis l'ENVIRONNEMENT par pg_dump -- jamais passe en
+          # argv (CWE-214 : /proc/<pid>/cmdline est lisible). Ce projet a deja ferme
+          # ce canal trois fois.
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretNames.backup }}
+                  key: POSTGRES_PASSWORD
+            - name: PGHOST
+              value: {{ include "facil.fullname" (dict "name" "postgres") }}
+            - name: PGUSER
+              value: {{ .Values.postgres.user | quote }}
+            - name: PGDATABASE
+              value: {{ .Values.postgres.db | quote }}
+            - name: RETAIN
+              value: {{ .Values.backup.retain | quote }}
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              TS="$(date -u +%Y%m%dT%H%M%SZ)"
+              DEST="/backups/${TS}"
+              mkdir -p "$DEST"
+              echo "sauvegarde Postgres -> ${DEST}/postgres.dump" >&2
+              # -Fc = format custom (compresse, restaurable selectivement par pg_restore)
+              pg_dump -Fc -f "${DEST}/postgres.dump"
+              # FAIL-CLOSED : un dump vide est pire que pas de dump (fausse confiance).
+              # NB : une base neuve produit un dump PETIT mais jamais VIDE (en-tete +
+              # schema) -- ce test tolere donc la 2e passe du premier `--apply`.
+              if [ ! -s "${DEST}/postgres.dump" ]; then
+                echo "FAIL: le dump Postgres est vide -- upgrade avorte AVANT migration." >&2
+                exit 1
+              fi
+              echo "$TS" > /backups/.latest
+              # Retention ICI (pas dans mirror-minio) : elle doit s'executer que
+              # MinIO soit active ou non -- sinon, MinIO desactive, les vieilles
+              # sauvegardes Postgres s'accumuleraient sans jamais etre purgees.
+              # Sans risque pour la sauvegarde EN COURS : elle vient d'etre creee,
+              # donc toujours la plus recente -- jamais elle-meme purgee.
+              cd /backups
+              COUNT="$(ls -1d 2*Z 2>/dev/null | wc -l)"
+              if [ "$COUNT" -gt "$RETAIN" ]; then
+                ls -1d 2*Z | sort | head -n "$((COUNT - RETAIN))" | while read -r old; do
+                  echo "purge de la sauvegarde ${old}" >&2
+                  rm -rf "$old"
+                done
+              fi
+              # FAIL-CLOSED (B3), APRES la purge : le rendu refuse deja
+              # backup.retain<1 (voir le `fail` en tete de ce fichier), mais on ne
+              # se fie pas seulement a la validation amont -- bout en bout. Le
+              # compte ci-dessus inclut le repertoire "${TS}" QUI VIENT D'ETRE CREE
+              # (`ls -1d 2*Z` liste aussi la sauvegarde du jour) : une regression qui
+              # laisserait passer retain=0 purgerait cette meme sauvegarde qu'on
+              # vient de dumper, et le Job sortirait 0 (le `rm` a reussi) alors
+              # qu'il ne reste plus AUCUN dump exploitable -- fail-OPEN silencieux.
+              if [ ! -s "${DEST}/postgres.dump" ]; then
+                echo "FAIL: le dump Postgres a disparu apres la purge de retention -- upgrade avorte AVANT migration." >&2
+                exit 1
+              fi
+          volumeMounts:
+            - { name: backups, mountPath: /backups }
+            - { name: tmp, mountPath: /tmp }
+          resources: {{- toYaml .Values.resources.small | nindent 12 }}
+        {{- if .Values.minio.enabled }}
+        - name: mirror-minio
+          image: {{ .Values.minio.image }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          # MC_HOST_facil : mc lit l'alias depuis l'ENVIRONNEMENT (jamais
+          # `mc alias set <url-avec-mdp>`, qui exposerait le secret dans l'argv).
+          # Construit ICI via l'interpolation NATIVE k8s `$(VAR)` (resolue par le
+          # kubelet AVANT l'exec du conteneur), meme convention deja utilisee pour
+          # REDIS_URL dans backend.yaml -- PAS dans le script shell (`${VAR}` bash),
+          # qui aurait fait apparaitre le motif `scheme://user:pass@` en TEXTE DANS
+          # LE RENDU et declenche un faux-positif de guard_secrets.py (verifie :
+          # celui-ci exempte explicitement `$(...)`, jamais `${...}`).
+          env:
+            - name: MINIO_ROOT_USER
+              value: {{ .Values.minio.rootUser | quote }}
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretNames.backup }}
+                  key: MINIO_ROOT_PASSWORD
+            - name: MC_HOST_facil
+              value: http://$(MINIO_ROOT_USER):$(MINIO_ROOT_PASSWORD)@{{ include "facil.fullname" (dict "name" "minio") }}:9000
+            # readOnlyRootFilesystem=true : le HOME de l'image minio n'est pas
+            # inscriptible. mc y ecrit sinon un mini config/etat (~/.mc) au premier
+            # appel -> EACCES en crash-loop. Redirige vers /tmp, seul chemin
+            # inscriptible monte (emptyDir, cf. volumeMounts) -- meme lecon que le
+            # fsGroup ci-dessus (deja durement apprise sur ce projet).
+            - name: MC_CONFIG_DIR
+              value: /tmp/.mc
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              TS="$(cat /backups/.latest)"
+              DEST="/backups/${TS}/minio"
+              mkdir -p "$DEST"
+              echo "mirror MinIO -> ${DEST}" >&2
+              # Compte les objets SOURCE avant le mirror : `mc mirror` sort 0
+              # quand il ne copie RIEN (bucket devenu invisible au root, policy
+              # cassee, alias qui resout mais n'expose rien). L'invariant de ce
+              # Job -- "une sauvegarde vide est pire que pas de sauvegarde" --
+              # n'etait applique qu'a la moitie Postgres.
+              SRC_N="$(mc ls --recursive facil | wc -l)"
+              mc mirror --quiet facil "$DEST" || {
+                echo "FAIL: le mirror MinIO a echoue -- upgrade avorte AVANT migration." >&2
+                exit 1
+              }
+              # `mc ls --recursive`, PAS `find` : l'image minio/minio ne contient
+              # PAS `find` (verifie sur le cluster : `sh: find: command not found`).
+              # Le comptage tombait donc a 0 alors que le mirror avait REUSSI, et
+              # cette garde avortait TOUS les upgrades -- un faux positif que ni
+              # `helm lint`, ni `helm template`, ni les tests unitaires ne pouvaient
+              # voir. `mc` est le seul binaire garanti ici : c'est tout l'objet de
+              # ce conteneur.
+              DST_N="$(mc ls --recursive "$DEST" | wc -l)"
+              # FAIL-CLOSED, symetrique du dump : 0 objet source = 0 fichier
+              # mirore reste vert (install neuve sans objet -- pas de faux positif).
+              if [ "$SRC_N" -ne "$DST_N" ]; then
+                echo "FAIL: mirror MinIO incomplet (${DST_N}/${SRC_N} objets) -- upgrade avorte AVANT migration." >&2
+                exit 1
+              fi
+              echo "sauvegarde ${TS} terminee." >&2
+          volumeMounts:
+            - { name: backups, mountPath: /backups }
+            - { name: tmp, mountPath: /tmp }
+          resources: {{- toYaml .Values.resources.small | nindent 12 }}
+        {{- end }}
+      containers:
+        # Un Job k8s exige `containers` non-vide. Le vrai travail (dump + mirror)
+        # tourne en initContainers (ordre sequentiel garanti -- des `containers`
+        # multiples demarreraient en PARALLELE, cassant la dependance TS/.latest
+        # entre les deux etapes). Ce dernier maillon est un no-op deliberement
+        # trivial, present que MinIO soit active ou non.
+        - name: backup-complete
+          image: {{ .Values.postgres.image }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          command: ["sh", "-c", "echo sauvegarde terminee >&2"]
+          resources: {{- toYaml .Values.resources.small | nindent 12 }}
+      volumes:
+        - name: backups
+          persistentVolumeClaim:
+            claimName: {{ include "facil.fullname" (dict "name" "backups") }}
+        - name: tmp
+          emptyDir: {}
+{{- end }}

@@ -13,6 +13,12 @@ Usage
     python deploy/providers/k3s.py --config=deploy/config.yaml --validate
     python deploy/providers/k3s.py --config=deploy/config.yaml --plan
     python deploy/providers/k3s.py --config=deploy/config.yaml --apply
+    python deploy/providers/k3s.py --rollback [--revision N] [--namespace ns]
+
+`--rollback` n'affecte QUE les manifestes Helm (`helm rollback`) -- jamais la
+base de donnees. Voir deploy/scripts/restore_backup.py pour restaurer les
+donnees depuis la sauvegarde pre-upgrade (jamais automatique -- decision
+humaine requise).
 
 Exit codes
 ----------
@@ -26,9 +32,11 @@ from __future__ import annotations
 
 import argparse
 import base64
+import json
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 PROVIDERS_DIR = Path(__file__).resolve().parent
@@ -58,6 +66,7 @@ SECRET_NAMES = {
     "minio": "facil-minio-secret", "openbao": "facil-openbao-secret",
     "backend": "facil-backend-secret",
     "db-role": "facil-db-role-secret",
+    "backup": "facil-backup-secret",
 }
 
 
@@ -139,6 +148,10 @@ def build_secret_literals(env_secrets: dict[str, str], *, cfg: vc.DeployConfig
         out["backend"]["BACKEND_DATABASE_URL"] = backend_database_url(cfg, app_pw)
     # Le Job db-role a besoin du superuser (pour CREATE ROLE) ET du mdp applicatif.
     out["db-role"] = pick("POSTGRES_PASSWORD", "FACIL_APP_PASSWORD")
+    # Le Job de backup (hook pre-upgrade) : dump Postgres complet (superuser) +
+    # mirror des buckets MinIO (root). Ses propres credentials, cloisonnes --
+    # jamais ceux du backend.
+    out["backup"] = pick("POSTGRES_PASSWORD", "MINIO_ROOT_PASSWORD")
     return {k: v for k, v in out.items() if v}
 
 
@@ -176,6 +189,82 @@ def build_configmap_manifest(name: str, data: dict[str, str]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def build_pvc_manifest(name: str, storage_class: str, storage: str) -> str:
+    """PVC des sauvegardes (B2) — construit HORS Helm, applique via `kubectl
+    apply -f -` (meme chemin stdin que build_secret_manifest/
+    build_configmap_manifest ci-dessus, DRY), idempotent.
+
+    Ce PVC vivait auparavant DANS le chart (infra/helm/facil/templates/
+    backup-pvc.yaml), porte par un hook `pre-install` SEUL (jamais
+    `pre-upgrade` — un hook de ce type est recree a CHAQUE upgrade, ce qui
+    aurait soit echoue "already exists", soit DETRUIT le volume de sauvegardes
+    lui-meme). Mais Helm n'execute un hook `pre-install` QUE lors du tout
+    premier `helm install` d'une release — donc sur un `helm upgrade` d'une
+    release DEJA installee (exactement la population que P2 protege : un
+    client qui tourne deja avec des donnees), ce PVC n'etait JAMAIS cree. Le
+    Job `facil-backup` (qui le monte) restait alors `Pending`
+    ("persistentvolumeclaim not found") indefiniment -> le hook `pre-upgrade`
+    ne se completait jamais -> timeout `--wait` (10 min) -> rollback
+    `--atomic` -> ECHEC SYSTEMATIQUE, a chaque tentative (B2). En le creant ICI
+    (avant `helm upgrade --install`, independamment du cycle de vie de la
+    release), il existe deja au moment ou le Job de sauvegarde en a besoin,
+    qu'il s'agisse d'un premier install ou d'un upgrade ulterieur.
+
+    JAMAIS supprime par ce provider (aucun `kubectl delete` correspondant) :
+    les sauvegardes doivent survivre a tout `helm uninstall` — ce PVC n'etant
+    plus une ressource du chart, `helm uninstall` ne peut de toute facon plus
+    y toucher.
+    """
+    return (
+        "apiVersion: v1\n"
+        "kind: PersistentVolumeClaim\n"
+        "metadata:\n"
+        f"  name: {name}\n"
+        "spec:\n"
+        '  accessModes: ["ReadWriteOnce"]\n'
+        f"  storageClassName: {storage_class}\n"
+        "  resources:\n"
+        "    requests:\n"
+        f"      storage: {storage}\n"
+    )
+
+
+def chart_pvc_defaults() -> tuple[str, str]:
+    """(storageClass, storage) pour le PVC des sauvegardes — lus depuis les
+    values DEJA versionnees du chart (infra/helm/facil/values.yaml + l'overlay
+    values-onprem.yaml, les DEUX memes sources que `--plan`/`--apply`
+    utilisent deja pour tout le reste), jamais un litteral duplique ici qui
+    pourrait silencieusement diverger du chart.
+    """
+    base = vc.load_yaml(CHART_DIR / "values.yaml")
+    overlay = vc.load_yaml(VALUES_ONPREM)
+    storage_class = ((overlay.get("global") or {}).get("storageClass")
+                     or base["global"]["storageClass"])
+    storage = (overlay.get("backup") or {}).get("storage") or base["backup"]["storage"]
+    return storage_class, storage
+
+
+def backup_is_enabled() -> bool:
+    """`backup.enabled` ET `postgres.enabled` effectifs — memes sources que
+    `chart_pvc_defaults()` (values.yaml + overlay values-onprem.yaml), jamais un
+    litteral duplique ici qui pourrait diverger du chart en silence.
+
+    Sert au garde-fou de `--apply` : le Job `facil-backup` est gate par
+    `{{- if and .Values.backup.enabled .Values.postgres.enabled }}`. Desactiver
+    l'un ou l'autre supprime la sauvegarde -- et `helm upgrade` migrait quand
+    meme, en silence, en sortant 0, TOUTES les gardes restant vertes (elles
+    verifient l'ORDRE du Job, pas son EXISTENCE).
+    """
+    base = vc.load_yaml(CHART_DIR / "values.yaml")
+    overlay = vc.load_yaml(VALUES_ONPREM)
+    merged = {}
+    for section in ("backup", "postgres"):
+        merged[section] = {**(base.get(section) or {}),
+                           **((overlay.get(section) or {}))}
+    return (bool(merged["backup"].get("enabled", True))
+            and bool(merged["postgres"].get("enabled", True)))
+
+
 def apply_manifest(kubectl: str, ns: str, manifest: str) -> int:
     """`kubectl apply -f -` sur stdin. N'imprime JAMAIS le manifest ni le stderr brut
     de kubectl (SEC-016 : kubectl reemet parfois ses entrees dans ses messages d'erreur)."""
@@ -193,20 +282,38 @@ def apply_manifest(kubectl: str, ns: str, manifest: str) -> int:
 
 
 def release_exists(helm: str, namespace: str) -> bool:
-    """True si la release Helm `facil` existe deja dans ce namespace.
+    """True si une revision `facil` **deployee avec succes** existe deja.
 
-    Lecture seule (`helm status`, aucun effet de bord). Determine si --apply
-    doit faire la danse deux-passes a 0 replica (A1 : SEULEMENT au 1er
-    install) ou une simple mise a jour a une passe (release existante : les
-    hooks pre-upgrade tournent AVANT que --wait n'evalue le Deployment, donc
-    aucun deadlock a contourner -- voir le commentaire du bloc appelant dans
-    main() pour le detail du deadlock reel que la danse deux-passes resout).
+    Lecture seule (`helm status -o json`, aucun effet de bord). Determine si
+    --apply doit faire la danse deux-passes a 0 replica (A1 : SEULEMENT au 1er
+    install reussi) ou une simple mise a jour a une passe (release existante :
+    les hooks pre-upgrade tournent AVANT que --wait n'evalue le Deployment,
+    donc aucun deadlock a contourner -- voir le commentaire du bloc appelant
+    dans main() pour le detail du deadlock reel que la danse deux-passes resout).
+
+    BUG REEL CORRIGE (smoke k3d task-E1, 2026-07-14) : `helm status` renvoie
+    returncode==0 pour une release au statut "failed" (ex. un --apply
+    precedent qui a echoue AVANT meme d'atteindre --atomic, donc sans
+    rollback -- comme un pre-install hook bloque). L'ancienne version de cette
+    fonction traitait alors une release jamais reellement installee comme
+    "deja existante" -> --apply suivant prenait le chemin une-passe (single-
+    pass --atomic), backend a son replica REEL des le depart, sur un cluster
+    vierge sans role/migration -> EXACTEMENT le deadlock original (task-V1)
+    que la danse deux-passes existe pour eviter. Un statut "failed" ou
+    "pending-*" doit redeclencher la danse deux-passes comme un vrai 1er
+    install (idempotent : reprendre a 0 replica ne fait de mal a rien).
     """
     proc = subprocess.run(
-        [helm, "status", "facil", "-n", namespace],
+        [helm, "status", "facil", "-n", namespace, "-o", "json"],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
-    return proc.returncode == 0
+    if proc.returncode != 0:
+        return False
+    try:
+        status = json.loads(proc.stdout).get("info", {}).get("status")
+    except (json.JSONDecodeError, AttributeError):
+        return False
+    return status == "deployed"
 
 
 def ensure_namespace(kubectl: str, ns: str) -> int:
@@ -286,6 +393,81 @@ def _set_args(values: dict) -> list[str]:
     return args
 
 
+def health_gate(kubectl: str, namespace: str, port: int, *,
+                 deployment: str = "deploy/facil-backend",
+                 attempts: int = 5, delay_seconds: float = 2.0) -> int:
+    """Verifie `/health` APRES que Helm ait deja declare la release reussie.
+
+    Honnetete sur ce que ca apporte (a ne pas perdre en cours de route) :
+    `helm upgrade --wait` attend DEJA que les pods soient Ready, et la
+    readinessProbe du backend EST DEJA `/health` (infra/helm/facil/templates/
+    backend.yaml). Ce gate n'ajoute donc PAS une garantie fondamentale nouvelle
+    -- il est INCREMENTAL. Ce qu'il ajoute reellement :
+      1. Une verification APRES le retour de `helm upgrade`, distincte de la
+         readinessProbe (qui peut avoir menti, ou dont la fenetre suivante
+         n'a pas encore tourne juste apres --wait) -- "le pod est Ready" et
+         "l'application repond" ne sont pas rigoureusement la meme assertion.
+      2. Un message d'ECHEC EXPLOITABLE (namespace + Deployment + dernier
+         diagnostic reel) au lieu d'un timeout Helm opaque ("context deadline
+         exceeded") qui ne dit pas OU chercher.
+
+    `kubectl exec` (pas de port-forward, pas de dependance HTTP externe au
+    cluster) -- ce process Python tourne DANS le pod backend, via l'image deja
+    presente (aucune image nouvelle). Tentatives espacees (defaut 5x2s) pour
+    absorber une latence transitoire juste apres --wait.
+    """
+    probe = ("import urllib.request; "
+             f"urllib.request.urlopen('http://localhost:{port}/health', timeout=3)")
+    last_diag = ""
+    for attempt in range(1, attempts + 1):
+        proc = subprocess.run(
+            [kubectl, "-n", namespace, "exec", deployment, "--", "python", "-c", probe],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+        )
+        if proc.returncode == 0:
+            return 0
+        last_diag = (proc.stderr or proc.stdout or "").strip()
+        if attempt < attempts:
+            time.sleep(delay_seconds)
+    # "L'application est cassee" et "je n'ai pas pu lui demander" ne sont PAS la
+    # meme conclusion. La premiere pousse l'operateur vers --rollback -- justement
+    # l'operation la plus risquee du provider (elle ne restaure pas la base). Le
+    # gate accusait l'application dans les DEUX cas : un `kubectl exec` qui echoue
+    # pour lui-meme (pod en cours de terminaison en fin de rolling update, RBAC,
+    # skew kubectl) etait rapporte comme une panne applicative.
+    #
+    # La sonde est un `python -c` : si l'application REPOND non-200, urllib leve
+    # une HTTPError/URLError et sa trace remonte ici. Si `kubectl exec` n'a pas pu
+    # s'executer, c'est kubectl qui parle ("Error from server", "unable to...").
+    app_answered = any(marker in last_diag for marker in
+                       ("HTTPError", "URLError", "urllib", "Connection refused"))
+    if app_answered:
+        print(
+            f"ERREUR: health-gate post-upgrade a echoue -- '{deployment}' (namespace "
+            f"'{namespace}') ne repond pas sur /health apres {attempts} tentative(s).\n"
+            f"Helm a pourtant declare la release reussie (--wait) : c'est donc "
+            f"l'APPLICATION, pas seulement le pod, qui est en cause.\n"
+            f"Dernier diagnostic : {last_diag or '(aucune sortie)'}\n"
+            f"Inspecter : kubectl -n {namespace} logs {deployment}",
+            file=sys.stderr,
+        )
+    else:
+        print(
+            f"ERREUR: health-gate post-upgrade NON CONCLUANT -- `kubectl exec` n'a pas "
+            f"pu interroger '{deployment}' (namespace '{namespace}') en {attempts} "
+            f"tentative(s).\n"
+            f"Ce n'est PAS la preuve que l'application est en panne : la sonde n'a "
+            f"jamais pu etre posee (pod en cours de terminaison, RBAC, kubectl "
+            f"incompatible...). N'en deduisez PAS qu'il faut rollbacker -- verifiez "
+            f"d'abord l'etat reel.\n"
+            f"Dernier diagnostic : {last_diag or '(aucune sortie)'}\n"
+            f"Inspecter : kubectl -n {namespace} get pods && kubectl -n {namespace} "
+            f"logs {deployment}",
+            file=sys.stderr,
+        )
+    return 2
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
@@ -297,8 +479,20 @@ def main(argv: list[str] | None = None) -> int:
                       help="`helm template` (lecture seule) — n'imprime jamais de secret.")
     mode.add_argument("--apply", action="store_true",
                       help="Cree le Secret k8s (hors Helm) puis `helm upgrade --install`.")
+    mode.add_argument("--rollback", action="store_true",
+                      help="`helm rollback` vers la revision precedente. NE RESTAURE PAS "
+                           "la base : voir deploy/scripts/restore_backup.py.")
+    parser.add_argument("--revision", type=int, default=None,
+                        help="Revision Helm cible (defaut : la precedente).")
     parser.add_argument("--yes", action="store_true",
-                        help="Confirme --apply sans prompt interactif.")
+                        help="Confirme --apply sans prompt interactif. NE COUVRE PAS "
+                             "--rollback, qui exige toujours une confirmation humaine "
+                             "(il ne restaure pas la base).")
+    parser.add_argument("--no-backup", action="store_true",
+                        help="Assume EXPLICITEMENT de migrer une release existante sans "
+                             "sauvegarde pre-upgrade (backup.enabled=false). Sans ce "
+                             "drapeau, --apply refuse : une migration destructive sur une "
+                             "base non sauvegardee est sans recours.")
     parser.add_argument("--allow-dev-vault", action="store_true",
                         help="Autorise OpenBao en dev-mode (stockage in-memory, HTTP "
                              "en clair). SMOKE/DEV UNIQUEMENT — jamais en production.")
@@ -308,6 +502,61 @@ def main(argv: list[str] | None = None) -> int:
     if not helm:
         print("ERREUR: helm introuvable dans le PATH. Installer Helm v3.", file=sys.stderr)
         return 2
+
+    # --rollback n'a besoin d'aucune config applicative (deploy/config.yaml) :
+    # traite AVANT la lecture de la config pour rester utilisable meme quand ce
+    # fichier est absent (poste fraichement clone, CI) -- exactement le meme
+    # constat que pour --validate/--plan/--apply, mais ceux-la ont besoin du
+    # rendu des values, --rollback non.
+    if args.rollback:
+        # A4 : l'avertissement doit venir AVANT l'action (pas apres coup), et
+        # exiger une confirmation -- coherent avec --apply, qui prompte deja.
+        # L'ancien ordre (rollback d'abord, avertissement ensuite) laissait
+        # l'operateur decouvrir "la base n'est pas restauree" APRES avoir deja
+        # declenche l'operation, sans jamais avoir eu a en decider en connaissance
+        # de cause.
+        print(
+            "\n*** ATTENTION : `helm rollback` NE RESTAURE PAS la BASE DE DONNEES. ***\n"
+            "Il rend les MANIFESTES a leur etat anterieur -- jamais les donnees. Si la\n"
+            "migration etait destructive (DROP COLUMN/TABLE), le schema restera casse et\n"
+            "le code rollbacke tournera dessus.\n"
+            "Pour restaurer la base depuis la sauvegarde pre-upgrade (operation SEPAREE,\n"
+            "JAMAIS automatique) :\n"
+            "    python deploy/scripts/restore_backup.py --list\n"
+            "    python deploy/scripts/restore_backup.py --restore <horodatage>\n")
+        # `--yes` ne couvre PAS --rollback (arbitrage explicite, revue E2). Il est
+        # documente comme "confirme --apply", et --rollback est l'operation la
+        # plus risquee du provider : il rend les manifestes SANS restaurer la
+        # base. L'avertissement A4 ci-dessus ne sert a rien si un pipeline le
+        # court-circuite -- or c'est precisement dans un pipeline que personne ne
+        # le lit. Un rollback reste donc une decision humaine, toujours.
+        ans = input("Continuer le rollback des manifestes ? [y/N] ").strip().lower()
+        if ans not in ("y", "yes"):
+            print("Annule.")
+            return 4
+        # Le returncode de `helm history` etait jete : sur une release/namespace
+        # inexistant, l'operateur ne voyait RIEN s'afficher, puis `helm rollback`
+        # echouait derriere. On s'arrete ici, avec la cause.
+        hist = subprocess.run([helm, "history", "facil", "-n", args.namespace], check=False)
+        if hist.returncode != 0:
+            print(f"ERREUR: `helm history facil -n {args.namespace}` a echoue "
+                  f"(code {hist.returncode}) -- aucune release 'facil' deployee dans "
+                  f"ce namespace ? Rollback AVORTE : rien n'a ete touche.",
+                  file=sys.stderr)
+            return 2
+        rb = [helm, "rollback", "facil"]
+        if args.revision is not None:
+            rb.append(str(args.revision))
+        rb += ["-n", args.namespace, "--wait", "--timeout", "10m"]
+        rc = subprocess.run(rb, check=False).returncode
+        if rc != 0:
+            print("ERREUR: `helm rollback` a echoue.", file=sys.stderr)
+            return 2
+        print(
+            "[OK] `helm rollback` termine. RAPPEL : la base de donnees n'a PAS ete\n"
+            "restauree (voir l'avertissement ci-dessus) -- utiliser\n"
+            "deploy/scripts/restore_backup.py si besoin.")
+        return 0
 
     if not args.config.exists():
         print(f"ERREUR: fichier de config introuvable: {args.config}", file=sys.stderr)
@@ -377,6 +626,27 @@ def main(argv: list[str] | None = None) -> int:
               f"Lancer: python deploy/scripts/ensure_secrets.py", file=sys.stderr)
         return 1
 
+    # GARDE-FOU : migrer une release EXISTANTE sans sauvegarde possible. Le Job
+    # facil-backup est gate par `backup.enabled` ET `postgres.enabled` ; un
+    # `--set`, un overlay ou une regression sur values-onprem.yaml le fait
+    # disparaitre -- et `helm upgrade` lancait alors `alembic upgrade head` sur
+    # une base de production sans le moindre dump, EN SILENCE, en sortant 0.
+    # Toutes les gardes restaient vertes : elles verifient l'ORDRE du Job, pas
+    # son EXISTENCE. Un [WARN] ne suffit pas ici -- dans un pipeline, il se lit
+    # apres la perte de donnees. On refuse, et l'operateur qui assume le risque
+    # le declare : --no-backup. (Une PREMIERE installation ne protege rien : pas
+    # de garde-fou, rien a perdre.)
+    if not backup_is_enabled() and not args.no_backup and release_exists(helm, args.namespace):
+        print("ERREUR: la sauvegarde pre-upgrade est DESACTIVEE (backup.enabled=false "
+              "ou postgres.enabled=false) sur une release deja deployee.\n"
+              "`helm upgrade` lancerait la migration Alembic sans aucune sauvegarde : "
+              "une migration destructive (DROP COLUMN/TABLE) detruirait les donnees "
+              "SANS RECOURS.\n"
+              "  - reactiver backup.enabled dans values-onprem.yaml, OU\n"
+              "  - assumer explicitement le risque : --no-backup\n"
+              "Update AVORTE : rien n'a ete touche.", file=sys.stderr)
+        return 1
+
     print(f"Sur le point de creer/mettre a jour {len(literals)} Secret(s) k8s (un par "
           f"composant, SEC-001) et de faire `helm upgrade --install facil` dans le "
           f"namespace '{args.namespace}'.")
@@ -399,6 +669,17 @@ def main(argv: list[str] | None = None) -> int:
         "facil-db-role-sql", {"role.sql": render_role_sql(cfg)}))
     if rc_cm != 0:
         return rc_cm
+
+    # 0ter) PVC des sauvegardes (B2), HORS Helm — voir build_pvc_manifest() pour le
+    # deadlock reel que ce chemin resout (un upgrade sur une release deja installee
+    # n'execute jamais un hook `pre-install`). Cree/mis a jour AVANT `helm upgrade
+    # --install`, pour que le Job facil-backup (pre-upgrade) le trouve toujours deja
+    # existant, premier install comme upgrade suivant.
+    storage_class, backup_storage = chart_pvc_defaults()
+    rc_pvc = apply_manifest(kubectl, args.namespace, build_pvc_manifest(
+        "facil-backups", storage_class, backup_storage))
+    if rc_pvc != 0:
+        return rc_pvc
 
     # 1) Secrets k8s (hors Helm), UN PAR COMPOSANT (SEC-001) — manifestes construits
     #    en Python, jamais ecrits dans un fichier, pipes sur stdin (SEC-006 : jamais
@@ -474,7 +755,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"-n {args.namespace}` pour repartir de zero.",
                 file=sys.stderr)
             return 2
-        return 0
+        return health_gate(kubectl, args.namespace, cfg.docker_local.backend_port)
 
     # Release deja installee : PAS de deadlock (les hooks pre-upgrade tournent avant
     # --wait), donc une seule passe -- rolling update normal, zero coupure backend --
@@ -489,7 +770,7 @@ def main(argv: list[str] | None = None) -> int:
             "ERREUR: `helm upgrade` a echoue -- rollback automatique (--atomic) vers "
             "la derniere release saine.", file=sys.stderr)
         return 2
-    return 0
+    return health_gate(kubectl, args.namespace, cfg.docker_local.backend_port)
 
 
 if __name__ == "__main__":

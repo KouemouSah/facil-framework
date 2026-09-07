@@ -49,10 +49,12 @@ Exit codes
 from __future__ import annotations
 
 import argparse
+import datetime as _dt
 import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 PROVIDERS_DIR = Path(__file__).resolve().parent
@@ -70,6 +72,7 @@ CADDYFILE = REPO_ROOT / "Caddyfile"  # generated; mounted by the `edge` profile
 STATE_FILE = DEPLOY_DIR / ".bootstrap-state.json"  # bootstrap provisioning state
 SECRETS_FILE = REPO_ROOT / ".env.secrets"  # local-only, gitignored
 SECRETS_EXAMPLE = DEPLOY_DIR / ".env.secrets.example"
+BACKUPS_DIR = REPO_ROOT / "backups"  # local-only, gitignored (D1 — pre-update dump)
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +109,148 @@ def stack_running() -> bool:
         capture_output=True, text=True, check=False, cwd=REPO_ROOT,
     )
     return proc.returncode == 0 and bool(proc.stdout.strip())
+
+
+# ---------------------------------------------------------------------------
+# D1 — Postgres backup before an update (tier lite / compose, best-effort).
+#
+# The spec explicitly treats the compose tier as 2nd-class (best-effort, no
+# rolling update). But an on-prem customer WITHOUT ops staff is exactly who
+# ends up running this tier — and losing their data on an update is just as
+# bad as it would be on k3s. `--apply` IS this tier's update path (there is
+# no separate `--update` command: re-running `--apply` is how an operator
+# ships a new image/migration, the same "idempotent re-invoke" shape as
+# `helm upgrade --install`). This mirrors the k3s pre-upgrade backup Job
+# (infra/helm/facil/templates/backup-job.yaml): same fail-closed contract
+# (an empty dump is WORSE than no dump — false confidence), gated the same
+# way ("nothing to protect on a first install").
+# ---------------------------------------------------------------------------
+
+def backup_postgres(cfg: vc.DeployConfig, *, dest_dir: Path = BACKUPS_DIR,
+                    compose_file: Path = COMPOSE_FILE) -> tuple[bool, str]:
+    """Dumps Postgres via `docker compose exec` BEFORE the app tier (db-init's
+    Alembic migration) starts. Returns (ok, message); `ok=False` means the
+    caller MUST abort the update — never proceed with a failed/empty backup.
+
+    No PGPASSWORD anywhere (not env, not argv): `pg_dump` here connects via
+    the container's local UNIX socket (no `-h` given), which the official
+    Postgres image always accepts as `trust` regardless of POSTGRES_PASSWORD
+    — the EXACT same assumption this file's own Postgres healthcheck already
+    relies on (`pg_isready -U {project}`, also no `-h`). So there is no
+    secret to leak into argv here (CWE-214 is moot, not just mitigated).
+    """
+    docker = find_docker()
+    if not docker:
+        return False, "docker introuvable dans le PATH — sauvegarde impossible."
+
+    project = cfg.meta.project_name
+    ts = _dt.datetime.now(_dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    dest = dest_dir / ts
+    dest.mkdir(parents=True, exist_ok=True)
+    # SEC-004: this dump is a COMPLETE, UNENCRYPTED `pg_dump` of the database —
+    # password hashes, TOTP secrets, PII, tokens — sitting on the on-prem host.
+    # `mkdir()`/`write_bytes()` defaults give 0755/0644: any local user, any
+    # service running as another account, any container bind-mounting the repo
+    # could read it. `.gitignore` stops it being COMMITTED, not being READ.
+    # `exist_ok=True` does NOT re-apply `mode`, so chmod explicitly.
+    os.chmod(dest, 0o700)
+    dump_path = dest / "postgres.dump"
+
+    def _no_ghost() -> None:
+        # A stale empty timestamped directory under backups/ reads exactly like
+        # a backup that exists — the "false confidence" this whole feature
+        # exists to prevent.
+        dump_path.unlink(missing_ok=True)
+        try:
+            dest.rmdir()
+        except OSError:
+            pass
+
+    proc = subprocess.run(
+        [docker, "compose", "-f", str(compose_file), "exec", "-T", "postgres",
+         "pg_dump", "-U", project, "-Fc", project],
+        capture_output=True, check=False,
+    )
+    if proc.returncode != 0:
+        _no_ghost()
+        stderr = (proc.stderr or b"").decode("utf-8", errors="replace").strip()
+        return False, f"pg_dump a echoue (code {proc.returncode}): {stderr or '(aucune sortie)'}"
+
+    # Created 0600 from the start (never world-readable, not even for the
+    # instant between write and a later chmod).
+    fd = os.open(dump_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(proc.stdout or b"")
+    # FAIL-CLOSED (mirrors backup-job.yaml): an empty dump is WORSE than no
+    # dump at all (false confidence). A freshly-created database still
+    # produces a SMALL dump (custom-format header + empty schema) but never
+    # an empty one.
+    if dump_path.stat().st_size == 0:
+        _no_ghost()
+        return False, "le dump Postgres est vide — update avorte AVANT db-init."
+
+    return True, f"sauvegarde Postgres -> {dump_path}"
+
+
+def postgres_data_state(cfg: vc.DeployConfig, *,
+                        compose_file: Path = COMPOSE_FILE,
+                        attempts: int = 30, delay: float = 2.0) -> str:
+    """`"has_data"` | `"empty"` | `"unknown"` — the real signal the pre-update
+    backup must gate on (B4), not container liveness (`stack_running`).
+
+    TERNARY ON PURPOSE. The previous version returned a bool, collapsing "the
+    probe could not be answered" onto "the database is empty" — and "empty"
+    means "nothing to protect, go ahead and migrate". That is fail-OPEN, and it
+    negates this whole feature: `docker compose up -d` (line ~892) has no
+    `--wait`, so on the most natural update flow (`docker compose down` — or a
+    host reboot — then `--apply`) Postgres may still be replaying its WAL when
+    we ask. `psql` then exits non-zero, the old gate concluded "empty", the
+    backup was silently skipped, and `db-init` ran `alembic upgrade head`
+    against a fully populated database with no dump to fall back on.
+
+    So: retry while Postgres is still coming up (a successful `psql` IS the
+    readiness signal — same intent as the `until pg_isready` loop the k3s side
+    needed in `backup-job.yaml`), and if it still cannot answer, say
+    `"unknown"`. The caller ABORTS on `"unknown"` — refusing to migrate a
+    database we cannot vouch for is the only honest fail-closed behaviour.
+
+    BUG THIS REPLACES: the previous gate was `was_running = stack_running()`,
+    captured before the data-plane comes up. But the single most natural update
+    flow on this tier is `docker compose down` (or a host reboot) followed by
+    `--apply` — and `stack_running()` reports False in exactly that case, even
+    though the named Postgres volume (and every row inside it) is completely
+    untouched. "Stack stopped" is NOT "no data exists yet": that gate silently
+    skipped the backup on precisely the population it exists to protect,
+    locked in by `test_fresh_install_never_calls_backup` treating
+    `stack_running()=False` as synonymous with "nothing to protect" — the two
+    are not the same thing.
+
+    By the point this is called in `_do_apply`, the data-plane (Postgres
+    included) has ALREADY been brought `up -d` — so instead of guessing from
+    liveness, ask Postgres itself whether `db-init`'s Alembic migration is
+    about to run against existing tables, or a genuinely empty database
+    (nothing to protect on a first install, same "pre-upgrade only" decision
+    as `infra/helm/facil/templates/backup-job.yaml` on k3s).
+
+    Same auth assumption as `backup_postgres()` above: local UNIX socket
+    (no `-h`), which the official Postgres image accepts as `trust` regardless
+    of POSTGRES_PASSWORD — no secret needed here, and none appears in this argv.
+    """
+    docker = find_docker()
+    if not docker:
+        return "unknown"
+    for attempt in range(attempts):
+        proc = subprocess.run(
+            [docker, "compose", "-f", str(compose_file), "exec", "-T", "postgres",
+             "psql", "-U", cfg.meta.project_name, "-d", cfg.meta.project_name, "-tAc",
+             "SELECT 1 FROM information_schema.tables WHERE table_schema='public' LIMIT 1"],
+            capture_output=True, text=True, check=False,
+        )
+        if proc.returncode == 0:
+            return "has_data" if proc.stdout.strip() == "1" else "empty"
+        if attempt < attempts - 1:
+            time.sleep(delay)
+    return "unknown"
 
 
 # ---------------------------------------------------------------------------
@@ -591,6 +736,10 @@ def main(argv: list[str] | None = None) -> int:
                              "(WIPES the local DB).")
     parser.add_argument("--yes", action="store_true",
                         help="Skip interactive confirmations.")
+    parser.add_argument("--no-backup", action="store_true",
+                        help="Avec --apply et database_mode=external : assume "
+                             "EXPLICITEMENT de migrer une base externe que ce tier ne "
+                             "peut pas sauvegarder. Sans ce drapeau, --apply refuse.")
     parser.add_argument("--no-bootstrap", action="store_true",
                         help="With --apply: skip the data-plane provisioning "
                              "(MinIO bucket/SA, OpenBao kv/policy/AppRole, "
@@ -622,7 +771,8 @@ def main(argv: list[str] | None = None) -> int:
         return _do_plan(cfg)
 
     if args.apply:
-        return _do_apply(cfg, yes=args.yes, no_bootstrap=args.no_bootstrap)
+        return _do_apply(cfg, yes=args.yes, no_bootstrap=args.no_bootstrap,
+                         no_backup=args.no_backup)
 
     if args.down:
         return _do_down(remove_volumes=args.volumes)
@@ -720,7 +870,8 @@ def _openbao_required_but_failed(cfg: vc.DeployConfig, state) -> bool:
     return step is None or step.status != "ok"
 
 
-def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) -> int:
+def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False,
+              no_backup: bool = False) -> int:
     if not SECRETS_FILE.exists():
         print(
             f"ERROR: missing secrets file: {SECRETS_FILE}\n"
@@ -736,7 +887,11 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
     if generated:
         print(f"[OK] generated strong runtime secrets: {', '.join(generated)}")
 
-    if stack_running():
+    # Port-conflict warning ONLY (B4: this is no longer used to gate the
+    # pre-update backup below — see postgres_data_state() for why
+    # container liveness is the wrong signal for "is there data to protect").
+    was_running = stack_running()
+    if was_running:
         msg = ("[WARN] Stack already running. --apply on top can hit "
                "'port already allocated' errors.")
         if yes:
@@ -837,6 +992,69 @@ def _do_apply(cfg: vc.DeployConfig, *, yes: bool, no_bootstrap: bool = False) ->
     # bootstrap state, then bring up the app tier — only if it's present.
     backend_ctx = REPO_ROOT / "packages" / "backend"
     if backend_ctx.exists():
+        # D1/B4: back up Postgres BEFORE db-init (Alembic migration) starts —
+        # fail-closed, an update on this tier must never risk data loss any
+        # more than the k3s tier does. Only when there's actually a
+        # facil-managed Postgres container to protect (database_mode=local)
+        # AND Postgres already has an initialized schema — NOT gated on
+        # whether the stack happened to be running before this --apply
+        # (`docker compose down` + `--apply` is a normal update flow that
+        # would otherwise skip the backup entirely; see
+        # postgres_data_state()'s docstring for the two bugs this replaces).
+        # GARDE-FOU (mode external) : `generate_compose` n'emet PAS de service
+        # postgres, mais emet TOUJOURS `db-init` avec un DATABASE_URL pointant
+        # sur la base externe -- `alembic upgrade head` s'execute donc sur une
+        # base souvent managee et en production. Ce tier ne sait pas la
+        # sauvegarder (aucun conteneur postgres a `exec`), et il ne disait RIEN :
+        # migration destructive possible, sans dump, sans un mot. Le tier k3s, lui,
+        # desactive AUSSI db-init quand postgres.enabled=false -- l'asymetrie
+        # n'etait visible nulle part. On refuse ; qui assume le risque le declare.
+        if cfg.docker_local.database_mode == "external" and not no_backup:
+            print("ERREUR: database_mode=external — ce tier ne peut pas sauvegarder une "
+                  "base externe (aucun conteneur Postgres a dumper), mais `db-init` y "
+                  "lancerait quand meme `alembic upgrade head`.\n"
+                  "Une migration destructive sur une base de production non sauvegardee "
+                  "est SANS RECOURS.\n"
+                  "  - sauvegarder la base externe par vos propres moyens, puis relancer "
+                  "avec --no-backup, OU\n"
+                  "  - passer en database_mode=local (sauvegarde automatique avant "
+                  "migration).\n"
+                  "Update AVORTE : rien n'a ete touche.", file=sys.stderr)
+            return 1
+
+        if cfg.docker_local.database_mode == "local":
+            state = postgres_data_state(cfg)
+            if state == "unknown":
+                print("ERROR: impossible de determiner si Postgres contient des "
+                      "donnees (la sonde psql n'a jamais repondu).\n"
+                      "Update ABORTED (fail-closed) — refuser de migrer une base "
+                      "dont on ignore si elle doit etre sauvegardee. Le data-plane "
+                      "reste debout, aucune migration n'a tourne. Verifier "
+                      "`docker compose logs postgres`, puis relancer --apply.",
+                      file=sys.stderr)
+                return 1
+            if state == "has_data":
+                print("\n=== Backing up Postgres before update (tier lite, best-effort) ===")
+                ok, msg = backup_postgres(cfg)
+                if not ok:
+                    print(f"ERROR: {msg}\n"
+                          f"Update ABORTED (fail-closed) — the data-plane stays up, no "
+                          f"migration has run. Fix the cause and re-run --apply.",
+                          file=sys.stderr)
+                    return 1
+                print(f"[OK] {msg}")
+                # M4: this tier dumps Postgres and NOTHING else, while
+                # storage.provider=minio is the project default (the k3s tier
+                # DOES mirror MinIO). After reading "[OK]", an operator's mental
+                # model is "I'm protected" — while every uploaded document sits
+                # outside the backup. The asymmetry is defensible; the silence
+                # is not.
+                if cfg.storage.provider == "minio":
+                    print("[WARN] storage.provider=minio — les objets MinIO ne sont "
+                          "PAS sauvegardes sur le tier lite (seul Postgres l'est). "
+                          "Les documents uploades ne seront pas restaurables depuis "
+                          "cette sauvegarde. Le tier k3s, lui, mirrore MinIO.")
+
         print("\n=== Rendering backend env + starting app tier ===")
         # Fail loud (don't start a degraded backend) if the bootstrap's postgres
         # step didn't yield a DATABASE_URL in local mode (the #1 silent-failure fix).

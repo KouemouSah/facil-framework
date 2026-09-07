@@ -26,6 +26,7 @@ secretNames:
   openbao: facil-openbao-secret
   backend: facil-backend-secret
   dbRole: facil-db-role-secret
+  backup: facil-backup-secret
 
 postgres:
   enabled: true
@@ -93,6 +94,14 @@ resources:
   app:        # backend, frontend
     requests: { cpu: 100m, memory: 256Mi }
     limits: { cpu: 1000m, memory: 1Gi }
+
+# Sauvegarde AVANT migration (hook pre-upgrade). Sans elle, une migration Alembic
+# destructive detruit les donnees sans recours : `--atomic` rollback les manifestes,
+# JAMAIS la base. La spec appelle ca une gate "non negociable".
+backup:
+  enabled: true
+  storage: 10Gi       # dimensionner selon la taille de la base + des buckets
+  retain: 5           # nombre de sauvegardes horodatees conservees
 
 # Services gated (P1b) — OFF ici.
 caddy: { enabled: false }

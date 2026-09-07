@@ -86,6 +86,16 @@ CREDENTIAL_ARGV_MARKERS = (
     "--pass",          # forme longue courte generique (ex. `mytool --pass "$SECRET"`)
     "-v app_pw=",      # psql -v (deja ferme dans db-role-job.yaml -- garde de non-regression)
     "PGPASSWORD=",     # assignation d'env INLINE dans la ligne de commande (PGPASSWORD=x psql ...)
+    # `mc` (MinIO client) entre dans le chart avec le Job de sauvegarde (P2).
+    # Le Job actuel est CORRECT (MC_HOST_facil en env via secretKeyRef), mais la
+    # garde ne connaissait pas l'outil : la forme fautive evidente qu'un futur
+    # dev ecrira -- `mc alias set facil http://minio:9000 "$USER" "$PW"` -- ne
+    # matchait AUCUN marqueur. Ce canal (credential lisible dans
+    # /proc/<pid>/cmdline) a deja ete rouvert trois fois ici : la garde doit
+    # apprendre l'outil EN MEME TEMPS qu'il est introduit, pas apres l'incident.
+    "alias set",       # mc alias set <nom> <url> <ACCESS_KEY> <SECRET_KEY>
+    "--secret-key",    # mc / aws-cli
+    "--access-key",    # mc / aws-cli
 )
 
 # `-a`/`-p` sont des flags CLI courts qui vehiculent un credential quand une
@@ -105,6 +115,16 @@ CREDENTIAL_ARGV_FLAG_PATTERNS = (
     ("-a ", re.compile(r'(?:^|\s)-a\s*["\'$]')),   # redis-cli -a"$PW" / -a $PW / -a "$PW"
     ("-p ", re.compile(r'(?:^|\s)-p\s*["\'$]')),   # mysql -p"$PW" / -p$PW / -p "$PW"
 )
+
+# `mkdir -p "$DEST"` (cree les repertoires parents d'un chemin nomme par une
+# variable) est un idiome shell omnipresent -- sans exemption, TOUT script qui
+# cree un repertoire horodate ($TS/$DEST, ex. backup-job.yaml) ferait rougir le
+# motif `-p ` ci-dessus, qui ne distingue pas "mysql -p<mdp>" de "mkdir -p
+# <chemin>". Scope volontairement etroit (le nom EXACT `mkdir`, jamais un motif
+# generique par flag) : on ne fait qu'exempter cet idiome precis, prouve par
+# mutation (test_guard_secrets.py) ne pas masquer un vrai flag credential
+# ailleurs sur la meme ligne.
+MKDIR_DASH_P_RE = re.compile(r'\bmkdir\s+-p\b')
 
 
 def _container_argv_text(c: dict) -> str:
@@ -166,14 +186,20 @@ def check(stream: str) -> list[str]:
                         f"-- motif connu pour vehiculer un credential en argv "
                         f"(CWE-214), lisible via /proc/<pid>/cmdline par tout "
                         f"process co-localise.")
-            for label, pattern in CREDENTIAL_ARGV_FLAG_PATTERNS:
-                if pattern.search(argv_text):
-                    problems.append(
-                        f"{name}/{c.get('name')}: command/args contient `{label}` "
-                        f"suivi immediatement d'une valeur (guillemet/`$`) "
-                        f"-- motif connu pour vehiculer un credential en argv "
-                        f"(CWE-214), lisible via /proc/<pid>/cmdline par tout "
-                        f"process co-localise.")
+            # Verifie LIGNE PAR LIGNE (pas le texte entier d'un coup) : le scrub
+            # `mkdir -p` -> `mkdir` doit rester scope a l'idiome exact, jamais
+            # masquer un vrai flag credential ailleurs sur une AUTRE ligne (ou
+            # meme la meme ligne, ex. `mkdir -p /tmp && mysql -p"$PW"`).
+            for line in argv_text.splitlines():
+                scrubbed = MKDIR_DASH_P_RE.sub("mkdir", line)
+                for label, pattern in CREDENTIAL_ARGV_FLAG_PATTERNS:
+                    if pattern.search(scrubbed):
+                        problems.append(
+                            f"{name}/{c.get('name')}: command/args contient `{label}` "
+                            f"suivi immediatement d'une valeur (guillemet/`$`) "
+                            f"-- motif connu pour vehiculer un credential en argv "
+                            f"(CWE-214), lisible via /proc/<pid>/cmdline par tout "
+                            f"process co-localise.")
             if INLINE_CRED_RE.search(argv_text):
                 problems.append(
                     f"{name}/{c.get('name')}: credential inline dans une URL "
