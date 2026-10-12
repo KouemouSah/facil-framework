@@ -46,7 +46,7 @@ phonenumbers>=8.13.47
 
 # Monitoring & Logging
 loguru>=0.7.2
-structlog>=23.2.0
+structlog>=26.1.0
 sentry-sdk[fastapi]>=1.38.0
 
 # OpenTelemetry (AI Observability — Phase A.2 / mig 325)
