@@ -28,7 +28,7 @@ pyotp==2.9.0
 qrcode==7.4.2
 
 # Cache & Storage
-redis>=5.0.1
+redis>=8.1.0
 aioredis>=2.0.1
 
 # HTTP Client
